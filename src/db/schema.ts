@@ -39,6 +39,7 @@ export const villas = pgTable("villas", {
   nom: text("nom").notNull(), // nom de la villa
   adresse: text("adresse"),
   notes: text("notes"),
+  photoUrl: text("photo_url"),
   superhoteListingId: text("superhote_listing_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

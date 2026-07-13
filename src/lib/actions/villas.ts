@@ -37,3 +37,11 @@ export async function deleteVilla(villaId: string) {
   revalidatePath("/villas");
   revalidatePath("/dashboard");
 }
+
+export async function updateVillaPhoto(villaId: string, photoUrl: string) {
+  await auth.protect();
+  const db = getDb();
+  await db.update(villas).set({ photoUrl, updatedAt: new Date() }).where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}

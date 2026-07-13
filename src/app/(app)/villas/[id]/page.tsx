@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
+import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { ClipboardPlus } from "lucide-react";
@@ -52,6 +53,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           label="Supprimer la villa"
         />
       </div>
+
+      <VillaPhotoUploader villaId={villa.id} photoUrl={villa.photoUrl} />
 
       <div className="flex flex-wrap gap-2">
         <Button asChild size="sm">

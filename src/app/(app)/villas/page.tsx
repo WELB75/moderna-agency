@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { desc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas } from "@/db/schema";
@@ -32,15 +33,26 @@ export default async function VillasPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {allVillas.map((villa) => (
             <Link key={villa.id} href={`/villas/${villa.id}`}>
-              <Card className="transition-colors hover:border-primary/50">
-                <CardHeader className="flex flex-row items-center justify-between gap-2">
+              <Card className="overflow-hidden py-0 transition-colors hover:border-primary/50">
+                {villa.photoUrl ? (
+                  <div className="relative h-32 w-full">
+                    <Image
+                      src={villa.photoUrl}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 360px, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  </div>
+                ) : null}
+                <CardHeader className="flex flex-row items-center justify-between gap-2 pt-6">
                   <div>
                     <CardTitle className="text-base">{villa.nom}</CardTitle>
                     <p className="text-sm text-muted-foreground">Villa n°{villa.numero}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
+                <CardContent className="flex flex-wrap gap-2 pb-6">
                   {villa.superhoteListingId ? (
                     <Badge variant="secondary">Superhote lié</Badge>
                   ) : (
