@@ -4,18 +4,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItems } from "@/components/app/nav-items";
+import { Monogram } from "@/components/app/monogram";
+import { Wordmark } from "@/components/app/wordmark";
 
 export function SidebarNav() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-60 shrink-0 border-r bg-sidebar md:flex md:flex-col">
-      <div className="flex h-16 items-center gap-2 border-b px-5">
-        <span className="text-lg font-semibold tracking-tight text-sidebar-foreground">
-          Moderna Agency
-        </span>
+    <aside className="hidden w-64 shrink-0 flex-col bg-black text-white md:flex">
+      <div className="flex flex-col items-center gap-3 border-b border-white/15 px-5 py-8">
+        <Monogram className="h-12 w-12 text-white" />
+        <Wordmark className="text-[11px] text-white" />
       </div>
-      <nav className="flex-1 space-y-1 p-3">
+      <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
@@ -24,13 +25,13 @@ export function SidebarNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-3 py-2.5 text-sm font-light uppercase tracking-[0.12em] transition-colors",
                 active
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  ? "bg-white text-black"
+                  : "text-white/70 hover:bg-white/10 hover:text-white"
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" strokeWidth={1.5} />
               {item.label}
             </Link>
           );

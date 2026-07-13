@@ -4,6 +4,8 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/superhote/sync",
+  "/icon",
+  "/favicon.ico",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
