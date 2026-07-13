@@ -7,6 +7,7 @@ import { reservations, villas, cashEntries } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
+import { ReservationDates } from "@/components/app/reservation-dates";
 import { LogIn, LogOut, Wallet } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 
@@ -125,7 +126,6 @@ type ReservationRow = {
 function ReservationGroup({
   title,
   items,
-  kind,
 }: {
   title: string;
   items: ReservationRow[];
@@ -136,7 +136,7 @@ function ReservationGroup({
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-3">
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">Rien à signaler.</p>
         ) : (
@@ -144,23 +144,18 @@ function ReservationGroup({
             <Link
               key={r.id}
               href={r.villaId ? `/villas/${r.villaId}` : "#"}
-              className="flex items-center justify-between rounded-md border p-3 hover:border-primary/50"
+              className="block rounded-md border p-3 hover:border-primary/50"
             >
-              <div>
+              <div className="flex items-center justify-between gap-2">
                 <p className="font-medium">{r.guestName}</p>
-                <p className="text-sm text-muted-foreground">
-                  {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
-                </p>
-                {kind === "both" ? (
-                  <p className="text-xs text-muted-foreground">
-                    {format(new Date(r.checkIn), "d MMM HH:mm", { locale: fr })} →{" "}
-                    {format(new Date(r.checkOut), "d MMM HH:mm", { locale: fr })}
-                  </p>
-                ) : null}
+                <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
+                  {r.source === "superhote" ? "Superhote" : "Manuel"}
+                </Badge>
               </div>
-              <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
-                {r.source === "superhote" ? "Superhote" : "Manuel"}
-              </Badge>
+              <p className="text-sm text-muted-foreground">
+                {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
+              </p>
+              <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
             </Link>
           ))
         )}

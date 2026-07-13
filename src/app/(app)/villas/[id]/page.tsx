@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { ReservationDates } from "@/components/app/reservation-dates";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { ClipboardPlus } from "lucide-react";
@@ -77,24 +78,21 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             <p className="text-sm text-muted-foreground">Aucune réservation.</p>
           ) : (
             villaReservations.map((r) => (
-              <div key={r.id} className="flex items-start justify-between gap-3 rounded-md border p-3">
-                <div>
-                  <p className="font-medium">{r.guestName}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Arrivée {format(new Date(r.checkIn), "d MMM yyyy HH:mm", { locale: fr })} · Départ{" "}
-                    {format(new Date(r.checkOut), "d MMM yyyy HH:mm", { locale: fr })}
-                  </p>
-                  <div className="mt-1 flex gap-2">
-                    <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
+              <div key={r.id} className="rounded-md border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{r.guestName}</p>
+                    <Badge variant={r.source === "superhote" ? "secondary" : "outline"} className="mt-1">
                       {r.source === "superhote" ? "Superhote" : "Manuel"}
                     </Badge>
                   </div>
+                  <ConfirmDeleteButton
+                    action={deleteReservation.bind(null, r.id)}
+                    title="Supprimer cette réservation ?"
+                    description="Cette action est irréversible."
+                  />
                 </div>
-                <ConfirmDeleteButton
-                  action={deleteReservation.bind(null, r.id)}
-                  title="Supprimer cette réservation ?"
-                  description="Cette action est irréversible."
-                />
+                <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
               </div>
             ))
           )}
