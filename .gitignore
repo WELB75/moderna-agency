@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# outils d'assistant IA installés localement (non liés à l'app)
+.agents/
+.claude/
+skills-lock.json
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
