@@ -1,0 +1,170 @@
+import Link from "next/link";
+import { and, gte, lte, or, eq, asc } from "drizzle-orm";
+import { format, isSameDay, startOfDay, endOfDay, addDays } from "date-fns";
+import { fr } from "date-fns/locale";
+import { getDb } from "@/db";
+import { reservations, villas, cashEntries } from "@/db/schema";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
+import { LogIn, LogOut, Wallet } from "lucide-react";
+import { isSuperhoteConfigured } from "@/lib/superhote/client";
+
+export default async function DashboardPage() {
+  const db = getDb();
+  const now = new Date();
+  const rangeStart = startOfDay(now);
+  const rangeEnd = endOfDay(addDays(now, 14));
+
+  const upcoming = await db
+    .select({
+      id: reservations.id,
+      guestName: reservations.guestName,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      source: reservations.source,
+      villaNom: villas.nom,
+      villaNumero: villas.numero,
+      villaId: villas.id,
+    })
+    .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .where(
+      or(
+        and(gte(reservations.checkIn, rangeStart), lte(reservations.checkIn, rangeEnd)),
+        and(gte(reservations.checkOut, rangeStart), lte(reservations.checkOut, rangeEnd))
+      )
+    )
+    .orderBy(asc(reservations.checkIn));
+
+  const checkInsToday = upcoming.filter((r) => isSameDay(new Date(r.checkIn), now));
+  const checkOutsToday = upcoming.filter((r) => isSameDay(new Date(r.checkOut), now));
+  const upcomingWeek = upcoming.filter(
+    (r) => !isSameDay(new Date(r.checkIn), now) && !isSameDay(new Date(r.checkOut), now)
+  );
+
+  const allCashEntries = await db.select().from(cashEntries);
+  const balance = allCashEntries.reduce((sum, e) => {
+    const amount = Number(e.montant);
+    if (e.type === "remise") return sum + amount;
+    return sum - amount;
+  }, 0);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Aujourd&apos;hui</h1>
+          <p className="text-sm text-muted-foreground">
+            {format(now, "EEEE d MMMM yyyy", { locale: fr })}
+          </p>
+        </div>
+        {isSuperhoteConfigured() ? (
+          <SyncSuperhoteButton />
+        ) : (
+          <Badge variant="outline">Superhote non connecté</Badge>
+        )}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card>
+          <CardContent className="flex items-center gap-3 py-4">
+            <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
+              <LogIn className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold leading-none">{checkInsToday.length}</p>
+              <p className="text-sm text-muted-foreground">Check-in aujourd&apos;hui</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="flex items-center gap-3 py-4">
+            <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
+              <LogOut className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold leading-none">{checkOutsToday.length}</p>
+              <p className="text-sm text-muted-foreground">Check-out aujourd&apos;hui</p>
+            </div>
+          </CardContent>
+        </Card>
+        <Link href="/caisse">
+          <Card className="transition-colors hover:border-primary/50">
+            <CardContent className="flex items-center gap-3 py-4">
+              <div className="rounded-full bg-primary/10 p-2 text-primary">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-semibold leading-none">{balance.toFixed(2)} €</p>
+                <p className="text-sm text-muted-foreground">Solde caisse</p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
+
+      <ReservationGroup title="Check-in aujourd'hui" items={checkInsToday} kind="in" />
+      <ReservationGroup title="Check-out aujourd'hui" items={checkOutsToday} kind="out" />
+      <ReservationGroup title="Les 14 prochains jours" items={upcomingWeek} kind="both" />
+    </div>
+  );
+}
+
+type ReservationRow = {
+  id: string;
+  guestName: string;
+  checkIn: Date;
+  checkOut: Date;
+  source: string;
+  villaNom: string | null;
+  villaNumero: string | null;
+  villaId: string | null;
+};
+
+function ReservationGroup({
+  title,
+  items,
+  kind,
+}: {
+  title: string;
+  items: ReservationRow[];
+  kind: "in" | "out" | "both";
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Rien à signaler.</p>
+        ) : (
+          items.map((r) => (
+            <Link
+              key={r.id}
+              href={r.villaId ? `/villas/${r.villaId}` : "#"}
+              className="flex items-center justify-between rounded-md border p-3 hover:border-primary/50"
+            >
+              <div>
+                <p className="font-medium">{r.guestName}</p>
+                <p className="text-sm text-muted-foreground">
+                  {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
+                </p>
+                {kind === "both" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {format(new Date(r.checkIn), "d MMM HH:mm", { locale: fr })} →{" "}
+                    {format(new Date(r.checkOut), "d MMM HH:mm", { locale: fr })}
+                  </p>
+                ) : null}
+              </div>
+              <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
+                {r.source === "superhote" ? "Superhote" : "Manuel"}
+              </Badge>
+            </Link>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}

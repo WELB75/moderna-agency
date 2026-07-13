@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/superhote/sync",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}

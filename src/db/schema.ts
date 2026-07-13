@@ -1,0 +1,126 @@
+import {
+  pgTable,
+  text,
+  timestamp,
+  numeric,
+  boolean,
+  integer,
+  jsonb,
+  uuid,
+  pgEnum,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
+
+export const cashEntryTypeEnum = pgEnum("cash_entry_type", [
+  "remise", // argent confié par le propriétaire/client
+  "depense", // dépense effectuée
+  "restitution", // argent rendu
+]);
+
+export const checklistTypeEnum = pgEnum("checklist_type", [
+  "entree", // état des lieux d'entrée (check-in)
+  "sortie", // état des lieux de sortie (check-out)
+]);
+
+export const checklistStatusEnum = pgEnum("checklist_status", [
+  "brouillon",
+  "signe",
+]);
+
+export const itemStatusEnum = pgEnum("item_status", [
+  "non_verifie",
+  "ok",
+  "probleme",
+]);
+
+export const villas = pgTable("villas", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  numero: text("numero").notNull(), // numéro de la villa
+  nom: text("nom").notNull(), // nom de la villa
+  adresse: text("adresse"),
+  notes: text("notes"),
+  superhoteListingId: text("superhote_listing_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const reservations = pgTable(
+  "reservations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),
+    superhoteBookingId: text("superhote_booking_id"),
+    guestName: text("guest_name").notNull(),
+    guestPhone: text("guest_phone"),
+    guestEmail: text("guest_email"),
+    checkIn: timestamp("check_in", { withTimezone: true }).notNull(),
+    checkOut: timestamp("check_out", { withTimezone: true }).notNull(),
+    guestsCount: integer("guests_count"),
+    status: text("status").default("confirmee").notNull(),
+    source: text("source").default("manuel").notNull(), // "superhote" | "manuel"
+    rawData: jsonb("raw_data"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("reservations_superhote_booking_id_idx").on(t.superhoteBookingId)]
+);
+
+export const cashEntries = pgTable("cash_entries", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "set null" }),
+  reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "set null" }),
+  type: cashEntryTypeEnum("type").notNull(),
+  montant: numeric("montant", { precision: 10, scale: 2 }).notNull(),
+  devise: text("devise").default("EUR").notNull(),
+  description: text("description"),
+  createdByUserId: text("created_by_user_id").notNull(),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const checklistItemTemplates = pgTable("checklist_item_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),
+  categorie: text("categorie").notNull(),
+  libelle: text("libelle").notNull(),
+  ordre: integer("ordre").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const inventoryChecklists = pgTable("inventory_checklists", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
+  reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "set null" }),
+  type: checklistTypeEnum("type").notNull(),
+  status: checklistStatusEnum("status").default("brouillon").notNull(),
+  clientNom: text("client_nom"),
+  clientSignatureUrl: text("client_signature_url"),
+  agentNom: text("agent_nom"),
+  agentSignatureUrl: text("agent_signature_url"),
+  agentUserId: text("agent_user_id"),
+  notesGenerales: text("notes_generales"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const inventoryItems = pgTable("inventory_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  checklistId: uuid("checklist_id").references(() => inventoryChecklists.id, { onDelete: "cascade" }).notNull(),
+  categorie: text("categorie").notNull(),
+  libelle: text("libelle").notNull(),
+  status: itemStatusEnum("status").default("non_verifie").notNull(),
+  commentaire: text("commentaire"),
+  photoUrls: jsonb("photo_urls").$type<string[]>().default([]),
+  ordre: integer("ordre").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const superhoteSyncLog = pgTable("superhote_sync_log", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  success: boolean("success"),
+  bookingsSynced: integer("bookings_synced").default(0),
+  errorMessage: text("error_message"),
+});

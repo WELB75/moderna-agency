@@ -1,0 +1,21 @@
+import { SidebarNav } from "@/components/app/sidebar-nav";
+import { BottomNav } from "@/components/app/bottom-nav";
+import { AppHeader } from "@/components/app/app-header";
+
+// Toutes les pages dépendent de données live (DB + session) : jamais de rendu statique.
+export const dynamic = "force-dynamic";
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-screen flex-1">
+      <SidebarNav />
+      <div className="flex min-h-screen flex-1 flex-col">
+        <AppHeader />
+        <main className="flex-1 overflow-y-auto pb-20 md:pb-6">
+          <div className="mx-auto w-full max-w-5xl p-4 md:p-6">{children}</div>
+        </main>
+      </div>
+      <BottomNav />
+    </div>
+  );
+}
