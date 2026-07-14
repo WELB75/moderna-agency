@@ -3,6 +3,10 @@
     {
       "path": "/api/superhote/sync",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/ical/sync",
+      "schedule": "0 5 * * *"
     }
   ]
 }

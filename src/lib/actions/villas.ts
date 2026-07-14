@@ -64,3 +64,18 @@ export async function updateVillaCodeBoitier(formData: FormData) {
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
+
+export async function updateVillaIcalUrl(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const icalUrl = String(formData.get("icalUrl") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ icalUrl: icalUrl || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}

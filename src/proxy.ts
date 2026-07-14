@@ -4,6 +4,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/superhote/sync",
+  "/api/ical/sync",
   "/icon",
   "/favicon.ico",
 ]);

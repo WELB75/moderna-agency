@@ -17,6 +17,7 @@ import { ReservationDates } from "@/components/app/reservation-dates";
 import { GuestCount } from "@/components/app/guest-count";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
+import { VillaIcalUrl } from "@/components/app/villa-ical-url";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
@@ -38,6 +39,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       photoUrl: villas.photoUrl,
       galleryUrls: villas.galleryUrls,
       codeBoitier: villas.codeBoitier,
+      icalUrl: villas.icalUrl,
       superhoteListingId: villas.superhoteListingId,
       domaineNom: domaines.nom,
     })
@@ -89,6 +91,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <VillaCodeBoitier villaId={villa.id} codeBoitier={villa.codeBoitier} />
+
+      <VillaIcalUrl villaId={villa.id} icalUrl={villa.icalUrl} />
 
       <VillaPhotoUploader villaId={villa.id} photoUrl={villa.photoUrl} />
 

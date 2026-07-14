@@ -62,6 +62,7 @@ export const villas = pgTable("villas", {
   notes: text("notes"),
   description: text("description"),
   codeBoitier: text("code_boitier"), // code de la boîte à clés / digicode d'accès
+  icalUrl: text("ical_url"), // lien iCal Superhote pour synchroniser les réservations de cette villa
   photoUrl: text("photo_url"),
   galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
   superhoteListingId: text("superhote_listing_id"),

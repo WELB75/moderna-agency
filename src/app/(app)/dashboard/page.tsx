@@ -7,6 +7,7 @@ import { reservations, villas, cashEntries, maintenanceRecords } from "@/db/sche
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
+import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
@@ -86,11 +87,14 @@ export default async function DashboardPage() {
             {format(now, "EEEE d MMMM yyyy", { locale: fr })}
           </p>
         </div>
-        {isSuperhoteConfigured() ? (
-          <SyncSuperhoteButton />
-        ) : (
-          <Badge variant="outline">Superhote non connecté</Badge>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <SyncIcalButton />
+          {isSuperhoteConfigured() ? (
+            <SyncSuperhoteButton />
+          ) : (
+            <Badge variant="outline">API Superhote non connectée</Badge>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { reservations } from "@/db/schema";
 import { runSuperhoteSync } from "@/lib/superhote/sync";
+import { runIcalSync } from "@/lib/ical/sync";
 
 export async function createReservation(formData: FormData) {
   await auth.protect();
@@ -96,5 +97,15 @@ export async function triggerSuperhoteSync() {
   revalidatePath("/dashboard");
   return result.success
     ? { success: true, message: `${result.bookingsSynced} réservation(s) synchronisée(s).` }
+    : { success: false, message: result.error };
+}
+
+export async function triggerIcalSync() {
+  await auth.protect();
+  const result = await runIcalSync();
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+  return result.success
+    ? { success: true, message: `${result.bookingsSynced} réservation(s) synchronisée(s) (${result.villasSynced} villa(s)).` }
     : { success: false, message: result.error };
 }
