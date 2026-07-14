@@ -59,6 +59,8 @@ export async function runSuperhoteSync(): Promise<
           checkIn: new Date(booking.checking),
           checkOut: new Date(booking.checkout),
           guestsCount: (booking.nbr_adults ?? 0) + (booking.nbr_children ?? 0) || null,
+          nbAdultes: booking.nbr_adults ?? null,
+          nbEnfants: booking.nbr_children ?? null,
           status: booking.status ?? "confirmee",
           source: "superhote" as const,
           rawData: booking,

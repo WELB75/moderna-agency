@@ -69,10 +69,19 @@ export function AddReservationDialog({ villaId }: { villaId: string }) {
               <Input id="checkOut" name="checkOut" type="datetime-local" required />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="guestsCount">Nombre de voyageurs</Label>
-            <Input id="guestsCount" name="guestsCount" type="number" min="1" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="nbAdultes">Adultes</Label>
+              <Input id="nbAdultes" name="nbAdultes" type="number" min="0" placeholder="0" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="nbEnfants">Enfants</Label>
+              <Input id="nbEnfants" name="nbEnfants" type="number" min="0" placeholder="0" />
+            </div>
           </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Le nombre d&apos;adultes sert pour la fiche gendarmerie (les enfants n&apos;y figurent pas).
+          </p>
           <div className="space-y-1.5">
             <Label htmlFor="notes">Demandes particulières</Label>
             <Textarea id="notes" name="notes" rows={2} placeholder="Ex. Prévoir une cuisinière" />

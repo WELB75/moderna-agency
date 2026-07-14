@@ -15,7 +15,9 @@ export async function createReservation(formData: FormData) {
   const guestPhone = String(formData.get("guestPhone") ?? "").trim();
   const checkIn = String(formData.get("checkIn") ?? "");
   const checkOut = String(formData.get("checkOut") ?? "");
-  const guestsCount = Number(formData.get("guestsCount") ?? 0) || null;
+  const nbAdultes = Number(formData.get("nbAdultes") ?? 0) || null;
+  const nbEnfants = Number(formData.get("nbEnfants") ?? 0) || null;
+  const guestsCount = (nbAdultes ?? 0) + (nbEnfants ?? 0) || null;
   const notes = String(formData.get("notes") ?? "").trim();
 
   if (!villaId || !guestName || !checkIn || !checkOut) {
@@ -30,6 +32,8 @@ export async function createReservation(formData: FormData) {
     checkIn: new Date(checkIn),
     checkOut: new Date(checkOut),
     guestsCount,
+    nbAdultes,
+    nbEnfants,
     notes: notes || null,
     source: "manuel",
     status: "confirmee",

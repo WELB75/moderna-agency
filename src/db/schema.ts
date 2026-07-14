@@ -81,6 +81,8 @@ export const reservations = pgTable(
     checkIn: timestamp("check_in", { withTimezone: true }).notNull(),
     checkOut: timestamp("check_out", { withTimezone: true }).notNull(),
     guestsCount: integer("guests_count"),
+    nbAdultes: integer("nb_adultes"), // pour la fiche gendarmerie (adultes uniquement)
+    nbEnfants: integer("nb_enfants"),
     status: text("status").default("confirmee").notNull(),
     source: text("source").default("manuel").notNull(), // "superhote" | "manuel"
     notes: text("notes"), // demandes particulières (ex. prévoir une cuisinière)

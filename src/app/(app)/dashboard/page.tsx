@@ -10,6 +10,7 @@ import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
+import { GuestCount } from "@/components/app/guest-count";
 import { LogIn, LogOut, Wallet, Wrench, Info } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 
@@ -27,6 +28,8 @@ export default async function DashboardPage() {
       checkOut: reservations.checkOut,
       source: reservations.source,
       notes: reservations.notes,
+      nbAdultes: reservations.nbAdultes,
+      nbEnfants: reservations.nbEnfants,
       villaNom: villas.nom,
       villaNumero: villas.numero,
       villaId: villas.id,
@@ -190,6 +193,8 @@ type ReservationRow = {
   checkOut: Date;
   source: string;
   notes: string | null;
+  nbAdultes: number | null;
+  nbEnfants: number | null;
   villaNom: string | null;
   villaNumero: string | null;
   villaId: string | null;
@@ -268,6 +273,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
       <p className="text-sm text-muted-foreground">
         {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
       </p>
+      <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
       <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
       {r.notes ? (
         <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">

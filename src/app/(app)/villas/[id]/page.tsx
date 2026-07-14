@@ -14,6 +14,7 @@ import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
 import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
+import { GuestCount } from "@/components/app/guest-count";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
@@ -170,6 +171,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                     />
                   </div>
                 </div>
+                <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
                 <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
                 {r.notes ? (
                   <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
