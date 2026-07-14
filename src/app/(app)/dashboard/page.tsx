@@ -13,12 +13,13 @@ import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { LogIn, LogOut, Wallet, Wrench, Info } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
+import { nowInMorocco } from "@/lib/now";
 
 const DAYS_AHEAD = 7;
 
 export default async function DashboardPage() {
   const db = getDb();
-  const now = new Date();
+  const now = nowInMorocco();
   const rangeStart = startOfDay(now);
   const rangeEnd = endOfDay(addDays(now, DAYS_AHEAD - 1));
 

@@ -24,6 +24,7 @@ import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { ClipboardPlus, Info, ChevronRight } from "lucide-react";
+import { nowInMorocco } from "@/lib/now";
 
 export default async function VillaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -59,7 +60,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     .where(eq(reservations.villaId, id))
     .orderBy(asc(reservations.checkIn));
 
-  const now = new Date();
+  const now = nowInMorocco();
   // À venir / en cours : trié du plus proche au plus lointain (le plus urgent en haut).
   const upcomingReservations = allVillaReservations.filter((r) => new Date(r.checkOut) >= now);
   // Passées : la plus récente en premier, reléguées plus bas et repliées.

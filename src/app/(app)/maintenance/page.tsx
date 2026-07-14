@@ -14,6 +14,7 @@ import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { deleteTechnician } from "@/lib/actions/technicians";
 import { Wrench, Phone, Users, ListTodo } from "lucide-react";
+import { nowInMorocco } from "@/lib/now";
 
 export default async function MaintenancePage() {
   const db = getDb();
@@ -65,7 +66,7 @@ export default async function MaintenancePage() {
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .orderBy(desc(taches.createdAt));
 
-  const now = new Date();
+  const now = nowInMorocco();
   const upcoming = records
     .filter((r) => r.prochaineDatePrevue && differenceInCalendarDays(new Date(r.prochaineDatePrevue), now) <= 30)
     .sort((a, b) => new Date(a.prochaineDatePrevue!).getTime() - new Date(b.prochaineDatePrevue!).getTime());

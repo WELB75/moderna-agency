@@ -2,9 +2,10 @@ import { format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { LogIn, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { nowInMorocco } from "@/lib/now";
 
 export function ReservationDates({ checkIn, checkOut }: { checkIn: Date; checkOut: Date }) {
-  const now = new Date();
+  const now = nowInMorocco();
   return (
     <div className="mt-2 grid gap-2 sm:grid-cols-2">
       <DateBlock kind="in" date={checkIn} isToday={isSameDay(checkIn, now)} />

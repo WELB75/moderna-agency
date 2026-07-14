@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { nowInMorocco } from "@/lib/now";
 
 function formatRemaining(ms: number) {
   if (ms <= 0) return null;
@@ -25,10 +26,10 @@ export function Countdown({
   variant?: "in" | "out" | "neutral";
   className?: string;
 }) {
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState(() => nowInMorocco());
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 30000);
+    const interval = setInterval(() => setNow(nowInMorocco()), 30000);
     return () => clearInterval(interval);
   }, []);
 
