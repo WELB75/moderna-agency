@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -17,7 +24,11 @@ import {
 } from "@/components/ui/dialog";
 import { createVilla } from "@/lib/actions/villas";
 
-export function AddVillaDialog() {
+export function AddVillaDialog({
+  domaines,
+}: {
+  domaines: { id: string; nom: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -49,6 +60,21 @@ export function AddVillaDialog() {
           </DialogDescription>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="domaineId">Domaine</Label>
+            <Select name="domaineId">
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Aucun / sélectionner un domaine" />
+              </SelectTrigger>
+              <SelectContent>
+                {domaines.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>
+                    {d.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="numero">Numéro</Label>

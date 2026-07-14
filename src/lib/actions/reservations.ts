@@ -37,6 +37,43 @@ export async function createReservation(formData: FormData) {
   revalidatePath("/villas");
 }
 
+export async function updatePaymentInfo(formData: FormData) {
+  await auth.protect();
+
+  const reservationId = String(formData.get("reservationId") ?? "");
+  if (!reservationId) {
+    throw new Error("Réservation introuvable.");
+  }
+
+  const loyerTotalRaw = String(formData.get("loyerTotal") ?? "").trim();
+  const montantPayeRaw = String(formData.get("montantPaye") ?? "").trim();
+  const cautionRaw = String(formData.get("caution") ?? "").trim();
+  const cautionPayee = formData.get("cautionPayee") === "on";
+  const moyenPaiement = String(formData.get("moyenPaiement") ?? "").trim();
+  const notesPaiement = String(formData.get("notesPaiement") ?? "").trim();
+
+  const loyerTotal = loyerTotalRaw ? Number(loyerTotalRaw.replace(",", ".")).toFixed(2) : null;
+  const montantPaye = montantPayeRaw ? Number(montantPayeRaw.replace(",", ".")).toFixed(2) : null;
+  const caution = cautionRaw ? Number(cautionRaw.replace(",", ".")).toFixed(2) : null;
+
+  const db = getDb();
+  await db
+    .update(reservations)
+    .set({
+      loyerTotal,
+      montantPaye,
+      caution,
+      cautionPayee,
+      moyenPaiement: moyenPaiement || null,
+      notesPaiement: notesPaiement || null,
+      updatedAt: new Date(),
+    })
+    .where(eq(reservations.id, reservationId));
+
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+}
+
 export async function deleteReservation(reservationId: string) {
   await auth.protect();
   const db = getDb();

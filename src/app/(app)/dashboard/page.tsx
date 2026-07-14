@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
+import { PaymentSummary } from "@/components/app/payment-info";
 import { LogIn, LogOut, Wallet, Wrench } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 
@@ -27,6 +28,10 @@ export default async function DashboardPage() {
       villaNom: villas.nom,
       villaNumero: villas.numero,
       villaId: villas.id,
+      loyerTotal: reservations.loyerTotal,
+      montantPaye: reservations.montantPaye,
+      caution: reservations.caution,
+      cautionPayee: reservations.cautionPayee,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -173,6 +178,10 @@ type ReservationRow = {
   villaNom: string | null;
   villaNumero: string | null;
   villaId: string | null;
+  loyerTotal: string | null;
+  montantPaye: string | null;
+  caution: string | null;
+  cautionPayee: boolean;
 };
 
 function ReservationGroup({
@@ -208,6 +217,12 @@ function ReservationGroup({
                 {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
               </p>
               <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+              <PaymentSummary
+                loyerTotal={r.loyerTotal}
+                montantPaye={r.montantPaye}
+                caution={r.caution}
+                cautionPayee={r.cautionPayee}
+              />
             </Link>
           ))
         )}

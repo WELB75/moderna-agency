@@ -2,16 +2,18 @@ import { desc, eq } from "drizzle-orm";
 import { format, isPast, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { maintenanceRecords, villas, technicians } from "@/db/schema";
+import { maintenanceRecords, villas, technicians, taches, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
+import { AddTacheDialog } from "@/components/app/add-tache-dialog";
+import { TacheBoard } from "@/components/app/tache-board";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { deleteTechnician } from "@/lib/actions/technicians";
-import { Wrench, Phone, Users } from "lucide-react";
+import { Wrench, Phone, Users, ListTodo } from "lucide-react";
 
 export default async function MaintenancePage() {
   const db = getDb();
@@ -36,6 +38,33 @@ export default async function MaintenancePage() {
   const allVillas = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas);
   const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);
 
+  const allVillasWithDomaine = await db
+    .select({
+      id: villas.id,
+      nom: villas.nom,
+      numero: villas.numero,
+      domaineNom: domaines.nom,
+    })
+    .from(villas)
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id));
+
+  const allTaches = await db
+    .select({
+      id: taches.id,
+      titre: taches.titre,
+      description: taches.description,
+      statut: taches.statut,
+      photoUrls: taches.photoUrls,
+      createdAt: taches.createdAt,
+      villaNom: villas.nom,
+      villaNumero: villas.numero,
+      domaineNom: domaines.nom,
+    })
+    .from(taches)
+    .leftJoin(villas, eq(taches.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .orderBy(desc(taches.createdAt));
+
   const now = new Date();
   const upcoming = records
     .filter((r) => r.prochaineDatePrevue && differenceInCalendarDays(new Date(r.prochaineDatePrevue), now) <= 30)
@@ -57,6 +86,10 @@ export default async function MaintenancePage() {
           <TabsTrigger value="techniciens">
             <Users className="h-4 w-4" />
             Techniciens
+          </TabsTrigger>
+          <TabsTrigger value="taches">
+            <ListTodo className="h-4 w-4" />
+            Tâches
           </TabsTrigger>
         </TabsList>
 
@@ -172,6 +205,19 @@ export default async function MaintenancePage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="taches" className="space-y-6">
+          <div className="flex justify-end">
+            <AddTacheDialog villas={allVillasWithDomaine} />
+          </div>
+
+          <TacheBoard
+            taches={allTaches.map((t) => ({
+              ...t,
+              photoUrls: t.photoUrls ?? [],
+            }))}
+          />
         </TabsContent>
       </Tabs>
     </div>

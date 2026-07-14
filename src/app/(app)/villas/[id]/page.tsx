@@ -1,10 +1,11 @@
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { eq, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, inventoryChecklists, maintenanceRecords, technicians } from "@/db/schema";
+import { villas, reservations, inventoryChecklists, maintenanceRecords, technicians, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
+import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
@@ -23,7 +25,23 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   const db = getDb();
 
-  const [villa] = await db.select().from(villas).where(eq(villas.id, id)).limit(1);
+  const [villa] = await db
+    .select({
+      id: villas.id,
+      numero: villas.numero,
+      nom: villas.nom,
+      adresse: villas.adresse,
+      notes: villas.notes,
+      description: villas.description,
+      photoUrl: villas.photoUrl,
+      galleryUrls: villas.galleryUrls,
+      superhoteListingId: villas.superhoteListingId,
+      domaineNom: domaines.nom,
+    })
+    .from(villas)
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .where(eq(villas.id, id))
+    .limit(1);
   if (!villa) notFound();
 
   const villaReservations = await db
@@ -50,6 +68,9 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
+          {villa.domaineNom ? (
+            <p className="text-sm text-muted-foreground">{villa.domaineNom}</p>
+          ) : null}
           <h1 className="text-2xl font-semibold tracking-tight">{villa.nom}</h1>
           <p className="text-sm text-muted-foreground">
             Villa n°{villa.numero}
@@ -65,6 +86,34 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <VillaPhotoUploader villaId={villa.id} photoUrl={villa.photoUrl} />
+
+      {villa.description ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Description</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-line text-sm text-muted-foreground">{villa.description}</p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {villa.galleryUrls && villa.galleryUrls.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Galerie photos</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {villa.galleryUrls.map((url) => (
+                <div key={url} className="relative aspect-square overflow-hidden rounded-md border">
+                  <Image src={url} alt="" fill sizes="200px" className="object-cover" />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <Button asChild size="sm">
@@ -99,13 +148,35 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                       {r.source === "superhote" ? "Superhote" : "Manuel"}
                     </Badge>
                   </div>
-                  <ConfirmDeleteButton
-                    action={deleteReservation.bind(null, r.id)}
-                    title="Supprimer cette réservation ?"
-                    description="Cette action est irréversible."
-                  />
+                  <div className="flex items-center gap-1">
+                    <EditPaymentDialog
+                      reservationId={r.id}
+                      loyerTotal={r.loyerTotal}
+                      montantPaye={r.montantPaye}
+                      caution={r.caution}
+                      cautionPayee={r.cautionPayee}
+                      moyenPaiement={r.moyenPaiement}
+                      notesPaiement={r.notesPaiement}
+                    />
+                    <ConfirmDeleteButton
+                      action={deleteReservation.bind(null, r.id)}
+                      title="Supprimer cette réservation ?"
+                      description="Cette action est irréversible."
+                    />
+                  </div>
                 </div>
                 <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+                <div className="mt-2">
+                  <PaymentSummary
+                    loyerTotal={r.loyerTotal}
+                    montantPaye={r.montantPaye}
+                    caution={r.caution}
+                    cautionPayee={r.cautionPayee}
+                  />
+                </div>
+                {r.notesPaiement ? (
+                  <p className="mt-1 text-xs text-muted-foreground">{r.notesPaiement}</p>
+                ) : null}
               </div>
             ))
           )}

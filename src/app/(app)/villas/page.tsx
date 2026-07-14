@@ -1,16 +1,34 @@
 import Link from "next/link";
 import Image from "next/image";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { villas } from "@/db/schema";
+import { villas, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AddVillaDialog } from "@/components/app/add-villa-dialog";
+import { AddDomaineDialog } from "@/components/app/add-domaine-dialog";
 import { Building2, ChevronRight } from "lucide-react";
 
 export default async function VillasPage() {
   const db = getDb();
-  const allVillas = await db.select().from(villas).orderBy(desc(villas.createdAt));
+  const allDomaines = await db.select().from(domaines).orderBy(domaines.nom);
+  const allVillas = await db
+    .select({
+      id: villas.id,
+      numero: villas.numero,
+      nom: villas.nom,
+      adresse: villas.adresse,
+      notes: villas.notes,
+      photoUrl: villas.photoUrl,
+      superhoteListingId: villas.superhoteListingId,
+      domaineId: villas.domaineId,
+      createdAt: villas.createdAt,
+      updatedAt: villas.updatedAt,
+      domaineNom: domaines.nom,
+    })
+    .from(villas)
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .orderBy(desc(villas.createdAt));
 
   return (
     <div className="space-y-6">
@@ -19,7 +37,10 @@ export default async function VillasPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Villas</h1>
           <p className="text-sm text-muted-foreground">{allVillas.length} villa(s) enregistrée(s)</p>
         </div>
-        <AddVillaDialog />
+        <div className="flex gap-2">
+          <AddDomaineDialog />
+          <AddVillaDialog domaines={allDomaines} />
+        </div>
       </div>
 
       {allVillas.length === 0 ? (
@@ -47,6 +68,9 @@ export default async function VillasPage() {
                 ) : null}
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pt-6">
                   <div>
+                    {villa.domaineNom ? (
+                      <p className="text-xs text-muted-foreground">{villa.domaineNom}</p>
+                    ) : null}
                     <CardTitle className="text-base">{villa.nom}</CardTitle>
                     <p className="text-sm text-muted-foreground">Villa n°{villa.numero}</p>
                   </div>

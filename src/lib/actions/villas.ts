@@ -13,6 +13,7 @@ export async function createVilla(formData: FormData) {
   const nom = String(formData.get("nom") ?? "").trim();
   const adresse = String(formData.get("adresse") ?? "").trim();
   const superhoteListingId = String(formData.get("superhoteListingId") ?? "").trim();
+  const domaineId = String(formData.get("domaineId") ?? "").trim();
 
   if (!numero || !nom) {
     throw new Error("Le numéro et le nom de la villa sont obligatoires.");
@@ -24,6 +25,7 @@ export async function createVilla(formData: FormData) {
     nom,
     adresse: adresse || null,
     superhoteListingId: superhoteListingId || null,
+    domaineId: domaineId || null,
   });
 
   revalidatePath("/villas");

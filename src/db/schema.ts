@@ -40,13 +40,29 @@ export const procedureTypeEnum = pgEnum("procedure_type", [
   "incident",
 ]);
 
+export const tacheStatutEnum = pgEnum("tache_statut", [
+  "en_attente",
+  "en_cours",
+  "termine",
+]);
+
+export const domaines = pgTable("domaines", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nom: text("nom").notNull(),
+  adresse: text("adresse"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const villas = pgTable("villas", {
   id: uuid("id").defaultRandom().primaryKey(),
+  domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "set null" }),
   numero: text("numero").notNull(), // numéro de la villa
   nom: text("nom").notNull(), // nom de la villa
   adresse: text("adresse"),
   notes: text("notes"),
+  description: text("description"),
   photoUrl: text("photo_url"),
+  galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
   superhoteListingId: text("superhote_listing_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -67,6 +83,12 @@ export const reservations = pgTable(
     status: text("status").default("confirmee").notNull(),
     source: text("source").default("manuel").notNull(), // "superhote" | "manuel"
     rawData: jsonb("raw_data"),
+    loyerTotal: numeric("loyer_total", { precision: 10, scale: 2 }),
+    montantPaye: numeric("montant_paye", { precision: 10, scale: 2 }),
+    caution: numeric("caution", { precision: 10, scale: 2 }),
+    cautionPayee: boolean("caution_payee").default(false).notNull(),
+    moyenPaiement: text("moyen_paiement"),
+    notesPaiement: text("notes_paiement"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -147,6 +169,19 @@ export const procedureTemplates = pgTable("procedure_templates", {
   description: text("description"),
   etapes: jsonb("etapes").$type<string[]>().default([]).notNull(),
   ordre: integer("ordre").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const taches = pgTable("taches", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
+  titre: text("titre").notNull(),
+  description: text("description"),
+  statut: tacheStatutEnum("statut").default("en_attente").notNull(),
+  photoUrls: jsonb("photo_urls").$type<string[]>().default([]),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
