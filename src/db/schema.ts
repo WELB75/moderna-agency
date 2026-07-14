@@ -33,6 +33,13 @@ export const itemStatusEnum = pgEnum("item_status", [
   "probleme",
 ]);
 
+export const procedureTypeEnum = pgEnum("procedure_type", [
+  "checkin",
+  "checkout",
+  "menage",
+  "incident",
+]);
+
 export const villas = pgTable("villas", {
   id: uuid("id").defaultRandom().primaryKey(),
   numero: text("numero").notNull(), // numéro de la villa
@@ -131,6 +138,17 @@ export const maintenanceRecords = pgTable("maintenance_records", {
   createdByUserId: text("created_by_user_id"),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const procedureTemplates = pgTable("procedure_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  type: procedureTypeEnum("type").notNull(),
+  titre: text("titre").notNull(),
+  description: text("description"),
+  etapes: jsonb("etapes").$type<string[]>().default([]).notNull(),
+  ordre: integer("ordre").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const technicians = pgTable("technicians", {
