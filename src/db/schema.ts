@@ -102,7 +102,7 @@ export const cashEntries = pgTable("cash_entries", {
   reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "set null" }),
   type: cashEntryTypeEnum("type").notNull(),
   montant: numeric("montant", { precision: 10, scale: 2 }).notNull(),
-  devise: text("devise").default("EUR").notNull(),
+  devise: text("devise").default("MAD").notNull(),
   description: text("description"),
   createdByUserId: text("created_by_user_id").notNull(),
   createdByName: text("created_by_name"),

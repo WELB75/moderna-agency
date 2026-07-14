@@ -236,7 +236,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                     <p className="text-sm text-muted-foreground">
                       {format(new Date(m.dateIntervention), "d MMM yyyy", { locale: fr })}
                       {m.prestataire ? ` · ${m.prestataire}` : ""}
-                      {m.cout ? ` · ${Number(m.cout).toFixed(2)} €` : ""}
+                      {m.cout ? ` · ${Number(m.cout).toFixed(2)} DH` : ""}
                     </p>
                     {m.prochaineDatePrevue ? (
                       <p className="mt-1 text-xs text-muted-foreground">

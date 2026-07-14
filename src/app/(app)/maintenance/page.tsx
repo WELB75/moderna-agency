@@ -146,7 +146,7 @@ export default async function MaintenancePage() {
                         {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"} ·{" "}
                         {format(new Date(r.dateIntervention), "d MMM yyyy", { locale: fr })}
                         {r.prestataire ? ` · ${r.prestataire}` : ""}
-                        {r.cout ? ` · ${Number(r.cout).toFixed(2)} €` : ""}
+                        {r.cout ? ` · ${Number(r.cout).toFixed(2)} DH` : ""}
                       </p>
                       {r.notes ? <p className="mt-1 text-sm">{r.notes}</p> : null}
                       {r.prochaineDatePrevue ? (

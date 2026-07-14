@@ -76,7 +76,7 @@ export default async function CaissePage() {
                     </Badge>
                     <span className="font-semibold">
                       {e.type === "remise" ? "+" : "-"}
-                      {Number(e.montant).toFixed(2)} €
+                      {Number(e.montant).toFixed(2)} DH
                     </span>
                   </div>
                   {e.description ? <p className="mt-1 text-sm">{e.description}</p> : null}
@@ -105,7 +105,7 @@ function SummaryCard({ label, value, highlight }: { label: string; value: number
     <Card>
       <CardContent className="py-4">
         <p className={highlight ? "text-2xl font-semibold text-primary" : "text-2xl font-semibold"}>
-          {value.toFixed(2)} €
+          {value.toFixed(2)} DH
         </p>
         <p className="text-sm text-muted-foreground">{label}</p>
       </CardContent>

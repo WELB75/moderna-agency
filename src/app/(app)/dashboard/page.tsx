@@ -118,7 +118,7 @@ export default async function DashboardPage() {
                 <Wallet className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-2xl font-semibold leading-none">{balance.toFixed(2)} €</p>
+                <p className="text-2xl font-semibold leading-none">{balance.toFixed(2)} DH</p>
                 <p className="text-sm text-muted-foreground">Solde caisse</p>
               </div>
             </CardContent>

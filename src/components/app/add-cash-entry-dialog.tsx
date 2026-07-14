@@ -75,7 +75,7 @@ export function AddCashEntryDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="montant">Montant (€)</Label>
+            <Label htmlFor="montant">Montant (DH)</Label>
             <Input id="montant" name="montant" type="number" step="0.01" min="0" required />
           </div>
           <div className="space-y-1.5">

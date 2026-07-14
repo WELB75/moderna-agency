@@ -152,7 +152,7 @@ export function AddMaintenanceDialog({
               </datalist>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="cout">Coût (€)</Label>
+              <Label htmlFor="cout">Coût (DH)</Label>
               <Input id="cout" name="cout" type="number" step="0.01" min="0" />
             </div>
           </div>

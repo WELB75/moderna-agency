@@ -41,17 +41,17 @@ export function PaymentSummary({
     <div className="mt-2 space-y-1.5 rounded-md border p-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span>
-          Loyer : {paye.toFixed(2)} € / {total.toFixed(2)} €
+          Loyer : {paye.toFixed(2)} DH / {total.toFixed(2)} DH
         </span>
         {solde > 0.009 ? (
-          <Badge variant="destructive">Reste {solde.toFixed(2)} € à payer</Badge>
+          <Badge variant="destructive">Reste {solde.toFixed(2)} DH à payer</Badge>
         ) : (
           <Badge variant="outline">Loyer soldé</Badge>
         )}
       </div>
       {caution !== null && (
         <div className="flex flex-wrap items-center gap-2">
-          <span>Caution : {Number(caution).toFixed(2)} €</span>
+          <span>Caution : {Number(caution).toFixed(2)} DH</span>
           {cautionPayee ? (
             <Badge variant="outline">Caution reçue</Badge>
           ) : (
@@ -115,7 +115,7 @@ export function EditPaymentDialog({
         <form action={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="loyerTotal">Loyer total (€)</Label>
+              <Label htmlFor="loyerTotal">Loyer total (DH)</Label>
               <Input
                 id="loyerTotal"
                 name="loyerTotal"
@@ -125,7 +125,7 @@ export function EditPaymentDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="montantPaye">Montant reçu (€)</Label>
+              <Label htmlFor="montantPaye">Montant reçu (DH)</Label>
               <Input
                 id="montantPaye"
                 name="montantPaye"
@@ -136,7 +136,7 @@ export function EditPaymentDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="caution">Caution (€)</Label>
+            <Label htmlFor="caution">Caution (DH)</Label>
             <Input
               id="caution"
               name="caution"
