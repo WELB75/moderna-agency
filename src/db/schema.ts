@@ -117,6 +117,22 @@ export const inventoryItems = pgTable("inventory_items", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const maintenanceRecords = pgTable("maintenance_records", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
+  categorie: text("categorie").notNull(),
+  equipement: text("equipement").notNull(),
+  dateIntervention: timestamp("date_intervention", { withTimezone: true }).notNull(),
+  prochaineDatePrevue: timestamp("prochaine_date_prevue", { withTimezone: true }),
+  prestataire: text("prestataire"),
+  cout: numeric("cout", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  photoUrls: jsonb("photo_urls").$type<string[]>().default([]),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const superhoteSyncLog = pgTable("superhote_sync_log", {
   id: uuid("id").defaultRandom().primaryKey(),
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),

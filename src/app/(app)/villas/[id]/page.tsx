@@ -4,17 +4,19 @@ import { eq, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, inventoryChecklists } from "@/db/schema";
+import { villas, reservations, inventoryChecklists, maintenanceRecords } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
+import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
+import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { ClipboardPlus } from "lucide-react";
 
 export default async function VillaDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -35,6 +37,12 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     .from(inventoryChecklists)
     .where(eq(inventoryChecklists.villaId, id))
     .orderBy(desc(inventoryChecklists.createdAt));
+
+  const villaMaintenance = await db
+    .select()
+    .from(maintenanceRecords)
+    .where(eq(maintenanceRecords.villaId, id))
+    .orderBy(desc(maintenanceRecords.dateIntervention));
 
   return (
     <div className="space-y-6">
@@ -126,6 +134,47 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                   {c.status === "signe" ? "Signé" : "Brouillon"}
                 </Badge>
               </Link>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Maintenance</CardTitle>
+          <AddMaintenanceDialog villas={[villa]} defaultVillaId={villa.id} />
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {villaMaintenance.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun entretien enregistré.</p>
+          ) : (
+            villaMaintenance.map((m) => (
+              <div key={m.id} className="rounded-md border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary">{m.categorie}</Badge>
+                      <p className="font-medium">{m.equipement}</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(m.dateIntervention), "d MMM yyyy", { locale: fr })}
+                      {m.prestataire ? ` · ${m.prestataire}` : ""}
+                      {m.cout ? ` · ${Number(m.cout).toFixed(2)} €` : ""}
+                    </p>
+                    {m.prochaineDatePrevue ? (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Prochaine échéance :{" "}
+                        {format(new Date(m.prochaineDatePrevue), "d MMM yyyy", { locale: fr })}
+                      </p>
+                    ) : null}
+                  </div>
+                  <ConfirmDeleteButton
+                    action={deleteMaintenanceRecord.bind(null, m.id)}
+                    title="Supprimer cet entretien ?"
+                    description="Cette action est irréversible."
+                  />
+                </div>
+              </div>
             ))
           )}
         </CardContent>

@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { and, gte, lte, or, eq, asc } from "drizzle-orm";
-import { format, isSameDay, startOfDay, endOfDay, addDays } from "date-fns";
+import { and, gte, lte, or, eq, asc, isNotNull } from "drizzle-orm";
+import { format, isSameDay, isPast, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { reservations, villas, cashEntries } from "@/db/schema";
+import { reservations, villas, cashEntries, maintenanceRecords } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
-import { LogIn, LogOut, Wallet } from "lucide-react";
+import { LogIn, LogOut, Wallet, Wrench } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 
 export default async function DashboardPage() {
@@ -50,6 +50,22 @@ export default async function DashboardPage() {
     if (e.type === "remise") return sum + amount;
     return sum - amount;
   }, 0);
+
+  const upcomingMaintenance = await db
+    .select({
+      id: maintenanceRecords.id,
+      equipement: maintenanceRecords.equipement,
+      prochaineDatePrevue: maintenanceRecords.prochaineDatePrevue,
+      villaNom: villas.nom,
+      villaNumero: villas.numero,
+      villaId: villas.id,
+    })
+    .from(maintenanceRecords)
+    .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
+    .where(
+      and(isNotNull(maintenanceRecords.prochaineDatePrevue), lte(maintenanceRecords.prochaineDatePrevue, endOfDay(addDays(now, 30))))
+    )
+    .orderBy(asc(maintenanceRecords.prochaineDatePrevue));
 
   return (
     <div className="space-y-6">
@@ -108,6 +124,42 @@ export default async function DashboardPage() {
       <ReservationGroup title="Check-in aujourd'hui" items={checkInsToday} kind="in" />
       <ReservationGroup title="Check-out aujourd'hui" items={checkOutsToday} kind="out" />
       <ReservationGroup title="Les 14 prochains jours" items={upcomingWeek} kind="both" />
+
+      {upcomingMaintenance.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Entretiens à prévoir (30 jours)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {upcomingMaintenance.map((m) => {
+              const overdue = isPast(new Date(m.prochaineDatePrevue!));
+              return (
+                <Link
+                  key={m.id}
+                  href="/maintenance"
+                  className="flex items-center justify-between gap-3 rounded-md border p-3 hover:border-primary/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
+                      <Wrench className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{m.equipement}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {m.villaNom ? `${m.villaNom} (n°${m.villaNumero})` : "Villa non renseignée"}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={overdue ? "destructive" : "outline"}>
+                    {overdue ? "En retard" : "Prévu"} ·{" "}
+                    {format(new Date(m.prochaineDatePrevue!), "d MMM", { locale: fr })}
+                  </Badge>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
