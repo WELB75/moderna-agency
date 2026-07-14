@@ -3,23 +3,24 @@ import { and, gte, lte, or, eq, asc, isNotNull } from "drizzle-orm";
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { reservations, villas, cashEntries, maintenanceRecords } from "@/db/schema";
+import { reservations, villas, domaines, cashEntries, maintenanceRecords } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
-import { ReservationDates } from "@/components/app/reservation-dates";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { LogIn, LogOut, Wallet, Wrench, Info } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 
+const DAYS_AHEAD = 5;
+
 export default async function DashboardPage() {
   const db = getDb();
   const now = new Date();
   const rangeStart = startOfDay(now);
-  const rangeEnd = endOfDay(addDays(now, 2));
+  const rangeEnd = endOfDay(addDays(now, DAYS_AHEAD - 1));
 
   const upcoming = await db
     .select({
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
       villaNom: villas.nom,
       villaNumero: villas.numero,
       villaId: villas.id,
+      domaineNom: domaines.nom,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
       caution: reservations.caution,
@@ -43,6 +45,7 @@ export default async function DashboardPage() {
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .where(
       or(
         and(gte(reservations.checkIn, rangeStart), lte(reservations.checkIn, rangeEnd)),
@@ -77,13 +80,13 @@ export default async function DashboardPage() {
     )
     .orderBy(asc(maintenanceRecords.prochaineDatePrevue));
 
-  const days = [now, addDays(now, 1), addDays(now, 2)];
+  const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(now, i));
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Les 3 prochains jours</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Les 5 prochains jours</h1>
           <p className="text-sm text-muted-foreground">
             {format(now, "EEEE d MMMM yyyy", { locale: fr })}
           </p>
@@ -204,6 +207,7 @@ type ReservationRow = {
   villaNom: string | null;
   villaNumero: string | null;
   villaId: string | null;
+  domaineNom: string | null;
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
@@ -232,9 +236,14 @@ function DayCard({
           <span className="text-sm font-normal text-muted-foreground">
             {format(date, "d MMMM", { locale: fr })}
           </span>
+          {total > 0 && (
+            <span className="text-sm font-normal text-muted-foreground">
+              · {total} évènement{total > 1 ? "s" : ""}
+            </span>
+          )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-2">
         {total === 0 ? (
           <p className="text-sm text-muted-foreground">Rien à signaler.</p>
         ) : (
@@ -254,40 +263,53 @@ function DayCard({
 
 function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
+  const isIn = kind === "in";
 
   return (
     <Link
       href={r.villaId ? `/villas/${r.villaId}` : "#"}
-      className="block rounded-md border p-3 hover:border-primary/50"
+      className={
+        "block rounded-md border-l-4 p-3 hover:bg-muted/50 " +
+        (isIn ? "border-l-emerald-500" : "border-l-red-500")
+      }
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {kind === "in" ? (
+        <div className="flex min-w-0 items-center gap-2">
+          {isIn ? (
             <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
           ) : (
             <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
           )}
-          <p className="font-medium">{r.guestName}</p>
+          <p className="truncate font-medium">{r.guestName}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Countdown target={target} variant={kind} />
-          {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
-          <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
-            {r.source === "superhote" ? "Superhote" : "Manuel"}
-          </Badge>
-        </div>
+        <Countdown target={target} variant={kind} />
       </div>
-      <p className="text-sm text-muted-foreground">
-        {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
+
+      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        {r.domaineNom ? (
+          <Badge variant="secondary" className="text-xs">
+            {r.domaineNom}
+          </Badge>
+        ) : null}
+        <span className="text-sm text-muted-foreground">
+          {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
+        </span>
+        {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
+      </div>
+
+      <p className={"mt-1 text-sm font-semibold " + (isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
+        {isIn ? "Check-in" : "Check-out"} · {format(target, "HH:mm", { locale: fr })}
       </p>
+
       <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
-      <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+
       {r.notes ? (
         <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{r.notes}</span>
         </div>
       ) : null}
+
       <PaymentSummary
         loyerTotal={r.loyerTotal}
         montantPaye={r.montantPaye}

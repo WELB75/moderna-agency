@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { eq, desc } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -22,7 +22,7 @@ import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
-import { ClipboardPlus, Info } from "lucide-react";
+import { ClipboardPlus, Info, ChevronRight } from "lucide-react";
 
 export default async function VillaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -49,11 +49,17 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     .limit(1);
   if (!villa) notFound();
 
-  const villaReservations = await db
+  const allVillaReservations = await db
     .select()
     .from(reservations)
     .where(eq(reservations.villaId, id))
-    .orderBy(desc(reservations.checkIn));
+    .orderBy(asc(reservations.checkIn));
+
+  const now = new Date();
+  // À venir / en cours : trié du plus proche au plus lointain (le plus urgent en haut).
+  const upcomingReservations = allVillaReservations.filter((r) => new Date(r.checkOut) >= now);
+  // Passées : la plus récente en premier, reléguées plus bas et repliées.
+  const pastReservations = allVillaReservations.filter((r) => new Date(r.checkOut) < now).reverse();
 
   const checklists = await db
     .select()
@@ -74,7 +80,9 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           {villa.domaineNom ? (
-            <p className="text-sm text-muted-foreground">{villa.domaineNom}</p>
+            <Badge variant="secondary" className="mb-1">
+              {villa.domaineNom}
+            </Badge>
           ) : null}
           <h1 className="text-2xl font-semibold tracking-tight">{villa.nom}</h1>
           <p className="text-sm text-muted-foreground">
@@ -145,61 +153,26 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           <AddReservationDialog villaId={villa.id} />
         </CardHeader>
         <CardContent className="space-y-3">
-          {villaReservations.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune réservation.</p>
+          {upcomingReservations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune réservation à venir.</p>
           ) : (
-            villaReservations.map((r) => (
-              <div key={r.id} className="rounded-md border p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-medium">{r.guestName}</p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
-                      <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
-                        {r.source === "superhote" ? "Superhote" : "Manuel"}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <EditPaymentDialog
-                      reservationId={r.id}
-                      loyerTotal={r.loyerTotal}
-                      montantPaye={r.montantPaye}
-                      caution={r.caution}
-                      cautionPayee={r.cautionPayee}
-                      devisePaiement={r.devisePaiement}
-                      moyenPaiement={r.moyenPaiement}
-                      notesPaiement={r.notesPaiement}
-                    />
-                    <ConfirmDeleteButton
-                      action={deleteReservation.bind(null, r.id)}
-                      title="Supprimer cette réservation ?"
-                      description="Cette action est irréversible."
-                    />
-                  </div>
-                </div>
-                <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
-                <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
-                {r.notes ? (
-                  <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
-                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    <span>{r.notes}</span>
-                  </div>
-                ) : null}
-                <div className="mt-2">
-                  <PaymentSummary
-                    loyerTotal={r.loyerTotal}
-                    montantPaye={r.montantPaye}
-                    caution={r.caution}
-                    cautionPayee={r.cautionPayee}
-                    devisePaiement={r.devisePaiement}
-                  />
-                </div>
-                {r.notesPaiement ? (
-                  <p className="mt-1 text-xs text-muted-foreground">{r.notesPaiement}</p>
-                ) : null}
+            upcomingReservations.map((r) => <ReservationListItem key={r.id} r={r} />)
+          )}
+
+          {pastReservations.length > 0 && (
+            <details className="group rounded-md border">
+              <summary className="cursor-pointer list-none p-3 text-sm font-medium text-muted-foreground marker:content-none">
+                <span className="inline-flex items-center gap-1.5">
+                  <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+                  Réservations passées ({pastReservations.length})
+                </span>
+              </summary>
+              <div className="space-y-3 border-t p-3">
+                {pastReservations.map((r) => (
+                  <ReservationListItem key={r.id} r={r} muted />
+                ))}
               </div>
-            ))
+            </details>
           )}
         </CardContent>
       </Card>
@@ -278,6 +251,65 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       <p className="text-xs text-muted-foreground">
         Identifiant Superhote (property_key) : {villa.superhoteListingId ?? "non renseigné"}
       </p>
+    </div>
+  );
+}
+
+function ReservationListItem({
+  r,
+  muted,
+}: {
+  r: typeof reservations.$inferSelect;
+  muted?: boolean;
+}) {
+  return (
+    <div className={"rounded-md border p-3" + (muted ? " opacity-70" : "")}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-medium">{r.guestName}</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
+            <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
+              {r.source === "superhote" ? "Superhote" : "Manuel"}
+            </Badge>
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          <EditPaymentDialog
+            reservationId={r.id}
+            loyerTotal={r.loyerTotal}
+            montantPaye={r.montantPaye}
+            caution={r.caution}
+            cautionPayee={r.cautionPayee}
+            devisePaiement={r.devisePaiement}
+            moyenPaiement={r.moyenPaiement}
+            notesPaiement={r.notesPaiement}
+          />
+          <ConfirmDeleteButton
+            action={deleteReservation.bind(null, r.id)}
+            title="Supprimer cette réservation ?"
+            description="Cette action est irréversible."
+          />
+        </div>
+      </div>
+      <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
+      <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+      {r.notes ? (
+        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{r.notes}</span>
+        </div>
+      ) : null}
+      <div className="mt-2">
+        <PaymentSummary
+          loyerTotal={r.loyerTotal}
+          montantPaye={r.montantPaye}
+          caution={r.caution}
+          cautionPayee={r.cautionPayee}
+          devisePaiement={r.devisePaiement}
+        />
+      </div>
+      {r.notesPaiement ? <p className="mt-1 text-xs text-muted-foreground">{r.notesPaiement}</p> : null}
     </div>
   );
 }

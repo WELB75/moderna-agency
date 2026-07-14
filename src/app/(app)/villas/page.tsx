@@ -69,7 +69,9 @@ export default async function VillasPage() {
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pt-6">
                   <div>
                     {villa.domaineNom ? (
-                      <p className="text-xs text-muted-foreground">{villa.domaineNom}</p>
+                      <Badge variant="secondary" className="mb-1 text-xs">
+                        {villa.domaineNom}
+                      </Badge>
                     ) : null}
                     <CardTitle className="text-base">{villa.nom}</CardTitle>
                     <p className="text-sm text-muted-foreground">Villa n°{villa.numero}</p>
