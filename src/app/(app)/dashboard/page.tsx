@@ -34,6 +34,7 @@ export default async function DashboardPage() {
       montantPaye: reservations.montantPaye,
       caution: reservations.caution,
       cautionPayee: reservations.cautionPayee,
+      devisePaiement: reservations.devisePaiement,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -196,6 +197,7 @@ type ReservationRow = {
   montantPaye: string | null;
   caution: string | null;
   cautionPayee: boolean;
+  devisePaiement: string;
 };
 
 function DayCard({
@@ -278,6 +280,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
         montantPaye={r.montantPaye}
         caution={r.caution}
         cautionPayee={r.cautionPayee}
+        devisePaiement={r.devisePaiement}
       />
     </Link>
   );

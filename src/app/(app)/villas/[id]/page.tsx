@@ -159,6 +159,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                       montantPaye={r.montantPaye}
                       caution={r.caution}
                       cautionPayee={r.cautionPayee}
+                      devisePaiement={r.devisePaiement}
                       moyenPaiement={r.moyenPaiement}
                       notesPaiement={r.notesPaiement}
                     />
@@ -182,6 +183,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                     montantPaye={r.montantPaye}
                     caution={r.caution}
                     cautionPayee={r.cautionPayee}
+                    devisePaiement={r.devisePaiement}
                   />
                 </div>
                 {r.notesPaiement ? (

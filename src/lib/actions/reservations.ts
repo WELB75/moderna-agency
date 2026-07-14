@@ -53,6 +53,7 @@ export async function updatePaymentInfo(formData: FormData) {
   const cautionPayee = formData.get("cautionPayee") === "on";
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "").trim();
   const notesPaiement = String(formData.get("notesPaiement") ?? "").trim();
+  const devisePaiement = String(formData.get("devisePaiement") ?? "EUR").trim() || "EUR";
 
   const loyerTotal = loyerTotalRaw ? Number(loyerTotalRaw.replace(",", ".")).toFixed(2) : null;
   const montantPaye = montantPayeRaw ? Number(montantPayeRaw.replace(",", ".")).toFixed(2) : null;
@@ -65,6 +66,7 @@ export async function updatePaymentInfo(formData: FormData) {
       loyerTotal,
       montantPaye,
       caution,
+      devisePaiement,
       cautionPayee,
       moyenPaiement: moyenPaiement || null,
       notesPaiement: notesPaiement || null,

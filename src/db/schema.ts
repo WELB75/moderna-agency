@@ -88,6 +88,7 @@ export const reservations = pgTable(
     loyerTotal: numeric("loyer_total", { precision: 10, scale: 2 }),
     montantPaye: numeric("montant_paye", { precision: 10, scale: 2 }),
     caution: numeric("caution", { precision: 10, scale: 2 }),
+    devisePaiement: text("devise_paiement").default("EUR").notNull(), // devise du loyer/caution (EUR, DH...)
     cautionPayee: boolean("caution_payee").default(false).notNull(),
     moyenPaiement: text("moyen_paiement"),
     notesPaiement: text("notes_paiement"),

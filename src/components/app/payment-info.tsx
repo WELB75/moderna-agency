@@ -10,6 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -25,33 +32,36 @@ export function PaymentSummary({
   montantPaye,
   caution,
   cautionPayee,
+  devisePaiement,
 }: {
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
   cautionPayee: boolean;
+  devisePaiement: string;
 }) {
   if (loyerTotal === null) return null;
 
   const total = Number(loyerTotal);
   const paye = Number(montantPaye ?? 0);
   const solde = total - paye;
+  const d = devisePaiement;
 
   return (
     <div className="mt-2 space-y-1.5 rounded-md border p-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span>
-          Loyer : {paye.toFixed(2)} DH / {total.toFixed(2)} DH
+          Loyer : {paye.toFixed(2)} {d} / {total.toFixed(2)} {d}
         </span>
         {solde > 0.009 ? (
-          <Badge variant="destructive">Reste {solde.toFixed(2)} DH à payer</Badge>
+          <Badge variant="destructive">Reste {solde.toFixed(2)} {d} à payer</Badge>
         ) : (
           <Badge variant="outline">Loyer soldé</Badge>
         )}
       </div>
       {caution !== null && (
         <div className="flex flex-wrap items-center gap-2">
-          <span>Caution : {Number(caution).toFixed(2)} DH</span>
+          <span>Caution : {Number(caution).toFixed(2)} {d}</span>
           {cautionPayee ? (
             <Badge variant="outline">Caution reçue</Badge>
           ) : (
@@ -69,6 +79,7 @@ export function EditPaymentDialog({
   montantPaye,
   caution,
   cautionPayee,
+  devisePaiement,
   moyenPaiement,
   notesPaiement,
 }: {
@@ -77,15 +88,18 @@ export function EditPaymentDialog({
   montantPaye: string | null;
   caution: string | null;
   cautionPayee: boolean;
+  devisePaiement: string;
   moyenPaiement: string | null;
   notesPaiement: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [cautionPayeeState, setCautionPayeeState] = useState(cautionPayee);
+  const [devise, setDevise] = useState(devisePaiement || "EUR");
   const [isPending, startTransition] = useTransition();
 
   async function handleSubmit(formData: FormData) {
     formData.set("reservationId", reservationId);
+    formData.set("devisePaiement", devise);
     startTransition(async () => {
       try {
         await updatePaymentInfo(formData);
@@ -109,13 +123,26 @@ export function EditPaymentDialog({
         <DialogHeader>
           <DialogTitle>Paiement de la réservation</DialogTitle>
           <DialogDescription>
-            Loyer convenu, montant reçu et caution pour cette réservation.
+            Loyer convenu, montant reçu et caution pour cette réservation, dans la devise réellement payée par le client.
           </DialogDescription>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label>Devise du paiement</Label>
+            <Select value={devise} onValueChange={setDevise}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="EUR">Euros (EUR)</SelectItem>
+                <SelectItem value="DH">Dirhams (DH)</SelectItem>
+                <SelectItem value="USD">Dollars (USD)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="loyerTotal">Loyer total (DH)</Label>
+              <Label htmlFor="loyerTotal">Loyer total ({devise})</Label>
               <Input
                 id="loyerTotal"
                 name="loyerTotal"
@@ -125,7 +152,7 @@ export function EditPaymentDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="montantPaye">Montant reçu (DH)</Label>
+              <Label htmlFor="montantPaye">Montant reçu ({devise})</Label>
               <Input
                 id="montantPaye"
                 name="montantPaye"
@@ -136,7 +163,7 @@ export function EditPaymentDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="caution">Caution (DH)</Label>
+            <Label htmlFor="caution">Caution ({devise})</Label>
             <Input
               id="caution"
               name="caution"
