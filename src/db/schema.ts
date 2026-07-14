@@ -133,6 +133,15 @@ export const maintenanceRecords = pgTable("maintenance_records", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const technicians = pgTable("technicians", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nom: text("nom").notNull(),
+  fonction: text("fonction").notNull(),
+  telephone: text("telephone").notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const superhoteSyncLog = pgTable("superhote_sync_log", {
   id: uuid("id").defaultRandom().primaryKey(),
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),

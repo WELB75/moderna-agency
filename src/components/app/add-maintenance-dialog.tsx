@@ -28,9 +28,11 @@ import { MAINTENANCE_CATEGORIES } from "@/lib/maintenance-defaults";
 
 export function AddMaintenanceDialog({
   villas,
+  technicians = [],
   defaultVillaId,
 }: {
   villas: { id: string; nom: string; numero: string }[];
+  technicians?: { id: string; nom: string; fonction: string }[];
   defaultVillaId?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -135,7 +137,19 @@ export function AddMaintenanceDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="prestataire">Prestataire</Label>
-              <Input id="prestataire" name="prestataire" placeholder="Entreprise / technicien" />
+              <Input
+                id="prestataire"
+                name="prestataire"
+                list="prestataire-suggestions"
+                placeholder="Entreprise / technicien"
+              />
+              <datalist id="prestataire-suggestions">
+                {technicians.map((t) => (
+                  <option key={t.id} value={t.nom}>
+                    {t.fonction}
+                  </option>
+                ))}
+              </datalist>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="cout">Coût (€)</Label>

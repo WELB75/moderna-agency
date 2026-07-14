@@ -4,7 +4,7 @@ import { eq, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, inventoryChecklists, maintenanceRecords } from "@/db/schema";
+import { villas, reservations, inventoryChecklists, maintenanceRecords, technicians } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +43,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     .from(maintenanceRecords)
     .where(eq(maintenanceRecords.villaId, id))
     .orderBy(desc(maintenanceRecords.dateIntervention));
+
+  const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);
 
   return (
     <div className="space-y-6">
@@ -142,7 +144,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Maintenance</CardTitle>
-          <AddMaintenanceDialog villas={[villa]} defaultVillaId={villa.id} />
+          <AddMaintenanceDialog villas={[villa]} technicians={allTechnicians} defaultVillaId={villa.id} />
         </CardHeader>
         <CardContent className="space-y-2">
           {villaMaintenance.length === 0 ? (
