@@ -14,7 +14,7 @@ import { GuestCount } from "@/components/app/guest-count";
 import { LogIn, LogOut, Wallet, Wrench, Info } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 
-const DAYS_AHEAD = 5;
+const DAYS_AHEAD = 7;
 
 export default async function DashboardPage() {
   const db = getDb();
@@ -86,7 +86,7 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Les 5 prochains jours</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Cette semaine</h1>
           <p className="text-sm text-muted-foreground">
             {format(now, "EEEE d MMMM yyyy", { locale: fr })}
           </p>
