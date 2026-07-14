@@ -86,6 +86,7 @@ export const reservations = pgTable(
     nbEnfants: integer("nb_enfants"),
     status: text("status").default("confirmee").notNull(),
     source: text("source").default("manuel").notNull(), // "superhote" | "manuel"
+    canal: text("canal"), // canal de réservation : Direct, Airbnb.com, Booking.com...
     notes: text("notes"), // demandes particulières (ex. prévoir une cuisinière)
     rawData: jsonb("raw_data"),
     loyerTotal: numeric("loyer_total", { precision: 10, scale: 2 }),

@@ -153,9 +153,12 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="font-medium">{r.guestName}</p>
-                    <Badge variant={r.source === "superhote" ? "secondary" : "outline"} className="mt-1">
-                      {r.source === "superhote" ? "Superhote" : "Manuel"}
-                    </Badge>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
+                      <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
+                        {r.source === "superhote" ? "Superhote" : "Manuel"}
+                      </Badge>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <EditPaymentDialog

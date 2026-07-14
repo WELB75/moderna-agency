@@ -28,6 +28,7 @@ export default async function DashboardPage() {
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       source: reservations.source,
+      canal: reservations.canal,
       notes: reservations.notes,
       nbAdultes: reservations.nbAdultes,
       nbEnfants: reservations.nbEnfants,
@@ -196,6 +197,7 @@ type ReservationRow = {
   checkIn: Date;
   checkOut: Date;
   source: string;
+  canal: string | null;
   notes: string | null;
   nbAdultes: number | null;
   nbEnfants: number | null;
@@ -269,6 +271,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
         </div>
         <div className="flex items-center gap-2">
           <Countdown target={target} variant={kind} />
+          {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
           <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
             {r.source === "superhote" ? "Superhote" : "Manuel"}
           </Badge>

@@ -31,7 +31,11 @@ export async function runIcalSync(): Promise<
       const events = parseIcs(raw);
 
       for (const event of events) {
-        const guestName = event.summary?.trim() || "Réservation iCal";
+        // Les entrées "Blocked dates" (blocage manuel du calendrier, sans client réel)
+        // n'ont ni email ni nom de logement dans la description : on les ignore.
+        if (!event.description.guestEmail && !event.description.rentalName) continue;
+
+        const guestName = event.guestName?.trim() || event.summary?.trim() || "Réservation iCal";
 
         const existing = await db
           .select({ id: reservations.id })
@@ -43,8 +47,14 @@ export async function runIcalSync(): Promise<
           villaId: villa.id,
           superhoteBookingId: event.uid,
           guestName,
+          guestEmail: event.description.guestEmail,
+          guestPhone: event.description.guestPhone,
           checkIn: event.start,
           checkOut: event.end,
+          nbAdultes: event.description.nbAdultes,
+          nbEnfants: event.description.nbEnfants,
+          guestsCount: (event.description.nbAdultes ?? 0) + (event.description.nbEnfants ?? 0) || null,
+          canal: event.canal,
           status: "confirmee",
           source: "superhote" as const,
           rawData: { summary: event.summary },
