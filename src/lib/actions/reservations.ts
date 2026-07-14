@@ -16,6 +16,7 @@ export async function createReservation(formData: FormData) {
   const checkIn = String(formData.get("checkIn") ?? "");
   const checkOut = String(formData.get("checkOut") ?? "");
   const guestsCount = Number(formData.get("guestsCount") ?? 0) || null;
+  const notes = String(formData.get("notes") ?? "").trim();
 
   if (!villaId || !guestName || !checkIn || !checkOut) {
     throw new Error("Villa, nom du client, arrivée et départ sont obligatoires.");
@@ -29,6 +30,7 @@ export async function createReservation(formData: FormData) {
     checkIn: new Date(checkIn),
     checkOut: new Date(checkOut),
     guestsCount,
+    notes: notes || null,
     source: "manuel",
     status: "confirmee",
   });

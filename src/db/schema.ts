@@ -83,6 +83,7 @@ export const reservations = pgTable(
     guestsCount: integer("guests_count"),
     status: text("status").default("confirmee").notNull(),
     source: text("source").default("manuel").notNull(), // "superhote" | "manuel"
+    notes: text("notes"), // demandes particulières (ex. prévoir une cuisinière)
     rawData: jsonb("raw_data"),
     loyerTotal: numeric("loyer_total", { precision: 10, scale: 2 }),
     montantPaye: numeric("montant_paye", { precision: 10, scale: 2 }),

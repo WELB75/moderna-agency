@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +72,10 @@ export function AddReservationDialog({ villaId }: { villaId: string }) {
           <div className="space-y-1.5">
             <Label htmlFor="guestsCount">Nombre de voyageurs</Label>
             <Input id="guestsCount" name="guestsCount" type="number" min="1" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="notes">Demandes particulières</Label>
+            <Textarea id="notes" name="notes" rows={2} placeholder="Ex. Prévoir une cuisinière" />
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending} className="w-full sm:w-auto">

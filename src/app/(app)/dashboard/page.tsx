@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, gte, lte, or, eq, asc, isNotNull } from "drizzle-orm";
-import { format, isSameDay, isPast, startOfDay, endOfDay, addDays } from "date-fns";
+import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { reservations, villas, cashEntries, maintenanceRecords } from "@/db/schema";
@@ -9,14 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
 import { PaymentSummary } from "@/components/app/payment-info";
-import { LogIn, LogOut, Wallet, Wrench } from "lucide-react";
+import { Countdown } from "@/components/app/countdown";
+import { LogIn, LogOut, Wallet, Wrench, Info } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 
 export default async function DashboardPage() {
   const db = getDb();
   const now = new Date();
   const rangeStart = startOfDay(now);
-  const rangeEnd = endOfDay(addDays(now, 14));
+  const rangeEnd = endOfDay(addDays(now, 2));
 
   const upcoming = await db
     .select({
@@ -25,6 +26,7 @@ export default async function DashboardPage() {
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       source: reservations.source,
+      notes: reservations.notes,
       villaNom: villas.nom,
       villaNumero: villas.numero,
       villaId: villas.id,
@@ -45,9 +47,6 @@ export default async function DashboardPage() {
 
   const checkInsToday = upcoming.filter((r) => isSameDay(new Date(r.checkIn), now));
   const checkOutsToday = upcoming.filter((r) => isSameDay(new Date(r.checkOut), now));
-  const upcomingWeek = upcoming.filter(
-    (r) => !isSameDay(new Date(r.checkIn), now) && !isSameDay(new Date(r.checkOut), now)
-  );
 
   const allCashEntries = await db.select().from(cashEntries);
   const balance = allCashEntries.reduce((sum, e) => {
@@ -72,11 +71,13 @@ export default async function DashboardPage() {
     )
     .orderBy(asc(maintenanceRecords.prochaineDatePrevue));
 
+  const days = [now, addDays(now, 1), addDays(now, 2)];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Aujourd&apos;hui</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Les 3 prochains jours</h1>
           <p className="text-sm text-muted-foreground">
             {format(now, "EEEE d MMMM yyyy", { locale: fr })}
           </p>
@@ -126,9 +127,21 @@ export default async function DashboardPage() {
         </Link>
       </div>
 
-      <ReservationGroup title="Check-in aujourd'hui" items={checkInsToday} kind="in" />
-      <ReservationGroup title="Check-out aujourd'hui" items={checkOutsToday} kind="out" />
-      <ReservationGroup title="Les 14 prochains jours" items={upcomingWeek} kind="both" />
+      {days.map((day) => {
+        const dayCheckIns = upcoming.filter((r) => isSameDay(new Date(r.checkIn), day));
+        const dayCheckOuts = upcoming.filter((r) => isSameDay(new Date(r.checkOut), day));
+        const title = isToday(day) ? "Aujourd'hui" : isTomorrow(day) ? "Demain" : format(day, "EEEE", { locale: fr });
+
+        return (
+          <DayCard
+            key={day.toISOString()}
+            title={title}
+            date={day}
+            checkIns={dayCheckIns}
+            checkOuts={dayCheckOuts}
+          />
+        );
+      })}
 
       {upcomingMaintenance.length > 0 && (
         <Card>
@@ -175,6 +188,7 @@ type ReservationRow = {
   checkIn: Date;
   checkOut: Date;
   source: string;
+  notes: string | null;
   villaNom: string | null;
   villaNumero: string | null;
   villaId: string | null;
@@ -184,49 +198,87 @@ type ReservationRow = {
   cautionPayee: boolean;
 };
 
-function ReservationGroup({
+function DayCard({
   title,
-  items,
+  date,
+  checkIns,
+  checkOuts,
 }: {
   title: string;
-  items: ReservationRow[];
-  kind: "in" | "out" | "both";
+  date: Date;
+  checkIns: ReservationRow[];
+  checkOuts: ReservationRow[];
 }) {
+  const total = checkIns.length + checkOuts.length;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{title}</CardTitle>
+        <CardTitle className="flex items-baseline gap-2 text-base">
+          <span className="capitalize">{title}</span>
+          <span className="text-sm font-normal text-muted-foreground">
+            {format(date, "d MMMM", { locale: fr })}
+          </span>
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {items.length === 0 ? (
+        {total === 0 ? (
           <p className="text-sm text-muted-foreground">Rien à signaler.</p>
         ) : (
-          items.map((r) => (
-            <Link
-              key={r.id}
-              href={r.villaId ? `/villas/${r.villaId}` : "#"}
-              className="block rounded-md border p-3 hover:border-primary/50"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-medium">{r.guestName}</p>
-                <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
-                  {r.source === "superhote" ? "Superhote" : "Manuel"}
-                </Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
-              </p>
-              <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
-              <PaymentSummary
-                loyerTotal={r.loyerTotal}
-                montantPaye={r.montantPaye}
-                caution={r.caution}
-                cautionPayee={r.cautionPayee}
-              />
-            </Link>
-          ))
+          <>
+            {checkIns.map((r) => (
+              <ReservationRowCard key={`in-${r.id}`} r={r} kind="in" />
+            ))}
+            {checkOuts.map((r) => (
+              <ReservationRowCard key={`out-${r.id}`} r={r} kind="out" />
+            ))}
+          </>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
+  const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
+
+  return (
+    <Link
+      href={r.villaId ? `/villas/${r.villaId}` : "#"}
+      className="block rounded-md border p-3 hover:border-primary/50"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {kind === "in" ? (
+            <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+          )}
+          <p className="font-medium">{r.guestName}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Countdown target={target} variant={kind} />
+          <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
+            {r.source === "superhote" ? "Superhote" : "Manuel"}
+          </Badge>
+        </div>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
+      </p>
+      <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+      {r.notes ? (
+        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{r.notes}</span>
+        </div>
+      ) : null}
+      <PaymentSummary
+        loyerTotal={r.loyerTotal}
+        montantPaye={r.montantPaye}
+        caution={r.caution}
+        cautionPayee={r.cautionPayee}
+      />
+    </Link>
   );
 }

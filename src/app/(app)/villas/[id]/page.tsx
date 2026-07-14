@@ -20,7 +20,7 @@ import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
-import { ClipboardPlus } from "lucide-react";
+import { ClipboardPlus, Info } from "lucide-react";
 
 export default async function VillaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -170,6 +170,12 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                   </div>
                 </div>
                 <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+                {r.notes ? (
+                  <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <span>{r.notes}</span>
+                  </div>
+                ) : null}
                 <div className="mt-2">
                   <PaymentSummary
                     loyerTotal={r.loyerTotal}
