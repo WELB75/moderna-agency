@@ -15,6 +15,7 @@ import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
+import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
@@ -35,6 +36,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       description: villas.description,
       photoUrl: villas.photoUrl,
       galleryUrls: villas.galleryUrls,
+      codeBoitier: villas.codeBoitier,
       superhoteListingId: villas.superhoteListingId,
       domaineNom: domaines.nom,
     })
@@ -84,6 +86,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           label="Supprimer la villa"
         />
       </div>
+
+      <VillaCodeBoitier villaId={villa.id} codeBoitier={villa.codeBoitier} />
 
       <VillaPhotoUploader villaId={villa.id} photoUrl={villa.photoUrl} />
 

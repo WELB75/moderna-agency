@@ -61,6 +61,7 @@ export const villas = pgTable("villas", {
   adresse: text("adresse"),
   notes: text("notes"),
   description: text("description"),
+  codeBoitier: text("code_boitier"), // code de la boîte à clés / digicode d'accès
   photoUrl: text("photo_url"),
   galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
   superhoteListingId: text("superhote_listing_id"),

@@ -14,6 +14,7 @@ export async function createVilla(formData: FormData) {
   const adresse = String(formData.get("adresse") ?? "").trim();
   const superhoteListingId = String(formData.get("superhoteListingId") ?? "").trim();
   const domaineId = String(formData.get("domaineId") ?? "").trim();
+  const codeBoitier = String(formData.get("codeBoitier") ?? "").trim();
 
   if (!numero || !nom) {
     throw new Error("Le numéro et le nom de la villa sont obligatoires.");
@@ -26,6 +27,7 @@ export async function createVilla(formData: FormData) {
     adresse: adresse || null,
     superhoteListingId: superhoteListingId || null,
     domaineId: domaineId || null,
+    codeBoitier: codeBoitier || null,
   });
 
   revalidatePath("/villas");
@@ -44,6 +46,21 @@ export async function updateVillaPhoto(villaId: string, photoUrl: string) {
   await auth.protect();
   const db = getDb();
   await db.update(villas).set({ photoUrl, updatedAt: new Date() }).where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}
+
+export async function updateVillaCodeBoitier(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const codeBoitier = String(formData.get("codeBoitier") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ codeBoitier: codeBoitier || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
