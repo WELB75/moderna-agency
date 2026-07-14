@@ -65,6 +65,28 @@ export async function updateVillaCodeBoitier(formData: FormData) {
   revalidatePath(`/villas/${villaId}`);
 }
 
+export async function updateVillaInfo(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const numero = String(formData.get("numero") ?? "").trim();
+  const nom = String(formData.get("nom") ?? "").trim();
+  const adresse = String(formData.get("adresse") ?? "").trim();
+  const domaineId = String(formData.get("domaineId") ?? "").trim();
+
+  if (!villaId) throw new Error("Villa introuvable.");
+  if (!numero || !nom) {
+    throw new Error("Le numéro et le nom de la villa sont obligatoires.");
+  }
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ numero, nom, adresse: adresse || null, domaineId: domaineId || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}
+
 export async function updateVillaIcalUrl(formData: FormData) {
   await auth.protect();
   const villaId = String(formData.get("villaId") ?? "").trim();

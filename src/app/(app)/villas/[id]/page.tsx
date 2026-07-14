@@ -18,6 +18,7 @@ import { GuestCount } from "@/components/app/guest-count";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
 import { VillaIcalUrl } from "@/components/app/villa-ical-url";
+import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
@@ -41,6 +42,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       codeBoitier: villas.codeBoitier,
       icalUrl: villas.icalUrl,
       superhoteListingId: villas.superhoteListingId,
+      domaineId: villas.domaineId,
       domaineNom: domaines.nom,
     })
     .from(villas)
@@ -48,6 +50,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     .where(eq(villas.id, id))
     .limit(1);
   if (!villa) notFound();
+
+  const allDomaines = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(domaines.nom);
 
   const allVillaReservations = await db
     .select()
@@ -90,12 +94,22 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             {villa.adresse ? ` · ${villa.adresse}` : ""}
           </p>
         </div>
-        <ConfirmDeleteButton
-          action={deleteVilla.bind(null, villa.id)}
-          title="Supprimer cette villa ?"
-          description="Les réservations et inventaires liés seront également supprimés."
-          label="Supprimer la villa"
-        />
+        <div className="flex items-center gap-1">
+          <EditVillaInfoDialog
+            villaId={villa.id}
+            numero={villa.numero}
+            nom={villa.nom}
+            adresse={villa.adresse}
+            domaineId={villa.domaineId}
+            domaines={allDomaines}
+          />
+          <ConfirmDeleteButton
+            action={deleteVilla.bind(null, villa.id)}
+            title="Supprimer cette villa ?"
+            description="Les réservations et inventaires liés seront également supprimés."
+            label="Supprimer la villa"
+          />
+        </div>
       </div>
 
       <VillaCodeBoitier villaId={villa.id} codeBoitier={villa.codeBoitier} />
