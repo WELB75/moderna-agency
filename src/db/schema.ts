@@ -217,6 +217,58 @@ export const technicians = pgTable("technicians", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const products = pgTable(
+  "products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    nom: text("nom").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("products_nom_idx").on(t.nom)]
+);
+
+export const receipts = pgTable("receipts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  photoUrl: text("photo_url").notNull(),
+  domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "set null" }),
+  montant: numeric("montant", { precision: 10, scale: 2 }),
+  notes: text("notes"),
+  createdByUserId: text("created_by_user_id").notNull(),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const receiptItems = pgTable("receipt_items", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  receiptId: uuid("receipt_id").references(() => receipts.id, { onDelete: "cascade" }).notNull(),
+  productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }).notNull(),
+  quantite: integer("quantite").notNull(),
+});
+
+export const domaineStock = pgTable(
+  "domaine_stock",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "cascade" }).notNull(),
+    productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }).notNull(),
+    quantite: integer("quantite").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("domaine_stock_domaine_product_idx").on(t.domaineId, t.productId)]
+);
+
+export const villaStock = pgTable(
+  "villa_stock",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
+    productId: uuid("product_id").references(() => products.id, { onDelete: "cascade" }).notNull(),
+    quantite: integer("quantite").default(0).notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("villa_stock_villa_product_idx").on(t.villaId, t.productId)]
+);
+
 export const superhoteSyncLog = pgTable("superhote_sync_log", {
   id: uuid("id").defaultRandom().primaryKey(),
   startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),

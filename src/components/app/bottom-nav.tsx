@@ -1,38 +1,101 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navItems } from "@/components/app/nav-items";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+
+const PRIMARY_COUNT = 4;
 
 export function BottomNav() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+
+  const primaryItems = navItems.slice(0, PRIMARY_COUNT);
+  const overflowItems = navItems.slice(PRIMARY_COUNT);
+  const isOverflowActive = overflowItems.some(
+    (item) => pathname === item.href || pathname.startsWith(item.href + "/")
+  );
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
-      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
-    >
-      <ul className="flex items-stretch justify-around">
-        {navItems.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href + "/");
-          const Icon = item.icon;
-          return (
-            <li key={item.href} className="flex-1">
-              <Link
-                href={item.href}
+    <>
+      <nav
+        className="fixed inset-x-0 bottom-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <ul className="flex items-stretch justify-around">
+          {primaryItems.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const Icon = item.icon;
+            return (
+              <li key={item.href} className="min-w-0 flex-1">
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-medium leading-none transition-colors",
+                    active ? "text-primary" : "text-muted-foreground"
+                  )}
+                >
+                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="w-full truncate text-center">{item.label}</span>
+                </Link>
+              </li>
+            );
+          })}
+          {overflowItems.length > 0 && (
+            <li className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors",
-                  active ? "text-primary" : "text-muted-foreground"
+                  "flex w-full flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-medium leading-none transition-colors",
+                  isOverflowActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <Icon className="h-5 w-5" />
-                {item.label}
-              </Link>
+                <MoreHorizontal className="h-5 w-5 shrink-0" />
+                <span className="w-full truncate text-center">Plus</span>
+              </button>
             </li>
-          );
-        })}
-      </ul>
-    </nav>
+          )}
+        </ul>
+      </nav>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="bottom" className="md:hidden">
+          <SheetHeader>
+            <SheetTitle>Plus</SheetTitle>
+          </SheetHeader>
+          <ul className="space-y-1 px-4 pb-6">
+            {overflowItems.map((item) => {
+              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const Icon = item.icon;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors",
+                      active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                    )}
+                  >
+                    <Icon className="h-4.5 w-4.5 shrink-0" />
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }
