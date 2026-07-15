@@ -14,6 +14,7 @@ export async function createCashEntry(formData: FormData) {
   const type = String(formData.get("type") ?? "");
   const montant = String(formData.get("montant") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const responsable = String(formData.get("responsable") ?? "").trim() || null;
 
   if (!["remise", "depense", "restitution"].includes(type)) {
     throw new Error("Type de mouvement invalide.");
@@ -29,6 +30,7 @@ export async function createCashEntry(formData: FormData) {
     type: type as "remise" | "depense" | "restitution",
     montant: montantNum.toFixed(2),
     description: description || null,
+    responsable,
     createdByUserId: user?.id ?? "inconnu",
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
   });

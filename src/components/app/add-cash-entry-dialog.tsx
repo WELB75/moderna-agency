@@ -94,6 +94,14 @@ export function AddCashEntryDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="responsable">Personne concernée</Label>
+            <Input
+              id="responsable"
+              name="responsable"
+              placeholder="Ex. Brahim Jardinier"
+            />
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="description">Description</Label>
             <Textarea id="description" name="description" rows={2} placeholder="Ex. courses ménage villa 12" />
           </div>

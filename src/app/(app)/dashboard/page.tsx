@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import { reservations, villas, domaines, cashEntries, maintenanceRecords } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { PaymentSummary } from "@/components/app/payment-info";
@@ -37,6 +38,7 @@ export default async function DashboardPage() {
       villaNom: villas.nom,
       villaNumero: villas.numero,
       villaId: villas.id,
+      villaType: villas.type,
       domaineNom: domaines.nom,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
@@ -55,8 +57,8 @@ export default async function DashboardPage() {
     )
     .orderBy(asc(reservations.checkIn));
 
-  const checkInsToday = upcoming.filter((r) => isSameDay(new Date(r.checkIn), now));
-  const checkOutsToday = upcoming.filter((r) => isSameDay(new Date(r.checkOut), now));
+  const villaUpcoming = upcoming.filter((r) => r.villaType !== "appartement");
+  const appartementUpcoming = upcoming.filter((r) => r.villaType === "appartement");
 
   const allCashEntries = await db.select().from(cashEntries);
   const balance = allCashEntries.reduce((sum, e) => {
@@ -73,6 +75,7 @@ export default async function DashboardPage() {
       villaNom: villas.nom,
       villaNumero: villas.numero,
       villaId: villas.id,
+      villaType: villas.type,
     })
     .from(maintenanceRecords)
     .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
@@ -80,6 +83,9 @@ export default async function DashboardPage() {
       and(isNotNull(maintenanceRecords.prochaineDatePrevue), lte(maintenanceRecords.prochaineDatePrevue, endOfDay(addDays(now, 30))))
     )
     .orderBy(asc(maintenanceRecords.prochaineDatePrevue));
+
+  const villaMaintenance = upcomingMaintenance.filter((m) => m.villaType !== "appartement");
+  const appartementMaintenance = upcomingMaintenance.filter((m) => m.villaType === "appartement");
 
   const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(now, i));
 
@@ -102,7 +108,53 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <Link href="/caisse">
+        <Card className="transition-colors hover:border-primary/50">
+          <CardContent className="flex items-center gap-3 py-4">
+            <div className="rounded-full bg-primary/10 p-2 text-primary">
+              <Wallet className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold leading-none">{balance.toFixed(2)} DH</p>
+              <p className="text-sm text-muted-foreground">Solde caisse</p>
+            </div>
+          </CardContent>
+        </Card>
+      </Link>
+
+      <Tabs defaultValue="kamel">
+        <TabsList>
+          <TabsTrigger value="kamel">Kamel · Villas</TabsTrigger>
+          <TabsTrigger value="imene">Imène · Appartements</TabsTrigger>
+        </TabsList>
+        <TabsContent value="kamel" className="space-y-6 pt-2">
+          <PersonPanel reservations={villaUpcoming} maintenance={villaMaintenance} days={days} now={now} />
+        </TabsContent>
+        <TabsContent value="imene" className="space-y-6 pt-2">
+          <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function PersonPanel({
+  reservations: personReservations,
+  maintenance: personMaintenance,
+  days,
+  now,
+}: {
+  reservations: ReservationRow[];
+  maintenance: MaintenanceRow[];
+  days: Date[];
+  now: Date;
+}) {
+  const checkInsToday = personReservations.filter((r) => isSameDay(new Date(r.checkIn), now));
+  const checkOutsToday = personReservations.filter((r) => isSameDay(new Date(r.checkOut), now));
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2">
         <Card>
           <CardContent className="flex items-center gap-3 py-4">
             <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
@@ -125,24 +177,11 @@ export default async function DashboardPage() {
             </div>
           </CardContent>
         </Card>
-        <Link href="/caisse">
-          <Card className="transition-colors hover:border-primary/50">
-            <CardContent className="flex items-center gap-3 py-4">
-              <div className="rounded-full bg-primary/10 p-2 text-primary">
-                <Wallet className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold leading-none">{balance.toFixed(2)} DH</p>
-                <p className="text-sm text-muted-foreground">Solde caisse</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
       </div>
 
       {days.map((day) => {
-        const dayCheckIns = upcoming.filter((r) => isSameDay(new Date(r.checkIn), day));
-        const dayCheckOuts = upcoming.filter((r) => isSameDay(new Date(r.checkOut), day));
+        const dayCheckIns = personReservations.filter((r) => isSameDay(new Date(r.checkIn), day));
+        const dayCheckOuts = personReservations.filter((r) => isSameDay(new Date(r.checkOut), day));
         const title = isToday(day) ? "Aujourd'hui" : isTomorrow(day) ? "Demain" : format(day, "EEEE", { locale: fr });
 
         return (
@@ -156,13 +195,13 @@ export default async function DashboardPage() {
         );
       })}
 
-      {upcomingMaintenance.length > 0 && (
+      {personMaintenance.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Entretiens à prévoir (30 jours)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {upcomingMaintenance.map((m) => {
+            {personMaintenance.map((m) => {
               const overdue = isPast(new Date(m.prochaineDatePrevue!));
               return (
                 <Link
@@ -191,7 +230,7 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </>
   );
 }
 
@@ -208,12 +247,23 @@ type ReservationRow = {
   villaNom: string | null;
   villaNumero: string | null;
   villaId: string | null;
+  villaType: "villa" | "appartement" | null;
   domaineNom: string | null;
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
   cautionPayee: boolean;
   devisePaiement: string;
+};
+
+type MaintenanceRow = {
+  id: string;
+  equipement: string;
+  prochaineDatePrevue: Date | null;
+  villaNom: string | null;
+  villaNumero: string | null;
+  villaId: string | null;
+  villaType: "villa" | "appartement" | null;
 };
 
 function DayCard({

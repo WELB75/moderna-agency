@@ -2,7 +2,7 @@ import { desc, eq } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { cashEntries, villas } from "@/db/schema";
+import { cashEntries, villas, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AddCashEntryDialog } from "@/components/app/add-cash-entry-dialog";
@@ -24,13 +24,16 @@ export default async function CaissePage() {
       type: cashEntries.type,
       montant: cashEntries.montant,
       description: cashEntries.description,
+      responsable: cashEntries.responsable,
       createdByName: cashEntries.createdByName,
       createdAt: cashEntries.createdAt,
       villaNom: villas.nom,
       villaNumero: villas.numero,
+      domaineNom: domaines.nom,
     })
     .from(cashEntries)
     .leftJoin(villas, eq(cashEntries.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .orderBy(desc(cashEntries.createdAt));
 
   const allVillas = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas);
@@ -80,9 +83,23 @@ export default async function CaissePage() {
                     </span>
                   </div>
                   {e.description ? <p className="mt-1 text-sm">{e.description}</p> : null}
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    {e.domaineNom ? (
+                      <Badge variant="secondary" className="text-xs">
+                        {e.domaineNom}
+                      </Badge>
+                    ) : null}
+                    {e.villaNom ? (
+                      <span className="text-xs text-muted-foreground">
+                        {e.villaNom} (n°{e.villaNumero})
+                      </span>
+                    ) : null}
+                    {e.responsable ? (
+                      <span className="text-xs text-muted-foreground">· {e.responsable}</span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {e.villaNom ? `${e.villaNom} (n°${e.villaNumero}) · ` : ""}
-                    {e.createdByName ?? "Équipe"} ·{" "}
+                    Ajouté par {e.createdByName ?? "Équipe"} ·{" "}
                     {format(new Date(e.createdAt), "d MMM yyyy HH:mm", { locale: fr })}
                   </p>
                 </div>

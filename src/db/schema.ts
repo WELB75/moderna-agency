@@ -113,6 +113,7 @@ export const cashEntries = pgTable("cash_entries", {
   montant: numeric("montant", { precision: 10, scale: 2 }).notNull(),
   devise: text("devise").default("MAD").notNull(),
   description: text("description"),
+  responsable: text("responsable"), // personne qui a remis/dépensé l'argent (ex. Brahim Jardinier)
   createdByUserId: text("created_by_user_id").notNull(),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
