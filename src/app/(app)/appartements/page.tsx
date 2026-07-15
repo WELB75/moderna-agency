@@ -20,7 +20,7 @@ export default async function AppartementsPage() {
       adresse: villas.adresse,
       notes: villas.notes,
       photoUrl: villas.photoUrl,
-      superhoteListingId: villas.superhoteListingId,
+      icalUrl: villas.icalUrl,
       domaineId: villas.domaineId,
       createdAt: villas.createdAt,
       updatedAt: villas.updatedAt,
@@ -82,7 +82,7 @@ export default async function AppartementsPage() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2 pb-6">
-                  {appartement.superhoteListingId ? (
+                  {appartement.icalUrl ? (
                     <Badge variant="secondary">Superhote lié</Badge>
                   ) : (
                     <Badge variant="outline">Non lié à Superhote</Badge>
