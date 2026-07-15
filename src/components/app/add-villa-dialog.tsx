@@ -26,17 +26,21 @@ import { createVilla } from "@/lib/actions/villas";
 
 export function AddVillaDialog({
   domaines,
+  type = "villa",
 }: {
   domaines: { id: string; nom: string }[];
+  type?: "villa" | "appartement";
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const isAppartement = type === "appartement";
 
   async function handleSubmit(formData: FormData) {
+    formData.set("type", type);
     startTransition(async () => {
       try {
         await createVilla(formData);
-        toast.success("Villa ajoutée.");
+        toast.success(isAppartement ? "Appartement ajouté." : "Villa ajoutée.");
         setOpen(false);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
@@ -49,14 +53,16 @@ export function AddVillaDialog({
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="h-4 w-4" />
-          Nouvelle villa
+          {isAppartement ? "Nouvel appartement" : "Nouvelle villa"}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nouvelle villa</DialogTitle>
+          <DialogTitle>{isAppartement ? "Nouvel appartement" : "Nouvelle villa"}</DialogTitle>
           <DialogDescription>
-            Chaque villa a un numéro et un nom qui lui sont propres.
+            {isAppartement
+              ? "Chaque appartement a un numéro et un nom qui lui sont propres."
+              : "Chaque villa a un numéro et un nom qui lui sont propres."}
           </DialogDescription>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
@@ -82,7 +88,12 @@ export function AddVillaDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="nom">Nom</Label>
-              <Input id="nom" name="nom" placeholder="Ex. Villa Corail" required />
+              <Input
+                id="nom"
+                name="nom"
+                placeholder={isAppartement ? "Ex. Appartement Zen" : "Ex. Villa Corail"}
+                required
+              />
             </div>
           </div>
           <div className="space-y-1.5">
@@ -101,7 +112,7 @@ export function AddVillaDialog({
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
-              {isPending ? "Ajout..." : "Ajouter la villa"}
+              {isPending ? "Ajout..." : isAppartement ? "Ajouter l'appartement" : "Ajouter la villa"}
             </Button>
           </DialogFooter>
         </form>

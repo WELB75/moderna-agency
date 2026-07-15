@@ -15,6 +15,7 @@ export async function createVilla(formData: FormData) {
   const superhoteListingId = String(formData.get("superhoteListingId") ?? "").trim();
   const domaineId = String(formData.get("domaineId") ?? "").trim();
   const codeBoitier = String(formData.get("codeBoitier") ?? "").trim();
+  const type = String(formData.get("type") ?? "villa").trim() || "villa";
 
   if (!numero || !nom) {
     throw new Error("Le numéro et le nom de la villa sont obligatoires.");
@@ -22,6 +23,7 @@ export async function createVilla(formData: FormData) {
 
   const db = getDb();
   await db.insert(villas).values({
+    type: type === "appartement" ? "appartement" : "villa",
     numero,
     nom,
     adresse: adresse || null,
@@ -31,6 +33,7 @@ export async function createVilla(formData: FormData) {
   });
 
   revalidatePath("/villas");
+  revalidatePath("/appartements");
   revalidatePath("/dashboard");
 }
 

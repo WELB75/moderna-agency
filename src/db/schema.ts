@@ -53,11 +53,14 @@ export const domaines = pgTable("domaines", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const logementTypeEnum = pgEnum("logement_type", ["villa", "appartement"]);
+
 export const villas = pgTable("villas", {
   id: uuid("id").defaultRandom().primaryKey(),
+  type: logementTypeEnum("type").default("villa").notNull(),
   domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "set null" }),
-  numero: text("numero").notNull(), // numéro de la villa
-  nom: text("nom").notNull(), // nom de la villa
+  numero: text("numero").notNull(), // numéro de la villa / de l'appartement
+  nom: text("nom").notNull(), // nom de la villa / de l'appartement
   adresse: text("adresse"),
   notes: text("notes"),
   description: text("description"),
@@ -191,6 +194,17 @@ export const taches = pgTable("taches", {
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const dailyTasks = pgTable("daily_tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  titre: text("titre").notNull(),
+  fait: boolean("fait").default(false).notNull(),
+  ordre: integer("ordre").default(0).notNull(),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
 export const technicians = pgTable("technicians", {

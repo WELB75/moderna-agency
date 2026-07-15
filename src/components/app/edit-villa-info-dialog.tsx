@@ -31,6 +31,7 @@ export function EditVillaInfoDialog({
   adresse,
   domaineId,
   domaines,
+  typeLabel = "Villa",
 }: {
   villaId: string;
   numero: string;
@@ -38,6 +39,7 @@ export function EditVillaInfoDialog({
   adresse: string | null;
   domaineId: string | null;
   domaines: { id: string; nom: string }[];
+  typeLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedDomaine, setSelectedDomaine] = useState(domaineId ?? "");
@@ -49,7 +51,7 @@ export function EditVillaInfoDialog({
     startTransition(async () => {
       try {
         await updateVillaInfo(formData);
-        toast.success("Villa mise à jour.");
+        toast.success("Informations mises à jour.");
         setOpen(false);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de la mise à jour.");
@@ -67,7 +69,7 @@ export function EditVillaInfoDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Informations de la villa</DialogTitle>
+          <DialogTitle>Informations {typeLabel === "Appartement" ? "de l'appartement" : "de la villa"}</DialogTitle>
           <DialogDescription>Numéro, nom, adresse et domaine.</DialogDescription>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">

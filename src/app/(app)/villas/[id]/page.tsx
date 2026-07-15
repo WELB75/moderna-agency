@@ -33,6 +33,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   const [villa] = await db
     .select({
       id: villas.id,
+      type: villas.type,
       numero: villas.numero,
       nom: villas.nom,
       adresse: villas.adresse,
@@ -51,6 +52,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     .where(eq(villas.id, id))
     .limit(1);
   if (!villa) notFound();
+  const typeLabel = villa.type === "appartement" ? "Appartement" : "Villa";
 
   const allDomaines = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(domaines.nom);
 
@@ -91,7 +93,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           ) : null}
           <h1 className="text-2xl font-semibold tracking-tight">{villa.nom}</h1>
           <p className="text-sm text-muted-foreground">
-            Villa n°{villa.numero}
+            {typeLabel} n°{villa.numero}
             {villa.adresse ? ` · ${villa.adresse}` : ""}
           </p>
         </div>
@@ -103,12 +105,13 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             adresse={villa.adresse}
             domaineId={villa.domaineId}
             domaines={allDomaines}
+            typeLabel={typeLabel}
           />
           <ConfirmDeleteButton
             action={deleteVilla.bind(null, villa.id)}
-            title="Supprimer cette villa ?"
+            title={`Supprimer ${typeLabel === "Appartement" ? "cet appartement" : "cette villa"} ?`}
             description="Les réservations et inventaires liés seront également supprimés."
-            label="Supprimer la villa"
+            label={`Supprimer ${typeLabel === "Appartement" ? "l'appartement" : "la villa"}`}
           />
         </div>
       </div>
