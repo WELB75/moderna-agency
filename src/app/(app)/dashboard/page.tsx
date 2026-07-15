@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { currentUser } from "@clerk/nextjs/server";
 import { and, gte, lte, or, eq, asc, isNotNull } from "drizzle-orm";
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -89,6 +90,10 @@ export default async function DashboardPage() {
 
   const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(now, i));
 
+  const user = await currentUser();
+  const userEmail = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
+  const isImene = Boolean(userEmail && userEmail === process.env.IMENE_EMAIL?.toLowerCase());
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -122,18 +127,22 @@ export default async function DashboardPage() {
         </Card>
       </Link>
 
-      <Tabs defaultValue="kamel">
-        <TabsList>
-          <TabsTrigger value="kamel">Kamel · Villas</TabsTrigger>
-          <TabsTrigger value="imene">Imène · Appartements</TabsTrigger>
-        </TabsList>
-        <TabsContent value="kamel" className="space-y-6 pt-2">
-          <PersonPanel reservations={villaUpcoming} maintenance={villaMaintenance} days={days} now={now} />
-        </TabsContent>
-        <TabsContent value="imene" className="space-y-6 pt-2">
-          <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
-        </TabsContent>
-      </Tabs>
+      {isImene ? (
+        <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
+      ) : (
+        <Tabs defaultValue="kamel">
+          <TabsList>
+            <TabsTrigger value="kamel">Kamel · Villas</TabsTrigger>
+            <TabsTrigger value="imene">Imène · Appartements</TabsTrigger>
+          </TabsList>
+          <TabsContent value="kamel" className="space-y-6 pt-2">
+            <PersonPanel reservations={villaUpcoming} maintenance={villaMaintenance} days={days} now={now} />
+          </TabsContent>
+          <TabsContent value="imene" className="space-y-6 pt-2">
+            <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }
