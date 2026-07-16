@@ -62,6 +62,7 @@ export const villas = pgTable("villas", {
   numero: text("numero").notNull(), // numéro de la villa / de l'appartement
   nom: text("nom").notNull(), // nom de la villa / de l'appartement
   adresse: text("adresse"),
+  numeroImmeuble: text("numero_immeuble"), // numéro de l'immeuble/résidence, surtout pour les appartements
   notes: text("notes"),
   description: text("description"),
   codeBoitier: text("code_boitier"), // code de la boîte à clés / digicode d'accès

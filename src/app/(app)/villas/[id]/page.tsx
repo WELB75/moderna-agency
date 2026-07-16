@@ -37,6 +37,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       numero: villas.numero,
       nom: villas.nom,
       adresse: villas.adresse,
+      numeroImmeuble: villas.numeroImmeuble,
       notes: villas.notes,
       description: villas.description,
       photoUrl: villas.photoUrl,
@@ -94,6 +95,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           <h1 className="text-2xl font-semibold tracking-tight">{villa.nom}</h1>
           <p className="text-sm text-muted-foreground">
             {typeLabel} n°{villa.numero}
+            {villa.numeroImmeuble ? ` · Immeuble ${villa.numeroImmeuble}` : ""}
             {villa.adresse ? ` · ${villa.adresse}` : ""}
           </p>
         </div>
@@ -103,6 +105,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             numero={villa.numero}
             nom={villa.nom}
             adresse={villa.adresse}
+            numeroImmeuble={villa.numeroImmeuble}
             domaineId={villa.domaineId}
             domaines={allDomaines}
             typeLabel={typeLabel}

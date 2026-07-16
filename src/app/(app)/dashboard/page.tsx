@@ -13,7 +13,7 @@ import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
-import { LogIn, LogOut, Wallet, Wrench, Info } from "lucide-react";
+import { LogIn, LogOut, Wallet, Wrench, Info, KeyRound } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 import { nowInMorocco } from "@/lib/now";
 
@@ -40,6 +40,8 @@ export default async function DashboardPage() {
       villaNumero: villas.numero,
       villaId: villas.id,
       villaType: villas.type,
+      codeBoitier: villas.codeBoitier,
+      numeroImmeuble: villas.numeroImmeuble,
       domaineNom: domaines.nom,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
@@ -257,6 +259,8 @@ type ReservationRow = {
   villaNumero: string | null;
   villaId: string | null;
   villaType: "villa" | "appartement" | null;
+  codeBoitier: string | null;
+  numeroImmeuble: string | null;
   domaineNom: string | null;
   loyerTotal: string | null;
   montantPaye: string | null;
@@ -352,8 +356,21 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
           </Badge>
         ) : null}
         <span className="text-sm text-muted-foreground">
-          {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
+          {r.villaNom
+            ? `${r.villaNom} (${r.villaType === "appartement" ? "appt" : "villa"} n°${r.villaNumero})`
+            : "Logement non renseigné"}
         </span>
+        {r.villaType === "appartement" && r.numeroImmeuble ? (
+          <Badge variant="outline" className="text-xs">
+            Immeuble {r.numeroImmeuble}
+          </Badge>
+        ) : null}
+        {r.codeBoitier ? (
+          <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide">
+            <KeyRound className="h-3 w-3" />
+            {r.codeBoitier}
+          </Badge>
+        ) : null}
         {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
       </div>
 

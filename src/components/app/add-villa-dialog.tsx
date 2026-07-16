@@ -100,6 +100,12 @@ export function AddVillaDialog({
             <Label htmlFor="adresse">Adresse</Label>
             <Input id="adresse" name="adresse" placeholder="Adresse complète" />
           </div>
+          {isAppartement && (
+            <div className="space-y-1.5">
+              <Label htmlFor="numeroImmeuble">Numéro de l&apos;immeuble</Label>
+              <Input id="numeroImmeuble" name="numeroImmeuble" placeholder="Ex. Immeuble B" />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="codeBoitier">Code du boîtier à clés</Label>
             <Input id="codeBoitier" name="codeBoitier" placeholder="Ex. 1526" />

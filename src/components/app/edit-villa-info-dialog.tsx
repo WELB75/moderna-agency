@@ -29,6 +29,7 @@ export function EditVillaInfoDialog({
   numero,
   nom,
   adresse,
+  numeroImmeuble,
   domaineId,
   domaines,
   typeLabel = "Villa",
@@ -37,6 +38,7 @@ export function EditVillaInfoDialog({
   numero: string;
   nom: string;
   adresse: string | null;
+  numeroImmeuble?: string | null;
   domaineId: string | null;
   domaines: { id: string; nom: string }[];
   typeLabel?: string;
@@ -44,6 +46,7 @@ export function EditVillaInfoDialog({
   const [open, setOpen] = useState(false);
   const [selectedDomaine, setSelectedDomaine] = useState(domaineId ?? "");
   const [isPending, startTransition] = useTransition();
+  const isAppartement = typeLabel === "Appartement";
 
   async function handleSubmit(formData: FormData) {
     formData.set("villaId", villaId);
@@ -102,6 +105,17 @@ export function EditVillaInfoDialog({
             <Label htmlFor="adresse">Adresse</Label>
             <Input id="adresse" name="adresse" defaultValue={adresse ?? ""} />
           </div>
+          {isAppartement && (
+            <div className="space-y-1.5">
+              <Label htmlFor="numeroImmeuble">Numéro de l&apos;immeuble</Label>
+              <Input
+                id="numeroImmeuble"
+                name="numeroImmeuble"
+                defaultValue={numeroImmeuble ?? ""}
+                placeholder="Ex. Immeuble B"
+              />
+            </div>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
               {isPending ? "Enregistrement..." : "Enregistrer"}
