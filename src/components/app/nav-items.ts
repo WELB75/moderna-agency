@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet, ClipboardCheck, Building2, Wrench, ListTodo, Home, ShoppingCart } from "lucide-react";
+import { LayoutDashboard, Wallet, ClipboardCheck, Building2, Wrench, ListTodo, Home, ShoppingCart, User } from "lucide-react";
 
 export const navItems = [
   { href: "/dashboard", label: "Accueil", icon: LayoutDashboard },
@@ -9,4 +9,5 @@ export const navItems = [
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/caisse", label: "Caisse", icon: Wallet },
   { href: "/courses", label: "Courses", icon: ShoppingCart },
+  { href: "/proprietaires", label: "Propriétaires", icon: User },
 ] as const;

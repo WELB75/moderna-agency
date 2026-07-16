@@ -17,6 +17,7 @@ import { ReservationDates } from "@/components/app/reservation-dates";
 import { GuestCount } from "@/components/app/guest-count";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
+import { VillaProprietaire } from "@/components/app/villa-proprietaire";
 import { VillaIcalUrl } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
@@ -44,6 +45,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       photoUrl: villas.photoUrl,
       galleryUrls: villas.galleryUrls,
       codeBoitier: villas.codeBoitier,
+      proprietaireNom: villas.proprietaireNom,
+      proprietaireTelephone: villas.proprietaireTelephone,
       icalUrl: villas.icalUrl,
       superhoteListingId: villas.superhoteListingId,
       domaineId: villas.domaineId,
@@ -116,7 +119,14 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      <VillaCodeBoitier villaId={villa.id} codeBoitier={villa.codeBoitier} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <VillaCodeBoitier villaId={villa.id} codeBoitier={villa.codeBoitier} />
+        <VillaProprietaire
+          villaId={villa.id}
+          proprietaireNom={villa.proprietaireNom}
+          proprietaireTelephone={villa.proprietaireTelephone}
+        />
+      </div>
 
       <VillaIcalUrl villaId={villa.id} icalUrl={villa.icalUrl} />
 
