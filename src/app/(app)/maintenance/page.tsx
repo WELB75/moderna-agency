@@ -11,9 +11,10 @@ import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
 import { AddTacheDialog } from "@/components/app/add-tache-dialog";
 import { TacheBoard } from "@/components/app/tache-board";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { PhoneLink } from "@/components/app/phone-link";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { deleteTechnician } from "@/lib/actions/technicians";
-import { Wrench, Phone, Users, ListTodo } from "lucide-react";
+import { Wrench, Users, ListTodo } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 
 export default async function MaintenancePage() {
@@ -190,12 +191,7 @@ export default async function MaintenancePage() {
                     {t.notes ? <p className="mt-1 text-sm text-muted-foreground">{t.notes}</p> : null}
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge asChild variant="outline" className="cursor-pointer">
-                      <a href={`tel:${t.telephone}`}>
-                        <Phone className="h-3 w-3" />
-                        {t.telephone}
-                      </a>
-                    </Badge>
+                    <PhoneLink phone={t.telephone} />
                     <ConfirmDeleteButton
                       action={deleteTechnician.bind(null, t.id)}
                       title="Supprimer ce technicien ?"
