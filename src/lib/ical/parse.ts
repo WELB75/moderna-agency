@@ -10,6 +10,7 @@ export type SuperhoteDescriptionInfo = {
 
 export type IcalEvent = {
   uid: string;
+  stableBookingId: string;
   summary: string | null;
   guestName: string | null;
   canal: string | null;
@@ -117,7 +118,7 @@ export function parseIcs(raw: string): IcalEvent[] {
   const lines = unfoldLines(raw);
   const events: IcalEvent[] = [];
 
-  let current: Partial<Record<"UID" | "SUMMARY" | "DTSTART" | "DTEND" | "DESCRIPTION", string>> | null = null;
+  let current: Partial<Record<"UID" | "SUMMARY" | "DTSTART" | "DTEND" | "DESCRIPTION" | "URL", string>> | null = null;
 
   for (const line of lines) {
     if (line.startsWith("BEGIN:VEVENT")) {
@@ -137,9 +138,19 @@ export function parseIcs(raw: string): IcalEvent[] {
           const summaryParts = summary ? summary.split(" - ") : [];
           const guestName = summaryParts.length > 0 ? summaryParts[0].trim() : null;
           const canal = summaryParts.length > 1 ? summaryParts[1].trim() : null;
+          const bookingIdFromSummary =
+            summaryParts.length > 2 ? summaryParts.slice(2).join(" - ").trim() : null;
+
+          // Superhote régénère un nouvel UID à chaque export (horodatage embarqué) : ce n'est PAS
+          // stable d'une synchronisation à l'autre. On utilise plutôt l'identifiant de réservation
+          // stable (présent dans le SUMMARY, ou dans l'URL de la fiche) pour éviter les doublons.
+          const urlMatch = current.URL?.match(/bookings\/(\d+)/);
+          const bookingIdFromUrl = urlMatch ? urlMatch[1] : null;
+          const uid = current.UID?.trim() || `${current.DTSTART}-${current.DTEND}`;
 
           events.push({
-            uid: current.UID?.trim() || `${current.DTSTART}-${current.DTEND}`,
+            uid,
+            stableBookingId: bookingIdFromSummary || bookingIdFromUrl || uid,
             summary,
             guestName,
             canal,
@@ -165,6 +176,7 @@ export function parseIcs(raw: string): IcalEvent[] {
     else if (key === "DTSTART") current.DTSTART = value;
     else if (key === "DTEND") current.DTEND = value;
     else if (key === "DESCRIPTION") current.DESCRIPTION = value;
+    else if (key === "URL") current.URL = value;
   }
 
   return events;

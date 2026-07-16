@@ -1,4 +1,4 @@
-import { eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, reservations } from "@/db/schema";
 import { parseIcs } from "@/lib/ical/parse";
@@ -37,15 +37,32 @@ export async function runIcalSync(): Promise<
 
         const guestName = event.guestName?.trim() || event.summary?.trim() || "Réservation iCal";
 
-        const existing = await db
+        let existing = await db
           .select({ id: reservations.id })
           .from(reservations)
-          .where(eq(reservations.superhoteBookingId, event.uid))
+          .where(eq(reservations.superhoteBookingId, event.stableBookingId))
           .limit(1);
+
+        // Repli : l'ancien UID Superhote (instable, régénéré à chaque export) a pu être
+        // stocké lors d'une synchronisation précédente. On rattache alors la réservation
+        // existante (même villa/dates) au nouvel identifiant stable au lieu d'en recréer une.
+        if (existing.length === 0) {
+          existing = await db
+            .select({ id: reservations.id })
+            .from(reservations)
+            .where(
+              and(
+                eq(reservations.villaId, villa.id),
+                eq(reservations.checkIn, event.start),
+                eq(reservations.checkOut, event.end)
+              )
+            )
+            .limit(1);
+        }
 
         const values = {
           villaId: villa.id,
-          superhoteBookingId: event.uid,
+          superhoteBookingId: event.stableBookingId,
           guestName,
           guestEmail: event.description.guestEmail,
           guestPhone: event.description.guestPhone,
