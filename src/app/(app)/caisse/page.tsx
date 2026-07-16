@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { desc, eq } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -27,6 +28,7 @@ type Entry = {
   villaNom: string | null;
   villaNumero: string | null;
   domaineNom: string | null;
+  photoUrls: string[] | null;
 };
 
 export default async function CaissePage() {
@@ -40,6 +42,7 @@ export default async function CaissePage() {
       montant: cashEntries.montant,
       description: cashEntries.description,
       responsable: cashEntries.responsable,
+      photoUrls: cashEntries.photoUrls,
       createdByName: cashEntries.createdByName,
       createdAt: cashEntries.createdAt,
       villaNom: villas.nom,
@@ -153,6 +156,15 @@ function CaissePanel({
                     Ajouté par {e.createdByName ?? "Équipe"} ·{" "}
                     {format(new Date(e.createdAt), "d MMM yyyy HH:mm", { locale: fr })}
                   </p>
+                  {e.photoUrls && e.photoUrls.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {e.photoUrls.map((url) => (
+                        <a key={url} href={url} target="_blank" rel="noreferrer" className="relative h-16 w-16 overflow-hidden rounded-md border">
+                          <Image src={url} alt="" fill sizes="64px" className="object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 <ConfirmDeleteButton
                   action={deleteCashEntry.bind(null, e.id)}

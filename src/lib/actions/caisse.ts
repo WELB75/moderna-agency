@@ -16,6 +16,8 @@ export async function createCashEntry(formData: FormData) {
   const montant = String(formData.get("montant") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const responsable = String(formData.get("responsable") ?? "").trim() || null;
+  const photoUrlsRaw = String(formData.get("photoUrls") ?? "").trim();
+  const photoUrls = photoUrlsRaw ? (JSON.parse(photoUrlsRaw) as string[]) : [];
 
   if (!["remise", "depense", "restitution"].includes(type)) {
     throw new Error("Type de mouvement invalide.");
@@ -36,9 +38,24 @@ export async function createCashEntry(formData: FormData) {
     montant: montantNum.toFixed(2),
     description: description || null,
     responsable,
+    photoUrls,
     createdByUserId: user?.id ?? "inconnu",
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
   });
+
+  revalidatePath("/caisse");
+}
+
+export async function addCashEntryPhotos(entryId: string, photoUrls: string[]) {
+  await auth.protect();
+  const db = getDb();
+  const [entry] = await db.select().from(cashEntries).where(eq(cashEntries.id, entryId)).limit(1);
+  if (!entry) throw new Error("Mouvement introuvable.");
+
+  await db
+    .update(cashEntries)
+    .set({ photoUrls: [...(entry.photoUrls ?? []), ...photoUrls] })
+    .where(eq(cashEntries.id, entryId));
 
   revalidatePath("/caisse");
 }
