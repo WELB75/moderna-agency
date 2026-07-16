@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { cashEntries, villas, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddCashEntryDialog } from "@/components/app/add-cash-entry-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { deleteCashEntry } from "@/lib/actions/caisse";
@@ -15,6 +16,19 @@ const TYPE_LABELS: Record<string, string> = {
   restitution: "Restitution",
 };
 
+type Entry = {
+  id: string;
+  type: string;
+  montant: string;
+  description: string | null;
+  responsable: string | null;
+  createdByName: string | null;
+  createdAt: Date;
+  villaNom: string | null;
+  villaNumero: string | null;
+  domaineNom: string | null;
+};
+
 export default async function CaissePage() {
   const db = getDb();
 
@@ -22,6 +36,7 @@ export default async function CaissePage() {
     .select({
       id: cashEntries.id,
       type: cashEntries.type,
+      moyenPaiement: cashEntries.moyenPaiement,
       montant: cashEntries.montant,
       description: cashEntries.description,
       responsable: cashEntries.responsable,
@@ -38,6 +53,46 @@ export default async function CaissePage() {
 
   const allVillas = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas);
 
+  const especes = entries.filter((e) => e.moyenPaiement === "especes");
+  const virement = entries.filter((e) => e.moyenPaiement === "virement");
+  const carte = entries.filter((e) => e.moyenPaiement === "carte");
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Caisse</h1>
+        <p className="text-sm text-muted-foreground">Argent confié, dépenses et restitutions</p>
+      </div>
+
+      <Tabs defaultValue="especes">
+        <TabsList>
+          <TabsTrigger value="especes">Espèces</TabsTrigger>
+          <TabsTrigger value="virement">Virement bancaire</TabsTrigger>
+          <TabsTrigger value="carte">Carte bleue</TabsTrigger>
+        </TabsList>
+        <TabsContent value="especes" className="pt-2">
+          <CaissePanel entries={especes} villas={allVillas} moyenPaiement="especes" />
+        </TabsContent>
+        <TabsContent value="virement" className="pt-2">
+          <CaissePanel entries={virement} villas={allVillas} moyenPaiement="virement" />
+        </TabsContent>
+        <TabsContent value="carte" className="pt-2">
+          <CaissePanel entries={carte} villas={allVillas} moyenPaiement="carte" />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function CaissePanel({
+  entries,
+  villas,
+  moyenPaiement,
+}: {
+  entries: Entry[];
+  villas: { id: string; nom: string; numero: string }[];
+  moyenPaiement: "especes" | "virement" | "carte";
+}) {
   const totalRemise = entries.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
   const totalDepense = entries.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
   const totalRestitution = entries
@@ -47,12 +102,8 @@ export default async function CaissePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Caisse</h1>
-          <p className="text-sm text-muted-foreground">Argent confié, dépenses et restitutions</p>
-        </div>
-        <AddCashEntryDialog villas={allVillas} />
+      <div className="flex items-center justify-end">
+        <AddCashEntryDialog villas={villas} moyenPaiement={moyenPaiement} />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-4">

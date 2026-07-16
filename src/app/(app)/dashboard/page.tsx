@@ -63,7 +63,7 @@ export default async function DashboardPage() {
   const villaUpcoming = upcoming.filter((r) => r.villaType !== "appartement");
   const appartementUpcoming = upcoming.filter((r) => r.villaType === "appartement");
 
-  const allCashEntries = await db.select().from(cashEntries);
+  const allCashEntries = await db.select().from(cashEntries).where(eq(cashEntries.moyenPaiement, "especes"));
   const balance = allCashEntries.reduce((sum, e) => {
     const amount = Number(e.montant);
     if (e.type === "remise") return sum + amount;
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <p className="text-2xl font-semibold leading-none">{balance.toFixed(2)} DH</p>
-              <p className="text-sm text-muted-foreground">Solde caisse</p>
+              <p className="text-sm text-muted-foreground">Solde caisse (espèces)</p>
             </div>
           </CardContent>
         </Card>

@@ -25,10 +25,18 @@ import {
 } from "@/components/ui/dialog";
 import { createCashEntry } from "@/lib/actions/caisse";
 
+const MOYEN_LABELS: Record<string, string> = {
+  especes: "Espèces",
+  virement: "Virement bancaire",
+  carte: "Carte bleue",
+};
+
 export function AddCashEntryDialog({
   villas,
+  moyenPaiement = "especes",
 }: {
   villas: { id: string; nom: string; numero: string }[];
+  moyenPaiement?: "especes" | "virement" | "carte";
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("remise");
@@ -36,6 +44,7 @@ export function AddCashEntryDialog({
 
   async function handleSubmit(formData: FormData) {
     formData.set("type", type);
+    formData.set("moyenPaiement", moyenPaiement);
     startTransition(async () => {
       try {
         await createCashEntry(formData);
@@ -57,7 +66,7 @@ export function AddCashEntryDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nouveau mouvement de caisse</DialogTitle>
+          <DialogTitle>Nouveau mouvement · {MOYEN_LABELS[moyenPaiement]}</DialogTitle>
           <DialogDescription>Enregistre l&apos;argent confié, dépensé ou restitué.</DialogDescription>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
