@@ -14,7 +14,7 @@ export default function ProprietairesPage() {
           href="/proprietaires/villas"
           className="flex flex-col items-center gap-3 rounded-lg border bg-card p-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/50"
         >
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-current text-blue-600 dark:text-blue-400">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-foreground text-foreground">
             <Building2 className="h-9 w-9" strokeWidth={1.5} />
           </div>
           <span className="font-medium">Villas</span>
@@ -23,7 +23,7 @@ export default function ProprietairesPage() {
           href="/proprietaires/appartements"
           className="flex flex-col items-center gap-3 rounded-lg border bg-card p-8 text-center transition-colors hover:border-primary/50 hover:bg-muted/50"
         >
-          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-current text-orange-600 dark:text-orange-400">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full border-2 border-foreground text-foreground">
             <Home className="h-9 w-9" strokeWidth={1.5} />
           </div>
           <span className="font-medium">Appartements</span>
