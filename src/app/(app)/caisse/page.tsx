@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddCashEntryDialog } from "@/components/app/add-cash-entry-dialog";
+import { DomaineBadge } from "@/components/app/domaine-badge";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { deleteCashEntry } from "@/lib/actions/caisse";
 
@@ -138,11 +139,7 @@ function CaissePanel({
                   </div>
                   {e.description ? <p className="mt-1 text-sm">{e.description}</p> : null}
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    {e.domaineNom ? (
-                      <Badge variant="secondary" className="text-xs">
-                        {e.domaineNom}
-                      </Badge>
-                    ) : null}
+                    {e.domaineNom ? <DomaineBadge nom={e.domaineNom} className="text-xs" /> : null}
                     {e.villaNom ? (
                       <span className="text-xs text-muted-foreground">
                         {e.villaNom} (n°{e.villaNumero})

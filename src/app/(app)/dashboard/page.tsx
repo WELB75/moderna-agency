@@ -13,6 +13,7 @@ import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
+import { DomaineBadge } from "@/components/app/domaine-badge";
 import { LogIn, LogOut, Wallet, Wrench, Info, KeyRound } from "lucide-react";
 import { isSuperhoteConfigured } from "@/lib/superhote/client";
 import { nowInMorocco } from "@/lib/now";
@@ -350,11 +351,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
       </div>
 
       <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        {r.domaineNom ? (
-          <Badge variant="secondary" className="text-xs">
-            {r.domaineNom}
-          </Badge>
-        ) : null}
+        {r.domaineNom ? <DomaineBadge nom={r.domaineNom} className="text-xs" /> : null}
         <span className="text-sm text-muted-foreground">
           {r.villaNom
             ? `${r.villaNom} (${r.villaType === "appartement" ? "appt" : "villa"} n°${r.villaNumero})`

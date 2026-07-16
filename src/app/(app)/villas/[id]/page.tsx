@@ -18,6 +18,7 @@ import { GuestCount } from "@/components/app/guest-count";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
 import { VillaIcalUrl } from "@/components/app/villa-ical-url";
+import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { deleteVilla } from "@/lib/actions/villas";
@@ -87,11 +88,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          {villa.domaineNom ? (
-            <Badge variant="secondary" className="mb-1">
-              {villa.domaineNom}
-            </Badge>
-          ) : null}
+          {villa.domaineNom ? <DomaineBadge nom={villa.domaineNom} className="mb-1" /> : null}
           <h1 className="text-2xl font-semibold tracking-tight">{villa.nom}</h1>
           <p className="text-sm text-muted-foreground">
             {typeLabel} n°{villa.numero}

@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AddVillaDialog } from "@/components/app/add-villa-dialog";
 import { AddDomaineDialog } from "@/components/app/add-domaine-dialog";
+import { DomaineBadge } from "@/components/app/domaine-badge";
 import { Building2, ChevronRight } from "lucide-react";
 
 export default async function VillasPage() {
@@ -69,11 +70,7 @@ export default async function VillasPage() {
                 ) : null}
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pt-6">
                   <div>
-                    {villa.domaineNom ? (
-                      <Badge variant="secondary" className="mb-1 text-xs">
-                        {villa.domaineNom}
-                      </Badge>
-                    ) : null}
+                    {villa.domaineNom ? <DomaineBadge nom={villa.domaineNom} className="mb-1 text-xs" /> : null}
                     <CardTitle className="text-base">{villa.nom}</CardTitle>
                     <p className="text-sm text-muted-foreground">Villa n°{villa.numero}</p>
                   </div>

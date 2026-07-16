@@ -13,9 +13,9 @@ import {
   villas,
 } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddReceiptDialog } from "@/components/app/add-receipt-dialog";
+import { DomaineBadge } from "@/components/app/domaine-badge";
 import { DomaineStockSection } from "@/components/app/domaine-stock-section";
 import { VillaStockPanel } from "@/components/app/villa-stock-panel";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
@@ -115,11 +115,7 @@ export default async function CoursesPage() {
                     <div className="flex flex-1 items-start justify-between gap-3 p-4">
                       <div className="space-y-1.5">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {r.domaineNom ? (
-                            <Badge variant="secondary" className="text-xs">
-                              {r.domaineNom}
-                            </Badge>
-                          ) : null}
+                          {r.domaineNom ? <DomaineBadge nom={r.domaineNom} className="text-xs" /> : null}
                           {r.montant ? (
                             <span className="text-sm font-semibold">{Number(r.montant).toFixed(2)} DH</span>
                           ) : null}

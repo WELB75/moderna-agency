@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AddVillaDialog } from "@/components/app/add-villa-dialog";
 import { AddDomaineDialog } from "@/components/app/add-domaine-dialog";
+import { DomaineBadge } from "@/components/app/domaine-badge";
 import { Home, ChevronRight } from "lucide-react";
 
 export default async function AppartementsPage() {
@@ -72,9 +73,7 @@ export default async function AppartementsPage() {
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pt-6">
                   <div>
                     {appartement.domaineNom ? (
-                      <Badge variant="secondary" className="mb-1 text-xs">
-                        {appartement.domaineNom}
-                      </Badge>
+                      <DomaineBadge nom={appartement.domaineNom} className="mb-1 text-xs" />
                     ) : null}
                     <CardTitle className="text-base">{appartement.nom}</CardTitle>
                     <p className="text-sm text-muted-foreground">Appartement n°{appartement.numero}</p>
