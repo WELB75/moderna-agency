@@ -191,6 +191,35 @@ export const procedureTemplates = pgTable("procedure_templates", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const interventionEtapeEnum = pgEnum("intervention_etape", [
+  "signale",
+  "contacte",
+  "planifie",
+  "en_cours",
+  "termine",
+]);
+
+export const interventions = pgTable("interventions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  titre: text("titre").notNull(),
+  probleme: text("probleme"),
+  lieu: text("lieu"), // texte libre (ex. "Résidence Noria") quand ce n'est pas une villa précise
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "set null" }),
+  domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "set null" }),
+  prestataire: text("prestataire"),
+  etape: interventionEtapeEnum("etape").default("signale").notNull(),
+  notes: text("notes"),
+  signaleAt: timestamp("signale_at", { withTimezone: true }).defaultNow().notNull(),
+  contacteAt: timestamp("contacte_at", { withTimezone: true }),
+  planifieAt: timestamp("planifie_at", { withTimezone: true }),
+  debutAt: timestamp("debut_at", { withTimezone: true }),
+  finAt: timestamp("fin_at", { withTimezone: true }),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const taches = pgTable("taches", {
   id: uuid("id").defaultRandom().primaryKey(),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
