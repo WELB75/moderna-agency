@@ -133,12 +133,12 @@ export default async function DashboardPage() {
       {isImene ? (
         <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
       ) : (
-        <Tabs defaultValue="kamel">
+        <Tabs defaultValue="aimad">
           <TabsList>
-            <TabsTrigger value="kamel">Kamel · Villas</TabsTrigger>
+            <TabsTrigger value="aimad">Aimad · Villas</TabsTrigger>
             <TabsTrigger value="imene">Imène · Appartements</TabsTrigger>
           </TabsList>
-          <TabsContent value="kamel" className="space-y-6 pt-2">
+          <TabsContent value="aimad" className="space-y-6 pt-2">
             <PersonPanel reservations={villaUpcoming} maintenance={villaMaintenance} days={days} now={now} />
           </TabsContent>
           <TabsContent value="imene" className="space-y-6 pt-2">
