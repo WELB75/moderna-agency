@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 
 function domaineColorClass(nom: string): string {
   const key = nom.toLowerCase();
-  if (key.includes("moderna")) {
+  if (key.includes("moderna 2")) {
     return "border-transparent bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-400";
   }
   if (key.includes("zaraba")) {
