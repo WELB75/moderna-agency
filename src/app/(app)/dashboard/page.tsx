@@ -4,7 +4,7 @@ import { and, gte, lte, or, eq, ne, asc, isNotNull } from "drizzle-orm";
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { reservations, villas, domaines, cashEntries, maintenanceRecords } from "@/db/schema";
+import { reservations, villas, domaines, maintenanceRecords } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,7 +13,8 @@ import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { DomaineBadge } from "@/components/app/domaine-badge";
-import { LogIn, LogOut, Wallet, Wrench, Info, KeyRound } from "lucide-react";
+import { PhoneLink } from "@/components/app/phone-link";
+import { LogIn, LogOut, Wrench, Info, KeyRound } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 
 const DAYS_AHEAD = 7;
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
       notes: reservations.notes,
       nbAdultes: reservations.nbAdultes,
       nbEnfants: reservations.nbEnfants,
+      guestPhone: reservations.guestPhone,
       villaNom: villas.nom,
       villaNumero: villas.numero,
       villaId: villas.id,
@@ -64,13 +66,6 @@ export default async function DashboardPage() {
 
   const villaUpcoming = upcoming.filter((r) => r.villaType !== "appartement");
   const appartementUpcoming = upcoming.filter((r) => r.villaType === "appartement");
-
-  const allCashEntries = await db.select().from(cashEntries).where(eq(cashEntries.moyenPaiement, "especes"));
-  const balance = allCashEntries.reduce((sum, e) => {
-    const amount = Number(e.montant);
-    if (e.type === "remise") return sum + amount;
-    return sum - amount;
-  }, 0);
 
   const upcomingMaintenance = await db
     .select({
@@ -111,20 +106,6 @@ export default async function DashboardPage() {
           <SyncIcalButton />
         </div>
       </div>
-
-      <Link href="/caisse">
-        <Card className="transition-colors hover:border-primary/50">
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="rounded-full bg-primary/10 p-2 text-primary">
-              <Wallet className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold leading-none">{balance.toFixed(2)} DH</p>
-              <p className="text-sm text-muted-foreground">Solde caisse (espèces)</p>
-            </div>
-          </CardContent>
-        </Card>
-      </Link>
 
       {isImene ? (
         <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
@@ -252,6 +233,7 @@ type ReservationRow = {
   notes: string | null;
   nbAdultes: number | null;
   nbEnfants: number | null;
+  guestPhone: string | null;
   villaNom: string | null;
   villaNumero: string | null;
   villaId: string | null;
@@ -289,6 +271,12 @@ function DayCard({
 }) {
   const total = checkIns.length + checkOuts.length;
 
+  // Regroupe par domaine pour afficher les colonnes côte à côte (ex. Zaraba à
+  // gauche, Moderna 2 à droite) — repérage immédiat de quel domaine est concerné.
+  const domaineNames = Array.from(
+    new Set([...checkIns, ...checkOuts].map((r) => r.domaineNom ?? "Sans domaine"))
+  ).sort();
+
   return (
     <Card>
       <CardHeader>
@@ -304,18 +292,29 @@ function DayCard({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent>
         {total === 0 ? (
           <p className="text-sm text-muted-foreground">Rien à signaler.</p>
         ) : (
-          <>
-            {checkIns.map((r) => (
-              <ReservationRowCard key={`in-${r.id}`} r={r} kind="in" />
-            ))}
-            {checkOuts.map((r) => (
-              <ReservationRowCard key={`out-${r.id}`} r={r} kind="out" />
-            ))}
-          </>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {domaineNames.map((domaineName) => {
+              const domaineCheckIns = checkIns.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
+              const domaineCheckOuts = checkOuts.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
+              return (
+                <div key={domaineName} className="space-y-2">
+                  <DomaineBadge nom={domaineName} />
+                  <div className="space-y-2">
+                    {domaineCheckIns.map((r) => (
+                      <ReservationRowCard key={`in-${r.id}`} r={r} kind="in" />
+                    ))}
+                    {domaineCheckOuts.map((r) => (
+                      <ReservationRowCard key={`out-${r.id}`} r={r} kind="out" />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>
@@ -327,66 +326,71 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
   const isIn = kind === "in";
 
   return (
-    <Link
-      href={r.villaId ? `/villas/${r.villaId}` : "#"}
+    <div
       className={
-        "block rounded-md border-l-4 p-3 hover:bg-muted/50 " +
-        (isIn ? "border-l-emerald-500" : "border-l-red-500")
+        "rounded-md border-l-4 " + (isIn ? "border-l-emerald-500" : "border-l-red-500")
       }
     >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
-          {isIn ? (
-            <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-          ) : (
-            <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-          )}
-          <p className="truncate font-medium">{r.guestName}</p>
+      <Link href={r.villaId ? `/villas/${r.villaId}` : "#"} className="block p-3 hover:bg-muted/50">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            {isIn ? (
+              <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+            )}
+            <p className="truncate font-medium">{r.guestName}</p>
+          </div>
+          <Countdown target={target} variant={kind} />
         </div>
-        <Countdown target={target} variant={kind} />
-      </div>
 
-      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        {r.domaineNom ? <DomaineBadge nom={r.domaineNom} className="text-xs" /> : null}
-        <span className="text-sm text-muted-foreground">
-          {r.villaNom
-            ? `${r.villaNom} (${r.villaType === "appartement" ? "appt" : "villa"} n°${r.villaNumero})`
-            : "Logement non renseigné"}
-        </span>
-        {r.villaType === "appartement" && r.numeroImmeuble ? (
-          <Badge variant="outline" className="text-xs">
-            Immeuble {r.numeroImmeuble}
-          </Badge>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="text-sm text-muted-foreground">
+            {r.villaNom
+              ? `${r.villaNom} (${r.villaType === "appartement" ? "appt" : "villa"} n°${r.villaNumero})`
+              : "Logement non renseigné"}
+          </span>
+          {r.villaType === "appartement" && r.numeroImmeuble ? (
+            <Badge variant="outline" className="text-xs">
+              Immeuble {r.numeroImmeuble}
+            </Badge>
+          ) : null}
+          {r.codeBoitier ? (
+            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide">
+              <KeyRound className="h-3 w-3" />
+              {r.codeBoitier}
+            </Badge>
+          ) : null}
+          {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
+        </div>
+
+        <p className={"mt-1 text-sm font-semibold " + (isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
+          {isIn ? "Check-in" : "Check-out"} · {format(target, "HH:mm", { locale: fr })}
+        </p>
+
+        <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
+
+        {r.notes ? (
+          <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{r.notes}</span>
+          </div>
         ) : null}
-        {r.codeBoitier ? (
-          <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide">
-            <KeyRound className="h-3 w-3" />
-            {r.codeBoitier}
-          </Badge>
-        ) : null}
-        {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
-      </div>
 
-      <p className={"mt-1 text-sm font-semibold " + (isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
-        {isIn ? "Check-in" : "Check-out"} · {format(target, "HH:mm", { locale: fr })}
-      </p>
+        <PaymentSummary
+          loyerTotal={r.loyerTotal}
+          montantPaye={r.montantPaye}
+          caution={r.caution}
+          cautionPayee={r.cautionPayee}
+          devisePaiement={r.devisePaiement}
+        />
+      </Link>
 
-      <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
-
-      {r.notes ? (
-        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
-          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{r.notes}</span>
+      {r.guestPhone ? (
+        <div className="px-3 pb-3">
+          <PhoneLink phone={r.guestPhone} />
         </div>
       ) : null}
-
-      <PaymentSummary
-        loyerTotal={r.loyerTotal}
-        montantPaye={r.montantPaye}
-        caution={r.caution}
-        cautionPayee={r.cautionPayee}
-        devisePaiement={r.devisePaiement}
-      />
-    </Link>
+    </div>
   );
 }
