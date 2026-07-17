@@ -6,6 +6,13 @@ function isAudioUrl(url: string) {
   return /\.(opus|ogg|mp3|m4a|wav|aac)$/i.test(url);
 }
 
+function audioLabel(url: string, index: number, total: number): string {
+  const lower = url.toLowerCase();
+  if (lower.includes("technicien")) return "Message audio — Technicien";
+  if (lower.includes("client")) return "Message audio — Client";
+  return total > 1 ? `Message audio ${index + 1}` : "Message audio";
+}
+
 export function InterventionAttachments({ urls }: { urls: string[] }) {
   if (urls.length === 0) return null;
 
@@ -28,7 +35,7 @@ export function InterventionAttachments({ urls }: { urls: string[] }) {
       ) : null}
       {audios.map((url, i) => (
         <div key={url} className="space-y-1">
-          <p className="text-xs text-muted-foreground">Message audio {audios.length > 1 ? i + 1 : ""}</p>
+          <p className="text-xs font-medium text-muted-foreground">{audioLabel(url, i, audios.length)}</p>
           <audio src={url} controls className="w-full" />
         </div>
       ))}
