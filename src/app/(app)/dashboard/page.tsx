@@ -136,7 +136,7 @@ export default async function DashboardPage() {
         <Tabs defaultValue="aimad">
           <TabsList>
             <TabsTrigger value="aimad">Aimad · Villas</TabsTrigger>
-            <TabsTrigger value="imene">Imène · Appartements</TabsTrigger>
+            <TabsTrigger value="imene">Imane · Appartements</TabsTrigger>
           </TabsList>
           <TabsContent value="aimad" className="space-y-6 pt-2">
             <PersonPanel reservations={villaUpcoming} maintenance={villaMaintenance} days={days} now={now} />
