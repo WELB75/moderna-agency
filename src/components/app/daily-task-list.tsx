@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +15,8 @@ type DailyTask = {
   id: string;
   titre: string;
   fait: boolean;
+  createdAt: Date;
+  completedAt: Date | null;
 };
 
 export function DailyTaskList({ tasks }: { tasks: DailyTask[] }) {
@@ -122,15 +126,14 @@ function TaskRow({
         onCheckedChange={(value) => onToggle(task.id, value === true)}
         className="h-5 w-5 shrink-0"
       />
-      <button
-        type="button"
-        onClick={() => onToggle(task.id, !task.fait)}
-        className={cn(
-          "flex-1 text-left text-sm",
-          task.fait && "text-muted-foreground line-through"
-        )}
-      >
-        {task.titre}
+      <button type="button" onClick={() => onToggle(task.id, !task.fait)} className="flex-1 text-left">
+        <p className={cn("text-sm", task.fait && "text-muted-foreground line-through")}>{task.titre}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Ajoutée le {format(new Date(task.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}
+          {task.completedAt
+            ? ` · Terminée le ${format(new Date(task.completedAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}`
+            : ""}
+        </p>
       </button>
       <button
         type="button"
