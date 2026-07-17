@@ -16,9 +16,17 @@ export async function POST(request: Request): Promise<NextResponse> {
       request,
       onBeforeGenerateToken: async (pathname) => {
         return {
-          allowedContentTypes: ["image/jpeg", "image/png", "image/webp", "image/heic"],
+          allowedContentTypes: [
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/heic",
+            "video/mp4",
+            "video/quicktime",
+            "video/webm",
+          ],
           addRandomSuffix: true,
-          maximumSizeInBytes: 15 * 1024 * 1024,
+          maximumSizeInBytes: 200 * 1024 * 1024,
           tokenPayload: JSON.stringify({ userId, pathname }),
         };
       },

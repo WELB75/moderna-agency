@@ -21,6 +21,7 @@ export default async function InterventionsPage() {
       prestataire: interventions.prestataire,
       etape: interventions.etape,
       notes: interventions.notes,
+      attachmentUrls: interventions.attachmentUrls,
       signaleAt: interventions.signaleAt,
       contacteAt: interventions.contacteAt,
       planifieAt: interventions.planifieAt,

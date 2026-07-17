@@ -209,6 +209,7 @@ export const interventions = pgTable("interventions", {
   prestataire: text("prestataire"),
   etape: interventionEtapeEnum("etape").default("signale").notNull(),
   notes: text("notes"),
+  attachmentUrls: jsonb("attachment_urls").$type<string[]>().default([]),
   signaleAt: timestamp("signale_at", { withTimezone: true }).defaultNow().notNull(),
   contacteAt: timestamp("contacte_at", { withTimezone: true }),
   planifieAt: timestamp("planifie_at", { withTimezone: true }),

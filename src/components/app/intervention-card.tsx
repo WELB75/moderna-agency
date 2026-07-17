@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Pencil } from "lucide-react";
+import { Pencil, Paperclip, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -18,8 +19,17 @@ import {
 } from "@/components/ui/select";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
-import { setInterventionEtape, updateInterventionNotes, deleteIntervention } from "@/lib/actions/interventions";
+import {
+  setInterventionEtape,
+  updateInterventionNotes,
+  addInterventionAttachments,
+  deleteIntervention,
+} from "@/lib/actions/interventions";
 import { cn } from "@/lib/utils";
+
+function isVideoUrl(url: string) {
+  return /\.(mp4|mov|webm|m4v)$/i.test(url);
+}
 
 type Etape = "signale" | "contacte" | "planifie" | "en_cours" | "termine";
 
@@ -42,6 +52,7 @@ export type Intervention = {
   prestataire: string | null;
   etape: Etape;
   notes: string | null;
+  attachmentUrls: string[] | null;
   signaleAt: Date;
   contacteAt: Date | null;
   planifieAt: Date | null;
@@ -61,7 +72,9 @@ const TIMESTAMPS: Record<Etape, keyof Intervention> = {
 export function InterventionCard({ intervention }: { intervention: Intervention }) {
   const [notes, setNotes] = useState(intervention.notes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentIndex = STEPS.findIndex((s) => s.key === intervention.etape);
   const pct = ((currentIndex + 1) / STEPS.length) * 100;
@@ -86,6 +99,29 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
     });
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of files) {
+        const blob = await upload(`interventions/${intervention.id}/${Date.now()}-${file.name}`, file, {
+          access: "public",
+          handleUploadUrl: "/api/blob/upload",
+        });
+        uploaded.push(blob.url);
+      }
+      await addInterventionAttachments(intervention.id, uploaded);
+      toast.success("Pièce jointe ajoutée.");
+    } catch {
+      toast.error("Échec de l'envoi.");
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -191,6 +227,40 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
             {intervention.notes || "Ajouter une note (retard, imprévu, suivi...)"}
           </button>
         )}
+
+        {intervention.attachmentUrls && intervention.attachmentUrls.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {intervention.attachmentUrls.map((url) =>
+              isVideoUrl(url) ? (
+                <video key={url} src={url} controls className="h-28 w-full rounded-md border object-cover" />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={url} src={url} alt="" className="h-28 w-full rounded-md border object-cover" />
+              )
+            )}
+          </div>
+        ) : null}
+
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={uploading}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+            Ajouter photo / vidéo
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*,video/*"
+            multiple
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
       </CardContent>
     </Card>
   );

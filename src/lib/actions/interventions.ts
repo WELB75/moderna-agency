@@ -72,6 +72,30 @@ export async function updateInterventionNotes(interventionId: string, notes: str
   revalidatePath("/interventions");
 }
 
+export async function addInterventionAttachments(interventionId: string, urls: string[]) {
+  await auth.protect();
+  const db = getDb();
+  const [existing] = await db.select().from(interventions).where(eq(interventions.id, interventionId)).limit(1);
+  if (!existing) throw new Error("Intervention introuvable.");
+
+  await db
+    .update(interventions)
+    .set({ attachmentUrls: [...(existing.attachmentUrls ?? []), ...urls], updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+
+  revalidatePath("/interventions");
+}
+
+export async function updateInterventionLieu(interventionId: string, lieu: string) {
+  await auth.protect();
+  const db = getDb();
+  await db
+    .update(interventions)
+    .set({ lieu: lieu || null, updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+  revalidatePath("/interventions");
+}
+
 export async function deleteIntervention(interventionId: string) {
   await auth.protect();
   const db = getDb();
