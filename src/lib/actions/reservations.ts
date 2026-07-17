@@ -5,7 +5,6 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { reservations } from "@/db/schema";
-import { runSuperhoteSync } from "@/lib/superhote/sync";
 import { runIcalSync } from "@/lib/ical/sync";
 
 export async function createReservation(formData: FormData) {
@@ -89,15 +88,6 @@ export async function deleteReservation(reservationId: string) {
   await db.delete(reservations).where(eq(reservations.id, reservationId));
   revalidatePath("/dashboard");
   revalidatePath("/villas");
-}
-
-export async function triggerSuperhoteSync() {
-  await auth.protect();
-  const result = await runSuperhoteSync();
-  revalidatePath("/dashboard");
-  return result.success
-    ? { success: true, message: `${result.bookingsSynced} réservation(s) synchronisée(s).` }
-    : { success: false, message: result.error };
 }
 
 export async function triggerIcalSync() {

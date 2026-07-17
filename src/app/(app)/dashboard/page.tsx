@@ -8,14 +8,12 @@ import { reservations, villas, domaines, cashEntries, maintenanceRecords } from 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { SyncSuperhoteButton } from "@/components/app/sync-superhote-button";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { LogIn, LogOut, Wallet, Wrench, Info, KeyRound } from "lucide-react";
-import { isSuperhoteConfigured } from "@/lib/superhote/client";
 import { nowInMorocco } from "@/lib/now";
 
 const DAYS_AHEAD = 7;
@@ -108,11 +106,6 @@ export default async function DashboardPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <SyncIcalButton />
-          {isSuperhoteConfigured() ? (
-            <SyncSuperhoteButton />
-          ) : (
-            <Badge variant="outline">API Superhote non connectée</Badge>
-          )}
         </div>
       </div>
 
