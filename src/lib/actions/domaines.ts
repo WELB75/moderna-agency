@@ -25,6 +25,17 @@ export async function createDomaine(formData: FormData) {
   revalidatePath("/villas");
 }
 
+export async function updateDomaineLocation(domaineId: string, mapsUrl: string) {
+  await auth.protect();
+  const db = getDb();
+  await db
+    .update(domaines)
+    .set({ mapsUrl: mapsUrl.trim() || null })
+    .where(eq(domaines.id, domaineId));
+  revalidatePath("/villas");
+  revalidatePath("/interventions");
+}
+
 export async function deleteDomaine(domaineId: string) {
   await auth.protect();
   const db = getDb();

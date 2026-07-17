@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DomaineBadge } from "@/components/app/domaine-badge";
+import { DomaineLocation } from "@/components/app/domaine-location";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import {
   setInterventionEtape,
@@ -48,7 +49,9 @@ export type Intervention = {
   lieu: string | null;
   villaNom: string | null;
   villaNumero: string | null;
+  domaineId: string | null;
   domaineNom: string | null;
+  domaineMapsUrl: string | null;
   prestataire: string | null;
   etape: Etape;
   notes: string | null;
@@ -131,6 +134,9 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               {intervention.domaineNom ? <DomaineBadge nom={intervention.domaineNom} className="text-xs" /> : null}
+              {intervention.domaineId ? (
+                <DomaineLocation domaineId={intervention.domaineId} mapsUrl={intervention.domaineMapsUrl} />
+              ) : null}
               <p className="font-medium">{intervention.titre}</p>
             </div>
             <p className="text-xs text-muted-foreground">

@@ -50,6 +50,7 @@ export const domaines = pgTable("domaines", {
   id: uuid("id").defaultRandom().primaryKey(),
   nom: text("nom").notNull(),
   adresse: text("adresse"),
+  mapsUrl: text("maps_url"), // lien Google Maps partageable (localisation du domaine)
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
