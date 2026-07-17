@@ -1,10 +1,12 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, gte, notInArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, reservations } from "@/db/schema";
 import { parseIcs } from "@/lib/ical/parse";
+import { nowInMorocco } from "@/lib/now";
 
 export async function runIcalSync(): Promise<
-  { success: true; bookingsSynced: number; villasSynced: number } | { success: false; error: string }
+  | { success: true; bookingsSynced: number; villasSynced: number; bookingsCancelled: number }
+  | { success: false; error: string }
 > {
   const db = getDb();
 
@@ -20,6 +22,8 @@ export async function runIcalSync(): Promise<
   }
 
   let totalSynced = 0;
+  let totalCancelled = 0;
+  const now = nowInMorocco();
 
   try {
     for (const villa of targets) {
@@ -29,12 +33,14 @@ export async function runIcalSync(): Promise<
       }
       const raw = await res.text();
       const events = parseIcs(raw);
+      const seenBookingIds: string[] = [];
 
       for (const event of events) {
         // Les entrées "Blocked dates" (blocage manuel du calendrier, sans client réel)
         // n'ont ni email ni nom de logement dans la description : on les ignore.
         if (!event.description.guestEmail && !event.description.rentalName) continue;
 
+        seenBookingIds.push(event.stableBookingId);
         const guestName = event.guestName?.trim() || event.summary?.trim() || "Réservation iCal";
 
         let existing = await db
@@ -85,9 +91,28 @@ export async function runIcalSync(): Promise<
         }
         totalSynced += 1;
       }
+
+      // Réconciliation : une réservation encore "confirmée" à venir pour cette villa mais
+      // absente du flux iCal actuel a été annulée côté Superhote (le flux n'expose plus
+      // que les réservations actives). On l'aligne sur cet état plutôt que de la garder
+      // indéfiniment affichée comme confirmée.
+      const cancelledFilter = and(
+        eq(reservations.villaId, villa.id),
+        eq(reservations.source, "superhote"),
+        eq(reservations.status, "confirmee"),
+        gte(reservations.checkOut, now),
+        ...(seenBookingIds.length > 0 ? [notInArray(reservations.superhoteBookingId, seenBookingIds)] : [])
+      );
+
+      const cancelled = await db
+        .update(reservations)
+        .set({ status: "annulee", updatedAt: new Date() })
+        .where(cancelledFilter)
+        .returning({ id: reservations.id });
+      totalCancelled += cancelled.length;
     }
 
-    return { success: true, bookingsSynced: totalSynced, villasSynced: targets.length };
+    return { success: true, bookingsSynced: totalSynced, villasSynced: targets.length, bookingsCancelled: totalCancelled };
   } catch (err) {
     return {
       success: false,

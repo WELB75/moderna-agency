@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { eq, asc, desc } from "drizzle-orm";
+import { eq, ne, and, asc, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -64,7 +64,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   const allVillaReservations = await db
     .select()
     .from(reservations)
-    .where(eq(reservations.villaId, id))
+    .where(and(eq(reservations.villaId, id), ne(reservations.status, "annulee")))
     .orderBy(asc(reservations.checkIn));
 
   const now = nowInMorocco();

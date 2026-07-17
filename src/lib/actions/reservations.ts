@@ -96,6 +96,12 @@ export async function triggerIcalSync() {
   revalidatePath("/dashboard");
   revalidatePath("/villas");
   return result.success
-    ? { success: true, message: `${result.bookingsSynced} réservation(s) synchronisée(s) (${result.villasSynced} villa(s)).` }
+    ? {
+        success: true,
+        message:
+          `${result.bookingsSynced} réservation(s) synchronisée(s) (${result.villasSynced} villa(s))` +
+          (result.bookingsCancelled > 0 ? ` · ${result.bookingsCancelled} annulée(s)` : "") +
+          ".",
+      }
     : { success: false, message: result.error };
 }

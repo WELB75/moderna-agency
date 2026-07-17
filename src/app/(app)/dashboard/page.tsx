@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { currentUser } from "@clerk/nextjs/server";
-import { and, gte, lte, or, eq, asc, isNotNull } from "drizzle-orm";
+import { and, gte, lte, or, eq, ne, asc, isNotNull } from "drizzle-orm";
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -52,9 +52,12 @@ export default async function DashboardPage() {
     .leftJoin(villas, eq(reservations.villaId, villas.id))
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .where(
-      or(
-        and(gte(reservations.checkIn, rangeStart), lte(reservations.checkIn, rangeEnd)),
-        and(gte(reservations.checkOut, rangeStart), lte(reservations.checkOut, rangeEnd))
+      and(
+        ne(reservations.status, "annulee"),
+        or(
+          and(gte(reservations.checkIn, rangeStart), lte(reservations.checkIn, rangeEnd)),
+          and(gte(reservations.checkOut, rangeStart), lte(reservations.checkOut, rangeEnd))
+        )
       )
     )
     .orderBy(asc(reservations.checkIn));
