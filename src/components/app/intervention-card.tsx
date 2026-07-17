@@ -4,7 +4,6 @@ import { useRef, useState, useTransition } from "react";
 import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { Pencil, Paperclip, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -128,24 +127,13 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
   }
 
   return (
-    <Card>
-      <CardContent className="space-y-3 py-4">
+    <Card className={cn(intervention.etape === "termine" && "border-emerald-500/30")}>
+      <CardContent className="space-y-4 py-4">
+        {/* En-tête : le titre est l'élément principal, toujours visible en premier */}
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {intervention.domaineNom ? <DomaineBadge nom={intervention.domaineNom} className="text-xs" /> : null}
-              {intervention.domaineId ? (
-                <DomaineLocation domaineId={intervention.domaineId} mapsUrl={intervention.domaineMapsUrl} />
-              ) : null}
-              <p className="font-medium">{intervention.titre}</p>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {intervention.villaNom
-                ? `${intervention.villaNom} (n°${intervention.villaNumero})`
-                : intervention.lieu ?? "Lieu non renseigné"}
-              {intervention.prestataire ? ` · ${intervention.prestataire}` : ""}
-            </p>
-          </div>
+          <h3 className="min-w-0 break-words text-lg font-bold uppercase tracking-wide">
+            {intervention.titre}
+          </h3>
           <ConfirmDeleteButton
             action={deleteIntervention.bind(null, intervention.id)}
             title="Supprimer cette intervention ?"
@@ -153,31 +141,61 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
           />
         </div>
 
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {intervention.domaineNom ? <DomaineBadge nom={intervention.domaineNom} className="text-xs" /> : null}
+            {intervention.domaineId ? (
+              <DomaineLocation domaineId={intervention.domaineId} mapsUrl={intervention.domaineMapsUrl} />
+            ) : null}
+            {intervention.etape === "termine" ? (
+              <Badge
+                variant="outline"
+                className="border-emerald-500/50 bg-emerald-500/10 text-xs text-emerald-700 dark:text-emerald-400"
+              >
+                Terminé
+              </Badge>
+            ) : null}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {intervention.villaNom
+              ? `${intervention.villaNom} (n°${intervention.villaNumero})`
+              : intervention.lieu ?? "Lieu non renseigné"}
+            {intervention.prestataire ? ` · ${intervention.prestataire}` : ""}
+          </p>
+        </div>
+
         {intervention.probleme ? <p className="text-sm">{intervention.probleme}</p> : null}
 
-        <div>
+        <div className="space-y-2">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-all"
               style={{ width: `${pct}%` }}
             />
           </div>
-          <div className="mt-1.5 grid grid-cols-5 gap-1">
+          <div className="grid grid-cols-5">
             {STEPS.map((s, i) => {
               const ts = intervention[TIMESTAMPS[s.key]] as Date | null;
               return (
-                <div key={s.key} className="min-w-0 text-center">
+                <div
+                  key={s.key}
+                  className={cn(
+                    "min-w-0 px-0.5 text-center",
+                    i === 0 && "text-left",
+                    i === STEPS.length - 1 && "text-right"
+                  )}
+                >
                   <p
                     className={cn(
-                      "truncate text-[10px]",
-                      i <= currentIndex ? "font-medium text-foreground" : "text-muted-foreground"
+                      "text-[9px] font-medium leading-tight sm:text-[11px]",
+                      i <= currentIndex ? "text-foreground" : "text-muted-foreground"
                     )}
                   >
                     {s.label}
                   </p>
                   {ts ? (
-                    <p className="truncate text-[9px] text-muted-foreground">
-                      {format(new Date(ts), "d MMM HH:mm", { locale: fr })}
+                    <p className="text-[8px] leading-tight text-muted-foreground sm:text-[10px]">
+                      {format(new Date(ts), "d/MM HH:mm")}
                     </p>
                   ) : null}
                 </div>
@@ -186,9 +204,9 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div>
           <Select value={intervention.etape} onValueChange={handleEtapeChange} disabled={isPending}>
-            <SelectTrigger className="h-8 w-auto text-xs">
+            <SelectTrigger className="h-9 w-full text-sm sm:w-56">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -199,11 +217,6 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
               ))}
             </SelectContent>
           </Select>
-          {intervention.etape === "termine" ? (
-            <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-              Terminé
-            </Badge>
-          ) : null}
         </div>
 
         {editingNotes ? (
