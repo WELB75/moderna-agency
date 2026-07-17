@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/ical/sync",
   "/icon",
   "/favicon.ico",
+  "/i/(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

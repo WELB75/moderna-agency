@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/select";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { DomaineLocation } from "@/components/app/domaine-location";
+import { InterventionAttachments } from "@/components/app/intervention-attachments";
+import { ShareInterventionButton } from "@/components/app/share-intervention-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import {
   setInterventionEtape,
@@ -26,20 +28,9 @@ import {
   deleteIntervention,
 } from "@/lib/actions/interventions";
 import { cn } from "@/lib/utils";
+import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
 
-function isVideoUrl(url: string) {
-  return /\.(mp4|mov|webm|m4v)$/i.test(url);
-}
-
-type Etape = "signale" | "contacte" | "planifie" | "en_cours" | "termine";
-
-const STEPS: { key: Etape; label: string }[] = [
-  { key: "signale", label: "Signalé" },
-  { key: "contacte", label: "Contacté" },
-  { key: "planifie", label: "Planifié" },
-  { key: "en_cours", label: "En cours" },
-  { key: "termine", label: "Terminé" },
-];
+const STEPS = INTERVENTION_STEPS;
 
 export type Intervention = {
   id: string;
@@ -63,13 +54,7 @@ export type Intervention = {
   createdByName: string | null;
 };
 
-const TIMESTAMPS: Record<Etape, keyof Intervention> = {
-  signale: "signaleAt",
-  contacte: "contacteAt",
-  planifie: "planifieAt",
-  en_cours: "debutAt",
-  termine: "finAt",
-};
+const TIMESTAMPS = INTERVENTION_STEP_TIMESTAMP_KEYS;
 
 export function InterventionCard({ intervention }: { intervention: Intervention }) {
   const [notes, setNotes] = useState(intervention.notes ?? "");
@@ -247,20 +232,9 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
           </button>
         )}
 
-        {intervention.attachmentUrls && intervention.attachmentUrls.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {intervention.attachmentUrls.map((url) =>
-              isVideoUrl(url) ? (
-                <video key={url} src={url} controls className="h-28 w-full rounded-md border object-cover" />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img key={url} src={url} alt="" className="h-28 w-full rounded-md border object-cover" />
-              )
-            )}
-          </div>
-        ) : null}
+        <InterventionAttachments urls={intervention.attachmentUrls ?? []} />
 
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -269,16 +243,17 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
             onClick={() => fileInputRef.current?.click()}
           >
             {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
-            Ajouter photo / vidéo
+            Ajouter photo / vidéo / audio
           </Button>
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*,video/*"
+            accept="image/*,video/*,audio/*"
             multiple
             className="hidden"
             onChange={handleFileChange}
           />
+          <ShareInterventionButton interventionId={intervention.id} />
         </div>
       </CardContent>
     </Card>
