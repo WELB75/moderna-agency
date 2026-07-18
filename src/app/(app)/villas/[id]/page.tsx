@@ -5,7 +5,7 @@ import { eq, ne, and, asc, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, inventoryChecklists, maintenanceRecords, technicians, domaines } from "@/db/schema";
+import { villas, reservations, inventoryChecklists, maintenanceRecords, technicians, domaines, gendarmerieForms } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { VillaIcalUrl } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
+import { GendarmerieAction } from "@/components/app/gendarmerie-action";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
@@ -66,6 +67,14 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
     .from(reservations)
     .where(and(eq(reservations.villaId, id), ne(reservations.status, "annulee")))
     .orderBy(asc(reservations.checkIn));
+
+  const allGendarmerieForms = await db
+    .select({ id: gendarmerieForms.id, statut: gendarmerieForms.statut, reservationId: gendarmerieForms.reservationId })
+    .from(gendarmerieForms)
+    .where(eq(gendarmerieForms.villaId, id));
+  const gendarmerieByReservation = new Map(
+    allGendarmerieForms.filter((f) => f.reservationId).map((f) => [f.reservationId as string, f])
+  );
 
   const now = nowInMorocco();
   // À venir / en cours : trié du plus proche au plus lointain (le plus urgent en haut).
@@ -184,7 +193,14 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           {upcomingReservations.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune réservation à venir.</p>
           ) : (
-            upcomingReservations.map((r) => <ReservationListItem key={r.id} r={r} />)
+            upcomingReservations.map((r) => (
+              <ReservationListItem
+                key={r.id}
+                r={r}
+                villaId={villa.id}
+                gendarmerieForm={gendarmerieByReservation.get(r.id) ?? null}
+              />
+            ))
           )}
 
           {pastReservations.length > 0 && (
@@ -286,9 +302,13 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
 function ReservationListItem({
   r,
   muted,
+  villaId,
+  gendarmerieForm,
 }: {
   r: typeof reservations.$inferSelect;
   muted?: boolean;
+  villaId?: string;
+  gendarmerieForm?: { id: string; statut: string } | null;
 }) {
   return (
     <div className={"rounded-md border p-3" + (muted ? " opacity-70" : "")}>
@@ -338,6 +358,11 @@ function ReservationListItem({
         />
       </div>
       {r.notesPaiement ? <p className="mt-1 text-xs text-muted-foreground">{r.notesPaiement}</p> : null}
+      {villaId ? (
+        <div className="mt-2">
+          <GendarmerieAction reservationId={r.id} villaId={villaId} existingForm={gendarmerieForm ?? null} />
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -10,7 +10,7 @@ export function SidebarNav() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col bg-black text-white md:flex">
+    <aside className="hidden w-64 shrink-0 flex-col bg-black text-white md:flex print:hidden">
       <div className="flex flex-col items-center border-b border-white/15 px-5 py-8">
         <div className="rounded-full bg-white p-1.5">
           <Logo size={72} />

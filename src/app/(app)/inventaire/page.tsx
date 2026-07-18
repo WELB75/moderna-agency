@@ -55,8 +55,12 @@ export default async function InventairePage() {
         <p className="text-sm text-muted-foreground">États des lieux et procédures à suivre</p>
       </div>
 
-      <Tabs defaultValue="etats-des-lieux">
+      <Tabs defaultValue="stock">
         <TabsList>
+          <TabsTrigger value="stock">
+            <Boxes className="h-4 w-4" />
+            Stock
+          </TabsTrigger>
           <TabsTrigger value="etats-des-lieux">
             <ClipboardCheck className="h-4 w-4" />
             États des lieux
@@ -64,10 +68,6 @@ export default async function InventairePage() {
           <TabsTrigger value="procedures">
             <ListChecks className="h-4 w-4" />
             Procédures
-          </TabsTrigger>
-          <TabsTrigger value="stock">
-            <Boxes className="h-4 w-4" />
-            Stock
           </TabsTrigger>
         </TabsList>
 

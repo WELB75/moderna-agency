@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/icon",
   "/favicon.ico",
   "/i/(.*)",
+  "/g/(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

@@ -227,6 +227,39 @@ export const interventions = pgTable("interventions", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const gendarmerieForms = pgTable("gendarmerie_forms", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),
+  statut: text("statut").default("en_attente").notNull(), // en_attente | complete
+  langue: text("langue"), // langue choisie par le client au remplissage
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+export const gendarmerieOccupants = pgTable("gendarmerie_occupants", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  formId: uuid("form_id").references(() => gendarmerieForms.id, { onDelete: "cascade" }).notNull(),
+  nom: text("nom"),
+  prenom: text("prenom"),
+  dateNaissance: text("date_naissance"),
+  lieuNaissance: text("lieu_naissance"),
+  nationalite: text("nationalite"),
+  profession: text("profession"),
+  venantDe: text("venant_de"),
+  allantA: text("allant_a"),
+  dateArrivee: text("date_arrivee"),
+  domicileHabituel: text("domicile_habituel"),
+  typePiece: text("type_piece"),
+  numeroPiece: text("numero_piece"),
+  datePiece: text("date_piece"),
+  lieuPiece: text("lieu_piece"),
+  signatureNom: text("signature_nom"), // nom tapé pour valoir signature
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const taches = pgTable("taches", {
   id: uuid("id").defaultRandom().primaryKey(),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
