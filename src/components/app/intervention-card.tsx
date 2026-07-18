@@ -19,6 +19,7 @@ import {
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { DomaineLocation } from "@/components/app/domaine-location";
 import { InterventionAttachments } from "@/components/app/intervention-attachments";
+import { InterventionValidation } from "@/components/app/intervention-validation";
 import { ShareInterventionButton } from "@/components/app/share-intervention-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import {
@@ -51,6 +52,9 @@ export type Intervention = {
   planifieAt: Date | null;
   debutAt: Date | null;
   finAt: Date | null;
+  validationStatut: string | null;
+  validationNote: string | null;
+  validationAt: Date | null;
   createdByName: string | null;
 };
 
@@ -255,6 +259,13 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
           />
           <ShareInterventionButton interventionId={intervention.id} />
         </div>
+
+        <InterventionValidation
+          interventionId={intervention.id}
+          validationStatut={intervention.validationStatut}
+          validationNote={intervention.validationNote}
+          validationAt={intervention.validationAt}
+        />
       </CardContent>
     </Card>
   );

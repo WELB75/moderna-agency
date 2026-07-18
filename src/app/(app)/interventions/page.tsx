@@ -29,6 +29,9 @@ export default async function InterventionsPage() {
       planifieAt: interventions.planifieAt,
       debutAt: interventions.debutAt,
       finAt: interventions.finAt,
+      validationStatut: interventions.validationStatut,
+      validationNote: interventions.validationNote,
+      validationAt: interventions.validationAt,
       createdByName: interventions.createdByName,
     })
     .from(interventions)

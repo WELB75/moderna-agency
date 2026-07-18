@@ -45,6 +45,7 @@ export async function createIntervention(formData: FormData) {
   });
 
   revalidatePath("/interventions");
+  revalidatePath("/maintenance");
 }
 
 export async function setInterventionEtape(interventionId: string, etape: Etape) {
@@ -60,6 +61,7 @@ export async function setInterventionEtape(interventionId: string, etape: Etape)
     .where(eq(interventions.id, interventionId));
 
   revalidatePath("/interventions");
+  revalidatePath("/maintenance");
 }
 
 export async function updateInterventionNotes(interventionId: string, notes: string) {
@@ -70,6 +72,7 @@ export async function updateInterventionNotes(interventionId: string, notes: str
     .set({ notes: notes || null, updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
   revalidatePath("/interventions");
+  revalidatePath("/maintenance");
 }
 
 export async function addInterventionAttachments(interventionId: string, urls: string[]) {
@@ -84,6 +87,7 @@ export async function addInterventionAttachments(interventionId: string, urls: s
     .where(eq(interventions.id, interventionId));
 
   revalidatePath("/interventions");
+  revalidatePath("/maintenance");
 }
 
 export async function updateInterventionLieu(interventionId: string, lieu: string) {
@@ -94,6 +98,7 @@ export async function updateInterventionLieu(interventionId: string, lieu: strin
     .set({ lieu: lieu || null, updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
   revalidatePath("/interventions");
+  revalidatePath("/maintenance");
 }
 
 export async function deleteIntervention(interventionId: string) {
@@ -101,4 +106,31 @@ export async function deleteIntervention(interventionId: string) {
   const db = getDb();
   await db.delete(interventions).where(eq(interventions.id, interventionId));
   revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+// Volontairement sans auth.protect() : le patron valide via le lien public /i/[id],
+// sans se connecter. La portée est limitée à ces deux champs sur une intervention
+// dont il faut déjà connaître l'identifiant (le lien partagé).
+export async function submitInterventionValidation(
+  interventionId: string,
+  statut: "accepte" | "refuse",
+  note: string
+) {
+  if (statut !== "accepte" && statut !== "refuse") throw new Error("Statut invalide.");
+
+  const db = getDb();
+  await db
+    .update(interventions)
+    .set({
+      validationStatut: statut,
+      validationNote: note.trim() || null,
+      validationAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(interventions.id, interventionId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+  revalidatePath(`/i/${interventionId}`);
 }

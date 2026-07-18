@@ -7,6 +7,7 @@ import { Monogram } from "@/components/app/monogram";
 import { Wordmark } from "@/components/app/wordmark";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { InterventionAttachments } from "@/components/app/intervention-attachments";
+import { InterventionValidation } from "@/components/app/intervention-validation";
 import { Badge } from "@/components/ui/badge";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS } from "@/lib/intervention-steps";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,9 @@ export default async function PublicInterventionPage({ params }: { params: Promi
       planifieAt: interventions.planifieAt,
       debutAt: interventions.debutAt,
       finAt: interventions.finAt,
+      validationStatut: interventions.validationStatut,
+      validationNote: interventions.validationNote,
+      validationAt: interventions.validationAt,
     })
     .from(interventions)
     .leftJoin(villas, eq(interventions.villaId, villas.id))
@@ -121,10 +125,19 @@ export default async function PublicInterventionPage({ params }: { params: Promi
         <div className="mt-4">
           <InterventionAttachments urls={intervention.attachmentUrls ?? []} />
         </div>
+
+        <div className="mt-4">
+          <InterventionValidation
+            interventionId={intervention.id}
+            validationStatut={intervention.validationStatut}
+            validationNote={intervention.validationNote}
+            validationAt={intervention.validationAt}
+          />
+        </div>
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        Lien de consultation Moderna Agency — lecture seule
+        Lien de consultation Moderna Agency
       </p>
     </div>
   );

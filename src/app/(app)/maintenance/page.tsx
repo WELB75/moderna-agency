@@ -1,15 +1,15 @@
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, isNotNull } from "drizzle-orm";
 import { format, isPast, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { maintenanceRecords, villas, technicians, taches, domaines } from "@/db/schema";
+import { maintenanceRecords, villas, technicians, interventions, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
-import { AddTacheDialog } from "@/components/app/add-tache-dialog";
-import { TacheBoard } from "@/components/app/tache-board";
+import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
+import { InterventionCard } from "@/components/app/intervention-card";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
@@ -39,33 +39,38 @@ export default async function MaintenancePage() {
 
   const allVillas = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas);
   const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);
+  const allDomaines = await db.select().from(domaines).orderBy(domaines.nom);
 
-  const allVillasWithDomaine = await db
+  const villaInterventions = await db
     .select({
-      id: villas.id,
-      nom: villas.nom,
-      numero: villas.numero,
-      domaineNom: domaines.nom,
-    })
-    .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id));
-
-  const allTaches = await db
-    .select({
-      id: taches.id,
-      titre: taches.titre,
-      description: taches.description,
-      statut: taches.statut,
-      photoUrls: taches.photoUrls,
-      createdAt: taches.createdAt,
+      id: interventions.id,
+      titre: interventions.titre,
+      probleme: interventions.probleme,
+      lieu: interventions.lieu,
       villaNom: villas.nom,
       villaNumero: villas.numero,
+      domaineId: interventions.domaineId,
       domaineNom: domaines.nom,
+      domaineMapsUrl: domaines.mapsUrl,
+      prestataire: interventions.prestataire,
+      etape: interventions.etape,
+      notes: interventions.notes,
+      attachmentUrls: interventions.attachmentUrls,
+      signaleAt: interventions.signaleAt,
+      contacteAt: interventions.contacteAt,
+      planifieAt: interventions.planifieAt,
+      debutAt: interventions.debutAt,
+      finAt: interventions.finAt,
+      validationStatut: interventions.validationStatut,
+      validationNote: interventions.validationNote,
+      validationAt: interventions.validationAt,
+      createdByName: interventions.createdByName,
     })
-    .from(taches)
-    .leftJoin(villas, eq(taches.villaId, villas.id))
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .orderBy(desc(taches.createdAt));
+    .from(interventions)
+    .leftJoin(villas, eq(interventions.villaId, villas.id))
+    .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
+    .where(isNotNull(interventions.villaId))
+    .orderBy(desc(interventions.createdAt));
 
   const now = nowInMorocco();
   const upcoming = records
@@ -206,15 +211,23 @@ export default async function MaintenancePage() {
 
         <TabsContent value="taches" className="space-y-6">
           <div className="flex justify-end">
-            <AddTacheDialog villas={allVillasWithDomaine} />
+            <AddInterventionDialog villas={allVillas} domaines={allDomaines} technicians={allTechnicians} />
           </div>
 
-          <TacheBoard
-            taches={allTaches.map((t) => ({
-              ...t,
-              photoUrls: t.photoUrls ?? [],
-            }))}
-          />
+          {villaInterventions.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
+                <ListTodo className="h-8 w-8" />
+                <p>Aucune tâche pour l&apos;instant.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {villaInterventions.map((i) => (
+                <InterventionCard key={i.id} intervention={i} />
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

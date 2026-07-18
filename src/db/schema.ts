@@ -216,6 +216,10 @@ export const interventions = pgTable("interventions", {
   planifieAt: timestamp("planifie_at", { withTimezone: true }),
   debutAt: timestamp("debut_at", { withTimezone: true }),
   finAt: timestamp("fin_at", { withTimezone: true }),
+  // Validation du patron : accepte / refuse via le lien public, sans connexion.
+  validationStatut: text("validation_statut"), // null | "accepte" | "refuse"
+  validationNote: text("validation_note"),
+  validationAt: timestamp("validation_at", { withTimezone: true }),
   createdByUserId: text("created_by_user_id"),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
