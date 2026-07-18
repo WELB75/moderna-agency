@@ -3,13 +3,15 @@ import { desc, eq, asc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { inventoryChecklists, villas, procedureTemplates } from "@/db/schema";
+import { inventoryChecklists, villas, procedureTemplates, domaines, products, domaineStock, villaStock } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProcedureCard } from "@/components/app/procedure-card";
-import { ClipboardCheck, ListChecks, Plus } from "lucide-react";
+import { DomaineStockSection } from "@/components/app/domaine-stock-section";
+import { VillaStockPanel } from "@/components/app/villa-stock-panel";
+import { ClipboardCheck, ListChecks, Plus, Boxes } from "lucide-react";
 
 export default async function InventairePage() {
   const db = getDb();
@@ -30,6 +32,22 @@ export default async function InventairePage() {
 
   const procedures = await db.select().from(procedureTemplates).orderBy(asc(procedureTemplates.ordre));
 
+  const allDomaines = await db.select().from(domaines).orderBy(asc(domaines.nom));
+  const allProducts = await db.select().from(products).orderBy(asc(products.nom));
+  const allDomaineStock = await db.select().from(domaineStock);
+  const allVillaStock = await db.select().from(villaStock);
+  const allStockVillas = await db
+    .select({
+      id: villas.id,
+      nom: villas.nom,
+      numero: villas.numero,
+      domaineNom: domaines.nom,
+    })
+    .from(villas)
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .where(eq(villas.type, "villa"))
+    .orderBy(asc(domaines.nom), asc(villas.numero));
+
   return (
     <div className="space-y-6">
       <div>
@@ -46,6 +64,10 @@ export default async function InventairePage() {
           <TabsTrigger value="procedures">
             <ListChecks className="h-4 w-4" />
             Procédures
+          </TabsTrigger>
+          <TabsTrigger value="stock">
+            <Boxes className="h-4 w-4" />
+            Stock
           </TabsTrigger>
         </TabsList>
 
@@ -104,6 +126,37 @@ export default async function InventairePage() {
               procedure={{ id: p.id, titre: p.titre, description: p.description, etapes: p.etapes ?? [] }}
             />
           ))}
+        </TabsContent>
+
+        <TabsContent value="stock" className="space-y-6">
+          <Tabs defaultValue="stock-domaines">
+            <TabsList>
+              <TabsTrigger value="stock-domaines">Domaines</TabsTrigger>
+              <TabsTrigger value="stock-villas">Villas</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="stock-domaines" className="space-y-3 pt-2">
+              {allProducts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucun produit enregistré.</p>
+              ) : allDomaines.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucun domaine enregistré.</p>
+              ) : (
+                allDomaines.map((d) => (
+                  <DomaineStockSection
+                    key={d.id}
+                    domaineId={d.id}
+                    domaineNom={d.nom}
+                    products={allProducts}
+                    stock={allDomaineStock}
+                  />
+                ))
+              )}
+            </TabsContent>
+
+            <TabsContent value="stock-villas" className="pt-2">
+              <VillaStockPanel villas={allStockVillas} products={allProducts} stock={allVillaStock} />
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
     </div>
