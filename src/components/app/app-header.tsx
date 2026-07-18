@@ -1,6 +1,5 @@
 import { UserButton } from "@clerk/nextjs";
-import { Monogram } from "@/components/app/monogram";
-import { Wordmark } from "@/components/app/wordmark";
+import { Logo } from "@/components/app/logo";
 
 export function AppHeader() {
   return (
@@ -9,8 +8,7 @@ export function AppHeader() {
       style={{ paddingTop: "env(safe-area-inset-top)" }}
     >
       <div className="flex items-center gap-2 md:hidden">
-        <Monogram className="h-7 w-7 text-foreground" />
-        <Wordmark className="text-[9px]" />
+        <Logo size={32} />
       </div>
       <div className="hidden md:block" />
       <UserButton

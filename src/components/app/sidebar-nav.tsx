@@ -4,17 +4,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItems } from "@/components/app/nav-items";
-import { Monogram } from "@/components/app/monogram";
-import { Wordmark } from "@/components/app/wordmark";
+import { Logo } from "@/components/app/logo";
 
 export function SidebarNav() {
   const pathname = usePathname();
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col bg-black text-white md:flex">
-      <div className="flex flex-col items-center gap-3 border-b border-white/15 px-5 py-8">
-        <Monogram className="h-12 w-12 text-white" />
-        <Wordmark className="text-[11px] text-white" />
+      <div className="flex flex-col items-center border-b border-white/15 px-5 py-8">
+        <div className="rounded-full bg-white p-1.5">
+          <Logo size={72} />
+        </div>
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => {

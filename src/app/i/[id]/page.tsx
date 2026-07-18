@@ -3,8 +3,7 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { getDb } from "@/db";
 import { interventions, villas, domaines } from "@/db/schema";
-import { Monogram } from "@/components/app/monogram";
-import { Wordmark } from "@/components/app/wordmark";
+import { Logo } from "@/components/app/logo";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { InterventionAttachments } from "@/components/app/intervention-attachments";
 import { InterventionValidation } from "@/components/app/intervention-validation";
@@ -52,8 +51,7 @@ export default async function PublicInterventionPage({ params }: { params: Promi
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-6 p-4 sm:p-8">
       <div className="flex flex-col items-center gap-2 pb-2 text-center">
-        <Monogram className="h-10 w-10" />
-        <Wordmark className="text-[10px]" />
+        <Logo size={64} />
       </div>
 
       <div className="rounded-lg border p-4 sm:p-6">
