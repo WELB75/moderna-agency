@@ -66,6 +66,8 @@ export default async function DashboardPage() {
 
   const villaUpcoming = upcoming.filter((r) => r.villaType !== "appartement");
   const appartementUpcoming = upcoming.filter((r) => r.villaType === "appartement");
+  const zarabaUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Zaraba");
+  const luxeVillaUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Luxe Villa");
 
   const upcomingMaintenance = await db
     .select({
@@ -76,9 +78,11 @@ export default async function DashboardPage() {
       villaNumero: villas.numero,
       villaId: villas.id,
       villaType: villas.type,
+      domaineNom: domaines.nom,
     })
     .from(maintenanceRecords)
     .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .where(
       and(isNotNull(maintenanceRecords.prochaineDatePrevue), lte(maintenanceRecords.prochaineDatePrevue, endOfDay(addDays(now, 30))))
     )
@@ -86,6 +90,8 @@ export default async function DashboardPage() {
 
   const villaMaintenance = upcomingMaintenance.filter((m) => m.villaType !== "appartement");
   const appartementMaintenance = upcomingMaintenance.filter((m) => m.villaType === "appartement");
+  const zarabaMaintenance = villaMaintenance.filter((m) => m.domaineNom === "Domaine Zaraba");
+  const luxeVillaMaintenance = villaMaintenance.filter((m) => m.domaineNom === "Domaine Luxe Villa");
 
   const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(now, i));
 
@@ -111,12 +117,16 @@ export default async function DashboardPage() {
         <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
       ) : (
         <Tabs defaultValue="aimad">
-          <TabsList>
-            <TabsTrigger value="aimad">Aimad · Villas</TabsTrigger>
-            <TabsTrigger value="imene">Imane · Appartements</TabsTrigger>
+          <TabsList className="h-auto flex-wrap">
+            <TabsTrigger value="aimad">Aimad · Zaraba</TabsTrigger>
+            <TabsTrigger value="kamel">Kamel · Luxe Villa</TabsTrigger>
+            <TabsTrigger value="imene">Imane · Noria</TabsTrigger>
           </TabsList>
           <TabsContent value="aimad" className="space-y-6 pt-2">
-            <PersonPanel reservations={villaUpcoming} maintenance={villaMaintenance} days={days} now={now} />
+            <PersonPanel reservations={zarabaUpcoming} maintenance={zarabaMaintenance} days={days} now={now} />
+          </TabsContent>
+          <TabsContent value="kamel" className="space-y-6 pt-2">
+            <PersonPanel reservations={luxeVillaUpcoming} maintenance={luxeVillaMaintenance} days={days} now={now} />
           </TabsContent>
           <TabsContent value="imene" className="space-y-6 pt-2">
             <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
@@ -256,6 +266,7 @@ type MaintenanceRow = {
   villaNumero: string | null;
   villaId: string | null;
   villaType: "villa" | "appartement" | null;
+  domaineNom: string | null;
 };
 
 function DayCard({
