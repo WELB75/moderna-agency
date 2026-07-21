@@ -181,15 +181,17 @@ export function InterventionPublicCard({
         </div>
       ) : null}
 
-      <div className="mt-4">
-        <InterventionValidation
-          interventionId={intervention.id}
-          validationStatut={intervention.validationStatut}
-          validationNote={intervention.validationNote}
-          validationAt={intervention.validationAt}
-          title={validationTitle}
-        />
-      </div>
+      {(intervention.devis ?? []).length > 0 ? (
+        <div className="mt-4">
+          <InterventionValidation
+            interventionId={intervention.id}
+            validationStatut={intervention.validationStatut}
+            validationNote={intervention.validationNote}
+            validationAt={intervention.validationAt}
+            title={validationTitle}
+          />
+        </div>
+      ) : null}
 
       {comments && commentAuteur && commentAuteurType ? (
         <div className="mt-4">

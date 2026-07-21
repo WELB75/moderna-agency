@@ -356,13 +356,15 @@ export function InterventionCard({
           <AddDevisDialog interventionId={intervention.id} />
         </div>
 
-        <InterventionValidation
-          interventionId={intervention.id}
-          validationStatut={intervention.validationStatut}
-          validationNote={intervention.validationNote}
-          validationAt={intervention.validationAt}
-          readOnly
-        />
+        {(intervention.devis ?? []).length > 0 ? (
+          <InterventionValidation
+            interventionId={intervention.id}
+            validationStatut={intervention.validationStatut}
+            validationNote={intervention.validationNote}
+            validationAt={intervention.validationAt}
+            readOnly
+          />
+        ) : null}
 
         <InterventionComments
           interventionId={intervention.id}

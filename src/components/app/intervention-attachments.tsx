@@ -1,3 +1,8 @@
+"use client";
+
+import { useState } from "react";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+
 function isVideoUrl(url: string) {
   return /\.(mp4|mov|webm|m4v)$/i.test(url);
 }
@@ -14,6 +19,8 @@ function audioLabel(url: string, index: number, total: number): string {
 }
 
 export function InterventionAttachments({ urls }: { urls: string[] }) {
+  const [preview, setPreview] = useState<string | null>(null);
+
   if (urls.length === 0) return null;
 
   const audios = urls.filter(isAudioUrl);
@@ -27,8 +34,10 @@ export function InterventionAttachments({ urls }: { urls: string[] }) {
             isVideoUrl(url) ? (
               <video key={url} src={url} controls className="h-28 w-full rounded-md border object-cover" />
             ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={url} src={url} alt="" className="h-28 w-full rounded-md border object-cover" />
+              <button key={url} type="button" onClick={() => setPreview(url)} className="cursor-zoom-in">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-28 w-full rounded-md border object-cover" />
+              </button>
             )
           )}
         </div>
@@ -39,6 +48,16 @@ export function InterventionAttachments({ urls }: { urls: string[] }) {
           <audio src={url} controls className="w-full" />
         </div>
       ))}
+
+      <Dialog open={preview !== null} onOpenChange={(open) => !open && setPreview(null)}>
+        <DialogContent className="flex w-[92vw] max-w-[92vw] justify-center p-2 sm:w-auto sm:max-w-4xl" showCloseButton>
+          <DialogTitle className="sr-only">Photo en grand</DialogTitle>
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={preview} alt="" className="max-h-[85vh] max-w-full rounded-lg object-contain" />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
