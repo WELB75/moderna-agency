@@ -135,6 +135,9 @@ export const UI_TEXT: Record<
     signature: string;
     signatureClear: string;
     photoPiece: string;
+    childrenTitle: string;
+    childrenSubtitle: string;
+    childPhotoLabel: (i: number) => string;
   }
 > = {
   fr: {
@@ -151,6 +154,9 @@ export const UI_TEXT: Record<
     signature: "Signature (avec le doigt ou la souris)",
     signatureClear: "Effacer",
     photoPiece: "Photo de votre pièce d'identité (passeport, CIN...)",
+    childrenTitle: "Enfants",
+    childrenSubtitle: "Merci d'ajouter aussi une photo du passeport (ou CIN) de chaque enfant.",
+    childPhotoLabel: (i) => `Passeport de l'enfant ${i}`,
   },
   en: {
     title: "Police registration form",
@@ -166,6 +172,9 @@ export const UI_TEXT: Record<
     signature: "Signature (finger or mouse)",
     signatureClear: "Clear",
     photoPiece: "Photo of your ID (passport, national ID...)",
+    childrenTitle: "Children",
+    childrenSubtitle: "Please also add a photo of each child's passport (or ID card).",
+    childPhotoLabel: (i) => `Child ${i}'s passport`,
   },
   es: {
     title: "Ficha de policía",
@@ -181,6 +190,9 @@ export const UI_TEXT: Record<
     signature: "Firma (con el dedo o el ratón)",
     signatureClear: "Borrar",
     photoPiece: "Foto de tu documento de identidad (pasaporte, DNI...)",
+    childrenTitle: "Niños",
+    childrenSubtitle: "Añade también una foto del pasaporte (o DNI) de cada niño.",
+    childPhotoLabel: (i) => `Pasaporte del niño/a ${i}`,
   },
   ar: {
     title: "ورقة شخصية (الشرطة)",
@@ -196,6 +208,9 @@ export const UI_TEXT: Record<
     signature: "التوقيع (بالإصبع أو الفأرة)",
     signatureClear: "مسح",
     photoPiece: "صورة وثيقة هويتك (جواز السفر، البطاقة الوطنية...)",
+    childrenTitle: "الأطفال",
+    childrenSubtitle: "يرجى أيضا إضافة صورة جواز سفر (أو البطاقة الوطنية) لكل طفل.",
+    childPhotoLabel: (i) => `جواز سفر الطفل ${i}`,
   },
   nl: {
     title: "Politieformulier (gendarmerie)",
@@ -210,6 +225,9 @@ export const UI_TEXT: Record<
     already: "Dit formulier is al ingevuld. Bedankt.",
     signature: "Handtekening (met vinger of muis)",
     signatureClear: "Wissen",
+    childrenTitle: "Kinderen",
+    childrenSubtitle: "Voeg ook een foto van het paspoort (of ID-kaart) van elk kind toe.",
+    childPhotoLabel: (i) => `Paspoort van kind ${i}`,
     photoPiece: "Foto van uw identiteitsdocument (paspoort, ID-kaart...)",
   },
 };

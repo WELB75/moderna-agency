@@ -25,17 +25,22 @@ export function GendarmerieForm({
   villaNom,
   hideAddOccupant = false,
   nbAdultes = 1,
+  nbEnfants = 0,
   onSubmitted,
 }: {
   formId: string;
   villaNom: string;
   hideAddOccupant?: boolean;
   nbAdultes?: number;
+  nbEnfants?: number;
   onSubmitted?: () => void;
 }) {
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
   const [occupants, setOccupants] = useState<OccupantInput[]>(() =>
     Array.from({ length: Math.max(1, nbAdultes) }, emptyOccupant)
+  );
+  const [enfantsPhotos, setEnfantsPhotos] = useState<string[]>(() =>
+    Array.from({ length: Math.max(0, nbEnfants) }, () => "")
   );
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -78,9 +83,10 @@ export function GendarmerieForm({
       const signatureImage = pad && !pad.isEmpty() ? pad.toDataUrl() : "";
       return { ...o, signatureImage };
     });
+    const enfantsPassportUrls = enfantsPhotos.filter(Boolean);
     startTransition(async () => {
       try {
-        await submitGendarmerieOccupants(formId, lang!, occupantsWithSignature);
+        await submitGendarmerieOccupants(formId, lang!, occupantsWithSignature, enfantsPassportUrls);
         setSubmitted(true);
         onSubmitted?.();
       } catch (err) {
@@ -148,6 +154,29 @@ export function GendarmerieForm({
           </Card>
         ))}
       </div>
+
+      {enfantsPhotos.length > 0 ? (
+        <div className="space-y-3">
+          <div>
+            <h2 className="font-medium">{t.childrenTitle}</h2>
+            <p className="text-sm text-muted-foreground">{t.childrenSubtitle}</p>
+          </div>
+          <Card>
+            <CardContent className="space-y-4 py-4">
+              {enfantsPhotos.map((photo, index) => (
+                <IdPhotoCapture
+                  key={index}
+                  value={photo}
+                  onChange={(dataUrl) =>
+                    setEnfantsPhotos((prev) => prev.map((p, i) => (i === index ? dataUrl : p)))
+                  }
+                  label={t.childPhotoLabel(index + 1)}
+                />
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
         {!hideAddOccupant ? (
