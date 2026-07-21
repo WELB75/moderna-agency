@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { currentUser } from "@clerk/nextjs/server";
-import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull } from "drizzle-orm";
+import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { reservations, villas, domaines, maintenanceRecords, superhoteSyncLog } from "@/db/schema";
+import { reservations, villas, domaines, maintenanceRecords, superhoteSyncLog, gendarmerieForms, contratsLocation } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +17,7 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
-import { LogIn, LogOut, Wrench, Info, KeyRound } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { phonesMatch } from "@/lib/phone";
 
@@ -74,8 +74,53 @@ export default async function DashboardPage() {
     )
     .orderBy(asc(reservations.checkIn));
 
-  const villaUpcoming = upcoming.filter((r) => r.villaType !== "appartement");
-  const appartementUpcoming = upcoming.filter((r) => r.villaType === "appartement");
+  // Fiche police / contrat : indicateurs affichés sur chaque carte de réservation. La fiche
+  // police est liée directement à la réservation (reservationId) ; le contrat n'a pas ce lien
+  // en base, on le rapproche par villa + date d'arrivée identique.
+  const reservationIds = upcoming.map((r) => r.id);
+  const relatedFiches =
+    reservationIds.length > 0
+      ? await db
+          .select({ reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
+          .from(gendarmerieForms)
+          .where(inArray(gendarmerieForms.reservationId, reservationIds))
+      : [];
+  const ficheStatutByReservation = new Map<string, "complete" | "en_attente">();
+  for (const f of relatedFiches) {
+    if (!f.reservationId) continue;
+    const current = ficheStatutByReservation.get(f.reservationId);
+    if (f.statut === "complete" || current !== "complete") {
+      ficheStatutByReservation.set(f.reservationId, f.statut === "complete" ? "complete" : "en_attente");
+    }
+  }
+
+  const villaIdsForContrats = Array.from(new Set(upcoming.map((r) => r.villaId).filter((id): id is string => Boolean(id))));
+  const relatedContrats =
+    villaIdsForContrats.length > 0
+      ? await db
+          .select({ villaId: contratsLocation.villaId, dateArrivee: contratsLocation.dateArrivee, statut: contratsLocation.statut })
+          .from(contratsLocation)
+          .where(inArray(contratsLocation.villaId, villaIdsForContrats))
+      : [];
+  const contratStatutByVillaAndDate = new Map<string, "signe" | "en_attente">();
+  for (const c of relatedContrats) {
+    if (!c.villaId || !c.dateArrivee) continue;
+    const key = `${c.villaId}|${c.dateArrivee}`;
+    const current = contratStatutByVillaAndDate.get(key);
+    if (c.statut === "signe" || current !== "signe") {
+      contratStatutByVillaAndDate.set(key, c.statut === "signe" ? "signe" : "en_attente");
+    }
+  }
+
+  const upcomingWithDocs = upcoming.map((r) => {
+    const ficheStatut = ficheStatutByReservation.get(r.id) ?? null;
+    const dateKey = r.villaId ? `${r.villaId}|${format(new Date(r.checkIn), "yyyy-MM-dd")}` : null;
+    const contratStatut = dateKey ? (contratStatutByVillaAndDate.get(dateKey) ?? null) : null;
+    return { ...r, ficheStatut, contratStatut };
+  });
+
+  const villaUpcoming = upcomingWithDocs.filter((r) => r.villaType !== "appartement");
+  const appartementUpcoming = upcomingWithDocs.filter((r) => r.villaType === "appartement");
   const zarabaUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Zaraba");
   const modernaIIUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Moderna II");
   // Aimad gère Zaraba ET Noria (les appartements).
@@ -356,6 +401,8 @@ type ReservationRow = {
   checkoutValideAt: Date | null;
   checkoutValidePar: string | null;
   aRelancer: boolean;
+  ficheStatut: "complete" | "en_attente" | null;
+  contratStatut: "signe" | "en_attente" | null;
 };
 
 type MaintenanceRow = {
@@ -523,6 +570,35 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
         </p>
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
+
+        {isProprietaire ? null : (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <Badge
+              variant="outline"
+              className={
+                r.ficheStatut === "complete"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "text-muted-foreground"
+              }
+            >
+              <FileText className="h-3 w-3" />
+              Fiche police{" "}
+              {r.ficheStatut === "complete" ? "faite" : r.ficheStatut === "en_attente" ? "en attente" : "manquante"}
+            </Badge>
+            <Badge
+              variant="outline"
+              className={
+                r.contratStatut === "signe"
+                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                  : "text-muted-foreground"
+              }
+            >
+              <FileSignature className="h-3 w-3" />
+              Contrat{" "}
+              {r.contratStatut === "signe" ? "signé" : r.contratStatut === "en_attente" ? "en attente" : "manquant"}
+            </Badge>
+          </div>
+        )}
 
         {r.notes ? (
           <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
