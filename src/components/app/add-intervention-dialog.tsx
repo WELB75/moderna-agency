@@ -24,20 +24,30 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createIntervention } from "@/lib/actions/interventions";
+import { CONTACT_ROLE_LABELS } from "@/lib/contact-roles";
 
 export function AddInterventionDialog({
   villas,
   domaines,
   technicians = [],
+  contacts = [],
 }: {
-  villas: { id: string; nom: string; numero: string }[];
+  villas: { id: string; nom: string; numero: string; domaineId: string | null }[];
   domaines: { id: string; nom: string }[];
   technicians?: { nom: string; fonction: string }[];
+  contacts?: { villaId: string | null; domaineId: string | null; nom: string; role: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [villaId, setVillaId] = useState("");
   const [domaineId, setDomaineId] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  const selectedVillaDomaineId = villas.find((v) => v.id === villaId)?.domaineId ?? domaineId;
+  // Priorise les contacts déjà rattachés à cette villa/ce domaine (jardinier, pisciniste...)
+  // plutôt que la liste générale des prestataires.
+  const relevantContacts = contacts.filter(
+    (c) => (villaId && c.villaId === villaId) || (selectedVillaDomaineId && c.domaineId === selectedVillaDomaineId)
+  );
 
   async function handleSubmit(formData: FormData) {
     formData.set("villaId", villaId);
@@ -122,6 +132,11 @@ export function AddInterventionDialog({
               placeholder="Ex. Mohamed (électricien)"
             />
             <datalist id="intervention-prestataire-suggestions">
+              {relevantContacts.map((c) => (
+                <option key={c.nom} value={c.nom}>
+                  {CONTACT_ROLE_LABELS[c.role] ?? c.role}
+                </option>
+              ))}
               {technicians.map((t) => (
                 <option key={t.nom} value={t.nom}>
                   {t.fonction}

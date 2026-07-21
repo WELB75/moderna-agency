@@ -1,6 +1,7 @@
-import { desc, eq, asc } from "drizzle-orm";
+import { desc, eq, asc, inArray } from "drizzle-orm";
+import { currentUser } from "@clerk/nextjs/server";
 import { getDb } from "@/db";
-import { interventions, villas, domaines, technicians } from "@/db/schema";
+import { interventions, villas, domaines, technicians, proprieteContacts, interventionComments } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
@@ -8,6 +9,8 @@ import { Gauge } from "lucide-react";
 
 export default async function InterventionsPage() {
   const db = getDb();
+  const user = await currentUser();
+  const currentUserName = user?.fullName ?? user?.username ?? "Équipe";
 
   const allInterventions = await db
     .select({
@@ -24,6 +27,7 @@ export default async function InterventionsPage() {
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
+      devis: interventions.devis,
       signaleAt: interventions.signaleAt,
       contacteAt: interventions.contacteAt,
       planifieAt: interventions.planifieAt,
@@ -42,9 +46,35 @@ export default async function InterventionsPage() {
   const enCours = allInterventions.filter((i) => i.etape !== "termine");
   const terminees = allInterventions.filter((i) => i.etape === "termine");
 
-  const allVillas = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas);
+  const allVillas = await db
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
+    .from(villas);
   const allDomaines = await db.select().from(domaines).orderBy(asc(domaines.nom));
   const allTechnicians = await db.select({ nom: technicians.nom, fonction: technicians.fonction }).from(technicians);
+  const allContacts = await db
+    .select({
+      villaId: proprieteContacts.villaId,
+      domaineId: proprieteContacts.domaineId,
+      nom: proprieteContacts.nom,
+      role: proprieteContacts.role,
+    })
+    .from(proprieteContacts);
+
+  const interventionIds = allInterventions.map((i) => i.id);
+  const allComments =
+    interventionIds.length > 0
+      ? await db
+          .select()
+          .from(interventionComments)
+          .where(inArray(interventionComments.interventionId, interventionIds))
+          .orderBy(interventionComments.createdAt)
+      : [];
+  const commentsByIntervention = new Map<string, typeof allComments>();
+  for (const c of allComments) {
+    const list = commentsByIntervention.get(c.interventionId) ?? [];
+    list.push(c);
+    commentsByIntervention.set(c.interventionId, list);
+  }
 
   return (
     <div className="space-y-6">
@@ -53,7 +83,12 @@ export default async function InterventionsPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Interventions</h1>
           <p className="text-sm text-muted-foreground">Suivi étape par étape</p>
         </div>
-        <AddInterventionDialog villas={allVillas} domaines={allDomaines} technicians={allTechnicians} />
+        <AddInterventionDialog
+          villas={allVillas}
+          domaines={allDomaines}
+          technicians={allTechnicians}
+          contacts={allContacts}
+        />
       </div>
 
       {allInterventions.length === 0 ? (
@@ -68,7 +103,12 @@ export default async function InterventionsPage() {
           {enCours.length > 0 ? (
             <div className="space-y-2">
               {enCours.map((i) => (
-                <InterventionCard key={i.id} intervention={i} />
+                <InterventionCard
+                  key={i.id}
+                  intervention={i}
+                  comments={commentsByIntervention.get(i.id) ?? []}
+                  currentUserName={currentUserName}
+                />
               ))}
             </div>
           ) : null}
@@ -77,7 +117,12 @@ export default async function InterventionsPage() {
             <div className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">Terminées</p>
               {terminees.map((i) => (
-                <InterventionCard key={i.id} intervention={i} />
+                <InterventionCard
+                  key={i.id}
+                  intervention={i}
+                  comments={commentsByIntervention.get(i.id) ?? []}
+                  currentUserName={currentUserName}
+                />
               ))}
             </div>
           ) : null}

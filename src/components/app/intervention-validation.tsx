@@ -47,7 +47,7 @@ export function InterventionValidation({
 
   return (
     <div className="space-y-2 rounded-md border p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Validation du patron</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Validation d&apos;Imed Jaiel</p>
 
       {!editing && validationStatut ? (
         <div className="space-y-1.5">

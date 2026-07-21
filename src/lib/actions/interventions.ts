@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { interventions } from "@/db/schema";
+import type { Devis } from "@/lib/devis-types";
 
 const ETAPES = ["signale", "contacte", "planifie", "en_cours", "termine"] as const;
 type Etape = (typeof ETAPES)[number];
@@ -40,8 +41,29 @@ export async function createIntervention(formData: FormData) {
     domaineId,
     prestataire: prestataire || null,
     notes: notes || null,
+    origine: "staff",
     createdByUserId: user?.id ?? null,
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
+  });
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+// Volontairement sans auth.protect() : le propriétaire crée une demande de travaux
+// depuis son lien public /p/[token], sans connexion. Portée limitée à sa propre villa
+// (villaId déjà connu via le token, pas saisi par l'utilisateur).
+export async function createInterventionByOwner(villaId: string, titre: string, probleme: string) {
+  const trimmedTitre = titre.trim();
+  if (!trimmedTitre) throw new Error("Le titre est obligatoire.");
+
+  const db = getDb();
+  await db.insert(interventions).values({
+    titre: trimmedTitre,
+    probleme: probleme.trim() || null,
+    villaId,
+    origine: "proprietaire",
+    createdByName: "Propriétaire",
   });
 
   revalidatePath("/interventions");
@@ -109,7 +131,47 @@ export async function deleteIntervention(interventionId: string) {
   revalidatePath("/maintenance");
 }
 
-// Volontairement sans auth.protect() : le patron valide via le lien public /i/[id],
+export async function addDevis(interventionId: string, devis: Devis) {
+  await auth.protect();
+  const db = getDb();
+  const [current] = await db
+    .select({ devis: interventions.devis })
+    .from(interventions)
+    .where(eq(interventions.id, interventionId))
+    .limit(1);
+  if (!current) throw new Error("Intervention introuvable.");
+
+  await db
+    .update(interventions)
+    .set({ devis: [...(current.devis ?? []), devis], updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+  revalidatePath(`/i/${interventionId}`);
+}
+
+export async function deleteDevis(interventionId: string, index: number) {
+  await auth.protect();
+  const db = getDb();
+  const [current] = await db
+    .select({ devis: interventions.devis })
+    .from(interventions)
+    .where(eq(interventions.id, interventionId))
+    .limit(1);
+  if (!current) throw new Error("Intervention introuvable.");
+
+  await db
+    .update(interventions)
+    .set({ devis: (current.devis ?? []).filter((_, i) => i !== index), updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+  revalidatePath(`/i/${interventionId}`);
+}
+
+// Volontairement sans auth.protect() : Imed Jaiel valide via le lien public /i/[id],
 // sans se connecter. La portée est limitée à ces deux champs sur une intervention
 // dont il faut déjà connaître l'identifiant (le lien partagé).
 export async function submitInterventionValidation(

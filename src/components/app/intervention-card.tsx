@@ -20,16 +20,22 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { DomaineLocation } from "@/components/app/domaine-location";
 import { InterventionAttachments } from "@/components/app/intervention-attachments";
 import { InterventionValidation } from "@/components/app/intervention-validation";
+import { InterventionComments, type CommentRow } from "@/components/app/intervention-comments";
 import { ShareInterventionButton } from "@/components/app/share-intervention-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { AddDevisDialog } from "@/components/app/add-devis-dialog";
+import { DevisDocument } from "@/components/app/devis-document";
+import { PrintButton } from "@/components/app/print-button";
 import {
   setInterventionEtape,
   updateInterventionNotes,
   addInterventionAttachments,
   deleteIntervention,
+  deleteDevis,
 } from "@/lib/actions/interventions";
 import { cn } from "@/lib/utils";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
+import type { Devis } from "@/lib/devis-types";
 
 const STEPS = INTERVENTION_STEPS;
 
@@ -47,6 +53,7 @@ export type Intervention = {
   etape: Etape;
   notes: string | null;
   attachmentUrls: string[] | null;
+  devis: Devis[] | null;
   signaleAt: Date;
   contacteAt: Date | null;
   planifieAt: Date | null;
@@ -60,7 +67,15 @@ export type Intervention = {
 
 const TIMESTAMPS = INTERVENTION_STEP_TIMESTAMP_KEYS;
 
-export function InterventionCard({ intervention }: { intervention: Intervention }) {
+export function InterventionCard({
+  intervention,
+  comments = [],
+  currentUserName = "Équipe",
+}: {
+  intervention: Intervention;
+  comments?: CommentRow[];
+  currentUserName?: string;
+}) {
   const [notes, setNotes] = useState(intervention.notes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -238,6 +253,25 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
 
         <InterventionAttachments urls={intervention.attachmentUrls ?? []} />
 
+        {(intervention.devis ?? []).length > 0 ? (
+          <div className="space-y-3">
+            {(intervention.devis ?? []).map((d, i) => (
+              <div key={i} className="space-y-1.5">
+                <DevisDocument devis={d} />
+                <div className="flex justify-end gap-1 print:hidden">
+                  <PrintButton />
+                  <ConfirmDeleteButton
+                    action={deleteDevis.bind(null, intervention.id, i)}
+                    title="Supprimer ce devis ?"
+                    description="Cette action est irréversible."
+                    label="Supprimer"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
@@ -257,6 +291,7 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
             className="hidden"
             onChange={handleFileChange}
           />
+          <AddDevisDialog interventionId={intervention.id} />
           <ShareInterventionButton interventionId={intervention.id} />
         </div>
 
@@ -265,6 +300,13 @@ export function InterventionCard({ intervention }: { intervention: Intervention 
           validationStatut={intervention.validationStatut}
           validationNote={intervention.validationNote}
           validationAt={intervention.validationAt}
+        />
+
+        <InterventionComments
+          interventionId={intervention.id}
+          comments={comments}
+          auteur={currentUserName}
+          auteurType="staff"
         />
       </CardContent>
     </Card>
