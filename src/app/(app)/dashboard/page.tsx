@@ -464,11 +464,14 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
   const isProprietaire = phonesMatch(r.guestPhone, r.proprietaireTelephone);
+  const isDone = Boolean(isIn ? r.checkinValideAt : r.checkoutValideAt);
 
   return (
     <div
       className={
-        "rounded-md border-l-4 " + (isIn ? "border-l-emerald-500" : "border-l-red-500")
+        "rounded-md border-l-4 transition-opacity " +
+        (isIn ? "border-l-emerald-500" : "border-l-red-500") +
+        (isDone ? " opacity-50" : "")
       }
     >
       <Link href={r.villaId ? `/villas/${r.villaId}` : "#"} className="block p-3 hover:bg-muted/50">
