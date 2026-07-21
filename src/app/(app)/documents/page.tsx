@@ -11,8 +11,10 @@ import { GenerateContratForm } from "@/components/app/generate-contrat-form";
 import { DocumentRow } from "@/components/app/document-row";
 import { PrintButton } from "@/components/app/print-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
+import { VillaSecurityBlock } from "@/components/app/villa-security-block";
 import { deleteGendarmerieForm } from "@/lib/actions/gendarmerie";
 import { deleteContrat } from "@/lib/actions/contrats";
+import { getAllVillasSecurityData } from "@/lib/security-data";
 import { FileText, FileSignature, IdCard, Download, ShieldCheck } from "lucide-react";
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -41,17 +43,7 @@ export default async function DocumentsPage() {
     .from(villas)
     .orderBy(asc(villas.numero));
 
-  const allVillasWithDomaine = await db
-    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineNom: domaines.nom })
-    .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .orderBy(asc(villas.numero));
-  const villasParDomaine = new Map<string, typeof allVillasWithDomaine>();
-  for (const v of allVillasWithDomaine) {
-    const key = v.domaineNom ?? "Sans domaine";
-    if (!villasParDomaine.has(key)) villasParDomaine.set(key, []);
-    villasParDomaine.get(key)!.push(v);
-  }
+  const securityGroups = await getAllVillasSecurityData();
 
   const fichesPolice = await db
     .select({
@@ -293,28 +285,37 @@ export default async function DocumentsPage() {
         </TabsContent>
 
         <TabsContent value="securite" className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            Un lien général par villa, à envoyer une seule fois à la sécurité du domaine : il affiche
-            toujours automatiquement les derniers occupants enregistrés (dates de séjour et photos des
-            pièces d&apos;identité), sans avoir à renvoyer un nouveau lien à chaque arrivée.
-          </p>
-          {Array.from(villasParDomaine.entries()).map(([domaineNom, vs]) => (
-            <div key={domaineNom} className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              Un seul lien général pour toutes les villas, à envoyer une seule fois à la sécurité : il
+              affiche toujours automatiquement les derniers occupants enregistrés par villa (dates de
+              séjour et photos des pièces d&apos;identité). Vous retrouvez la même vue ci-dessous.
+            </p>
+            <CopyLinkButton
+              path="/securite"
+              label="Copier le lien sécurité"
+              successMessage="Lien copié — un seul à envoyer, il reste toujours à jour."
+            />
+          </div>
+          {securityGroups.map((group) => (
+            <div key={group.domaineNom} className="space-y-2">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                {domaineNom}
+                {group.domaineNom}
               </h2>
               <div className="space-y-2">
-                {vs.map((v) => (
-                  <div key={v.id} className="flex items-center justify-between gap-2 rounded-md border p-3">
-                    <p className="font-medium">
-                      {v.nom} (n°{v.numero})
-                    </p>
-                    <CopyLinkButton
-                      path={`/securite/villa/${v.id}`}
-                      label="Copier le lien sécurité"
-                      successMessage={`Lien copié — envoie-le une fois à la sécurité pour ${v.nom}.`}
-                    />
-                  </div>
+                {group.villas.map((v) => (
+                  <details key={v.villaId} className="group rounded-md border">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-3">
+                      <span className="font-medium">
+                        {v.villaNom} (n°{v.villaNumero})
+                      </span>
+                      <span className="text-xs text-muted-foreground group-open:hidden">Voir</span>
+                      <span className="hidden text-xs text-muted-foreground group-open:inline">Masquer</span>
+                    </summary>
+                    <div className="border-t p-3 pt-2">
+                      <VillaSecurityBlock data={v} showVillaHeader={false} />
+                    </div>
+                  </details>
                 ))}
               </div>
             </div>
