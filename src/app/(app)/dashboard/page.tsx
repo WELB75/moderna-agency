@@ -512,6 +512,11 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
 
         <p className={"mt-1 text-sm font-semibold " + (isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
           {isIn ? "Check-in" : "Check-out"} · {format(target, "HH:mm", { locale: fr })}
+          {isIn ? (
+            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+              (départ le {format(new Date(r.checkOut), "d MMM", { locale: fr })})
+            </span>
+          ) : null}
         </p>
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
