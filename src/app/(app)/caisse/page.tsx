@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddCashEntryDialog } from "@/components/app/add-cash-entry-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { CaisseStats } from "@/components/app/caisse-stats";
 import { deleteCashEntry } from "@/lib/actions/caisse";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -69,10 +70,11 @@ export default async function CaissePage() {
       </div>
 
       <Tabs defaultValue="especes">
-        <TabsList>
+        <TabsList className="h-auto flex-wrap">
           <TabsTrigger value="especes">Espèces</TabsTrigger>
           <TabsTrigger value="virement">Virement bancaire</TabsTrigger>
           <TabsTrigger value="carte">Carte bleue</TabsTrigger>
+          <TabsTrigger value="stats">Statistiques</TabsTrigger>
         </TabsList>
         <TabsContent value="especes" className="pt-2">
           <CaissePanel entries={especes} villas={allVillas} moyenPaiement="especes" />
@@ -82,6 +84,9 @@ export default async function CaissePage() {
         </TabsContent>
         <TabsContent value="carte" className="pt-2">
           <CaissePanel entries={carte} villas={allVillas} moyenPaiement="carte" />
+        </TabsContent>
+        <TabsContent value="stats" className="pt-2">
+          <CaisseStats entries={entries} />
         </TabsContent>
       </Tabs>
     </div>
