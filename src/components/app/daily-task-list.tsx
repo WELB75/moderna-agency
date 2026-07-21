@@ -8,6 +8,7 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { createDailyTask, toggleDailyTask, deleteDailyTask } from "@/lib/actions/daily-tasks";
 
@@ -15,11 +16,36 @@ type DailyTask = {
   id: string;
   titre: string;
   fait: boolean;
+  assigne: string;
   createdAt: Date;
   completedAt: Date | null;
 };
 
+const ONGLETS = [
+  { value: "kamel", label: "Kamel · Moderna II" },
+  { value: "aimad", label: "Aimad · Zaraba & Noria" },
+] as const;
+
 export function DailyTaskList({ tasks }: { tasks: DailyTask[] }) {
+  return (
+    <Tabs defaultValue="kamel">
+      <TabsList className="h-auto flex-wrap">
+        {ONGLETS.map((o) => (
+          <TabsTrigger key={o.value} value={o.value}>
+            {o.label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {ONGLETS.map((o) => (
+        <TabsContent key={o.value} value={o.value}>
+          <DailyTaskPanel assigne={o.value} tasks={tasks.filter((t) => t.assigne === o.value)} />
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+
+function DailyTaskPanel({ assigne, tasks }: { assigne: string; tasks: DailyTask[] }) {
   const [titre, setTitre] = useState("");
   const [isPending, startTransition] = useTransition();
 
@@ -32,6 +58,7 @@ export function DailyTaskList({ tasks }: { tasks: DailyTask[] }) {
     setTitre("");
     const formData = new FormData();
     formData.set("titre", value);
+    formData.set("assigne", assigne);
     startTransition(async () => {
       try {
         await createDailyTask(formData);
@@ -62,7 +89,7 @@ export function DailyTaskList({ tasks }: { tasks: DailyTask[] }) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pt-4">
       <div className="flex gap-2">
         <Input
           value={titre}

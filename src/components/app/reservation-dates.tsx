@@ -3,13 +3,29 @@ import { fr } from "date-fns/locale";
 import { LogIn, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { nowInMorocco } from "@/lib/now";
+import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 
-export function ReservationDates({ checkIn, checkOut }: { checkIn: Date; checkOut: Date }) {
+export function ReservationDates({
+  checkIn,
+  checkOut,
+  reservationId,
+}: {
+  checkIn: Date;
+  checkOut: Date;
+  reservationId?: string;
+}) {
   const now = nowInMorocco();
   return (
-    <div className="mt-2 grid gap-2 sm:grid-cols-2">
-      <DateBlock kind="in" date={checkIn} isToday={isSameDay(checkIn, now)} />
-      <DateBlock kind="out" date={checkOut} isToday={isSameDay(checkOut, now)} />
+    <div className="mt-2 space-y-1.5">
+      <div className="grid gap-2 sm:grid-cols-2">
+        <DateBlock kind="in" date={checkIn} isToday={isSameDay(checkIn, now)} />
+        <DateBlock kind="out" date={checkOut} isToday={isSameDay(checkOut, now)} />
+      </div>
+      {reservationId ? (
+        <div className="flex justify-end">
+          <EditReservationTimeDialog reservationId={reservationId} checkIn={checkIn} checkOut={checkOut} />
+        </div>
+      ) : null}
     </div>
   );
 }

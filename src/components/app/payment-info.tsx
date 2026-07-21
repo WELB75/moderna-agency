@@ -40,7 +40,15 @@ export function PaymentSummary({
   cautionPayee: boolean;
   devisePaiement: string;
 }) {
-  if (loyerTotal === null) return null;
+  if (loyerTotal === null) {
+    return (
+      <div className="mt-2">
+        <Badge variant="destructive">
+          Montant du loyer non renseigné — clique sur &laquo; Paiement &raquo;
+        </Badge>
+      </div>
+    );
+  }
 
   const total = Number(loyerTotal);
   const paye = Number(montantPaye ?? 0);

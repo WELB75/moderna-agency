@@ -1,11 +1,22 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { eq, ne, and, asc, desc } from "drizzle-orm";
+import { eq, ne, and, or, asc, desc, gte } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, inventoryChecklists, maintenanceRecords, technicians, domaines, gendarmerieForms } from "@/db/schema";
+import {
+  villas,
+  reservations,
+  inventoryChecklists,
+  maintenanceRecords,
+  technicians,
+  domaines,
+  gendarmerieForms,
+  proprieteContacts,
+  interventions,
+  cashEntries,
+} from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,16 +29,20 @@ import { GuestCount } from "@/components/app/guest-count";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
 import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
 import { VillaProprietaire } from "@/components/app/villa-proprietaire";
+import { ContactsSection } from "@/components/app/contacts-section";
+import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-button";
 import { VillaIcalUrl } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
+import { OperationalSummary, EditOperationalInfoDialog } from "@/components/app/operational-info";
 import { GendarmerieAction } from "@/components/app/gendarmerie-action";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { ClipboardPlus, Info, ChevronRight } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { phonesMatch } from "@/lib/phone";
 
 export default async function VillaDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -48,6 +63,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       codeBoitier: villas.codeBoitier,
       proprietaireNom: villas.proprietaireNom,
       proprietaireTelephone: villas.proprietaireTelephone,
+      lienProprietaireToken: villas.lienProprietaireToken,
       icalUrl: villas.icalUrl,
       superhoteListingId: villas.superhoteListingId,
       domaineId: villas.domaineId,
@@ -96,6 +112,48 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
 
   const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);
 
+  const villaContacts = await db
+    .select()
+    .from(proprieteContacts)
+    .where(
+      villa.domaineId
+        ? or(eq(proprieteContacts.villaId, id), eq(proprieteContacts.domaineId, villa.domaineId))
+        : eq(proprieteContacts.villaId, id)
+    )
+    .orderBy(asc(proprieteContacts.role));
+
+  // Tous les contacts déjà enregistrés (toutes villas/domaines confondus), pour
+  // l'auto-complétion lors de l'ajout d'un nouveau contact (éviter de ressaisir un numéro).
+  const allContactsForSuggestions = await db
+    .select({ nom: proprieteContacts.nom, telephone: proprieteContacts.telephone, role: proprieteContacts.role })
+    .from(proprieteContacts);
+
+  const allInterventionPrestataires = await db
+    .select({ prestataire: interventions.prestataire })
+    .from(interventions);
+  const interventionCounts: Record<string, number> = {};
+  for (const row of allInterventionPrestataires) {
+    if (!row.prestataire) continue;
+    const key = row.prestataire.trim().toLowerCase();
+    for (const c of villaContacts) {
+      const nameKey = c.nom.trim().toLowerCase();
+      if (key.includes(nameKey)) {
+        interventionCounts[nameKey] = (interventionCounts[nameKey] ?? 0) + 1;
+      }
+    }
+  }
+
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const monthlyDepenses = await db
+    .select({ responsable: cashEntries.responsable })
+    .from(cashEntries)
+    .where(and(eq(cashEntries.type, "depense"), gte(cashEntries.createdAt, monthStart)));
+  const paidThisMonth = new Set(
+    monthlyDepenses.filter((e) => e.responsable).map((e) => e.responsable!.trim().toLowerCase())
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -136,6 +194,18 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           proprietaireTelephone={villa.proprietaireTelephone}
         />
       </div>
+
+      <ProprietaireAccessButton villaId={villa.id} token={villa.lienProprietaireToken} />
+
+      <ContactsSection
+        contacts={villaContacts}
+        interventionCounts={interventionCounts}
+        paidThisMonth={paidThisMonth}
+        villaId={villa.id}
+        domaineId={villa.domaineId}
+        domaineNom={villa.domaineNom}
+        existingContacts={allContactsForSuggestions}
+      />
 
       <VillaIcalUrl villaId={villa.id} icalUrl={villa.icalUrl} />
 
@@ -199,6 +269,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                 r={r}
                 villaId={villa.id}
                 gendarmerieForm={gendarmerieByReservation.get(r.id) ?? null}
+                proprietaireTelephone={villa.proprietaireTelephone}
               />
             ))
           )}
@@ -213,7 +284,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
               </summary>
               <div className="space-y-3 border-t p-3">
                 {pastReservations.map((r) => (
-                  <ReservationListItem key={r.id} r={r} muted />
+                  <ReservationListItem key={r.id} r={r} muted proprietaireTelephone={villa.proprietaireTelephone} />
                 ))}
               </div>
             </details>
@@ -304,17 +375,28 @@ function ReservationListItem({
   muted,
   villaId,
   gendarmerieForm,
+  proprietaireTelephone,
 }: {
   r: typeof reservations.$inferSelect;
   muted?: boolean;
   villaId?: string;
   gendarmerieForm?: { id: string; statut: string } | null;
+  proprietaireTelephone?: string | null;
 }) {
+  const isProprietaire = phonesMatch(r.guestPhone, proprietaireTelephone);
+
   return (
     <div className={"rounded-md border p-3" + (muted ? " opacity-70" : "")}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-medium">{r.guestName}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="font-medium">{r.guestName}</p>
+            {isProprietaire ? (
+              <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                Propriétaire
+              </Badge>
+            ) : null}
+          </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
             <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
@@ -333,6 +415,14 @@ function ReservationListItem({
             moyenPaiement={r.moyenPaiement}
             notesPaiement={r.notesPaiement}
           />
+          <EditOperationalInfoDialog
+            reservationId={r.id}
+            assigneCheckin={r.assigneCheckin}
+            assigneMenage={r.assigneMenage}
+            formulaireBienvenueEnvoye={r.formulaireBienvenueEnvoye}
+            formulaireCheckinRecu={r.formulaireCheckinRecu}
+            aRelancer={r.aRelancer}
+          />
           <ConfirmDeleteButton
             action={deleteReservation.bind(null, r.id)}
             title="Supprimer cette réservation ?"
@@ -341,22 +431,31 @@ function ReservationListItem({
         </div>
       </div>
       <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
-      <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+      <ReservationDates checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} reservationId={r.id} />
       {r.notes ? (
         <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span>{r.notes}</span>
         </div>
       ) : null}
-      <div className="mt-2">
-        <PaymentSummary
-          loyerTotal={r.loyerTotal}
-          montantPaye={r.montantPaye}
-          caution={r.caution}
-          cautionPayee={r.cautionPayee}
-          devisePaiement={r.devisePaiement}
-        />
-      </div>
+      <OperationalSummary
+        assigneCheckin={r.assigneCheckin}
+        assigneMenage={r.assigneMenage}
+        formulaireBienvenueEnvoye={r.formulaireBienvenueEnvoye}
+        formulaireCheckinRecu={r.formulaireCheckinRecu}
+        aRelancer={r.aRelancer}
+      />
+      {isProprietaire ? null : (
+        <div className="mt-2">
+          <PaymentSummary
+            loyerTotal={r.loyerTotal}
+            montantPaye={r.montantPaye}
+            caution={r.caution}
+            cautionPayee={r.cautionPayee}
+            devisePaiement={r.devisePaiement}
+          />
+        </div>
+      )}
       {r.notesPaiement ? <p className="mt-1 text-xs text-muted-foreground">{r.notesPaiement}</p> : null}
       {villaId ? (
         <div className="mt-2">

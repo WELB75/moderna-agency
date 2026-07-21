@@ -13,3 +13,13 @@ export function toWhatsAppUrl(rawPhone: string): string {
 
   return `https://wa.me/${normalized.replace(/\D/g, "")}`;
 }
+
+// Compare deux numéros en ignorant l'indicatif pays / le 0 initial (formats mélangés :
+// "0681818100" vs "+33681818100" vs "0033681818100" doivent être reconnus comme identiques).
+// Utilisé pour détecter qu'un "client" est en fait le propriétaire réservant sa propre villa.
+export function phonesMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return false;
+  const tailA = a.replace(/\D/g, "").slice(-9);
+  const tailB = b.replace(/\D/g, "").slice(-9);
+  return tailA.length === 9 && tailA === tailB;
+}

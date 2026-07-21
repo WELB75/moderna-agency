@@ -32,3 +32,22 @@ export function nowInMorocco(): Date {
     )
   );
 }
+
+/**
+ * Formate un Date en lisant ses composants UTC directement (jamais le fuseau du
+ * navigateur/serveur), pour rester cohérent avec le stockage "heure locale marocaine
+ * stockée telle quelle en UTC" utilisé partout ailleurs. À utiliser dans tout composant
+ * client ("use client") qui affiche une heure de check-in/check-out/validation — sans ça,
+ * l'hydratation applique le fuseau du navigateur et décale l'heure affichée d'1h.
+ */
+export function formatUtcTime(date: Date): string {
+  const h = String(date.getUTCHours()).padStart(2, "0");
+  const m = String(date.getUTCMinutes()).padStart(2, "0");
+  return `${h}:${m}`;
+}
+
+export function formatUtcDayMonthTime(date: Date): string {
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  const mo = String(date.getUTCMonth() + 1).padStart(2, "0");
+  return `${d}/${mo} ${formatUtcTime(date)}`;
+}

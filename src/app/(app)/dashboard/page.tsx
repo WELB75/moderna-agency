@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { currentUser } from "@clerk/nextjs/server";
-import { and, gte, lte, or, eq, ne, asc, isNotNull } from "drizzle-orm";
+import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull } from "drizzle-orm";
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { reservations, villas, domaines, maintenanceRecords } from "@/db/schema";
+import { reservations, villas, domaines, maintenanceRecords, superhoteSyncLog } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,8 +14,12 @@ import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { PhoneLink } from "@/components/app/phone-link";
+import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
+import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
+import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { LogIn, LogOut, Wrench, Info, KeyRound } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { phonesMatch } from "@/lib/phone";
 
 const DAYS_AHEAD = 7;
 
@@ -43,12 +47,18 @@ export default async function DashboardPage() {
       villaType: villas.type,
       codeBoitier: villas.codeBoitier,
       numeroImmeuble: villas.numeroImmeuble,
+      proprietaireTelephone: villas.proprietaireTelephone,
       domaineNom: domaines.nom,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
       caution: reservations.caution,
       cautionPayee: reservations.cautionPayee,
       devisePaiement: reservations.devisePaiement,
+      checkinValideAt: reservations.checkinValideAt,
+      checkinValidePar: reservations.checkinValidePar,
+      checkoutValideAt: reservations.checkoutValideAt,
+      checkoutValidePar: reservations.checkoutValidePar,
+      aRelancer: reservations.aRelancer,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -67,7 +77,11 @@ export default async function DashboardPage() {
   const villaUpcoming = upcoming.filter((r) => r.villaType !== "appartement");
   const appartementUpcoming = upcoming.filter((r) => r.villaType === "appartement");
   const zarabaUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Zaraba");
-  const luxeVillaUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Luxe Villa");
+  const modernaIIUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Moderna II");
+  // Aimad gère Zaraba ET Noria (les appartements).
+  const aimadUpcoming = [...zarabaUpcoming, ...appartementUpcoming].sort(
+    (a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime()
+  );
 
   const upcomingMaintenance = await db
     .select({
@@ -88,52 +102,132 @@ export default async function DashboardPage() {
     )
     .orderBy(asc(maintenanceRecords.prochaineDatePrevue));
 
+  const allVillas = await db
+    .select({
+      id: villas.id,
+      nom: villas.nom,
+      numero: villas.numero,
+      type: villas.type,
+      domaineNom: domaines.nom,
+    })
+    .from(villas)
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .orderBy(asc(villas.nom));
+
+  // Occupation réelle = check-in validé sur place mais check-out pas encore validé (pas juste
+  // la période de la réservation) : reflète qui a vraiment les clés en ce moment, pas le calendrier.
+  const activeNow = await db
+    .select({ villaId: reservations.villaId })
+    .from(reservations)
+    .where(
+      and(
+        ne(reservations.status, "annulee"),
+        isNotNull(reservations.checkinValideAt),
+        isNull(reservations.checkoutValideAt)
+      )
+    );
+  const occupiedVillaIds = new Set(activeNow.map((r) => r.villaId));
+  const villasLibres = allVillas.filter((v) => !occupiedVillaIds.has(v.id));
+  // Même répartition que les onglets : Aimad gère Zaraba + Noria (appartements), Kamel gère Moderna II.
+  const villasLibresAimad = villasLibres.filter(
+    (v) => v.domaineNom === "Domaine Zaraba" || v.type === "appartement"
+  );
+  const villasLibresKamel = villasLibres.filter((v) => v.domaineNom === "Domaine Moderna II");
+
+  // Plan du domaine confirmé par Kamel : le champ "numero" correspond à la position 1-17 sur le terrain.
+  const modernaIIPlanVillas: PlanVilla[] = allVillas
+    .filter((v) => v.domaineNom === "Domaine Moderna II")
+    .map((v) => ({ id: v.id, nom: v.nom, position: parseInt(v.numero, 10), libre: !occupiedVillaIds.has(v.id) }))
+    .filter((v) => !Number.isNaN(v.position));
+
   const villaMaintenance = upcomingMaintenance.filter((m) => m.villaType !== "appartement");
   const appartementMaintenance = upcomingMaintenance.filter((m) => m.villaType === "appartement");
   const zarabaMaintenance = villaMaintenance.filter((m) => m.domaineNom === "Domaine Zaraba");
-  const luxeVillaMaintenance = villaMaintenance.filter((m) => m.domaineNom === "Domaine Luxe Villa");
+  const modernaIIMaintenance = villaMaintenance.filter((m) => m.domaineNom === "Domaine Moderna II");
+  const aimadMaintenance = [...zarabaMaintenance, ...appartementMaintenance];
 
   const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(now, i));
 
   const user = await currentUser();
   const userEmail = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
-  const isImene = Boolean(userEmail && userEmail === process.env.IMENE_EMAIL?.toLowerCase());
+  const isAimad = Boolean(userEmail && userEmail === process.env.AIMAD_EMAIL?.toLowerCase());
+
+  const [lastSync] = await db
+    .select({ finishedAt: superhoteSyncLog.finishedAt, success: superhoteSyncLog.success })
+    .from(superhoteSyncLog)
+    .orderBy(desc(superhoteSyncLog.startedAt))
+    .limit(1);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Cette semaine</h1>
           <p className="text-sm text-muted-foreground">
             {format(now, "EEEE d MMMM yyyy", { locale: fr })}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <SyncIcalButton />
+        <div className="flex flex-col items-start gap-1.5 sm:items-end">
+          <SyncIcalButton className="w-full sm:w-auto" />
+          {lastSync?.finishedAt ? (
+            <p className="text-xs text-muted-foreground">
+              Dernière synchro {lastSync.success === false ? "(échec)" : ""} : {format(lastSync.finishedAt, "d MMM HH:mm", { locale: fr })}
+            </p>
+          ) : null}
         </div>
       </div>
 
-      {isImene ? (
-        <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
+      {isAimad ? (
+        <>
+          <VillasLibresCard villas={villasLibresAimad} />
+          <PersonPanel reservations={aimadUpcoming} maintenance={aimadMaintenance} days={days} now={now} />
+        </>
       ) : (
-        <Tabs defaultValue="aimad">
+        <Tabs defaultValue="kamel">
           <TabsList className="h-auto flex-wrap">
-            <TabsTrigger value="aimad">Aimad · Zaraba</TabsTrigger>
-            <TabsTrigger value="kamel">Kamel · Luxe Villa</TabsTrigger>
-            <TabsTrigger value="imene">Imane · Noria</TabsTrigger>
+            <TabsTrigger value="kamel">Kamel · Moderna II</TabsTrigger>
+            <TabsTrigger value="aimad">Aimad · Zaraba &amp; Noria</TabsTrigger>
           </TabsList>
-          <TabsContent value="aimad" className="space-y-6 pt-2">
-            <PersonPanel reservations={zarabaUpcoming} maintenance={zarabaMaintenance} days={days} now={now} />
-          </TabsContent>
           <TabsContent value="kamel" className="space-y-6 pt-2">
-            <PersonPanel reservations={luxeVillaUpcoming} maintenance={luxeVillaMaintenance} days={days} now={now} />
+            <VillasLibresCard villas={villasLibresKamel} />
+            <DomainePlanModernaII villas={modernaIIPlanVillas} />
+            <PersonPanel reservations={modernaIIUpcoming} maintenance={modernaIIMaintenance} days={days} now={now} />
           </TabsContent>
-          <TabsContent value="imene" className="space-y-6 pt-2">
-            <PersonPanel reservations={appartementUpcoming} maintenance={appartementMaintenance} days={days} now={now} />
+          <TabsContent value="aimad" className="space-y-6 pt-2">
+            <VillasLibresCard villas={villasLibresAimad} />
+            <PersonPanel reservations={aimadUpcoming} maintenance={aimadMaintenance} days={days} now={now} />
           </TabsContent>
         </Tabs>
       )}
     </div>
+  );
+}
+
+function VillasLibresCard({ villas }: { villas: { id: string; nom: string; numero: string }[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Villas libres en ce moment ({villas.length})</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {villas.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Toutes tes villas sont occupées en ce moment.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {villas.map((v) => (
+              <Link key={v.id} href={`/villas/${v.id}`}>
+                <Badge
+                  variant="outline"
+                  className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                >
+                  {v.nom} (n°{v.numero})
+                </Badge>
+              </Link>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -250,12 +344,18 @@ type ReservationRow = {
   villaType: "villa" | "appartement" | null;
   codeBoitier: string | null;
   numeroImmeuble: string | null;
+  proprietaireTelephone: string | null;
   domaineNom: string | null;
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
   cautionPayee: boolean;
   devisePaiement: string;
+  checkinValideAt: Date | null;
+  checkinValidePar: string | null;
+  checkoutValideAt: Date | null;
+  checkoutValidePar: string | null;
+  aRelancer: boolean;
 };
 
 type MaintenanceRow = {
@@ -288,6 +388,12 @@ function DayCard({
     new Set([...checkIns, ...checkOuts].map((r) => r.domaineNom ?? "Sans domaine"))
   ).sort();
 
+  const domaineGroups = domaineNames.map((domaineName) => ({
+    domaineName,
+    checkIns: checkIns.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName),
+    checkOuts: checkOuts.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName),
+  }));
+
   return (
     <Card>
       <CardHeader>
@@ -307,34 +413,57 @@ function DayCard({
         {total === 0 ? (
           <p className="text-sm text-muted-foreground">Rien à signaler.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            {domaineNames.map((domaineName) => {
-              const domaineCheckIns = checkIns.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
-              const domaineCheckOuts = checkOuts.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
-              return (
-                <div key={domaineName} className="space-y-2">
-                  <DomaineBadge nom={domaineName} />
+          <>
+            <div className="mb-4 space-y-1 rounded-md bg-muted/40 p-3 text-sm">
+              {domaineGroups.map((g) => (
+                <p key={g.domaineName}>{buildResumeDomaine(g.domaineName, g.checkIns, g.checkOuts)}</p>
+              ))}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {domaineGroups.map((g) => (
+                <div key={g.domaineName} className="space-y-2">
+                  <DomaineBadge nom={g.domaineName} />
                   <div className="space-y-2">
-                    {domaineCheckIns.map((r) => (
+                    {g.checkIns.map((r) => (
                       <ReservationRowCard key={`in-${r.id}`} r={r} kind="in" />
                     ))}
-                    {domaineCheckOuts.map((r) => (
+                    {g.checkOuts.map((r) => (
                       <ReservationRowCard key={`out-${r.id}`} r={r} kind="out" />
                     ))}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </Card>
   );
 }
 
+// Synthèse en une phrase de ce qu'il y a à faire dans ce domaine ce jour-là
+// (ex. "Se rendre à Domaine Zaraba : 1 check-in (Villa Azur) et 2 check-out (Villa X, Villa Y).").
+function buildResumeDomaine(domaineName: string, checkIns: ReservationRow[], checkOuts: ReservationRow[]): string {
+  const parts: string[] = [];
+  if (checkIns.length > 0) {
+    const noms = checkIns.map((r) => r.villaNom).filter(Boolean);
+    parts.push(
+      `${checkIns.length} check-in${checkIns.length > 1 ? "s" : ""}${noms.length ? ` (${noms.join(", ")})` : ""}`
+    );
+  }
+  if (checkOuts.length > 0) {
+    const noms = checkOuts.map((r) => r.villaNom).filter(Boolean);
+    parts.push(
+      `${checkOuts.length} check-out${checkOuts.length > 1 ? "s" : ""}${noms.length ? ` (${noms.join(", ")})` : ""}`
+    );
+  }
+  return `Se rendre à ${domaineName} : ${parts.join(" et ")}.`;
+}
+
 function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
+  const isProprietaire = phonesMatch(r.guestPhone, r.proprietaireTelephone);
 
   return (
     <div
@@ -351,6 +480,12 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
               <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
             )}
             <p className="truncate font-medium">{r.guestName}</p>
+            {isProprietaire ? (
+              <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400">
+                Propriétaire
+              </Badge>
+            ) : null}
+            {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
           </div>
           <Countdown target={target} variant={kind} />
         </div>
@@ -388,20 +523,33 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
           </div>
         ) : null}
 
-        <PaymentSummary
-          loyerTotal={r.loyerTotal}
-          montantPaye={r.montantPaye}
-          caution={r.caution}
-          cautionPayee={r.cautionPayee}
-          devisePaiement={r.devisePaiement}
-        />
+        {isProprietaire ? null : (
+          <PaymentSummary
+            loyerTotal={r.loyerTotal}
+            montantPaye={r.montantPaye}
+            caution={r.caution}
+            cautionPayee={r.cautionPayee}
+            devisePaiement={r.devisePaiement}
+          />
+        )}
       </Link>
 
-      {r.guestPhone ? (
-        <div className="px-3 pb-3">
-          <PhoneLink phone={r.guestPhone} />
-        </div>
-      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
+        {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : <span />}
+        <EditReservationTimeDialog
+          reservationId={r.id}
+          checkIn={new Date(r.checkIn)}
+          checkOut={new Date(r.checkOut)}
+        />
+      </div>
+      <div className="px-3 pb-3">
+        <ValidateCheckinCheckoutButton
+          reservationId={r.id}
+          kind={kind}
+          valideAt={kind === "in" ? r.checkinValideAt : r.checkoutValideAt}
+          validePar={kind === "in" ? r.checkinValidePar : r.checkoutValidePar}
+        />
+      </div>
     </div>
   );
 }
