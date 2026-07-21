@@ -16,15 +16,18 @@ export function InterventionValidation({
   validationStatut,
   validationNote,
   validationAt,
-  title = "Validation d'Imed Jaiel",
+  title = "Validation propriétaire",
+  readOnly = false,
 }: {
   interventionId: string;
   validationStatut: string | null;
   validationNote: string | null;
   validationAt: Date | null;
   title?: string;
+  // Vue équipe : seul le propriétaire valide via son espace, l'équipe ne fait que consulter.
+  readOnly?: boolean;
 }) {
-  const [editing, setEditing] = useState(!validationStatut);
+  const [editing, setEditing] = useState(!readOnly && !validationStatut);
   const [choice, setChoice] = useState<"accepte" | "refuse" | null>(
     validationStatut === "accepte" || validationStatut === "refuse" ? validationStatut : null
   );
@@ -51,7 +54,9 @@ export function InterventionValidation({
     <div className="space-y-2 rounded-md border p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
 
-      {!editing && validationStatut ? (
+      {readOnly && !validationStatut ? (
+        <p className="text-sm text-muted-foreground">En attente de la validation du propriétaire.</p>
+      ) : !editing && validationStatut ? (
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
             <Badge
@@ -71,9 +76,11 @@ export function InterventionValidation({
                 {format(new Date(validationAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}
               </span>
             ) : null}
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
-              <Pencil className="h-3 w-3" />
-            </Button>
+            {!readOnly ? (
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
+                <Pencil className="h-3 w-3" />
+              </Button>
+            ) : null}
           </div>
           {validationNote ? <p className="whitespace-pre-line text-sm">{validationNote}</p> : null}
         </div>

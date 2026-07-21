@@ -26,7 +26,6 @@ export async function addInterventionComment(
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
-  revalidatePath(`/i/${interventionId}`);
 }
 
 export async function getInterventionComments(interventionId: string) {

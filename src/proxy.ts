@@ -6,7 +6,6 @@ const isPublicRoute = createRouteMatcher([
   "/api/ical/sync",
   "/icon",
   "/favicon.ico",
-  "/i/(.*)",
   "/g/(.*)",
   "/c/(.*)",
   "/p/(.*)",
