@@ -100,7 +100,24 @@ export async function runIcalSync(): Promise<
         };
 
         if (existing.length > 0) {
-          await db.update(reservations).set(values).where(eq(reservations.id, existing[0].id));
+          // Le nombre d'adultes/enfants de Superhote est souvent faux (rempli à la main par
+          // le client) ; une fois corrigé manuellement (ex. via la fiche police), on ne veut
+          // plus qu'une synchro suivante l'écrase avec la valeur d'origine.
+          const updateValues = {
+            villaId: values.villaId,
+            superhoteBookingId: values.superhoteBookingId,
+            guestName: values.guestName,
+            guestEmail: values.guestEmail,
+            guestPhone: values.guestPhone,
+            checkIn: values.checkIn,
+            checkOut: values.checkOut,
+            canal: values.canal,
+            status: values.status,
+            source: values.source,
+            rawData: values.rawData,
+            updatedAt: values.updatedAt,
+          };
+          await db.update(reservations).set(updateValues).where(eq(reservations.id, existing[0].id));
         } else {
           await db.insert(reservations).values(values);
           newBookings.push({ villaNom: villa.nom, guestName, checkIn: event.start, checkOut: event.end });
