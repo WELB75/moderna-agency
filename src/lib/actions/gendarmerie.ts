@@ -22,6 +22,8 @@ export type OccupantInput = {
   datePiece: string;
   lieuPiece: string;
   signatureNom: string;
+  signatureImage: string;
+  photoPieceUrl: string;
 };
 
 export async function createGendarmerieForm(reservationId: string | null, villaId: string | null) {
@@ -42,6 +44,31 @@ export async function createGendarmerieForm(reservationId: string | null, villaI
   revalidatePath("/villas");
   if (villaId) revalidatePath(`/villas/${villaId}`);
   return form;
+}
+
+// Un Bulletin Individuel est censé être rempli par une seule personne majeure : quand
+// plusieurs adultes séjournent ensemble, on génère un lien distinct par adulte plutôt
+// qu'un seul lien partagé (contrairement au contrat de location, qui reste unique par famille).
+export async function generateGendarmerieForms(villaId: string, nbAdultes: number) {
+  await auth.protect();
+  const user = await currentUser();
+  const count = Math.min(Math.max(Math.round(nbAdultes), 1), 20);
+
+  const db = getDb();
+  const forms = await db
+    .insert(gendarmerieForms)
+    .values(
+      Array.from({ length: count }, () => ({
+        villaId,
+        reservationId: null,
+        createdByUserId: user?.id ?? null,
+        createdByName: user?.fullName ?? user?.username ?? "Équipe",
+      }))
+    )
+    .returning();
+
+  revalidatePath("/documents");
+  return forms;
 }
 
 // Volontairement sans auth.protect() : le client remplit via le lien public /g/[id],
@@ -73,6 +100,8 @@ export async function submitGendarmerieOccupants(formId: string, langue: string,
       datePiece: o.datePiece.trim() || null,
       lieuPiece: o.lieuPiece.trim() || null,
       signatureNom: o.signatureNom.trim() || null,
+      signatureImage: o.signatureImage || null,
+      photoPieceUrl: o.photoPieceUrl || null,
     }))
   );
 

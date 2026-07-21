@@ -27,6 +27,9 @@ export const FIELD_KEYS = [
 
 export type FieldKey = (typeof FIELD_KEYS)[number];
 
+// Champs à afficher avec un vrai calendrier (input type="date") plutôt qu'en texte libre.
+export const DATE_FIELD_KEYS: readonly FieldKey[] = ["dateNaissance", "dateArrivee", "datePiece"];
+
 export const FIELD_LABELS: Record<GendarmerieLang, Record<FieldKey, string>> = {
   fr: {
     nom: "Nom",
@@ -111,6 +114,9 @@ export const UI_TEXT: Record<
     submitting: string;
     success: string;
     already: string;
+    signature: string;
+    signatureClear: string;
+    photoPiece: string;
   }
 > = {
   fr: {
@@ -124,6 +130,9 @@ export const UI_TEXT: Record<
     submitting: "Envoi...",
     success: "Merci, vos informations ont bien été transmises.",
     already: "Ce formulaire a déjà été rempli. Merci.",
+    signature: "Signature (avec le doigt ou la souris)",
+    signatureClear: "Effacer",
+    photoPiece: "Photo de votre pièce d'identité (passeport, CIN...)",
   },
   en: {
     title: "Police registration form",
@@ -136,6 +145,9 @@ export const UI_TEXT: Record<
     submitting: "Sending...",
     success: "Thank you, your information has been submitted.",
     already: "This form has already been submitted. Thank you.",
+    signature: "Signature (finger or mouse)",
+    signatureClear: "Clear",
+    photoPiece: "Photo of your ID (passport, national ID...)",
   },
   es: {
     title: "Ficha de policía",
@@ -148,6 +160,9 @@ export const UI_TEXT: Record<
     submitting: "Enviando...",
     success: "Gracias, tu información ha sido enviada.",
     already: "Este formulario ya ha sido completado. Gracias.",
+    signature: "Firma (con el dedo o el ratón)",
+    signatureClear: "Borrar",
+    photoPiece: "Foto de tu documento de identidad (pasaporte, DNI...)",
   },
   ar: {
     title: "ورقة شخصية (الشرطة)",
@@ -160,6 +175,9 @@ export const UI_TEXT: Record<
     submitting: "جارٍ الإرسال...",
     success: "شكرا، تم إرسال معلوماتك بنجاح.",
     already: "تم ملء هذه الورقة بالفعل. شكرا.",
+    signature: "التوقيع (بالإصبع أو الفأرة)",
+    signatureClear: "مسح",
+    photoPiece: "صورة وثيقة هويتك (جواز السفر، البطاقة الوطنية...)",
   },
 };
 
@@ -180,5 +198,7 @@ export function emptyOccupant() {
     datePiece: "",
     lieuPiece: "",
     signatureNom: "",
+    signatureImage: "",
+    photoPieceUrl: "",
   };
 }

@@ -1,12 +1,15 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants, villas, reservations } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { PrintButton } from "@/components/app/print-button";
-import { FIELD_KEYS, FIELD_LABELS, type GendarmerieLang } from "@/lib/gendarmerie-i18n";
+import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS, type GendarmerieLang } from "@/lib/gendarmerie-i18n";
+import { formatDateFr } from "@/lib/format-date";
+import { Download } from "lucide-react";
 
 export default async function GendarmerieDocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -47,18 +50,36 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 print:p-0">
-      <div className="flex items-center justify-between print:hidden">
-        <div className="flex items-center gap-2">
-          <Logo size={40} />
-          <div>
-            <p className="font-semibold">Fiche de police / gendarmerie</p>
-            <p className="text-sm text-muted-foreground">
-              {form.villaNom ? `${form.villaNom} (n°${form.villaNumero})` : "Logement non renseigné"}
-              {form.checkIn ? ` · ${format(new Date(form.checkIn), "d MMM yyyy", { locale: fr })}` : ""}
-            </p>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <Image
+            src="/logo-surete-nationale.png"
+            alt="Sûreté Nationale"
+            width={90}
+            height={56}
+            className="h-8 w-auto sm:h-10"
+          />
+          <p className="text-center text-sm font-semibold uppercase tracking-wide sm:text-base">
+            Fiche individuelle de police / gendarmerie
+          </p>
+          <Image
+            src="/logo-gendarmerie-royale.png"
+            alt="Gendarmerie Royale"
+            width={56}
+            height={56}
+            className="h-9 w-auto sm:h-12"
+          />
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">
+            {form.villaNom ? `${form.villaNom} (n°${form.villaNumero})` : "Logement non renseigné"}
+            {form.checkIn ? ` · ${format(new Date(form.checkIn), "d MMM yyyy", { locale: fr })}` : ""}
+          </p>
+          <div className="flex items-center gap-2 print:hidden">
+            <Logo size={28} />
+            <PrintButton />
           </div>
         </div>
-        <PrintButton />
       </div>
 
       {form.statut !== "complete" ? (
@@ -77,9 +98,49 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
                       <span>{leftLabels[key]}</span>
                       {showBilingual ? <span dir="rtl">{arLabels[key]}</span> : null}
                     </p>
-                    <p className="text-sm font-medium">{o[key] || "—"}</p>
+                    <p className="text-sm font-medium">
+                      {(DATE_FIELD_KEYS.includes(key) ? formatDateFr(o[key]) : o[key]) || "—"}
+                    </p>
                   </div>
                 ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {o.photoPieceUrl ? (
+                  <div className="rounded-md border bg-white p-2">
+                    <div className="mb-1 flex items-center justify-between gap-2 print:block">
+                      <p className="text-xs text-muted-foreground">Pièce d&apos;identité</p>
+                      <a
+                        href={o.photoPieceUrl}
+                        download={`piece-identite-${[o.prenom, o.nom].filter(Boolean).join("-") || o.id}.jpg`}
+                        className="flex items-center gap-1 text-xs font-medium text-primary hover:underline print:hidden"
+                      >
+                        <Download className="h-3 w-3" />
+                        Télécharger
+                      </a>
+                    </div>
+                    <Image
+                      src={o.photoPieceUrl}
+                      alt="Pièce d'identité"
+                      width={300}
+                      height={200}
+                      unoptimized
+                      className="h-40 w-auto object-contain"
+                    />
+                  </div>
+                ) : null}
+                {o.signatureImage ? (
+                  <div className="rounded-md border bg-white p-2">
+                    <p className="mb-1 text-xs text-muted-foreground">Signature</p>
+                    <Image
+                      src={o.signatureImage}
+                      alt="Signature"
+                      width={400}
+                      height={150}
+                      unoptimized
+                      className="h-auto w-full max-w-xs"
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           ))}
