@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -17,21 +24,31 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createInterventionByOwner } from "@/lib/actions/interventions";
+import type { Urgence } from "@/lib/intervention-urgence";
+
+const OWNER_URGENCE_OPTIONS: { key: Urgence; label: string }[] = [
+  { key: "basse", label: "Pas pressé" },
+  { key: "normale", label: "Normal" },
+  { key: "haute", label: "Urgent" },
+  { key: "critique", label: "Très urgent — à traiter vite" },
+];
 
 export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
   const [open, setOpen] = useState(false);
   const [titre, setTitre] = useState("");
   const [probleme, setProbleme] = useState("");
+  const [urgence, setUrgence] = useState<Urgence>("normale");
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit() {
     startTransition(async () => {
       try {
-        await createInterventionByOwner(villaId, titre, probleme);
+        await createInterventionByOwner(villaId, titre, probleme, urgence);
         toast.success("Demande envoyée.");
         setOpen(false);
         setTitre("");
         setProbleme("");
+        setUrgence("normale");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'envoi.");
       }
@@ -71,6 +88,21 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
               rows={3}
               placeholder="Décrivez le problème ou ce que vous souhaitez faire faire..."
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label>À quel point c&apos;est urgent pour vous ?</Label>
+            <Select value={urgence} onValueChange={(v) => setUrgence(v as Urgence)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {OWNER_URGENCE_OPTIONS.map((o) => (
+                  <SelectItem key={o.key} value={o.key}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <DialogFooter>
             <Button type="button" disabled={isPending || !titre.trim()} onClick={handleSubmit} className="w-full sm:w-auto">

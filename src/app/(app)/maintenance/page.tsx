@@ -11,9 +11,11 @@ import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { deleteTechnician } from "@/lib/actions/technicians";
+import { sortByUrgence } from "@/lib/intervention-urgence";
 import { Wrench, Users, ListTodo } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 
@@ -63,6 +65,8 @@ export default async function MaintenancePage() {
       domaineNom: domaines.nom,
       domaineMapsUrl: domaines.mapsUrl,
       prestataire: interventions.prestataire,
+      technicianId: interventions.technicianId,
+      urgence: interventions.urgence,
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
@@ -76,6 +80,7 @@ export default async function MaintenancePage() {
       validationNote: interventions.validationNote,
       validationAt: interventions.validationAt,
       createdByName: interventions.createdByName,
+      createdAt: interventions.createdAt,
     })
     .from(interventions)
     .leftJoin(villas, eq(interventions.villaId, villas.id))
@@ -208,6 +213,11 @@ export default async function MaintenancePage() {
                   </div>
                   <div className="flex items-center gap-1">
                     <PhoneLink phone={t.telephone} />
+                    <CopyLinkButton
+                      path={`/t/${t.accessToken}`}
+                      label="Copier le lien"
+                      successMessage={`Lien copié — envoie-le à ${t.nom} sur WhatsApp.`}
+                    />
                     <ConfirmDeleteButton
                       action={deleteTechnician.bind(null, t.id)}
                       title="Supprimer ce technicien ?"
@@ -239,8 +249,8 @@ export default async function MaintenancePage() {
             </Card>
           ) : (
             <div className="space-y-2">
-              {villaInterventions.map((i) => (
-                <InterventionCard key={i.id} intervention={i} />
+              {sortByUrgence(villaInterventions).map((i) => (
+                <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
               ))}
             </div>
           )}

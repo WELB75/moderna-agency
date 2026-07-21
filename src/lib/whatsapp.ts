@@ -58,3 +58,10 @@ export async function notifyStaffWhatsApp(body: string): Promise<void> {
   if (numbers.length === 0) return;
   await Promise.all(numbers.map((n) => sendWhatsAppTemplate(n, body)));
 }
+
+// Notifie un numéro précis (ex. un technicien lors de son assignation à une intervention),
+// silencieusement ignoré si le numéro est vide ou si Meta n'est pas configuré.
+export async function notifyPhoneWhatsApp(phone: string | null | undefined, body: string): Promise<void> {
+  if (!phone) return;
+  await sendWhatsAppTemplate(phone, body);
+}

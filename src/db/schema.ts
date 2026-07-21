@@ -47,6 +47,13 @@ export const tacheStatutEnum = pgEnum("tache_statut", [
   "termine",
 ]);
 
+export const interventionUrgenceEnum = pgEnum("intervention_urgence", [
+  "basse",
+  "normale",
+  "haute",
+  "critique",
+]);
+
 export const domaines = pgTable("domaines", {
   id: uuid("id").defaultRandom().primaryKey(),
   nom: text("nom").notNull(),
@@ -228,6 +235,8 @@ export const interventions = pgTable("interventions", {
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "set null" }),
   domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "set null" }),
   prestataire: text("prestataire"),
+  technicianId: uuid("technician_id").references(() => technicians.id, { onDelete: "set null" }),
+  urgence: interventionUrgenceEnum("urgence").default("normale").notNull(),
   etape: interventionEtapeEnum("etape").default("signale").notNull(),
   notes: text("notes"),
   attachmentUrls: jsonb("attachment_urls").$type<string[]>().default([]),
@@ -353,14 +362,20 @@ export const dailyTasks = pgTable("daily_tasks", {
   completedAt: timestamp("completed_at", { withTimezone: true }),
 });
 
-export const technicians = pgTable("technicians", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  nom: text("nom").notNull(),
-  fonction: text("fonction").notNull(),
-  telephone: text("telephone").notNull(),
-  notes: text("notes"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const technicians = pgTable(
+  "technicians",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    nom: text("nom").notNull(),
+    fonction: text("fonction").notNull(),
+    telephone: text("telephone").notNull(),
+    notes: text("notes"),
+    // Token du lien perso /t/[token] consulté par le technicien, sans connexion.
+    accessToken: uuid("access_token").defaultRandom().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("technicians_access_token_idx").on(t.accessToken)]
+);
 
 export const contactRoleEnum = pgEnum("contact_role", [
   "proprietaire",

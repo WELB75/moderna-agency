@@ -14,6 +14,11 @@ lieux signés avec photos. Optimisée pour smartphone et iPad.
   l'agent à la fin.
 - **Superhote** — synchronisation automatique des réservations (cron toutes les
   15 min) + bouton de synchro manuelle.
+- **Interventions** — suivi étape par étape (signalé → contacté → planifié → en cours →
+  terminé), niveau d'urgence (basse/normale/haute/critique, remonte automatiquement en
+  haut des listes et alerte l'équipe par WhatsApp si critique), assignation à un
+  technicien avec notification WhatsApp et lien perso `/t/[token]` (bilingue fr/ar, sans
+  connexion) pour qu'il suive et fasse avancer ses interventions.
 
 ## Stack
 
@@ -34,7 +39,8 @@ Tailwind CSS.
 2. Installer les intégrations Marketplace : **Neon** (Postgres) et **Clerk**
    (auth) — les variables d'environnement sont provisionnées automatiquement.
 3. Ajouter manuellement : `BLOB_READ_WRITE_TOKEN` (Vercel Blob),
-   `SUPERHOTE_API_KEY`, `CRON_SECRET`.
+   `SUPERHOTE_API_KEY`, `CRON_SECRET`, `NEXT_PUBLIC_APP_URL` (ex. `https://moderna-agency.vercel.app`,
+   utilisée pour générer les liens envoyés par WhatsApp aux techniciens).
 4. Le cron `/api/superhote/sync` (toutes les 15 min, voir `vercel.json`) est
    activé automatiquement au déploiement.
 
