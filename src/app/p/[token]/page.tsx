@@ -128,7 +128,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             intervention={i}
             showVillaInfo={false}
             compact
-            validationTitle={(i.devis ?? []).length > 0 ? "Validez-vous ce devis ?" : "Ces informations sont-elles correctes ?"}
+            validationTitle="Validez-vous ce devis ?"
             comments={commentsByIntervention.get(i.id) ?? []}
             commentAuteur={villa.proprietaireNom || "Propriétaire"}
             commentAuteurType="proprietaire"
