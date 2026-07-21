@@ -1,10 +1,15 @@
 import { and, asc, desc, eq } from "drizzle-orm";
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants, villas, domaines, reservations, contratsLocation } from "@/db/schema";
 import { formatDateFr } from "@/lib/format-date";
+import { nowInMorocco } from "@/lib/now";
 import type { VillaSecurityData } from "@/components/app/villa-security-block";
+
+// Pour l'instant, la sécurité ne concerne que les villas (pas les appartements Noria) :
+// chaque domaine a ses propres agents, il ne faut jamais mélanger les deux.
+const DOMAINES_SECURITE = ["Domaine Zaraba", "Domaine Moderna II"];
 
 async function buildVillaSecurityData(
   db: ReturnType<typeof getDb>,
@@ -51,6 +56,7 @@ async function buildVillaSecurityData(
     : formatDateFr(form?.contratDateDepart ?? "") || null;
   const nbAdultes = form?.nbAdultes ?? form?.contratNbAdultes ?? null;
   const nbEnfants = form?.nbEnfants ?? form?.contratNbEnfants ?? 0;
+  const arriveeAujourdhui = form?.checkIn ? isSameDay(new Date(form.checkIn), nowInMorocco()) : false;
 
   return {
     villaId: villa.id,
@@ -61,6 +67,7 @@ async function buildVillaSecurityData(
     nbAdultes,
     nbEnfants,
     occupants,
+    arriveeAujourdhui,
   };
 }
 
@@ -75,23 +82,32 @@ export async function getVillaSecurityData(villaId: string): Promise<VillaSecuri
   return buildVillaSecurityData(db, villa);
 }
 
-export async function getAllVillasSecurityData(): Promise<
-  { domaineNom: string; villas: VillaSecurityData[] }[]
-> {
+export async function getSecuriteDomaines(): Promise<{ id: string; nom: string }[]> {
   const db = getDb();
-  const allVillas = await db
-    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineNom: domaines.nom })
+  const rows = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines);
+  return rows
+    .filter((d) => DOMAINES_SECURITE.includes(d.nom))
+    .sort((a, b) => DOMAINES_SECURITE.indexOf(a.nom) - DOMAINES_SECURITE.indexOf(b.nom));
+}
+
+export async function getVillasSecurityDataForDomaine(
+  domaineId: string,
+  options?: { jourSeulement?: boolean }
+): Promise<{ domaineNom: string; villas: VillaSecurityData[] } | null> {
+  const db = getDb();
+  const [domaine] = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).where(eq(domaines.id, domaineId));
+  if (!domaine) return null;
+
+  const domaineVillas = await db
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero })
     .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .where(and(eq(villas.domaineId, domaineId), eq(villas.type, "villa")))
     .orderBy(asc(villas.numero));
 
-  const byDomaine = new Map<string, VillaSecurityData[]>();
-  for (const v of allVillas) {
-    const key = v.domaineNom ?? "Sans domaine";
-    const data = await buildVillaSecurityData(db, v);
-    if (!byDomaine.has(key)) byDomaine.set(key, []);
-    byDomaine.get(key)!.push(data);
+  let villaList = await Promise.all(domaineVillas.map((v) => buildVillaSecurityData(db, v)));
+  if (options?.jourSeulement) {
+    villaList = villaList.filter((v) => v.arriveeAujourdhui);
   }
 
-  return Array.from(byDomaine.entries()).map(([domaineNom, villaList]) => ({ domaineNom, villas: villaList }));
+  return { domaineNom: domaine.nom, villas: villaList };
 }

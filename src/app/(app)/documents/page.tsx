@@ -10,12 +10,9 @@ import { GenerateFichePoliceForm } from "@/components/app/generate-fiche-police-
 import { GenerateContratForm } from "@/components/app/generate-contrat-form";
 import { DocumentRow } from "@/components/app/document-row";
 import { PrintButton } from "@/components/app/print-button";
-import { CopyLinkButton } from "@/components/app/copy-link-button";
-import { VillaSecurityBlock } from "@/components/app/villa-security-block";
 import { deleteGendarmerieForm } from "@/lib/actions/gendarmerie";
 import { deleteContrat } from "@/lib/actions/contrats";
-import { getAllVillasSecurityData } from "@/lib/security-data";
-import { FileText, FileSignature, IdCard, Download, ShieldCheck } from "lucide-react";
+import { FileText, FileSignature, IdCard, Download } from "lucide-react";
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -42,8 +39,6 @@ export default async function DocumentsPage() {
     .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
     .from(villas)
     .orderBy(asc(villas.numero));
-
-  const securityGroups = await getAllVillasSecurityData();
 
   const fichesPolice = await db
     .select({
@@ -138,10 +133,6 @@ export default async function DocumentsPage() {
           <TabsTrigger value="pieces-identite">
             <IdCard className="h-4 w-4" />
             Pièces d&apos;identité
-          </TabsTrigger>
-          <TabsTrigger value="securite">
-            <ShieldCheck className="h-4 w-4" />
-            Sécurité
           </TabsTrigger>
         </TabsList>
 
@@ -282,44 +273,6 @@ export default async function DocumentsPage() {
               </div>
             ))
           )}
-        </TabsContent>
-
-        <TabsContent value="securite" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-muted-foreground">
-              Un seul lien général pour toutes les villas, à envoyer une seule fois à la sécurité : il
-              affiche toujours automatiquement les derniers occupants enregistrés par villa (dates de
-              séjour et photos des pièces d&apos;identité). Vous retrouvez la même vue ci-dessous.
-            </p>
-            <CopyLinkButton
-              path="/securite"
-              label="Copier le lien sécurité"
-              successMessage="Lien copié — un seul à envoyer, il reste toujours à jour."
-            />
-          </div>
-          {securityGroups.map((group) => (
-            <div key={group.domaineNom} className="space-y-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                {group.domaineNom}
-              </h2>
-              <div className="space-y-2">
-                {group.villas.map((v) => (
-                  <details key={v.villaId} className="group rounded-md border">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-3">
-                      <span className="font-medium">
-                        {v.villaNom} (n°{v.villaNumero})
-                      </span>
-                      <span className="text-xs text-muted-foreground group-open:hidden">Voir</span>
-                      <span className="hidden text-xs text-muted-foreground group-open:inline">Masquer</span>
-                    </summary>
-                    <div className="border-t p-3 pt-2">
-                      <VillaSecurityBlock data={v} showVillaHeader={false} />
-                    </div>
-                  </details>
-                ))}
-              </div>
-            </div>
-          ))}
         </TabsContent>
       </Tabs>
     </div>
