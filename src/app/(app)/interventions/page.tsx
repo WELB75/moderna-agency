@@ -5,6 +5,7 @@ import { interventions, villas, domaines, technicians, proprieteContacts, interv
 import { Card, CardContent } from "@/components/ui/card";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
+import { sortByUrgence } from "@/lib/intervention-urgence";
 import { Gauge } from "lucide-react";
 
 export default async function InterventionsPage() {
@@ -24,6 +25,8 @@ export default async function InterventionsPage() {
       domaineNom: domaines.nom,
       domaineMapsUrl: domaines.mapsUrl,
       prestataire: interventions.prestataire,
+      technicianId: interventions.technicianId,
+      urgence: interventions.urgence,
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
@@ -37,20 +40,23 @@ export default async function InterventionsPage() {
       validationNote: interventions.validationNote,
       validationAt: interventions.validationAt,
       createdByName: interventions.createdByName,
+      createdAt: interventions.createdAt,
     })
     .from(interventions)
     .leftJoin(villas, eq(interventions.villaId, villas.id))
     .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
     .orderBy(desc(interventions.createdAt));
 
-  const enCours = allInterventions.filter((i) => i.etape !== "termine");
-  const terminees = allInterventions.filter((i) => i.etape === "termine");
+  const enCours = sortByUrgence(allInterventions.filter((i) => i.etape !== "termine"));
+  const terminees = sortByUrgence(allInterventions.filter((i) => i.etape === "termine"));
 
   const allVillas = await db
     .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
     .from(villas);
   const allDomaines = await db.select().from(domaines).orderBy(asc(domaines.nom));
-  const allTechnicians = await db.select({ nom: technicians.nom, fonction: technicians.fonction }).from(technicians);
+  const allTechnicians = await db
+    .select({ id: technicians.id, nom: technicians.nom, fonction: technicians.fonction })
+    .from(technicians);
   const allContacts = await db
     .select({
       villaId: proprieteContacts.villaId,
@@ -108,6 +114,7 @@ export default async function InterventionsPage() {
                   intervention={i}
                   comments={commentsByIntervention.get(i.id) ?? []}
                   currentUserName={currentUserName}
+                  technicians={allTechnicians}
                 />
               ))}
             </div>
@@ -122,6 +129,7 @@ export default async function InterventionsPage() {
                   intervention={i}
                   comments={commentsByIntervention.get(i.id) ?? []}
                   currentUserName={currentUserName}
+                  technicians={allTechnicians}
                 />
               ))}
             </div>

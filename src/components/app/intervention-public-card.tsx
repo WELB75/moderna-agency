@@ -1,3 +1,4 @@
+import { differenceInCalendarDays } from "date-fns";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { InterventionAttachments } from "@/components/app/intervention-attachments";
 import { InterventionValidation } from "@/components/app/intervention-validation";
@@ -5,11 +6,13 @@ import { InterventionComments, type CommentRow } from "@/components/app/interven
 import { DevisDocument } from "@/components/app/devis-document";
 import { PrintButton } from "@/components/app/print-button";
 import { LinkifiedText } from "@/components/app/linkified-text";
+import { UrgenceBadge } from "@/components/app/urgence-badge";
 import { Badge } from "@/components/ui/badge";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
 import { cn } from "@/lib/utils";
 import { formatUtcDayMonthTime } from "@/lib/now";
 import type { Devis } from "@/lib/devis-types";
+import type { Urgence } from "@/lib/intervention-urgence";
 
 export type InterventionPublicData = {
   id: string;
@@ -20,6 +23,7 @@ export type InterventionPublicData = {
   villaNumero: string | null;
   domaineNom: string | null;
   prestataire: string | null;
+  urgence: Urgence;
   etape: Etape;
   notes: string | null;
   attachmentUrls: string[] | null;
@@ -49,6 +53,8 @@ export function InterventionPublicCard({
 }) {
   const currentIndex = INTERVENTION_STEPS.findIndex((s) => s.key === intervention.etape);
   const pct = ((currentIndex + 1) / INTERVENTION_STEPS.length) * 100;
+  const joursDepuisSignalement = differenceInCalendarDays(new Date(), new Date(intervention.signaleAt));
+  const stagne = intervention.etape !== "termine" && joursDepuisSignalement >= 3;
 
   return (
     <div className="rounded-lg border p-4 sm:p-6">
@@ -57,7 +63,13 @@ export function InterventionPublicCard({
       </h3>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <UrgenceBadge urgence={intervention.urgence} />
         {intervention.domaineNom ? <DomaineBadge nom={intervention.domaineNom} className="text-xs" /> : null}
+        {stagne ? (
+          <Badge variant="outline" className="text-xs text-muted-foreground">
+            Signalé depuis {joursDepuisSignalement} jours
+          </Badge>
+        ) : null}
         {intervention.etape === "termine" ? (
           <Badge
             variant="outline"

@@ -4,7 +4,7 @@ import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { reservations, villas, domaines, maintenanceRecords, superhoteSyncLog, gendarmerieForms, contratsLocation } from "@/db/schema";
+import { reservations, villas, domaines, maintenanceRecords, superhoteSyncLog, gendarmerieForms, contratsLocation, interventions } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +17,7 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, AlertTriangle } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { phonesMatch } from "@/lib/phone";
 
@@ -203,6 +203,11 @@ export default async function DashboardPage() {
     .orderBy(desc(superhoteSyncLog.startedAt))
     .limit(1);
 
+  const urgences = await db
+    .select({ id: interventions.id })
+    .from(interventions)
+    .where(and(inArray(interventions.urgence, ["critique", "haute"]), ne(interventions.etape, "termine")));
+
   return (
     <div className="w-full max-w-full space-y-6 overflow-x-hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -221,6 +226,24 @@ export default async function DashboardPage() {
           ) : null}
         </div>
       </div>
+
+      {urgences.length > 0 ? (
+        <Link href="/interventions">
+          <Card className="border-red-500/40 bg-red-500/5 transition-colors hover:bg-red-500/10">
+            <CardContent className="flex items-center gap-3 py-4">
+              <div className="rounded-full bg-red-500/10 p-2 text-red-600 dark:text-red-400">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-semibold leading-none">{urgences.length}</p>
+                <p className="text-sm text-muted-foreground">
+                  Intervention{urgences.length > 1 ? "s" : ""} urgente{urgences.length > 1 ? "s" : ""} en cours
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      ) : null}
 
       {isAimad ? (
         <>

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { createIntervention } from "@/lib/actions/interventions";
 import { CONTACT_ROLE_LABELS } from "@/lib/contact-roles";
+import { URGENCE_LEVELS, type Urgence } from "@/lib/intervention-urgence";
 
 export function AddInterventionDialog({
   villas,
@@ -34,12 +35,14 @@ export function AddInterventionDialog({
 }: {
   villas: { id: string; nom: string; numero: string; domaineId: string | null }[];
   domaines: { id: string; nom: string }[];
-  technicians?: { nom: string; fonction: string }[];
+  technicians?: { id: string; nom: string; fonction: string }[];
   contacts?: { villaId: string | null; domaineId: string | null; nom: string; role: string }[];
 }) {
   const [open, setOpen] = useState(false);
   const [villaId, setVillaId] = useState("");
   const [domaineId, setDomaineId] = useState("");
+  const [technicianId, setTechnicianId] = useState("");
+  const [urgence, setUrgence] = useState<Urgence>("normale");
   const [isPending, startTransition] = useTransition();
 
   const selectedVillaDomaineId = villas.find((v) => v.id === villaId)?.domaineId ?? domaineId;
@@ -52,6 +55,8 @@ export function AddInterventionDialog({
   async function handleSubmit(formData: FormData) {
     formData.set("villaId", villaId);
     formData.set("domaineId", domaineId);
+    formData.set("technicianId", technicianId);
+    formData.set("urgence", urgence);
     startTransition(async () => {
       try {
         await createIntervention(formData);
@@ -59,6 +64,8 @@ export function AddInterventionDialog({
         setOpen(false);
         setVillaId("");
         setDomaineId("");
+        setTechnicianId("");
+        setUrgence("normale");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -123,8 +130,42 @@ export function AddInterventionDialog({
             <Label htmlFor="lieu">Lieu (si pas une villa précise)</Label>
             <Input id="lieu" name="lieu" placeholder="Ex. Résidence Noria" />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Urgence</Label>
+              <Select value={urgence} onValueChange={(v) => setUrgence(v as Urgence)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {URGENCE_LEVELS.slice()
+                    .reverse()
+                    .map((u) => (
+                      <SelectItem key={u.key} value={u.key}>
+                        {u.label}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Technicien</Label>
+              <Select value={technicianId} onValueChange={setTechnicianId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Optionnel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {technicians.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.nom} ({t.fonction})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <div className="space-y-1.5">
-            <Label htmlFor="prestataire">Prestataire</Label>
+            <Label htmlFor="prestataire">Prestataire (si pas dans la liste techniciens)</Label>
             <Input
               id="prestataire"
               name="prestataire"

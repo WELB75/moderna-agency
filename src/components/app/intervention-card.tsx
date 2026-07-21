@@ -32,9 +32,13 @@ import {
   addInterventionAttachments,
   deleteIntervention,
   deleteDevis,
+  setInterventionUrgence,
+  setInterventionTechnician,
 } from "@/lib/actions/interventions";
 import { cn } from "@/lib/utils";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
+import { URGENCE_LEVELS, type Urgence } from "@/lib/intervention-urgence";
+import { UrgenceBadge } from "@/components/app/urgence-badge";
 import type { Devis } from "@/lib/devis-types";
 
 const STEPS = INTERVENTION_STEPS;
@@ -50,6 +54,8 @@ export type Intervention = {
   domaineNom: string | null;
   domaineMapsUrl: string | null;
   prestataire: string | null;
+  technicianId: string | null;
+  urgence: Urgence;
   etape: Etape;
   notes: string | null;
   attachmentUrls: string[] | null;
@@ -71,16 +77,39 @@ export function InterventionCard({
   intervention,
   comments = [],
   currentUserName = "Équipe",
+  technicians = [],
 }: {
   intervention: Intervention;
   comments?: CommentRow[];
   currentUserName?: string;
+  technicians?: { id: string; nom: string; fonction: string }[];
 }) {
   const [notes, setNotes] = useState(intervention.notes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleUrgenceChange(value: string) {
+    startTransition(async () => {
+      try {
+        await setInterventionUrgence(intervention.id, value as Urgence);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
+  function handleTechnicianChange(value: string) {
+    startTransition(async () => {
+      try {
+        await setInterventionTechnician(intervention.id, value || null);
+        toast.success(value ? "Technicien assigné, notifié par WhatsApp." : "Technicien retiré.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
 
   const currentIndex = STEPS.findIndex((s) => s.key === intervention.etape);
   const pct = ((currentIndex + 1) / STEPS.length) * 100;
@@ -147,6 +176,7 @@ export function InterventionCard({
 
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
+            <UrgenceBadge urgence={intervention.urgence} />
             {intervention.domaineNom ? <DomaineBadge nom={intervention.domaineNom} className="text-xs" /> : null}
             {intervention.domaineId ? (
               <DomaineLocation domaineId={intervention.domaineId} mapsUrl={intervention.domaineMapsUrl} />
@@ -208,7 +238,7 @@ export function InterventionCard({
           </div>
         </div>
 
-        <div>
+        <div className="flex flex-wrap gap-2">
           <Select value={intervention.etape} onValueChange={handleEtapeChange} disabled={isPending}>
             <SelectTrigger className="h-9 w-full text-sm sm:w-56">
               <SelectValue />
@@ -221,6 +251,39 @@ export function InterventionCard({
               ))}
             </SelectContent>
           </Select>
+          <Select value={intervention.urgence} onValueChange={handleUrgenceChange} disabled={isPending}>
+            <SelectTrigger className="h-9 w-full text-sm sm:w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {URGENCE_LEVELS.slice()
+                .reverse()
+                .map((u) => (
+                  <SelectItem key={u.key} value={u.key}>
+                    {u.label}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+          {technicians.length > 0 ? (
+            <Select
+              value={intervention.technicianId ?? ""}
+              onValueChange={(v) => handleTechnicianChange(v === "_none" ? "" : v)}
+              disabled={isPending}
+            >
+              <SelectTrigger className="h-9 w-full text-sm sm:w-48">
+                <SelectValue placeholder="Assigner un technicien" />
+              </SelectTrigger>
+              <SelectContent>
+                {intervention.technicianId ? <SelectItem value="_none">Aucun (retirer)</SelectItem> : null}
+                {technicians.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.nom} ({t.fonction})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
         </div>
 
         {editingNotes ? (

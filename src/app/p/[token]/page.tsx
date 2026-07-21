@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InterventionPublicCard } from "@/components/app/intervention-public-card";
 import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-dialog";
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
+import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CalendarDays, Wrench, Users, Eye } from "lucide-react";
 
 // Point de départ du suivi : l'agence ne gère pas ces biens avant cette date,
@@ -55,6 +56,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
       villaNumero: villas.numero,
       domaineNom: domaines.nom,
       prestataire: interventions.prestataire,
+      urgence: interventions.urgence,
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
@@ -68,6 +70,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
       validationNote: interventions.validationNote,
       validationAt: interventions.validationAt,
       origine: interventions.origine,
+      createdAt: interventions.createdAt,
     })
     .from(interventions)
     .leftJoin(villas, eq(interventions.villaId, villas.id))
@@ -75,8 +78,8 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
     .where(eq(interventions.villaId, villa.id))
     .orderBy(desc(interventions.createdAt));
 
-  const mesDemandes = villaInterventions.filter((i) => i.origine === "proprietaire");
-  const constatsEquipe = villaInterventions.filter((i) => i.origine !== "proprietaire");
+  const mesDemandes = sortByUrgence(villaInterventions.filter((i) => i.origine === "proprietaire"));
+  const constatsEquipe = sortByUrgence(villaInterventions.filter((i) => i.origine !== "proprietaire"));
 
   const interventionIds = villaInterventions.map((i) => i.id);
   const allComments =

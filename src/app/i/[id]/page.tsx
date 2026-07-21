@@ -19,6 +19,7 @@ export default async function PublicInterventionPage({ params }: { params: Promi
       villaNumero: villas.numero,
       domaineNom: domaines.nom,
       prestataire: interventions.prestataire,
+      urgence: interventions.urgence,
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
