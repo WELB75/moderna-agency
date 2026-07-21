@@ -31,6 +31,7 @@ import { VillaCodeBoitier } from "@/components/app/villa-code-boitier";
 import { VillaProprietaire } from "@/components/app/villa-proprietaire";
 import { ContactsSection } from "@/components/app/contacts-section";
 import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-button";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { VillaIcalUrl } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
@@ -195,7 +196,14 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         />
       </div>
 
-      <ProprietaireAccessButton villaId={villa.id} token={villa.lienProprietaireToken} />
+      <div className="flex flex-wrap items-center gap-2">
+        <ProprietaireAccessButton villaId={villa.id} token={villa.lienProprietaireToken} />
+        <CopyLinkButton
+          path={`/securite/villa/${villa.id}`}
+          label="Copier le lien sécurité"
+          successMessage="Lien copié — envoie-le une fois à la sécurité, il reste toujours à jour."
+        />
+      </div>
 
       <ContactsSection
         contacts={villaContacts}

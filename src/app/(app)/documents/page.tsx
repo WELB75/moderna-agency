@@ -10,9 +10,10 @@ import { GenerateFichePoliceForm } from "@/components/app/generate-fiche-police-
 import { GenerateContratForm } from "@/components/app/generate-contrat-form";
 import { DocumentRow } from "@/components/app/document-row";
 import { PrintButton } from "@/components/app/print-button";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { deleteGendarmerieForm } from "@/lib/actions/gendarmerie";
 import { deleteContrat } from "@/lib/actions/contrats";
-import { FileText, FileSignature, IdCard, Download } from "lucide-react";
+import { FileText, FileSignature, IdCard, Download, ShieldCheck } from "lucide-react";
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
@@ -39,6 +40,18 @@ export default async function DocumentsPage() {
     .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
     .from(villas)
     .orderBy(asc(villas.numero));
+
+  const allVillasWithDomaine = await db
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineNom: domaines.nom })
+    .from(villas)
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .orderBy(asc(villas.numero));
+  const villasParDomaine = new Map<string, typeof allVillasWithDomaine>();
+  for (const v of allVillasWithDomaine) {
+    const key = v.domaineNom ?? "Sans domaine";
+    if (!villasParDomaine.has(key)) villasParDomaine.set(key, []);
+    villasParDomaine.get(key)!.push(v);
+  }
 
   const fichesPolice = await db
     .select({
@@ -133,6 +146,10 @@ export default async function DocumentsPage() {
           <TabsTrigger value="pieces-identite">
             <IdCard className="h-4 w-4" />
             Pièces d&apos;identité
+          </TabsTrigger>
+          <TabsTrigger value="securite">
+            <ShieldCheck className="h-4 w-4" />
+            Sécurité
           </TabsTrigger>
         </TabsList>
 
@@ -273,6 +290,35 @@ export default async function DocumentsPage() {
               </div>
             ))
           )}
+        </TabsContent>
+
+        <TabsContent value="securite" className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Un lien général par villa, à envoyer une seule fois à la sécurité du domaine : il affiche
+            toujours automatiquement les derniers occupants enregistrés (dates de séjour et photos des
+            pièces d&apos;identité), sans avoir à renvoyer un nouveau lien à chaque arrivée.
+          </p>
+          {Array.from(villasParDomaine.entries()).map(([domaineNom, vs]) => (
+            <div key={domaineNom} className="space-y-2">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                {domaineNom}
+              </h2>
+              <div className="space-y-2">
+                {vs.map((v) => (
+                  <div key={v.id} className="flex items-center justify-between gap-2 rounded-md border p-3">
+                    <p className="font-medium">
+                      {v.nom} (n°{v.numero})
+                    </p>
+                    <CopyLinkButton
+                      path={`/securite/villa/${v.id}`}
+                      label="Copier le lien sécurité"
+                      successMessage={`Lien copié — envoie-le une fois à la sécurité pour ${v.nom}.`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </TabsContent>
       </Tabs>
     </div>

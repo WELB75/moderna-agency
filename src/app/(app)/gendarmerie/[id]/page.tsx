@@ -9,7 +9,7 @@ import { Logo } from "@/components/app/logo";
 import { PrintButton } from "@/components/app/print-button";
 import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS, type GendarmerieLang } from "@/lib/gendarmerie-i18n";
 import { formatDateFr } from "@/lib/format-date";
-import { ShareSecurityLinkButton } from "@/components/app/share-security-link-button";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { Download } from "lucide-react";
 
 export default async function GendarmerieDocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +22,7 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
       statut: gendarmerieForms.statut,
       langue: gendarmerieForms.langue,
       completedAt: gendarmerieForms.completedAt,
+      villaId: gendarmerieForms.villaId,
       villaNom: villas.nom,
       villaNumero: villas.numero,
       checkIn: reservations.checkIn,
@@ -78,7 +79,13 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
           </p>
           <div className="flex items-center gap-2 print:hidden">
             <Logo size={28} />
-            {form.statut === "complete" ? <ShareSecurityLinkButton formId={form.id} /> : null}
+            {form.statut === "complete" && form.villaId ? (
+              <CopyLinkButton
+                path={`/securite/villa/${form.villaId}`}
+                label="Copier le lien sécurité"
+                successMessage="Lien copié — envoie-le une fois à la sécurité, il reste toujours à jour."
+              />
+            ) : null}
             <PrintButton />
           </div>
         </div>
