@@ -1,10 +1,11 @@
-export type GendarmerieLang = "fr" | "en" | "es" | "ar";
+export type GendarmerieLang = "fr" | "en" | "es" | "ar" | "nl";
 
 export const LANG_LABELS: Record<GendarmerieLang, string> = {
   fr: "Français",
   en: "English",
   es: "Español",
   ar: "العربية",
+  nl: "Nederlands",
 };
 
 export const FIELD_KEYS = [
@@ -99,6 +100,23 @@ export const FIELD_LABELS: Record<GendarmerieLang, Record<FieldKey, string>> = {
     lieuPiece: "محل التسليم",
     signatureNom: "الاسم الكامل (بمثابة إمضاء)",
   },
+  nl: {
+    nom: "Achternaam",
+    prenom: "Voornaam",
+    dateNaissance: "Geboortedatum",
+    lieuNaissance: "Geboorteplaats",
+    nationalite: "Nationaliteit",
+    profession: "Beroep",
+    venantDe: "Komende van",
+    allantA: "Gaande naar",
+    dateArrivee: "Aankomstdatum",
+    domicileHabituel: "Gewoonlijk woonadres",
+    typePiece: "Type identiteitsdocument (paspoort, ID-kaart...)",
+    numeroPiece: "Documentnummer",
+    datePiece: "Afgiftedatum",
+    lieuPiece: "Plaats van afgifte",
+    signatureNom: "Volledige naam (getypt als handtekening)",
+  },
 };
 
 export const UI_TEXT: Record<
@@ -178,6 +196,21 @@ export const UI_TEXT: Record<
     signature: "التوقيع (بالإصبع أو الفأرة)",
     signatureClear: "مسح",
     photoPiece: "صورة وثيقة هويتك (جواز السفر، البطاقة الوطنية...)",
+  },
+  nl: {
+    title: "Politieformulier (gendarmerie)",
+    subtitle: (v) => `In te vullen door elke volwassene voor uw verblijf in ${v}`,
+    chooseLang: "Kies uw taal",
+    occupant: "Persoon",
+    addOccupant: "Persoon toevoegen",
+    removeOccupant: "Verwijderen",
+    submit: "Versturen",
+    submitting: "Versturen...",
+    success: "Bedankt, uw gegevens zijn verzonden.",
+    already: "Dit formulier is al ingevuld. Bedankt.",
+    signature: "Handtekening (met vinger of muis)",
+    signatureClear: "Wissen",
+    photoPiece: "Foto van uw identiteitsdocument (paspoort, ID-kaart...)",
   },
 };
 

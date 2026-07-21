@@ -24,15 +24,19 @@ export function GendarmerieForm({
   formId,
   villaNom,
   hideAddOccupant = false,
+  nbAdultes = 1,
   onSubmitted,
 }: {
   formId: string;
   villaNom: string;
   hideAddOccupant?: boolean;
+  nbAdultes?: number;
   onSubmitted?: () => void;
 }) {
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
-  const [occupants, setOccupants] = useState<OccupantInput[]>([emptyOccupant()]);
+  const [occupants, setOccupants] = useState<OccupantInput[]>(() =>
+    Array.from({ length: Math.max(1, nbAdultes) }, emptyOccupant)
+  );
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const sigRefs = useRef<(SignaturePadHandle | null)[]>([]);
@@ -40,7 +44,7 @@ export function GendarmerieForm({
   if (!lang) {
     return (
       <div className="mx-auto max-w-md space-y-4 py-12 text-center">
-        <p className="text-lg font-medium">Choose your language / Choisissez votre langue / اختر لغتك</p>
+        <p className="text-lg font-medium">Choose your language / Choisissez votre langue / Kies uw taal / اختر لغتك</p>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(LANG_LABELS) as GendarmerieLang[]).map((l) => (
             <Button key={l} variant="outline" onClick={() => setLang(l)}>
