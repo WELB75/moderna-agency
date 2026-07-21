@@ -21,7 +21,6 @@ import { DomaineLocation } from "@/components/app/domaine-location";
 import { InterventionAttachments } from "@/components/app/intervention-attachments";
 import { InterventionValidation } from "@/components/app/intervention-validation";
 import { InterventionComments, type CommentRow } from "@/components/app/intervention-comments";
-import { ShareInterventionButton } from "@/components/app/share-intervention-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { AddDevisDialog } from "@/components/app/add-devis-dialog";
 import { DevisDocument } from "@/components/app/devis-document";
@@ -355,15 +354,17 @@ export function InterventionCard({
             onChange={handleFileChange}
           />
           <AddDevisDialog interventionId={intervention.id} />
-          <ShareInterventionButton interventionId={intervention.id} />
         </div>
 
-        <InterventionValidation
-          interventionId={intervention.id}
-          validationStatut={intervention.validationStatut}
-          validationNote={intervention.validationNote}
-          validationAt={intervention.validationAt}
-        />
+        {(intervention.devis ?? []).length > 0 ? (
+          <InterventionValidation
+            interventionId={intervention.id}
+            validationStatut={intervention.validationStatut}
+            validationNote={intervention.validationNote}
+            validationAt={intervention.validationAt}
+            readOnly
+          />
+        ) : null}
 
         <InterventionComments
           interventionId={intervention.id}

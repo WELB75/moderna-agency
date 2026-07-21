@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { eq, asc, desc, gte, and, or, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
@@ -31,7 +30,6 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
       type: villas.type,
       domaineId: villas.domaineId,
       proprietaireNom: villas.proprietaireNom,
-      photoUrl: villas.photoUrl,
     })
     .from(villas)
     .where(eq(villas.lienProprietaireToken, token))
@@ -129,6 +127,8 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             key={i.id}
             intervention={i}
             showVillaInfo={false}
+            compact
+            validationTitle="Validez-vous ce devis ?"
             comments={commentsByIntervention.get(i.id) ?? []}
             commentAuteur={villa.proprietaireNom || "Propriétaire"}
             commentAuteurType="proprietaire"
@@ -139,24 +139,17 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
   }
 
   return (
-    <div className="mx-auto min-h-screen max-w-5xl space-y-6 p-4 sm:p-8">
+    <div className="mx-auto min-h-screen max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="flex items-center justify-between gap-2 pb-2">
         <Logo size={40} />
         <p className="text-xs text-muted-foreground">Espace propriétaire</p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border">
-        {villa.photoUrl ? (
-          <div className="relative h-48 sm:h-64 lg:h-80 w-full">
-            <Image src={villa.photoUrl} alt={villa.nom} fill sizes="(max-width: 1024px) 100vw, 1024px" className="object-cover" priority />
-          </div>
-        ) : null}
-        <div className="bg-card p-4 sm:p-6">
-          <h1 className="text-xl font-bold sm:text-2xl">
-            {villa.nom} (n°{villa.numero})
-          </h1>
-          <p className="text-sm text-muted-foreground">{villa.proprietaireNom ? `Bienvenue, ${villa.proprietaireNom}` : "Bienvenue"}</p>
-        </div>
+      <div>
+        <h1 className="text-xl font-bold sm:text-2xl">
+          {villa.nom} (n°{villa.numero})
+        </h1>
+        <p className="text-sm text-muted-foreground">{villa.proprietaireNom ? `Bienvenue, ${villa.proprietaireNom}` : "Bienvenue"}</p>
       </div>
 
       <Tabs defaultValue="sejours">

@@ -293,7 +293,6 @@ export async function addDevis(interventionId: string, devis: Devis) {
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
-  revalidatePath(`/i/${interventionId}`);
 }
 
 export async function deleteDevis(interventionId: string, index: number) {
@@ -313,12 +312,10 @@ export async function deleteDevis(interventionId: string, index: number) {
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
-  revalidatePath(`/i/${interventionId}`);
 }
 
-// Volontairement sans auth.protect() : Imed Jaiel valide via le lien public /i/[id],
-// sans se connecter. La portée est limitée à ces deux champs sur une intervention
-// dont il faut déjà connaître l'identifiant (le lien partagé).
+// Volontairement sans auth.protect() : le propriétaire valide via son espace public
+// /p/[token], sans se connecter. La portée est limitée à ces deux champs.
 export async function submitInterventionValidation(
   interventionId: string,
   statut: "accepte" | "refuse",
@@ -339,5 +336,4 @@ export async function submitInterventionValidation(
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
-  revalidatePath(`/i/${interventionId}`);
 }

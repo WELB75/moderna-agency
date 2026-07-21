@@ -246,7 +246,7 @@ export const interventions = pgTable("interventions", {
   planifieAt: timestamp("planifie_at", { withTimezone: true }),
   debutAt: timestamp("debut_at", { withTimezone: true }),
   finAt: timestamp("fin_at", { withTimezone: true }),
-  // Validation d'Imed Jaiel : accepte / refuse via le lien public, sans connexion.
+  // Validation du propriétaire : accepte / refuse via son lien public, sans connexion.
   validationStatut: text("validation_statut"), // null | "accepte" | "refuse"
   validationNote: text("validation_note"),
   validationAt: timestamp("validation_at", { withTimezone: true }),
