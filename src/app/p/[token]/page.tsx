@@ -1,0 +1,236 @@
+import Image from "next/image";
+import { eq, asc, desc, gte, and, or, inArray } from "drizzle-orm";
+import { notFound } from "next/navigation";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import { getDb } from "@/db";
+import { villas, reservations, interventions, domaines, proprieteContacts, interventionComments } from "@/db/schema";
+import { Logo } from "@/components/app/logo";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { InterventionPublicCard } from "@/components/app/intervention-public-card";
+import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-dialog";
+import { OwnerTeamSection } from "@/components/app/owner-team-section";
+import { CalendarDays, Wrench, Users, Eye } from "lucide-react";
+
+// Point de départ du suivi : l'agence ne gère pas ces biens avant cette date,
+// les réservations antérieures ne sont pas rattachables à sa gestion.
+const PORTAL_START_DATE = new Date(Date.UTC(2026, 6, 1));
+
+export default async function ProprietaireAccessPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const db = getDb();
+
+  const [villa] = await db
+    .select({
+      id: villas.id,
+      nom: villas.nom,
+      numero: villas.numero,
+      type: villas.type,
+      domaineId: villas.domaineId,
+      proprietaireNom: villas.proprietaireNom,
+      photoUrl: villas.photoUrl,
+    })
+    .from(villas)
+    .where(eq(villas.lienProprietaireToken, token))
+    .limit(1);
+
+  if (!villa) notFound();
+
+  const villaReservations = await db
+    .select()
+    .from(reservations)
+    .where(and(eq(reservations.villaId, villa.id), gte(reservations.checkIn, PORTAL_START_DATE)))
+    .orderBy(asc(reservations.checkIn))
+    .limit(100);
+
+  const villaInterventions = await db
+    .select({
+      id: interventions.id,
+      titre: interventions.titre,
+      probleme: interventions.probleme,
+      lieu: interventions.lieu,
+      villaNom: villas.nom,
+      villaNumero: villas.numero,
+      domaineNom: domaines.nom,
+      prestataire: interventions.prestataire,
+      etape: interventions.etape,
+      notes: interventions.notes,
+      attachmentUrls: interventions.attachmentUrls,
+      devis: interventions.devis,
+      signaleAt: interventions.signaleAt,
+      contacteAt: interventions.contacteAt,
+      planifieAt: interventions.planifieAt,
+      debutAt: interventions.debutAt,
+      finAt: interventions.finAt,
+      validationStatut: interventions.validationStatut,
+      validationNote: interventions.validationNote,
+      validationAt: interventions.validationAt,
+      origine: interventions.origine,
+    })
+    .from(interventions)
+    .leftJoin(villas, eq(interventions.villaId, villas.id))
+    .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
+    .where(eq(interventions.villaId, villa.id))
+    .orderBy(desc(interventions.createdAt));
+
+  const mesDemandes = villaInterventions.filter((i) => i.origine === "proprietaire");
+  const constatsEquipe = villaInterventions.filter((i) => i.origine !== "proprietaire");
+
+  const interventionIds = villaInterventions.map((i) => i.id);
+  const allComments =
+    interventionIds.length > 0
+      ? await db
+          .select()
+          .from(interventionComments)
+          .where(inArray(interventionComments.interventionId, interventionIds))
+          .orderBy(interventionComments.createdAt)
+      : [];
+  const commentsByIntervention = new Map<string, typeof allComments>();
+  for (const c of allComments) {
+    const list = commentsByIntervention.get(c.interventionId) ?? [];
+    list.push(c);
+    commentsByIntervention.set(c.interventionId, list);
+  }
+
+  const villaContacts = await db
+    .select({
+      id: proprieteContacts.id,
+      role: proprieteContacts.role,
+      nom: proprieteContacts.nom,
+      telephone: proprieteContacts.telephone,
+    })
+    .from(proprieteContacts)
+    .where(
+      villa.domaineId
+        ? or(eq(proprieteContacts.villaId, villa.id), eq(proprieteContacts.domaineId, villa.domaineId))
+        : eq(proprieteContacts.villaId, villa.id)
+    );
+
+  const demandesActives = mesDemandes.filter((i) => i.etape !== "termine").length;
+  const constatsActifs = constatsEquipe.filter((i) => i.etape !== "termine").length;
+  const now = new Date();
+  const sejoursActuelsEtFuturs = villaReservations.filter(
+    (r) => r.status !== "annulee" && new Date(r.checkOut) >= now
+  );
+
+  function renderInterventionList(list: typeof villaInterventions) {
+    if (list.length === 0) {
+      return <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>;
+    }
+    return (
+      <div className="grid gap-4 lg:grid-cols-2">
+        {list.map((i) => (
+          <InterventionPublicCard
+            key={i.id}
+            intervention={i}
+            showVillaInfo={false}
+            comments={commentsByIntervention.get(i.id) ?? []}
+            commentAuteur={villa.proprietaireNom || "Propriétaire"}
+            commentAuteurType="proprietaire"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto min-h-screen max-w-5xl space-y-6 p-4 sm:p-8">
+      <div className="flex items-center justify-between gap-2 pb-2">
+        <Logo size={40} />
+        <p className="text-xs text-muted-foreground">Espace propriétaire</p>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border">
+        {villa.photoUrl ? (
+          <div className="relative h-48 sm:h-64 lg:h-80 w-full">
+            <Image src={villa.photoUrl} alt={villa.nom} fill sizes="(max-width: 1024px) 100vw, 1024px" className="object-cover" priority />
+          </div>
+        ) : null}
+        <div className="bg-card p-4 sm:p-6">
+          <h1 className="text-xl font-bold sm:text-2xl">
+            {villa.nom} (n°{villa.numero})
+          </h1>
+          <p className="text-sm text-muted-foreground">{villa.proprietaireNom ? `Bienvenue, ${villa.proprietaireNom}` : "Bienvenue"}</p>
+        </div>
+      </div>
+
+      <Tabs defaultValue="sejours">
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
+          <TabsTrigger value="sejours" className="shrink-0">
+            <CalendarDays className="h-4 w-4" />
+            Séjours
+          </TabsTrigger>
+          <TabsTrigger value="travaux" className="shrink-0">
+            <Wrench className="h-4 w-4" />
+            Travaux
+            {demandesActives > 0 ? <Badge className="ml-1">{demandesActives}</Badge> : null}
+          </TabsTrigger>
+          <TabsTrigger value="constats" className="shrink-0">
+            <Eye className="h-4 w-4" />
+            Constats
+            {constatsActifs > 0 ? <Badge className="ml-1">{constatsActifs}</Badge> : null}
+          </TabsTrigger>
+          <TabsTrigger value="equipe" className="shrink-0">
+            <Users className="h-4 w-4" />
+            Équipe
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="sejours" className="space-y-4 pt-2">
+          <p className="text-sm text-muted-foreground">Dates auxquelles votre logement est loué.</p>
+          {sejoursActuelsEtFuturs.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                Aucun séjour à venir pour l&apos;instant.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {sejoursActuelsEtFuturs.map((r) => (
+                <Card key={r.id}>
+                  <CardContent className="flex items-center justify-between gap-2 py-3">
+                    <div>
+                      <p className="font-medium">
+                        {format(new Date(r.checkIn), "d MMM yyyy", { locale: fr })} →{" "}
+                        {format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}
+                      </p>
+                      <p className="text-sm text-muted-foreground">{r.canal || "Réservation"}</p>
+                    </div>
+                    <Badge>Loué</Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="travaux" className="space-y-4 pt-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              Vos demandes de travaux. Vous pouvez échanger avec l&apos;équipe sur chaque demande.
+            </p>
+            <AddTravauxRequestDialog villaId={villa.id} />
+          </div>
+          {renderInterventionList(mesDemandes)}
+        </TabsContent>
+
+        <TabsContent value="constats" className="space-y-4 pt-2">
+          <p className="text-sm text-muted-foreground">
+            Ce que l&apos;équipe a constaté sur place (dégâts, entretien, réparations...). Échangez directement
+            ci-dessous si besoin.
+          </p>
+          {renderInterventionList(constatsEquipe)}
+        </TabsContent>
+
+        <TabsContent value="equipe" className="space-y-4 pt-2">
+          <p className="text-sm text-muted-foreground">L&apos;équipe qui s&apos;occupe de votre logement.</p>
+          <OwnerTeamSection contacts={villaContacts} />
+        </TabsContent>
+      </Tabs>
+
+      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de consultation Moderna Agency</p>
+    </div>
+  );
+}
