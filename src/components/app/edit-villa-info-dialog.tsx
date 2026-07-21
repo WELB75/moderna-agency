@@ -102,8 +102,8 @@ export function EditVillaInfoDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="adresse">Adresse</Label>
-            <Input id="adresse" name="adresse" defaultValue={adresse ?? ""} />
+            <Label htmlFor="adresse">Adresse (ou lien Google Maps si pas d&apos;adresse précise)</Label>
+            <Input id="adresse" name="adresse" defaultValue={adresse ?? ""} placeholder="Ex. https://maps.app.goo.gl/..." />
           </div>
           {isAppartement && (
             <div className="space-y-1.5">

@@ -11,34 +11,33 @@ export type SignaturePadHandle = {
   clear: () => void;
 };
 
-export const SignaturePad = forwardRef<SignaturePadHandle, { label: string }>(function SignaturePad(
-  { label },
-  ref
-) {
-  const sigRef = useRef<SignatureCanvas>(null);
+export const SignaturePad = forwardRef<SignaturePadHandle, { label: string; clearLabel?: string }>(
+  function SignaturePad({ label, clearLabel }, ref) {
+    const sigRef = useRef<SignatureCanvas>(null);
 
-  useImperativeHandle(ref, () => ({
-    isEmpty: () => sigRef.current?.isEmpty() ?? true,
-    toDataUrl: () => sigRef.current?.getTrimmedCanvas().toDataURL("image/png") ?? "",
-    clear: () => sigRef.current?.clear(),
-  }));
+    useImperativeHandle(ref, () => ({
+      isEmpty: () => sigRef.current?.isEmpty() ?? true,
+      toDataUrl: () => sigRef.current?.getTrimmedCanvas().toDataURL("image/png") ?? "",
+      clear: () => sigRef.current?.clear(),
+    }));
 
-  return (
-    <div className="space-y-1.5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">{label}</p>
-        <Button type="button" variant="ghost" size="sm" onClick={() => sigRef.current?.clear()}>
-          <Eraser className="h-4 w-4" />
-          Effacer
-        </Button>
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">{label}</p>
+          <Button type="button" variant="ghost" size="sm" onClick={() => sigRef.current?.clear()}>
+            <Eraser className="h-4 w-4" />
+            {clearLabel ?? "Effacer"}
+          </Button>
+        </div>
+        <div className="overflow-hidden rounded-md border bg-white">
+          <SignatureCanvas
+            ref={sigRef}
+            penColor="black"
+            canvasProps={{ className: "w-full h-40 touch-none" }}
+          />
+        </div>
       </div>
-      <div className="overflow-hidden rounded-md border bg-white">
-        <SignatureCanvas
-          ref={sigRef}
-          penColor="black"
-          canvasProps={{ className: "w-full h-40 touch-none" }}
-        />
-      </div>
-    </div>
-  );
-});
+    );
+  }
+);
