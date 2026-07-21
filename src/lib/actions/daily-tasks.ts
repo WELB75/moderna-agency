@@ -12,10 +12,12 @@ export async function createDailyTask(formData: FormData) {
 
   const titre = String(formData.get("titre") ?? "").trim();
   if (!titre) throw new Error("Le titre de la tâche est obligatoire.");
+  const assigne = String(formData.get("assigne") ?? "kamel").trim() || "kamel";
 
   const db = getDb();
   await db.insert(dailyTasks).values({
     titre,
+    assigne,
     createdByUserId: user?.id ?? null,
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
   });

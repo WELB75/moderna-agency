@@ -36,6 +36,21 @@ export default async function InventairePage() {
   const allProducts = await db.select().from(products).orderBy(asc(products.nom));
   const allDomaineStock = await db.select().from(domaineStock);
   const allVillaStock = await db.select().from(villaStock);
+
+  const baseDomaine = allDomaines.find((d) => d.estBase);
+  const stockBureau = allDomaineStock
+    .filter((s) => s.domaineId === baseDomaine?.id)
+    .reduce((sum, s) => sum + s.quantite, 0);
+  const stockDomaines = allDomaineStock
+    .filter((s) => s.domaineId !== baseDomaine?.id)
+    .reduce((sum, s) => sum + s.quantite, 0);
+  const stockVillasTotal = allVillaStock.reduce((sum, s) => sum + s.quantite, 0);
+  const produitsEnRuptureBureau = baseDomaine
+    ? allProducts.filter((p) => {
+        const stock = allDomaineStock.find((s) => s.domaineId === baseDomaine.id && s.productId === p.id);
+        return !stock || stock.quantite === 0;
+      }).length
+    : 0;
   const allStockVillas = await db
     .select({
       id: villas.id,
@@ -129,6 +144,41 @@ export default async function InventairePage() {
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Produits suivis
+                </p>
+                <p className="mt-1 text-2xl font-bold">{allProducts.length}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Stock au bureau
+                </p>
+                <p className="mt-1 text-2xl font-bold">{stockBureau}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Stock domaines + villas
+                </p>
+                <p className="mt-1 text-2xl font-bold">{stockDomaines + stockVillasTotal}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="py-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Ruptures au bureau
+                </p>
+                <p className="mt-1 text-2xl font-bold">{produitsEnRuptureBureau}</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <Tabs defaultValue="stock-domaines">
             <TabsList>
               <TabsTrigger value="stock-domaines">Domaines</TabsTrigger>

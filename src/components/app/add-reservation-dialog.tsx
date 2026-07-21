@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -20,14 +27,24 @@ import { createReservation } from "@/lib/actions/reservations";
 
 export function AddReservationDialog({ villaId }: { villaId: string }) {
   const [open, setOpen] = useState(false);
+  const [indicatif, setIndicatif] = useState("+212");
+  const [phoneLocal, setPhoneLocal] = useState("");
   const [isPending, startTransition] = useTransition();
 
+  function composePhone() {
+    if (indicatif === "autre") return phoneLocal.trim();
+    const digits = phoneLocal.trim().replace(/^0+/, "");
+    return digits ? `${indicatif}${digits}` : "";
+  }
+
   async function handleSubmit(formData: FormData) {
+    formData.set("guestPhone", composePhone());
     startTransition(async () => {
       try {
         await createReservation(formData);
         toast.success("Réservation ajoutée.");
         setOpen(false);
+        setPhoneLocal("");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -57,7 +74,25 @@ export function AddReservationDialog({ villaId }: { villaId: string }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="guestPhone">Téléphone</Label>
-            <Input id="guestPhone" name="guestPhone" />
+            <div className="flex gap-2">
+              <Select value={indicatif} onValueChange={setIndicatif}>
+                <SelectTrigger className="w-28 shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="+212">🇲🇦 +212</SelectItem>
+                  <SelectItem value="+33">🇫🇷 +33</SelectItem>
+                  <SelectItem value="+34">🇪🇸 +34</SelectItem>
+                  <SelectItem value="autre">Autre</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                id="guestPhone"
+                value={phoneLocal}
+                onChange={(e) => setPhoneLocal(e.target.value)}
+                placeholder={indicatif === "autre" ? "Numéro complet avec indicatif" : "Ex. 0661757246"}
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

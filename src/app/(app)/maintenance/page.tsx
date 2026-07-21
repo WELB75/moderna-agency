@@ -2,7 +2,7 @@ import { desc, eq, isNotNull } from "drizzle-orm";
 import { format, isPast, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { maintenanceRecords, villas, technicians, interventions, domaines } from "@/db/schema";
+import { maintenanceRecords, villas, technicians, interventions, domaines, proprieteContacts } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,9 +37,19 @@ export default async function MaintenancePage() {
     .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
     .orderBy(desc(maintenanceRecords.dateIntervention));
 
-  const allVillas = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas);
+  const allVillas = await db
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
+    .from(villas);
   const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);
   const allDomaines = await db.select().from(domaines).orderBy(domaines.nom);
+  const allContacts = await db
+    .select({
+      villaId: proprieteContacts.villaId,
+      domaineId: proprieteContacts.domaineId,
+      nom: proprieteContacts.nom,
+      role: proprieteContacts.role,
+    })
+    .from(proprieteContacts);
 
   const villaInterventions = await db
     .select({
@@ -56,6 +66,7 @@ export default async function MaintenancePage() {
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
+      devis: interventions.devis,
       signaleAt: interventions.signaleAt,
       contacteAt: interventions.contacteAt,
       planifieAt: interventions.planifieAt,
@@ -211,7 +222,12 @@ export default async function MaintenancePage() {
 
         <TabsContent value="taches" className="space-y-6">
           <div className="flex justify-end">
-            <AddInterventionDialog villas={allVillas} domaines={allDomaines} technicians={allTechnicians} />
+            <AddInterventionDialog
+              villas={allVillas}
+              domaines={allDomaines}
+              technicians={allTechnicians}
+              contacts={allContacts}
+            />
           </div>
 
           {villaInterventions.length === 0 ? (
