@@ -16,11 +16,13 @@ export function InterventionValidation({
   validationStatut,
   validationNote,
   validationAt,
+  title = "Validation d'Imed Jaiel",
 }: {
   interventionId: string;
   validationStatut: string | null;
   validationNote: string | null;
   validationAt: Date | null;
+  title?: string;
 }) {
   const [editing, setEditing] = useState(!validationStatut);
   const [choice, setChoice] = useState<"accepte" | "refuse" | null>(
@@ -47,7 +49,7 @@ export function InterventionValidation({
 
   return (
     <div className="space-y-2 rounded-md border p-3">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Validation d&apos;Imed Jaiel</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</p>
 
       {!editing && validationStatut ? (
         <div className="space-y-1.5">
