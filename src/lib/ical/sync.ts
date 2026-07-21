@@ -1,8 +1,11 @@
 import { and, eq, isNotNull, gte, notInArray } from "drizzle-orm";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations } from "@/db/schema";
+import { villas, reservations, superhoteSyncLog, ignoredBookings } from "@/db/schema";
 import { parseIcs } from "@/lib/ical/parse";
 import { nowInMorocco } from "@/lib/now";
+import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 
 export async function runIcalSync(): Promise<
   | { success: true; bookingsSynced: number; villasSynced: number; bookingsCancelled: number }
@@ -11,19 +14,26 @@ export async function runIcalSync(): Promise<
   const db = getDb();
 
   const rows = await db
-    .select({ id: villas.id, icalUrl: villas.icalUrl })
+    .select({ id: villas.id, nom: villas.nom, icalUrl: villas.icalUrl })
     .from(villas)
     .where(isNotNull(villas.icalUrl));
 
-  const targets = rows.filter((v): v is { id: string; icalUrl: string } => Boolean(v.icalUrl));
+  const targets = rows.filter(
+    (v): v is { id: string; nom: string; icalUrl: string } => Boolean(v.icalUrl)
+  );
 
   if (targets.length === 0) {
     return { success: false, error: "Aucune villa n'a de lien iCal configuré." };
   }
 
+  const ignored = await db.select({ superhoteBookingId: ignoredBookings.superhoteBookingId }).from(ignoredBookings);
+  const ignoredIds = new Set(ignored.map((i) => i.superhoteBookingId));
+
   let totalSynced = 0;
   let totalCancelled = 0;
   const now = nowInMorocco();
+  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[] = [];
+  const cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[] = [];
 
   try {
     for (const villa of targets) {
@@ -39,6 +49,11 @@ export async function runIcalSync(): Promise<
         // Les entrées "Blocked dates" (blocage manuel du calendrier, sans client réel)
         // n'ont ni email ni nom de logement dans la description : on les ignore.
         if (!event.description.guestEmail && !event.description.rentalName) continue;
+
+        // Réservation explicitement bloquée (ex. erreur de villa dans le flux Superhote) :
+        // on ne la marque même pas comme "vue", ce qui la fait passer automatiquement en
+        // annulée par la réconciliation ci-dessous si elle existe encore en base.
+        if (ignoredIds.has(event.stableBookingId)) continue;
 
         seenBookingIds.push(event.stableBookingId);
         const guestName = event.guestName?.trim() || event.summary?.trim() || "Réservation iCal";
@@ -88,6 +103,7 @@ export async function runIcalSync(): Promise<
           await db.update(reservations).set(values).where(eq(reservations.id, existing[0].id));
         } else {
           await db.insert(reservations).values(values);
+          newBookings.push({ villaNom: villa.nom, guestName, checkIn: event.start, checkOut: event.end });
         }
         totalSynced += 1;
       }
@@ -108,15 +124,47 @@ export async function runIcalSync(): Promise<
         .update(reservations)
         .set({ status: "annulee", updatedAt: new Date() })
         .where(cancelledFilter)
-        .returning({ id: reservations.id });
+        .returning({ guestName: reservations.guestName, checkIn: reservations.checkIn });
       totalCancelled += cancelled.length;
+      cancelled.forEach((c) => cancelledBookings.push({ villaNom: villa.nom, guestName: c.guestName, checkIn: c.checkIn }));
     }
+
+    await notifySyncChanges(newBookings, cancelledBookings);
+
+    await db.insert(superhoteSyncLog).values({
+      startedAt: now,
+      finishedAt: nowInMorocco(),
+      success: true,
+      bookingsSynced: totalSynced,
+    });
 
     return { success: true, bookingsSynced: totalSynced, villasSynced: targets.length, bookingsCancelled: totalCancelled };
   } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation iCal.",
-    };
+    const message = err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation iCal.";
+    await db
+      .insert(superhoteSyncLog)
+      .values({ startedAt: now, finishedAt: nowInMorocco(), success: false, errorMessage: message })
+      .catch(() => {});
+    return { success: false, error: message };
   }
+}
+
+async function notifySyncChanges(
+  newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[],
+  cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[]
+) {
+  if (newBookings.length === 0 && cancelledBookings.length === 0) return;
+
+  const lines: string[] = [];
+  for (const b of newBookings) {
+    lines.push(
+      `Nouvelle réservation : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })} → ${format(b.checkOut, "d MMM", { locale: fr })})`
+    );
+  }
+  for (const b of cancelledBookings) {
+    lines.push(`Annulation : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })})`);
+  }
+
+  // Best-effort : un échec d'envoi WhatsApp ne doit jamais faire échouer la synchronisation.
+  await notifyStaffWhatsApp(lines.join("\n")).catch(() => {});
 }
