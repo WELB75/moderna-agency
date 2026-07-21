@@ -10,6 +10,7 @@ import {
   pgEnum,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import type { Devis } from "@/lib/devis-types";
 
 export const cashEntryTypeEnum = pgEnum("cash_entry_type", [
   "remise", // argent confié par le propriétaire/client
@@ -57,26 +58,31 @@ export const domaines = pgTable("domaines", {
 
 export const logementTypeEnum = pgEnum("logement_type", ["villa", "appartement"]);
 
-export const villas = pgTable("villas", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  type: logementTypeEnum("type").default("villa").notNull(),
-  domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "set null" }),
-  numero: text("numero").notNull(), // numéro de la villa / de l'appartement
-  nom: text("nom").notNull(), // nom de la villa / de l'appartement
-  adresse: text("adresse"),
-  numeroImmeuble: text("numero_immeuble"), // numéro de l'immeuble/résidence, surtout pour les appartements
-  notes: text("notes"),
-  description: text("description"),
-  codeBoitier: text("code_boitier"), // code de la boîte à clés / digicode d'accès
-  proprietaireNom: text("proprietaire_nom"),
-  proprietaireTelephone: text("proprietaire_telephone"),
-  icalUrl: text("ical_url"), // lien iCal Superhote pour synchroniser les réservations de cette villa
-  photoUrl: text("photo_url"),
-  galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
-  superhoteListingId: text("superhote_listing_id"),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+export const villas = pgTable(
+  "villas",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    type: logementTypeEnum("type").default("villa").notNull(),
+    domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "set null" }),
+    numero: text("numero").notNull(), // numéro de la villa / de l'appartement
+    nom: text("nom").notNull(), // nom de la villa / de l'appartement
+    adresse: text("adresse"),
+    numeroImmeuble: text("numero_immeuble"), // numéro de l'immeuble/résidence, surtout pour les appartements
+    notes: text("notes"),
+    description: text("description"),
+    codeBoitier: text("code_boitier"), // code de la boîte à clés / digicode d'accès
+    proprietaireNom: text("proprietaire_nom"),
+    proprietaireTelephone: text("proprietaire_telephone"),
+    lienProprietaireToken: uuid("lien_proprietaire_token").defaultRandom().notNull(), // token du lien public /p/[token] consulté par le propriétaire
+    icalUrl: text("ical_url"), // lien iCal Superhote pour synchroniser les réservations de cette villa
+    photoUrl: text("photo_url"),
+    galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
+    superhoteListingId: text("superhote_listing_id"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("villas_lien_proprietaire_token_idx").on(t.lienProprietaireToken)]
+);
 
 export const reservations = pgTable(
   "reservations",
@@ -104,6 +110,19 @@ export const reservations = pgTable(
     cautionPayee: boolean("caution_payee").default(false).notNull(),
     moyenPaiement: text("moyen_paiement"),
     notesPaiement: text("notes_paiement"),
+    // Confirmation manuelle que le check-in/check-out a été effectué sur place (distinct de
+    // l'heure prévue) : qui l'a fait et quand.
+    checkinValideAt: timestamp("checkin_valide_at", { withTimezone: true }),
+    checkinValidePar: text("checkin_valide_par"),
+    checkoutValideAt: timestamp("checkout_valide_at", { withTimezone: true }),
+    checkoutValidePar: text("checkout_valide_par"),
+    // Suivi opérationnel équivalent à ce que montre Superhote mais qu'on ne peut pas récupérer
+    // via leur flux iCal (pas d'API accessible) : renseigné à la main.
+    assigneCheckin: text("assigne_checkin"),
+    assigneMenage: text("assigne_menage"),
+    formulaireBienvenueEnvoye: boolean("formulaire_bienvenue_envoye").default(false).notNull(),
+    formulaireCheckinRecu: boolean("formulaire_checkin_recu").default(false).notNull(),
+    aRelancer: boolean("a_relancer").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
@@ -212,25 +231,41 @@ export const interventions = pgTable("interventions", {
   etape: interventionEtapeEnum("etape").default("signale").notNull(),
   notes: text("notes"),
   attachmentUrls: jsonb("attachment_urls").$type<string[]>().default([]),
+  devis: jsonb("devis").$type<Devis[]>().default([]),
   signaleAt: timestamp("signale_at", { withTimezone: true }).defaultNow().notNull(),
   contacteAt: timestamp("contacte_at", { withTimezone: true }),
   planifieAt: timestamp("planifie_at", { withTimezone: true }),
   debutAt: timestamp("debut_at", { withTimezone: true }),
   finAt: timestamp("fin_at", { withTimezone: true }),
-  // Validation du patron : accepte / refuse via le lien public, sans connexion.
+  // Validation d'Imed Jaiel : accepte / refuse via le lien public, sans connexion.
   validationStatut: text("validation_statut"), // null | "accepte" | "refuse"
   validationNote: text("validation_note"),
   validationAt: timestamp("validation_at", { withTimezone: true }),
+  // "staff" (constat de l'équipe, ex. dégât trouvé au check-out) | "proprietaire" (demande du propriétaire)
+  origine: text("origine").default("staff").notNull(),
   createdByUserId: text("created_by_user_id"),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Fil de discussion tracé sur une intervention : échanges entre l'équipe et le propriétaire
+// (via le lien public), pour garder un historique de qui a dit quoi et quand.
+export const interventionComments = pgTable("intervention_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  interventionId: uuid("intervention_id").references(() => interventions.id, { onDelete: "cascade" }).notNull(),
+  auteur: text("auteur").notNull(),
+  auteurType: text("auteur_type").notNull(), // "staff" | "proprietaire"
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const gendarmerieForms = pgTable("gendarmerie_forms", {
   id: uuid("id").defaultRandom().primaryKey(),
   reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),
+  // Quand la fiche fait partie d'un dossier combiné (fiche police + contrat en un seul lien).
+  contratId: uuid("contrat_id").references(() => contratsLocation.id, { onDelete: "cascade" }),
   statut: text("statut").default("en_attente").notNull(), // en_attente | complete
   langue: text("langue"), // langue choisie par le client au remplissage
   createdByUserId: text("created_by_user_id"),
@@ -257,7 +292,40 @@ export const gendarmerieOccupants = pgTable("gendarmerie_occupants", {
   datePiece: text("date_piece"),
   lieuPiece: text("lieu_piece"),
   signatureNom: text("signature_nom"), // nom tapé pour valoir signature
+  signatureImage: text("signature_image"), // signature manuscrite (doigt/souris), data URL PNG
+  photoPieceUrl: text("photo_piece_url"), // photo du passeport/CIN (data URL), pour la sécurité aux entrées de domaine
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const contratsLocation = pgTable("contrats_location", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),
+  agenceRepresentant: text("agence_representant").default("Moderna Agency").notNull(),
+  locataireNom: text("locataire_nom"),
+  locataireAdresse: text("locataire_adresse"),
+  nbAdultes: integer("nb_adultes").default(1).notNull(),
+  nbEnfants: integer("nb_enfants").default(0).notNull(),
+  dateArrivee: text("date_arrivee"),
+  dateDepart: text("date_depart"),
+  devise: text("devise").default("DH").notNull(),
+  montantTotal: text("montant_total"),
+  acompteMontant: text("acompte_montant"),
+  soldeMontant: text("solde_montant"),
+  soldeDateLimite: text("solde_date_limite"),
+  depotGarantieMontant: text("depot_garantie_montant"),
+  depotRestitutionDate: text("depot_restitution_date"),
+  lieuSignature: text("lieu_signature").default("Marrakech").notNull(),
+  dateSignatureAgence: text("date_signature_agence"),
+  signatureAgenceNom: text("signature_agence_nom"),
+  signatureAgenceImage: text("signature_agence_image"),
+  statut: text("statut").default("en_attente").notNull(), // en_attente | signe
+  signatureClientNom: text("signature_client_nom"), // nom légal saisi par le client au moment de signer
+  signatureClientPiece: text("signature_client_piece"), // CIN / passeport saisi par le client au moment de signer
+  signatureClientImage: text("signature_client_image"),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  signedAt: timestamp("signed_at", { withTimezone: true }),
 });
 
 export const taches = pgTable("taches", {
@@ -278,6 +346,7 @@ export const dailyTasks = pgTable("daily_tasks", {
   titre: text("titre").notNull(),
   fait: boolean("fait").default(false).notNull(),
   ordre: integer("ordre").default(0).notNull(),
+  assigne: text("assigne").default("kamel").notNull(),
   createdByUserId: text("created_by_user_id"),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -290,6 +359,34 @@ export const technicians = pgTable("technicians", {
   fonction: text("fonction").notNull(),
   telephone: text("telephone").notNull(),
   notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const contactRoleEnum = pgEnum("contact_role", [
+  "proprietaire",
+  "femme_menage",
+  "jardinier",
+  "pisciniste",
+  "gardien",
+  "electricien",
+  "plombier",
+  "cuisiniere",
+  "autre",
+]);
+
+// Annuaire de contacts par villa/appartement (ou par domaine entier quand le prestataire
+// sert plusieurs biens, ex. jardinier/pisciniste du domaine) : qui contacter en cas de souci.
+export const proprieteContacts = pgTable("propriete_contacts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),
+  domaineId: uuid("domaine_id").references(() => domaines.id, { onDelete: "cascade" }),
+  role: contactRoleEnum("role").notNull(),
+  nom: text("nom").notNull(),
+  telephone: text("telephone"),
+  notes: text("notes"),
+  // Personnel payé régulièrement (femme de ménage, jardinier...) : sert à afficher un
+  // rappel "à payer ce mois-ci" en croisant avec les dépenses de la Caisse.
+  paiementRecurrent: boolean("paiement_recurrent").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -352,4 +449,13 @@ export const superhoteSyncLog = pgTable("superhote_sync_log", {
   success: boolean("success"),
   bookingsSynced: integer("bookings_synced").default(0),
   errorMessage: text("error_message"),
+});
+
+// Réservations à ignorer définitivement lors de la synchro iCal (ex. erreur de Superhote qui
+// associe une réservation à la mauvaise villa dans son propre flux) : sans ça, la réservation
+// supprimée manuellement réapparaît à chaque synchro puisqu'elle est toujours dans le flux source.
+export const ignoredBookings = pgTable("ignored_bookings", {
+  superhoteBookingId: text("superhote_booking_id").primaryKey(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
