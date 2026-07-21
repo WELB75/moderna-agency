@@ -138,6 +138,7 @@ export const UI_TEXT: Record<
     childrenTitle: string;
     childrenSubtitle: string;
     childPhotoLabel: (i: number) => string;
+    addChild: string;
   }
 > = {
   fr: {
@@ -157,6 +158,7 @@ export const UI_TEXT: Record<
     childrenTitle: "Enfants",
     childrenSubtitle: "Merci d'ajouter aussi une photo du passeport (ou CIN) de chaque enfant.",
     childPhotoLabel: (i) => `Passeport de l'enfant ${i}`,
+    addChild: "Ajouter un enfant",
   },
   en: {
     title: "Police registration form",
@@ -175,6 +177,7 @@ export const UI_TEXT: Record<
     childrenTitle: "Children",
     childrenSubtitle: "Please also add a photo of each child's passport (or ID card).",
     childPhotoLabel: (i) => `Child ${i}'s passport`,
+    addChild: "Add a child",
   },
   es: {
     title: "Ficha de policía",
@@ -193,6 +196,7 @@ export const UI_TEXT: Record<
     childrenTitle: "Niños",
     childrenSubtitle: "Añade también una foto del pasaporte (o DNI) de cada niño.",
     childPhotoLabel: (i) => `Pasaporte del niño/a ${i}`,
+    addChild: "Añadir un niño",
   },
   ar: {
     title: "ورقة شخصية (الشرطة)",
@@ -211,6 +215,7 @@ export const UI_TEXT: Record<
     childrenTitle: "الأطفال",
     childrenSubtitle: "يرجى أيضا إضافة صورة جواز سفر (أو البطاقة الوطنية) لكل طفل.",
     childPhotoLabel: (i) => `جواز سفر الطفل ${i}`,
+    addChild: "إضافة طفل",
   },
   nl: {
     title: "Politieformulier (gendarmerie)",
@@ -228,6 +233,7 @@ export const UI_TEXT: Record<
     childrenTitle: "Kinderen",
     childrenSubtitle: "Voeg ook een foto van het paspoort (of ID-kaart) van elk kind toe.",
     childPhotoLabel: (i) => `Paspoort van kind ${i}`,
+    addChild: "Kind toevoegen",
     photoPiece: "Foto van uw identiteitsdocument (paspoort, ID-kaart...)",
   },
 };

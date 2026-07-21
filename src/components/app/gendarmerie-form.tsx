@@ -155,28 +155,44 @@ export function GendarmerieForm({
         ))}
       </div>
 
-      {enfantsPhotos.length > 0 ? (
-        <div className="space-y-3">
-          <div>
-            <h2 className="font-medium">{t.childrenTitle}</h2>
-            <p className="text-sm text-muted-foreground">{t.childrenSubtitle}</p>
-          </div>
+      <div className="space-y-3">
+        <div>
+          <h2 className="font-medium">{t.childrenTitle}</h2>
+          <p className="text-sm text-muted-foreground">{t.childrenSubtitle}</p>
+        </div>
+        {enfantsPhotos.length > 0 ? (
           <Card>
             <CardContent className="space-y-4 py-4">
               {enfantsPhotos.map((photo, index) => (
-                <IdPhotoCapture
-                  key={index}
-                  value={photo}
-                  onChange={(dataUrl) =>
-                    setEnfantsPhotos((prev) => prev.map((p, i) => (i === index ? dataUrl : p)))
-                  }
-                  label={t.childPhotoLabel(index + 1)}
-                />
+                <div key={index} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <IdPhotoCapture
+                      value={photo}
+                      onChange={(dataUrl) =>
+                        setEnfantsPhotos((prev) => prev.map((p, i) => (i === index ? dataUrl : p)))
+                      }
+                      label={t.childPhotoLabel(index + 1)}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEnfantsPhotos((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      {t.removeOccupant}
+                    </Button>
+                  </div>
+                </div>
               ))}
             </CardContent>
           </Card>
-        </div>
-      ) : null}
+        ) : null}
+        <Button type="button" variant="outline" onClick={() => setEnfantsPhotos((prev) => [...prev, ""])}>
+          <Plus className="h-4 w-4" />
+          {t.addChild}
+        </Button>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {!hideAddOccupant ? (
