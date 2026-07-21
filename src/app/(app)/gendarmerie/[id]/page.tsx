@@ -9,6 +9,7 @@ import { Logo } from "@/components/app/logo";
 import { PrintButton } from "@/components/app/print-button";
 import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS, type GendarmerieLang } from "@/lib/gendarmerie-i18n";
 import { formatDateFr } from "@/lib/format-date";
+import { ShareSecurityLinkButton } from "@/components/app/share-security-link-button";
 import { Download } from "lucide-react";
 
 export default async function GendarmerieDocumentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -77,6 +78,7 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
           </p>
           <div className="flex items-center gap-2 print:hidden">
             <Logo size={28} />
+            {form.statut === "complete" ? <ShareSecurityLinkButton formId={form.id} /> : null}
             <PrintButton />
           </div>
         </div>
