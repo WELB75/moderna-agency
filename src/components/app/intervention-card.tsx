@@ -22,6 +22,7 @@ import { InterventionAttachments } from "@/components/app/intervention-attachmen
 import { InterventionValidation } from "@/components/app/intervention-validation";
 import { InterventionComments, type CommentRow } from "@/components/app/intervention-comments";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { AddDevisDialog } from "@/components/app/add-devis-dialog";
 import { DevisDocument } from "@/components/app/devis-document";
 import { PrintButton } from "@/components/app/print-button";
@@ -166,11 +167,19 @@ export function InterventionCard({
           <h3 className="min-w-0 break-words text-lg font-bold uppercase tracking-wide">
             {intervention.titre}
           </h3>
-          <ConfirmDeleteButton
-            action={deleteIntervention.bind(null, intervention.id)}
-            title="Supprimer cette intervention ?"
-            description="Cette action est irréversible."
-          />
+          <div className="flex shrink-0 items-center gap-1">
+            <CopyLinkButton
+              path={`/i/${intervention.id}`}
+              label="Copier le lien pour partager"
+              successMessage="Lien copié — transmets-le à qui tu veux."
+              iconOnly
+            />
+            <ConfirmDeleteButton
+              action={deleteIntervention.bind(null, intervention.id)}
+              title="Supprimer cette intervention ?"
+              description="Cette action est irréversible."
+            />
+          </div>
         </div>
 
         <div className="space-y-1.5">

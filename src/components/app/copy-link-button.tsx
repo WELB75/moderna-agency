@@ -8,10 +8,12 @@ export function CopyLinkButton({
   path,
   label,
   successMessage,
+  iconOnly = false,
 }: {
   path: string;
   label: string;
   successMessage: string;
+  iconOnly?: boolean;
 }) {
   async function handleCopy() {
     const url = `${window.location.origin}${path}`;
@@ -21,6 +23,22 @@ export function CopyLinkButton({
     } catch {
       toast.error("Impossible de copier le lien.");
     }
+  }
+
+  if (iconOnly) {
+    return (
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        onClick={handleCopy}
+        className="shrink-0"
+        aria-label={label}
+        title={label}
+      >
+        <Copy className="h-4 w-4" />
+      </Button>
+    );
   }
 
   return (

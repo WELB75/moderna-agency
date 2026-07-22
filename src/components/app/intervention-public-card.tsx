@@ -8,6 +8,7 @@ import { PrintButton } from "@/components/app/print-button";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { UrgenceBadge } from "@/components/app/urgence-badge";
 import { InterventionStatusControls } from "@/components/app/intervention-status-controls";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { Badge } from "@/components/ui/badge";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,7 @@ export function InterventionPublicCard({
   commentAuthorOptions,
   compact = false,
   validationTitle,
+  readOnlyValidation = false,
 }: {
   intervention: InterventionPublicData;
   showVillaInfo?: boolean;
@@ -69,6 +71,9 @@ export function InterventionPublicCard({
   // étape par étape, et un nombre de photos limité pour ne pas surcharger la page.
   compact?: boolean;
   validationTitle?: string;
+  // Pour le lien de partage public /i/[id] : seul le propriétaire doit pouvoir valider un
+  // devis, pas un tiers à qui ce lien a été transmis.
+  readOnlyValidation?: boolean;
 }) {
   const currentIndex = INTERVENTION_STEPS.findIndex((s) => s.key === intervention.etape);
   const pct = ((currentIndex + 1) / INTERVENTION_STEPS.length) * 100;
@@ -80,9 +85,17 @@ export function InterventionPublicCard({
 
   return (
     <div className="rounded-lg border p-4 sm:p-6">
-      <h3 className="break-words text-xl font-bold uppercase tracking-wide sm:text-2xl">
-        {intervention.titre}
-      </h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="min-w-0 break-words text-xl font-bold uppercase tracking-wide sm:text-2xl">
+          {intervention.titre}
+        </h3>
+        <CopyLinkButton
+          path={`/i/${intervention.id}`}
+          label="Copier le lien pour partager"
+          successMessage="Lien copié — transmets-le à qui tu veux."
+          iconOnly
+        />
+      </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <UrgenceBadge urgence={intervention.urgence} />
@@ -196,6 +209,7 @@ export function InterventionPublicCard({
             validationNote={intervention.validationNote}
             validationAt={intervention.validationAt}
             title={validationTitle}
+            readOnly={readOnlyValidation}
           />
         </div>
       ) : null}
