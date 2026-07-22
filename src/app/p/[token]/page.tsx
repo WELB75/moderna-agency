@@ -24,6 +24,7 @@ import { PaiementComments } from "@/components/app/paiement-comments";
 import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-dialog";
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
 import { AddOwnerContactDialog } from "@/components/app/add-owner-contact-dialog";
+import { OwnerStayCalendar } from "@/components/app/owner-stay-calendar";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CalendarDays, Wrench, Users, Eye, Wallet } from "lucide-react";
@@ -276,6 +277,10 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
 
         <TabsContent value="sejours" className="space-y-4 pt-2">
           <p className="text-sm text-muted-foreground">Dates auxquelles votre logement est loué.</p>
+          <OwnerStayCalendar
+            stays={sejoursActuelsEtFuturs.map((r) => ({ checkIn: new Date(r.checkIn), checkOut: new Date(r.checkOut) }))}
+            now={now}
+          />
           {sejoursActuelsEtFuturs.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -283,21 +288,26 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {sejoursActuelsEtFuturs.map((r) => (
-                <Card key={r.id}>
-                  <CardContent className="flex items-center justify-between gap-2 py-3">
-                    <div>
-                      <p className="font-medium">
-                        {format(new Date(r.checkIn), "d MMM yyyy", { locale: fr })} →{" "}
-                        {format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{r.canal || "Réservation"}</p>
-                    </div>
-                    <Badge>Loué</Badge>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Détail des séjours
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {sejoursActuelsEtFuturs.map((r) => (
+                  <Card key={r.id}>
+                    <CardContent className="flex items-center justify-between gap-2 py-3">
+                      <div>
+                        <p className="font-medium">
+                          {format(new Date(r.checkIn), "d MMM yyyy", { locale: fr })} →{" "}
+                          {format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{r.canal || "Réservation"}</p>
+                      </div>
+                      <Badge>Loué</Badge>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>
