@@ -30,12 +30,18 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
       type: villas.type,
       domaineId: villas.domaineId,
       proprietaireNom: villas.proprietaireNom,
+      portailAuteurs: villas.portailAuteurs,
     })
     .from(villas)
     .where(eq(villas.lienProprietaireToken, token))
     .limit(1);
 
   if (!villa) notFound();
+
+  const commentAuthorOptions =
+    villa.portailAuteurs && villa.portailAuteurs.length > 0
+      ? villa.portailAuteurs
+      : [villa.proprietaireNom || "Propriétaire", "Kamel"];
 
   const villaReservations = await db
     .select()
@@ -131,6 +137,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             comments={commentsByIntervention.get(i.id) ?? []}
             commentAuteur={villa.proprietaireNom || "Propriétaire"}
             commentAuteurType="proprietaire"
+            commentAuthorOptions={commentAuthorOptions}
           />
         ))}
       </div>

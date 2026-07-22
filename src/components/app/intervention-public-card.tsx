@@ -54,6 +54,7 @@ export function InterventionPublicCard({
   comments,
   commentAuteur,
   commentAuteurType,
+  commentAuthorOptions,
   compact = false,
   validationTitle,
 }: {
@@ -62,6 +63,7 @@ export function InterventionPublicCard({
   comments?: CommentRow[];
   commentAuteur?: string;
   commentAuteurType?: "staff" | "proprietaire";
+  commentAuthorOptions?: string[];
   // Vue allégée pour le propriétaire : un seul badge de statut au lieu du détail
   // étape par étape, et un nombre de photos limité pour ne pas surcharger la page.
   compact?: boolean;
@@ -200,6 +202,7 @@ export function InterventionPublicCard({
             comments={comments}
             auteur={commentAuteur}
             auteurType={commentAuteurType}
+            authorOptions={commentAuthorOptions}
           />
         </div>
       ) : null}

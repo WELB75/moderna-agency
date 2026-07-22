@@ -80,6 +80,10 @@ export const villas = pgTable(
     codeBoitier: text("code_boitier"), // code de la boîte à clés / digicode d'accès
     proprietaireNom: text("proprietaire_nom"),
     proprietaireTelephone: text("proprietaire_telephone"),
+    // Prénoms des personnes autorisées à s'identifier comme auteur dans le chat de l'espace
+    // propriétaire (ex. plusieurs membres de la famille partagent le même lien) : si vide,
+    // on retombe sur [proprietaireNom, "Kamel"].
+    portailAuteurs: jsonb("portail_auteurs").$type<string[]>().default([]),
     lienProprietaireToken: uuid("lien_proprietaire_token").defaultRandom().notNull(), // token du lien public /p/[token] consulté par le propriétaire
     icalUrl: text("ical_url"), // lien iCal Superhote pour synchroniser les réservations de cette villa
     photoUrl: text("photo_url"),

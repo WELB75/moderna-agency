@@ -64,6 +64,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       codeBoitier: villas.codeBoitier,
       proprietaireNom: villas.proprietaireNom,
       proprietaireTelephone: villas.proprietaireTelephone,
+      portailAuteurs: villas.portailAuteurs,
       lienProprietaireToken: villas.lienProprietaireToken,
       icalUrl: villas.icalUrl,
       superhoteListingId: villas.superhoteListingId,
@@ -176,6 +177,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             numeroImmeuble={villa.numeroImmeuble}
             domaineId={villa.domaineId}
             domaines={allDomaines}
+            portailAuteurs={villa.portailAuteurs}
             typeLabel={typeLabel}
           />
           <ConfirmDeleteButton
