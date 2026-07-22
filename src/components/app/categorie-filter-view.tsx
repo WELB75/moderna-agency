@@ -34,17 +34,21 @@ export function CategorieFilterView({ groups }: { groups: CategorieGroup[] }) {
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
       {groups.map((g) => (
         <button
           key={g.categorie}
           type="button"
           onClick={() => setSelected(g.categorie)}
-          className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm transition-colors hover:bg-accent"
+          className="flex flex-col items-center gap-1.5 rounded-md border px-3 py-4 text-center transition-colors hover:bg-accent"
         >
-          <CategorieIcon categorie={g.categorie} className="h-4 w-4 text-muted-foreground" />
-          <span>{categorieLabel(g.categorie)}</span>
-          {g.count > 0 ? <span className="ml-0.5 text-muted-foreground">{g.count}</span> : null}
+          <CategorieIcon categorie={g.categorie} className="h-6 w-6 text-muted-foreground" />
+          <span className="text-sm font-medium">{categorieLabel(g.categorie)}</span>
+          {g.count > 0 ? (
+            <span className="text-xs text-muted-foreground">
+              ({g.count} tâche{g.count > 1 ? "s" : ""})
+            </span>
+          ) : null}
         </button>
       ))}
     </div>
