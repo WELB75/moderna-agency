@@ -11,12 +11,14 @@ import {
   proprieteContacts,
   interventionComments,
   paiementsProprietaire,
+  paiementComments,
 } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InterventionPublicCard } from "@/components/app/intervention-public-card";
+import { PaiementComments } from "@/components/app/paiement-comments";
 import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-dialog";
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
 import { LinkifiedText } from "@/components/app/linkified-text";
@@ -129,6 +131,22 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
     .from(paiementsProprietaire)
     .where(eq(paiementsProprietaire.villaId, villa.id))
     .orderBy(desc(paiementsProprietaire.createdAt));
+
+  const paiementIds = villaPaiements.map((p) => p.id);
+  const allPaiementComments =
+    paiementIds.length > 0
+      ? await db
+          .select()
+          .from(paiementComments)
+          .where(inArray(paiementComments.paiementId, paiementIds))
+          .orderBy(paiementComments.createdAt)
+      : [];
+  const commentsByPaiement = new Map<string, typeof allPaiementComments>();
+  for (const c of allPaiementComments) {
+    const list = commentsByPaiement.get(c.paiementId) ?? [];
+    list.push(c);
+    commentsByPaiement.set(c.paiementId, list);
+  }
 
   const paiementsEnAttente = villaPaiements.filter((p) => p.statut === "en_attente").length;
 
@@ -318,6 +336,13 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(p.createdAt), "d MMM yyyy", { locale: fr })}
                     </p>
+                    <PaiementComments
+                      paiementId={p.id}
+                      comments={commentsByPaiement.get(p.id) ?? []}
+                      auteur={villa.proprietaireNom || "Propriétaire"}
+                      auteurType="proprietaire"
+                      authorOptions={commentAuthorOptions}
+                    />
                   </CardContent>
                 </Card>
               ))}

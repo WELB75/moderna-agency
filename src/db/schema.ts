@@ -291,6 +291,16 @@ export const paiementsProprietaire = pgTable("paiements_proprietaire", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Fil d'échanges par ligne de paiement, même principe que interventionComments.
+export const paiementComments = pgTable("paiement_comments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  paiementId: uuid("paiement_id").references(() => paiementsProprietaire.id, { onDelete: "cascade" }).notNull(),
+  auteur: text("auteur").notNull(),
+  auteurType: text("auteur_type").notNull(), // "staff" | "proprietaire"
+  message: text("message").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const gendarmerieForms = pgTable("gendarmerie_forms", {
   id: uuid("id").defaultRandom().primaryKey(),
   reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),

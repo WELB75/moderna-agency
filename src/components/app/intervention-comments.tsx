@@ -121,14 +121,18 @@ export function InterventionComments({
   );
 }
 
-function CommentItem({
+export function CommentItem({
   comment,
   onUpdated,
   onDeleted,
+  onUpdate = updateInterventionComment,
+  onDelete = deleteInterventionComment,
 }: {
   comment: CommentRow;
   onUpdated: (id: string, message: string) => void;
   onDeleted: (id: string) => void;
+  onUpdate?: (commentId: string, message: string) => Promise<void>;
+  onDelete?: (commentId: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(comment.message);
@@ -140,7 +144,7 @@ function CommentItem({
     if (!trimmed) return;
     startTransition(async () => {
       try {
-        await updateInterventionComment(comment.id, trimmed);
+        await onUpdate(comment.id, trimmed);
         onUpdated(comment.id, trimmed);
         setEditing(false);
       } catch (err) {
@@ -152,7 +156,7 @@ function CommentItem({
   function handleDelete() {
     startTransition(async () => {
       try {
-        await deleteInterventionComment(comment.id);
+        await onDelete(comment.id);
         onDeleted(comment.id);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
