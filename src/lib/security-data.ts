@@ -26,6 +26,7 @@ async function buildVillaSecurityData(
       contratDateDepart: contratsLocation.dateDepart,
       contratNbAdultes: contratsLocation.nbAdultes,
       contratNbEnfants: contratsLocation.nbEnfants,
+      enfantsPassportUrls: gendarmerieForms.enfantsPassportUrls,
     })
     .from(gendarmerieForms)
     .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
@@ -34,7 +35,7 @@ async function buildVillaSecurityData(
     .orderBy(desc(gendarmerieForms.completedAt))
     .limit(1);
 
-  const occupants = form
+  const adultOccupants = form
     ? await db
         .select({
           id: gendarmerieOccupants.id,
@@ -47,6 +48,19 @@ async function buildVillaSecurityData(
         .where(eq(gendarmerieOccupants.formId, form.id))
         .orderBy(gendarmerieOccupants.createdAt)
     : [];
+
+  // Le Bulletin Individuel ne concerne légalement que les adultes (table gendarmerieOccupants) ;
+  // les photos des enfants sont collectées à part, sans nom associé — on les ajoute quand même
+  // ici pour que la sécurité voie bien tout le monde qui accompagne la réservation.
+  const enfantsOccupants = (form?.enfantsPassportUrls ?? []).map((url, i) => ({
+    id: `${form?.id}-enfant-${i}`,
+    nom: "Enfant",
+    prenom: null,
+    nationalite: null,
+    photoPieceUrl: url,
+  }));
+
+  const occupants = [...adultOccupants, ...enfantsOccupants];
 
   const arrivee = form?.checkIn
     ? format(new Date(form.checkIn), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })
