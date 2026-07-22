@@ -3,7 +3,15 @@ import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, interventions, domaines, proprieteContacts, interventionComments } from "@/db/schema";
+import {
+  villas,
+  reservations,
+  interventions,
+  domaines,
+  proprieteContacts,
+  interventionComments,
+  paiementsProprietaire,
+} from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +19,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InterventionPublicCard } from "@/components/app/intervention-public-card";
 import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-dialog";
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
+import { LinkifiedText } from "@/components/app/linkified-text";
 import { sortByUrgence } from "@/lib/intervention-urgence";
-import { CalendarDays, Wrench, Users, Eye } from "lucide-react";
+import { CalendarDays, Wrench, Users, Eye, Wallet } from "lucide-react";
 
 // Point de départ du suivi : l'agence ne gère pas ces biens avant cette date,
 // les réservations antérieures ne sont pas rattachables à sa gestion.
@@ -109,6 +118,14 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
         : eq(proprieteContacts.villaId, villa.id)
     );
 
+  const villaPaiements = await db
+    .select()
+    .from(paiementsProprietaire)
+    .where(eq(paiementsProprietaire.villaId, villa.id))
+    .orderBy(desc(paiementsProprietaire.createdAt));
+
+  const paiementsEnAttente = villaPaiements.filter((p) => p.statut === "en_attente").length;
+
   const demandesActives = mesDemandes.filter((i) => i.etape !== "termine").length;
   const constatsActifs = constatsEquipe.filter((i) => i.etape !== "termine").length;
   const now = new Date();
@@ -198,6 +215,11 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             Constats
             {constatsActifs > 0 ? <Badge className="ml-1">{constatsActifs}</Badge> : null}
           </TabsTrigger>
+          <TabsTrigger value="paiement" className="shrink-0">
+            <Wallet className="h-4 w-4" />
+            Paiement
+            {paiementsEnAttente > 0 ? <Badge className="ml-1">{paiementsEnAttente}</Badge> : null}
+          </TabsTrigger>
           <TabsTrigger value="equipe" className="shrink-0">
             <Users className="h-4 w-4" />
             Équipe
@@ -248,6 +270,52 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             ci-dessous si besoin.
           </p>
           {renderInterventionList(constatsEquipe)}
+        </TabsContent>
+
+        <TabsContent value="paiement" className="space-y-4 pt-2">
+          <p className="text-sm text-muted-foreground">Ce que Moderna Agency doit vous reverser.</p>
+          {villaPaiements.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                Rien pour l&apos;instant.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {villaPaiements.map((p) => (
+                <Card key={p.id}>
+                  <CardContent className="space-y-2 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-medium">{p.titre}</p>
+                      <Badge
+                        variant="outline"
+                        className={
+                          p.statut === "paye"
+                            ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                        }
+                      >
+                        {p.statut === "paye" ? "Payé" : "En attente"}
+                      </Badge>
+                    </div>
+                    {p.montant ? (
+                      <p className="text-lg font-semibold">
+                        {p.montant} {p.devise}
+                      </p>
+                    ) : null}
+                    {p.description ? (
+                      <p className="whitespace-pre-line text-sm text-muted-foreground">
+                        <LinkifiedText text={p.description} />
+                      </p>
+                    ) : null}
+                    <p className="text-xs text-muted-foreground">
+                      {format(new Date(p.createdAt), "d MMM yyyy", { locale: fr })}
+                    </p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="equipe" className="space-y-4 pt-2">
