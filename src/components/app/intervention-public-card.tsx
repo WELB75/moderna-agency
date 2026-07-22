@@ -7,6 +7,7 @@ import { DevisDocument } from "@/components/app/devis-document";
 import { PrintButton } from "@/components/app/print-button";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { UrgenceBadge } from "@/components/app/urgence-badge";
+import { CategorieBadge } from "@/components/app/categorie-badge";
 import { InterventionStatusControls } from "@/components/app/intervention-status-controls";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { formatUtcDayMonthTime } from "@/lib/now";
 import type { Devis } from "@/lib/devis-types";
 import type { Urgence } from "@/lib/intervention-urgence";
+import type { Categorie } from "@/lib/intervention-categorie";
 
 export type InterventionPublicData = {
   id: string;
@@ -26,6 +28,7 @@ export type InterventionPublicData = {
   domaineNom: string | null;
   prestataire: string | null;
   urgence: Urgence;
+  categorie: Categorie;
   etape: Etape;
   notes: string | null;
   attachmentUrls: string[] | null;
@@ -98,6 +101,7 @@ export function InterventionPublicCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <CategorieBadge categorie={intervention.categorie} />
         <UrgenceBadge urgence={intervention.urgence} />
         {intervention.domaineNom ? <DomaineBadge nom={intervention.domaineNom} className="text-xs" /> : null}
         {stagne ? (

@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/dialog";
 import { createInterventionByOwner } from "@/lib/actions/interventions";
 import type { Urgence } from "@/lib/intervention-urgence";
+import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
+import { CategorieIcon } from "@/components/app/categorie-icon";
 
 const OWNER_URGENCE_OPTIONS: { key: Urgence; label: string }[] = [
   { key: "basse", label: "Pas pressé" },
@@ -38,17 +40,19 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
   const [titre, setTitre] = useState("");
   const [probleme, setProbleme] = useState("");
   const [urgence, setUrgence] = useState<Urgence>("normale");
+  const [categorie, setCategorie] = useState<Categorie>("autre");
   const [isPending, startTransition] = useTransition();
 
   function handleSubmit() {
     startTransition(async () => {
       try {
-        await createInterventionByOwner(villaId, titre, probleme, urgence);
+        await createInterventionByOwner(villaId, titre, probleme, urgence, categorie);
         toast.success("Demande envoyée.");
         setOpen(false);
         setTitre("");
         setProbleme("");
         setUrgence("normale");
+        setCategorie("autre");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'envoi.");
       }
@@ -99,6 +103,24 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
                 {OWNER_URGENCE_OPTIONS.map((o) => (
                   <SelectItem key={o.key} value={o.key}>
                     {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Catégorie</Label>
+            <Select value={categorie} onValueChange={(v) => setCategorie(v as Categorie)}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CATEGORIES.map((c) => (
+                  <SelectItem key={c.key} value={c.key}>
+                    <span className="flex items-center gap-1.5">
+                      <CategorieIcon categorie={c.key} className="h-3.5 w-3.5" />
+                      {c.label}
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>

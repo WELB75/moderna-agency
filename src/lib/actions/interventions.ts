@@ -7,12 +7,14 @@ import { getDb } from "@/db";
 import { interventions, technicians, villas } from "@/db/schema";
 import type { Devis } from "@/lib/devis-types";
 import type { Urgence } from "@/lib/intervention-urgence";
+import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { notifyStaffWhatsApp, notifyPhoneWhatsApp } from "@/lib/whatsapp";
 
 const ETAPES = ["signale", "contacte", "planifie", "en_cours", "termine"] as const;
 type Etape = (typeof ETAPES)[number];
 
 const URGENCES = ["basse", "normale", "haute", "critique"] as const;
+const CATEGORIE_KEYS = CATEGORIES.map((c) => c.key);
 
 const ETAPE_TIMESTAMP_FIELD: Record<Etape, "signaleAt" | "contacteAt" | "planifieAt" | "debutAt" | "finAt"> = {
   signale: "signaleAt",
@@ -36,6 +38,8 @@ export async function createIntervention(formData: FormData) {
   const technicianId = String(formData.get("technicianId") ?? "").trim() || null;
   const urgenceRaw = String(formData.get("urgence") ?? "normale").trim();
   const urgence = (URGENCES as readonly string[]).includes(urgenceRaw) ? (urgenceRaw as Urgence) : "normale";
+  const categorieRaw = String(formData.get("categorie") ?? "autre").trim();
+  const categorie = (CATEGORIE_KEYS as string[]).includes(categorieRaw) ? (categorieRaw as Categorie) : "autre";
 
   if (!titre) throw new Error("Le titre est obligatoire.");
 
@@ -49,6 +53,7 @@ export async function createIntervention(formData: FormData) {
     prestataire: prestataire || null,
     technicianId,
     urgence,
+    categorie,
     notes: notes || null,
     origine: "staff",
     createdByUserId: user?.id ?? null,
@@ -68,11 +73,13 @@ export async function createInterventionByOwner(
   villaId: string,
   titre: string,
   probleme: string,
-  urgence: Urgence = "normale"
+  urgence: Urgence = "normale",
+  categorie: Categorie = "autre"
 ) {
   const trimmedTitre = titre.trim();
   if (!trimmedTitre) throw new Error("Le titre est obligatoire.");
   const safeUrgence = (URGENCES as readonly string[]).includes(urgence) ? urgence : "normale";
+  const safeCategorie = (CATEGORIE_KEYS as string[]).includes(categorie) ? categorie : "autre";
 
   const db = getDb();
   await db.insert(interventions).values({
@@ -80,6 +87,7 @@ export async function createInterventionByOwner(
     probleme: probleme.trim() || null,
     villaId,
     urgence: safeUrgence,
+    categorie: safeCategorie,
     origine: "proprietaire",
     createdByName: "Propriétaire",
   });
@@ -207,6 +215,28 @@ export async function setInterventionUrgencePublic(interventionId: string, urgen
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
   revalidatePath("/dashboard");
+}
+
+export async function setInterventionCategorie(interventionId: string, categorie: Categorie) {
+  await auth.protect();
+  if (!(CATEGORIE_KEYS as string[]).includes(categorie)) throw new Error("Catégorie invalide.");
+
+  const db = getDb();
+  await db.update(interventions).set({ categorie, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+// Volontairement sans auth.protect(), même principe que setInterventionEtapePublic/UrgencePublic.
+export async function setInterventionCategoriePublic(interventionId: string, categorie: Categorie) {
+  if (!(CATEGORIE_KEYS as string[]).includes(categorie)) throw new Error("Catégorie invalide.");
+
+  const db = getDb();
+  await db.update(interventions).set({ categorie, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
 }
 
 export async function setInterventionTechnician(interventionId: string, technicianId: string | null) {

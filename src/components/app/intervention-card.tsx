@@ -33,12 +33,16 @@ import {
   deleteIntervention,
   deleteDevis,
   setInterventionUrgence,
+  setInterventionCategorie,
   setInterventionTechnician,
 } from "@/lib/actions/interventions";
 import { cn } from "@/lib/utils";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
 import { URGENCE_LEVELS, type Urgence } from "@/lib/intervention-urgence";
+import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { UrgenceBadge } from "@/components/app/urgence-badge";
+import { CategorieBadge } from "@/components/app/categorie-badge";
+import { CategorieIcon } from "@/components/app/categorie-icon";
 import type { Devis } from "@/lib/devis-types";
 
 const STEPS = INTERVENTION_STEPS;
@@ -56,6 +60,7 @@ export type Intervention = {
   prestataire: string | null;
   technicianId: string | null;
   urgence: Urgence;
+  categorie: Categorie;
   etape: Etape;
   notes: string | null;
   attachmentUrls: string[] | null;
@@ -94,6 +99,16 @@ export function InterventionCard({
     startTransition(async () => {
       try {
         await setInterventionUrgence(intervention.id, value as Urgence);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
+  function handleCategorieChange(value: string) {
+    startTransition(async () => {
+      try {
+        await setInterventionCategorie(intervention.id, value as Categorie);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -184,6 +199,7 @@ export function InterventionCard({
 
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-1.5">
+            <CategorieBadge categorie={intervention.categorie} />
             <UrgenceBadge urgence={intervention.urgence} />
             {intervention.domaineNom ? <DomaineBadge nom={intervention.domaineNom} className="text-xs" /> : null}
             {intervention.domaineId ? (
@@ -271,6 +287,21 @@ export function InterventionCard({
                     {u.label}
                   </SelectItem>
                 ))}
+            </SelectContent>
+          </Select>
+          <Select value={intervention.categorie} onValueChange={handleCategorieChange} disabled={isPending}>
+            <SelectTrigger className="h-9 w-full text-sm sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CATEGORIES.map((c) => (
+                <SelectItem key={c.key} value={c.key}>
+                  <span className="flex items-center gap-1.5">
+                    <CategorieIcon categorie={c.key} className="h-3.5 w-3.5" />
+                    {c.label}
+                  </span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           {technicians.length > 0 ? (

@@ -26,6 +26,8 @@ import {
 import { createIntervention } from "@/lib/actions/interventions";
 import { CONTACT_ROLE_LABELS } from "@/lib/contact-roles";
 import { URGENCE_LEVELS, type Urgence } from "@/lib/intervention-urgence";
+import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
+import { CategorieIcon } from "@/components/app/categorie-icon";
 
 export function AddInterventionDialog({
   villas,
@@ -43,6 +45,7 @@ export function AddInterventionDialog({
   const [domaineId, setDomaineId] = useState("");
   const [technicianId, setTechnicianId] = useState("");
   const [urgence, setUrgence] = useState<Urgence>("normale");
+  const [categorie, setCategorie] = useState<Categorie>("autre");
   const [isPending, startTransition] = useTransition();
 
   const selectedVillaDomaineId = villas.find((v) => v.id === villaId)?.domaineId ?? domaineId;
@@ -57,6 +60,7 @@ export function AddInterventionDialog({
     formData.set("domaineId", domaineId);
     formData.set("technicianId", technicianId);
     formData.set("urgence", urgence);
+    formData.set("categorie", categorie);
     startTransition(async () => {
       try {
         await createIntervention(formData);
@@ -66,6 +70,7 @@ export function AddInterventionDialog({
         setDomaineId("");
         setTechnicianId("");
         setUrgence("normale");
+        setCategorie("autre");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -145,6 +150,24 @@ export function AddInterventionDialog({
                         {u.label}
                       </SelectItem>
                     ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Catégorie</Label>
+              <Select value={categorie} onValueChange={(v) => setCategorie(v as Categorie)}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c.key} value={c.key}>
+                      <span className="flex items-center gap-1.5">
+                        <CategorieIcon categorie={c.key} className="h-3.5 w-3.5" />
+                        {c.label}
+                      </span>
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

@@ -10,6 +10,7 @@ import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
+import { CategorieSummary } from "@/components/app/categorie-summary";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { PhoneLink } from "@/components/app/phone-link";
@@ -67,6 +68,7 @@ export default async function MaintenancePage() {
       prestataire: interventions.prestataire,
       technicianId: interventions.technicianId,
       urgence: interventions.urgence,
+      categorie: interventions.categorie,
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
@@ -248,10 +250,13 @@ export default async function MaintenancePage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-2">
-              {sortByUrgence(villaInterventions).map((i) => (
-                <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
-              ))}
+            <div className="space-y-4">
+              <CategorieSummary items={villaInterventions} />
+              <div className="space-y-2">
+                {sortByUrgence(villaInterventions).map((i) => (
+                  <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>

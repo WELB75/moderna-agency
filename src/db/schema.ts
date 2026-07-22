@@ -54,6 +54,20 @@ export const interventionUrgenceEnum = pgEnum("intervention_urgence", [
   "critique",
 ]);
 
+export const interventionCategorieEnum = pgEnum("intervention_categorie", [
+  "electricite",
+  "plomberie",
+  "climatisation",
+  "carrelage_sol",
+  "mobilier",
+  "vitres_fenetres",
+  "peinture_murs",
+  "exterieur_jardin",
+  "internet_domotique",
+  "proprete",
+  "autre",
+]);
+
 export const domaines = pgTable("domaines", {
   id: uuid("id").defaultRandom().primaryKey(),
   nom: text("nom").notNull(),
@@ -241,6 +255,7 @@ export const interventions = pgTable("interventions", {
   prestataire: text("prestataire"),
   technicianId: uuid("technician_id").references(() => technicians.id, { onDelete: "set null" }),
   urgence: interventionUrgenceEnum("urgence").default("normale").notNull(),
+  categorie: interventionCategorieEnum("categorie").default("autre").notNull(),
   etape: interventionEtapeEnum("etape").default("signale").notNull(),
   notes: text("notes"),
   attachmentUrls: jsonb("attachment_urls").$type<string[]>().default([]),

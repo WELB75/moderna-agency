@@ -25,6 +25,7 @@ import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-di
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
 import { AddOwnerContactDialog } from "@/components/app/add-owner-contact-dialog";
 import { OwnerStayCalendar } from "@/components/app/owner-stay-calendar";
+import { CategorieSummary } from "@/components/app/categorie-summary";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CalendarDays, Wrench, Users, Eye, Wallet } from "lucide-react";
@@ -77,6 +78,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
       domaineNom: domaines.nom,
       prestataire: interventions.prestataire,
       urgence: interventions.urgence,
+      categorie: interventions.categorie,
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
@@ -319,6 +321,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             </p>
             <AddTravauxRequestDialog villaId={villa.id} />
           </div>
+          <CategorieSummary items={mesDemandes} />
           {renderInterventionList(mesDemandes)}
         </TabsContent>
 
@@ -327,6 +330,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             Ce que l&apos;équipe a constaté sur place (dégâts, entretien, réparations...). Échangez directement
             ci-dessous si besoin.
           </p>
+          <CategorieSummary items={constatsEquipe} />
           {renderInterventionList(constatsEquipe)}
         </TabsContent>
 

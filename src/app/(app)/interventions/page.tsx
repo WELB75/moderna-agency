@@ -5,6 +5,7 @@ import { interventions, villas, domaines, technicians, proprieteContacts, interv
 import { Card, CardContent } from "@/components/ui/card";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
+import { CategorieSummary } from "@/components/app/categorie-summary";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { Gauge } from "lucide-react";
 
@@ -27,6 +28,7 @@ export default async function InterventionsPage() {
       prestataire: interventions.prestataire,
       technicianId: interventions.technicianId,
       urgence: interventions.urgence,
+      categorie: interventions.categorie,
       etape: interventions.etape,
       notes: interventions.notes,
       attachmentUrls: interventions.attachmentUrls,
@@ -106,6 +108,7 @@ export default async function InterventionsPage() {
         </Card>
       ) : (
         <div className="space-y-6">
+          <CategorieSummary items={allInterventions} />
           {enCours.length > 0 ? (
             <div className="space-y-2">
               {enCours.map((i) => (
