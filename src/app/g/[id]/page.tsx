@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { getDb } from "@/db";
-import { gendarmerieForms, villas } from "@/db/schema";
+import { gendarmerieForms, villas, reservations } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { GendarmerieForm } from "@/components/app/gendarmerie-form";
 
@@ -15,9 +15,12 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
       id: gendarmerieForms.id,
       statut: gendarmerieForms.statut,
       villaNom: villas.nom,
+      nbAdultes: reservations.nbAdultes,
+      nbEnfants: reservations.nbEnfants,
     })
     .from(gendarmerieForms)
     .leftJoin(villas, eq(gendarmerieForms.villaId, villas.id))
+    .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
     .where(eq(gendarmerieForms.id, id))
     .limit(1);
 
@@ -40,7 +43,12 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
           </p>
         </div>
       ) : (
-        <GendarmerieForm formId={form.id} villaNom={form.villaNom ?? "votre logement"} />
+        <GendarmerieForm
+          formId={form.id}
+          villaNom={form.villaNom ?? "votre logement"}
+          nbAdultes={form.nbAdultes ?? 1}
+          nbEnfants={form.nbEnfants ?? 0}
+        />
       )}
     </div>
   );

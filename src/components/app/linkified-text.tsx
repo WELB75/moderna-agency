@@ -1,3 +1,5 @@
+"use client";
+
 const URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+|(?:[\w.+-]+@[\w-]+\.[\w.-]+))/g;
 
 export function LinkifiedText({ text, className }: { text: string; className?: string }) {

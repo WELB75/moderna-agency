@@ -277,6 +277,9 @@ export const gendarmerieForms = pgTable("gendarmerie_forms", {
   contratId: uuid("contrat_id").references(() => contratsLocation.id, { onDelete: "cascade" }),
   statut: text("statut").default("en_attente").notNull(), // en_attente | complete
   langue: text("langue"), // langue choisie par le client au remplissage
+  // Le Bulletin Individuel ne concerne légalement que les adultes ; les photos des
+  // passeports des enfants sont collectées à part, pour les besoins propres de l'agence.
+  enfantsPassportUrls: jsonb("enfants_passport_urls").$type<string[]>().default([]),
   createdByUserId: text("created_by_user_id"),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

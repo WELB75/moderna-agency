@@ -1,10 +1,11 @@
-export type GendarmerieLang = "fr" | "en" | "es" | "ar";
+export type GendarmerieLang = "fr" | "en" | "es" | "ar" | "nl";
 
 export const LANG_LABELS: Record<GendarmerieLang, string> = {
   fr: "Français",
   en: "English",
   es: "Español",
   ar: "العربية",
+  nl: "Nederlands",
 };
 
 export const FIELD_KEYS = [
@@ -99,6 +100,23 @@ export const FIELD_LABELS: Record<GendarmerieLang, Record<FieldKey, string>> = {
     lieuPiece: "محل التسليم",
     signatureNom: "الاسم الكامل (بمثابة إمضاء)",
   },
+  nl: {
+    nom: "Achternaam",
+    prenom: "Voornaam",
+    dateNaissance: "Geboortedatum",
+    lieuNaissance: "Geboorteplaats",
+    nationalite: "Nationaliteit",
+    profession: "Beroep",
+    venantDe: "Komende van",
+    allantA: "Gaande naar",
+    dateArrivee: "Aankomstdatum",
+    domicileHabituel: "Gewoonlijk woonadres",
+    typePiece: "Type identiteitsdocument (paspoort, ID-kaart...)",
+    numeroPiece: "Documentnummer",
+    datePiece: "Afgiftedatum",
+    lieuPiece: "Plaats van afgifte",
+    signatureNom: "Volledige naam (getypt als handtekening)",
+  },
 };
 
 export const UI_TEXT: Record<
@@ -117,6 +135,10 @@ export const UI_TEXT: Record<
     signature: string;
     signatureClear: string;
     photoPiece: string;
+    childrenTitle: string;
+    childrenSubtitle: string;
+    childPhotoLabel: (i: number) => string;
+    addChild: string;
   }
 > = {
   fr: {
@@ -133,6 +155,10 @@ export const UI_TEXT: Record<
     signature: "Signature (avec le doigt ou la souris)",
     signatureClear: "Effacer",
     photoPiece: "Photo de votre pièce d'identité (passeport, CIN...)",
+    childrenTitle: "Enfants",
+    childrenSubtitle: "Merci d'ajouter aussi une photo du passeport (ou CIN) de chaque enfant.",
+    childPhotoLabel: (i) => `Passeport de l'enfant ${i}`,
+    addChild: "Ajouter un enfant",
   },
   en: {
     title: "Police registration form",
@@ -148,6 +174,10 @@ export const UI_TEXT: Record<
     signature: "Signature (finger or mouse)",
     signatureClear: "Clear",
     photoPiece: "Photo of your ID (passport, national ID...)",
+    childrenTitle: "Children",
+    childrenSubtitle: "Please also add a photo of each child's passport (or ID card).",
+    childPhotoLabel: (i) => `Child ${i}'s passport`,
+    addChild: "Add a child",
   },
   es: {
     title: "Ficha de policía",
@@ -163,6 +193,10 @@ export const UI_TEXT: Record<
     signature: "Firma (con el dedo o el ratón)",
     signatureClear: "Borrar",
     photoPiece: "Foto de tu documento de identidad (pasaporte, DNI...)",
+    childrenTitle: "Niños",
+    childrenSubtitle: "Añade también una foto del pasaporte (o DNI) de cada niño.",
+    childPhotoLabel: (i) => `Pasaporte del niño/a ${i}`,
+    addChild: "Añadir un niño",
   },
   ar: {
     title: "ورقة شخصية (الشرطة)",
@@ -178,6 +212,29 @@ export const UI_TEXT: Record<
     signature: "التوقيع (بالإصبع أو الفأرة)",
     signatureClear: "مسح",
     photoPiece: "صورة وثيقة هويتك (جواز السفر، البطاقة الوطنية...)",
+    childrenTitle: "الأطفال",
+    childrenSubtitle: "يرجى أيضا إضافة صورة جواز سفر (أو البطاقة الوطنية) لكل طفل.",
+    childPhotoLabel: (i) => `جواز سفر الطفل ${i}`,
+    addChild: "إضافة طفل",
+  },
+  nl: {
+    title: "Politieformulier (gendarmerie)",
+    subtitle: (v) => `In te vullen door elke volwassene voor uw verblijf in ${v}`,
+    chooseLang: "Kies uw taal",
+    occupant: "Persoon",
+    addOccupant: "Persoon toevoegen",
+    removeOccupant: "Verwijderen",
+    submit: "Versturen",
+    submitting: "Versturen...",
+    success: "Bedankt, uw gegevens zijn verzonden.",
+    already: "Dit formulier is al ingevuld. Bedankt.",
+    signature: "Handtekening (met vinger of muis)",
+    signatureClear: "Wissen",
+    childrenTitle: "Kinderen",
+    childrenSubtitle: "Voeg ook een foto van het paspoort (of ID-kaart) van elk kind toe.",
+    childPhotoLabel: (i) => `Paspoort van kind ${i}`,
+    addChild: "Kind toevoegen",
+    photoPiece: "Foto van uw identiteitsdocument (paspoort, ID-kaart...)",
   },
 };
 

@@ -24,15 +24,24 @@ export function GendarmerieForm({
   formId,
   villaNom,
   hideAddOccupant = false,
+  nbAdultes = 1,
+  nbEnfants = 0,
   onSubmitted,
 }: {
   formId: string;
   villaNom: string;
   hideAddOccupant?: boolean;
+  nbAdultes?: number;
+  nbEnfants?: number;
   onSubmitted?: () => void;
 }) {
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
-  const [occupants, setOccupants] = useState<OccupantInput[]>([emptyOccupant()]);
+  const [occupants, setOccupants] = useState<OccupantInput[]>(() =>
+    Array.from({ length: Math.max(1, nbAdultes) }, emptyOccupant)
+  );
+  const [enfantsPhotos, setEnfantsPhotos] = useState<string[]>(() =>
+    Array.from({ length: Math.max(0, nbEnfants) }, () => "")
+  );
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const sigRefs = useRef<(SignaturePadHandle | null)[]>([]);
@@ -40,7 +49,7 @@ export function GendarmerieForm({
   if (!lang) {
     return (
       <div className="mx-auto max-w-md space-y-4 py-12 text-center">
-        <p className="text-lg font-medium">Choose your language / Choisissez votre langue / اختر لغتك</p>
+        <p className="text-lg font-medium">Choose your language / Choisissez votre langue / Kies uw taal / اختر لغتك</p>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(LANG_LABELS) as GendarmerieLang[]).map((l) => (
             <Button key={l} variant="outline" onClick={() => setLang(l)}>
@@ -74,9 +83,10 @@ export function GendarmerieForm({
       const signatureImage = pad && !pad.isEmpty() ? pad.toDataUrl() : "";
       return { ...o, signatureImage };
     });
+    const enfantsPassportUrls = enfantsPhotos.filter(Boolean);
     startTransition(async () => {
       try {
-        await submitGendarmerieOccupants(formId, lang!, occupantsWithSignature);
+        await submitGendarmerieOccupants(formId, lang!, occupantsWithSignature, enfantsPassportUrls);
         setSubmitted(true);
         onSubmitted?.();
       } catch (err) {
@@ -143,6 +153,45 @@ export function GendarmerieForm({
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <h2 className="font-medium">{t.childrenTitle}</h2>
+          <p className="text-sm text-muted-foreground">{t.childrenSubtitle}</p>
+        </div>
+        {enfantsPhotos.length > 0 ? (
+          <Card>
+            <CardContent className="space-y-4 py-4">
+              {enfantsPhotos.map((photo, index) => (
+                <div key={index} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <IdPhotoCapture
+                      value={photo}
+                      onChange={(dataUrl) =>
+                        setEnfantsPhotos((prev) => prev.map((p, i) => (i === index ? dataUrl : p)))
+                      }
+                      label={t.childPhotoLabel(index + 1)}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setEnfantsPhotos((prev) => prev.filter((_, i) => i !== index))}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      {t.removeOccupant}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+        <Button type="button" variant="outline" onClick={() => setEnfantsPhotos((prev) => [...prev, ""])}>
+          <Plus className="h-4 w-4" />
+          {t.addChild}
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

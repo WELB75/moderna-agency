@@ -73,7 +73,12 @@ export async function generateGendarmerieForms(villaId: string, nbAdultes: numbe
 
 // Volontairement sans auth.protect() : le client remplit via le lien public /g/[id],
 // sans se connecter.
-export async function submitGendarmerieOccupants(formId: string, langue: string, occupants: OccupantInput[]) {
+export async function submitGendarmerieOccupants(
+  formId: string,
+  langue: string,
+  occupants: OccupantInput[],
+  enfantsPassportUrls: string[] = []
+) {
   const db = getDb();
 
   const [form] = await db.select().from(gendarmerieForms).where(eq(gendarmerieForms.id, formId)).limit(1);
@@ -107,7 +112,7 @@ export async function submitGendarmerieOccupants(formId: string, langue: string,
 
   await db
     .update(gendarmerieForms)
-    .set({ statut: "complete", langue, completedAt: new Date() })
+    .set({ statut: "complete", langue, enfantsPassportUrls, completedAt: new Date() })
     .where(eq(gendarmerieForms.id, formId));
 
   revalidatePath("/villas");
