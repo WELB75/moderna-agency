@@ -1,5 +1,6 @@
 import { eq, asc, desc, gte, and, or, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -11,6 +12,7 @@ import {
   proprieteContacts,
   interventionComments,
   paiementsProprietaire,
+  paiementComments,
   technicians,
 } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
@@ -18,6 +20,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InterventionPublicCard } from "@/components/app/intervention-public-card";
+import { PaiementComments } from "@/components/app/paiement-comments";
 import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-dialog";
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
 import { AddOwnerContactDialog } from "@/components/app/add-owner-contact-dialog";
@@ -41,12 +44,19 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
       type: villas.type,
       domaineId: villas.domaineId,
       proprietaireNom: villas.proprietaireNom,
+      portailAuteurs: villas.portailAuteurs,
+      photoUrl: villas.photoUrl,
     })
     .from(villas)
     .where(eq(villas.lienProprietaireToken, token))
     .limit(1);
 
   if (!villa) notFound();
+
+  const commentAuthorOptions =
+    villa.portailAuteurs && villa.portailAuteurs.length > 0
+      ? villa.portailAuteurs
+      : [villa.proprietaireNom || "Propriétaire", "Kamel"];
 
   const villaReservations = await db
     .select()
@@ -131,6 +141,22 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
     .where(eq(paiementsProprietaire.villaId, villa.id))
     .orderBy(desc(paiementsProprietaire.createdAt));
 
+  const paiementIds = villaPaiements.map((p) => p.id);
+  const allPaiementComments =
+    paiementIds.length > 0
+      ? await db
+          .select()
+          .from(paiementComments)
+          .where(inArray(paiementComments.paiementId, paiementIds))
+          .orderBy(paiementComments.createdAt)
+      : [];
+  const commentsByPaiement = new Map<string, typeof allPaiementComments>();
+  for (const c of allPaiementComments) {
+    const list = commentsByPaiement.get(c.paiementId) ?? [];
+    list.push(c);
+    commentsByPaiement.set(c.paiementId, list);
+  }
+
   const paiementsEnAttente = villaPaiements.filter((p) => p.statut === "en_attente").length;
 
   const demandesActives = mesDemandes.filter((i) => i.etape !== "termine").length;
@@ -155,6 +181,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             comments={commentsByIntervention.get(i.id) ?? []}
             commentAuteur={villa.proprietaireNom || "Propriétaire"}
             commentAuteurType="proprietaire"
+            commentAuthorOptions={commentAuthorOptions}
           />
         ))}
       </div>
@@ -199,11 +226,25 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
         <p className="text-xs text-muted-foreground">Espace propriétaire</p>
       </div>
 
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">
-          {villa.nom} (n°{villa.numero})
-        </h1>
-        <p className="text-sm text-muted-foreground">{villa.proprietaireNom ? `Bienvenue, ${villa.proprietaireNom}` : "Bienvenue"}</p>
+      <div className="overflow-hidden rounded-xl border">
+        {villa.photoUrl ? (
+          <div className="relative aspect-video w-full">
+            <Image
+              src={villa.photoUrl}
+              alt={villa.nom}
+              fill
+              sizes="(max-width: 1024px) 100vw, 768px"
+              className="object-cover"
+              priority
+            />
+          </div>
+        ) : null}
+        <div className="bg-card p-4 sm:p-6">
+          <h1 className="text-xl font-bold sm:text-2xl">
+            {villa.nom} (n°{villa.numero})
+          </h1>
+          <p className="text-sm text-muted-foreground">{villa.proprietaireNom ? `Bienvenue, ${villa.proprietaireNom}` : "Bienvenue"}</p>
+        </div>
       </div>
 
       <Tabs defaultValue="sejours">
@@ -284,7 +325,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
           {villaPaiements.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Rien pour l&apos;instant.
+                Cette section est en cours de mise en place. Elle sera bientôt disponible.
               </CardContent>
             </Card>
           ) : (
@@ -318,6 +359,13 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(p.createdAt), "d MMM yyyy", { locale: fr })}
                     </p>
+                    <PaiementComments
+                      paiementId={p.id}
+                      comments={commentsByPaiement.get(p.id) ?? []}
+                      auteur={villa.proprietaireNom || "Propriétaire"}
+                      auteurType="proprietaire"
+                      authorOptions={commentAuthorOptions}
+                    />
                   </CardContent>
                 </Card>
               ))}

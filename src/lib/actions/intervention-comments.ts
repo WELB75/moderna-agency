@@ -28,6 +28,27 @@ export async function addInterventionComment(
   revalidatePath("/maintenance");
 }
 
+// Volontairement sans auth.protect(), même logique que addInterventionComment ci-dessus :
+// propriétaire et équipe peuvent tous les deux corriger/supprimer un message du fil.
+export async function updateInterventionComment(commentId: string, message: string) {
+  const trimmed = message.trim();
+  if (!trimmed) throw new Error("Le message est vide.");
+
+  const db = getDb();
+  await db.update(interventionComments).set({ message: trimmed }).where(eq(interventionComments.id, commentId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+export async function deleteInterventionComment(commentId: string) {
+  const db = getDb();
+  await db.delete(interventionComments).where(eq(interventionComments.id, commentId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
 export async function getInterventionComments(interventionId: string) {
   const db = getDb();
   return db

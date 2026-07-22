@@ -162,6 +162,53 @@ export async function setInterventionUrgence(interventionId: string, urgence: Ur
   revalidatePath("/dashboard");
 }
 
+// Volontairement sans auth.protect() : le propriétaire pilote lui-même la jauge et la
+// priorité depuis son lien public /p/[token], sur le même principe que les échanges et la
+// validation de devis (l'identifiant d'intervention, déjà connu via la page, fait office de jeton).
+export async function setInterventionEtapePublic(interventionId: string, etape: Etape) {
+  if (!ETAPES.includes(etape)) throw new Error("Étape invalide.");
+
+  const db = getDb();
+  const timestampField = ETAPE_TIMESTAMP_FIELD[etape];
+
+  await db
+    .update(interventions)
+    .set({ etape, [timestampField]: new Date(), updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+export async function setInterventionUrgencePublic(interventionId: string, urgence: Urgence) {
+  if (!(URGENCES as readonly string[]).includes(urgence)) throw new Error("Urgence invalide.");
+
+  const db = getDb();
+  await db.update(interventions).set({ urgence, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  if (urgence === "critique") {
+    const [current] = await db
+      .select({
+        titre: interventions.titre,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+      })
+      .from(interventions)
+      .leftJoin(villas, eq(interventions.villaId, villas.id))
+      .where(eq(interventions.id, interventionId))
+      .limit(1);
+    if (current) {
+      await notifyStaffWhatsApp(
+        `Intervention passée en CRITIQUE (par le propriétaire) : "${current.titre}"${current.villaNom ? ` — ${current.villaNom} (n°${current.villaNumero})` : ""}.`
+      );
+    }
+  }
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+  revalidatePath("/dashboard");
+}
+
 export async function setInterventionTechnician(interventionId: string, technicianId: string | null) {
   await auth.protect();
   const db = getDb();

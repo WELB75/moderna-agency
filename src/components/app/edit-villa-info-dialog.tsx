@@ -32,6 +32,7 @@ export function EditVillaInfoDialog({
   numeroImmeuble,
   domaineId,
   domaines,
+  portailAuteurs,
   typeLabel = "Villa",
 }: {
   villaId: string;
@@ -41,6 +42,7 @@ export function EditVillaInfoDialog({
   numeroImmeuble?: string | null;
   domaineId: string | null;
   domaines: { id: string; nom: string }[];
+  portailAuteurs?: string[] | null;
   typeLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -116,6 +118,15 @@ export function EditVillaInfoDialog({
               />
             </div>
           )}
+          <div className="space-y-1.5">
+            <Label htmlFor="portailAuteurs">Prénoms autorisés à écrire depuis l&apos;espace propriétaire</Label>
+            <Input
+              id="portailAuteurs"
+              name="portailAuteurs"
+              defaultValue={(portailAuteurs ?? []).join(", ")}
+              placeholder="Ex. Lila, Kamel, Mustapha"
+            />
+          </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
               {isPending ? "Enregistrement..." : "Enregistrer"}

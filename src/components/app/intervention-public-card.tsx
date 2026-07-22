@@ -7,6 +7,7 @@ import { DevisDocument } from "@/components/app/devis-document";
 import { PrintButton } from "@/components/app/print-button";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { UrgenceBadge } from "@/components/app/urgence-badge";
+import { InterventionStatusControls } from "@/components/app/intervention-status-controls";
 import { Badge } from "@/components/ui/badge";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
 import { cn } from "@/lib/utils";
@@ -54,6 +55,7 @@ export function InterventionPublicCard({
   comments,
   commentAuteur,
   commentAuteurType,
+  commentAuthorOptions,
   compact = false,
   validationTitle,
 }: {
@@ -62,6 +64,7 @@ export function InterventionPublicCard({
   comments?: CommentRow[];
   commentAuteur?: string;
   commentAuteurType?: "staff" | "proprietaire";
+  commentAuthorOptions?: string[];
   // Vue allégée pour le propriétaire : un seul badge de statut au lieu du détail
   // étape par étape, et un nombre de photos limité pour ne pas surcharger la page.
   compact?: boolean;
@@ -155,6 +158,10 @@ export function InterventionPublicCard({
         </div>
       )}
 
+      <div className="mt-3">
+        <InterventionStatusControls interventionId={intervention.id} etape={intervention.etape} urgence={intervention.urgence} />
+      </div>
+
       {intervention.notes ? (
         <div className="mt-4 whitespace-pre-line rounded-md border border-dashed p-3 text-sm text-muted-foreground">
           <LinkifiedText text={intervention.notes} />
@@ -200,6 +207,7 @@ export function InterventionPublicCard({
             comments={comments}
             auteur={commentAuteur}
             auteurType={commentAuteurType}
+            authorOptions={commentAuthorOptions}
           />
         </div>
       ) : null}
