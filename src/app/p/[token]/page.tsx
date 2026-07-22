@@ -13,6 +13,7 @@ import {
   interventionComments,
   paiementsProprietaire,
   paiementComments,
+  technicians,
 } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import { InterventionPublicCard } from "@/components/app/intervention-public-car
 import { PaiementComments } from "@/components/app/paiement-comments";
 import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-dialog";
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
+import { AddOwnerContactDialog } from "@/components/app/add-owner-contact-dialog";
 import { OwnerStayCalendar } from "@/components/app/owner-stay-calendar";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { sortByUrgence } from "@/lib/intervention-urgence";
@@ -128,6 +130,11 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
         ? or(eq(proprieteContacts.villaId, villa.id), eq(proprieteContacts.domaineId, villa.domaineId))
         : eq(proprieteContacts.villaId, villa.id)
     );
+
+  const allTechnicians = await db
+    .select({ id: technicians.id, nom: technicians.nom, fonction: technicians.fonction, telephone: technicians.telephone })
+    .from(technicians)
+    .orderBy(technicians.nom);
 
   const villaPaiements = await db
     .select()
@@ -377,7 +384,10 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
         </TabsContent>
 
         <TabsContent value="equipe" className="space-y-4 pt-2">
-          <p className="text-sm text-muted-foreground">L&apos;équipe qui s&apos;occupe de votre logement.</p>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">L&apos;équipe qui s&apos;occupe de votre logement.</p>
+            <AddOwnerContactDialog villaId={villa.id} technicians={allTechnicians} />
+          </div>
           <OwnerTeamSection contacts={villaContacts} />
         </TabsContent>
       </Tabs>
