@@ -116,18 +116,17 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
     (r) => r.status !== "annulee" && new Date(r.checkOut) >= now
   );
 
-  function renderInterventionList(list: typeof villaInterventions) {
-    if (list.length === 0) {
+  function renderCards(items: typeof villaInterventions) {
+    if (items.length === 0) {
       return <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>;
     }
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
-        {list.map((i) => (
+      <div className="space-y-4">
+        {items.map((i) => (
           <InterventionPublicCard
             key={i.id}
             intervention={i}
             showVillaInfo={false}
-            compact
             validationTitle="Validez-vous ce devis ?"
             comments={commentsByIntervention.get(i.id) ?? []}
             commentAuteur={villa.proprietaireNom || "Propriétaire"}
@@ -135,6 +134,37 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
           />
         ))}
       </div>
+    );
+  }
+
+  // Sépare en cours / terminé pour ne pas mélanger l'historique clos avec ce qui reste à suivre.
+  function renderInterventionList(list: typeof villaInterventions) {
+    const enCours = list.filter((i) => i.etape !== "termine");
+    const terminees = list.filter((i) => i.etape === "termine");
+
+    return (
+      <Tabs defaultValue="en_cours">
+        <TabsList>
+          <TabsTrigger value="en_cours">
+            En cours
+            {enCours.length > 0 ? <Badge className="ml-1">{enCours.length}</Badge> : null}
+          </TabsTrigger>
+          <TabsTrigger value="termine">
+            Terminé
+            {terminees.length > 0 ? (
+              <Badge variant="outline" className="ml-1">
+                {terminees.length}
+              </Badge>
+            ) : null}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="en_cours" className="pt-3">
+          {renderCards(enCours)}
+        </TabsContent>
+        <TabsContent value="termine" className="pt-3">
+          {renderCards(terminees)}
+        </TabsContent>
+      </Tabs>
     );
   }
 
