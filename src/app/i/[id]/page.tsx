@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
-import { interventions, villas, domaines } from "@/db/schema";
+import { interventions, villas, domaines, interventionComments } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { InterventionPublicCard } from "@/components/app/intervention-public-card";
 
@@ -44,13 +44,32 @@ export default async function PublicInterventionPage({ params }: { params: Promi
 
   if (!intervention) notFound();
 
+  const comments = await db
+    .select()
+    .from(interventionComments)
+    .where(eq(interventionComments.interventionId, id))
+    .orderBy(interventionComments.createdAt);
+
+  // Lien envoyé à un tiers (prestataire, propriétaire...) : pas d'identité fixe, on propose
+  // le prestataire de l'intervention (s'il y en a un) et "Kamel" comme choix d'auteur.
+  const commentAuthorOptions = intervention.prestataire
+    ? [intervention.prestataire, "Kamel"]
+    : ["Kamel"];
+
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-6 p-4 sm:p-8">
       <div className="flex flex-col items-center gap-2 pb-2 text-center">
         <Logo size={56} />
       </div>
 
-      <InterventionPublicCard intervention={intervention} readOnlyValidation />
+      <InterventionPublicCard
+        intervention={intervention}
+        readOnlyValidation
+        comments={comments}
+        commentAuteur={commentAuthorOptions[0]}
+        commentAuteurType="proprietaire"
+        commentAuthorOptions={commentAuthorOptions}
+      />
 
       <p className="pt-4 text-center text-xs text-muted-foreground">Lien de consultation Moderna Agency</p>
     </div>
