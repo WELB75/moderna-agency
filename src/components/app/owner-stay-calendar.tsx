@@ -60,7 +60,7 @@ export function OwnerStayCalendar({
                     className={cn(
                       "flex h-6 items-center justify-center rounded-full text-[11px] text-foreground",
                       booked && "bg-foreground text-background font-medium",
-                      today && !booked && "ring-1 ring-foreground/40",
+                      today && "ring-2 ring-offset-2 ring-foreground ring-offset-background",
                       !isSameMonth(day, month) && "opacity-0"
                     )}
                   >
@@ -78,7 +78,7 @@ export function OwnerStayCalendar({
           Loué
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full ring-1 ring-foreground/40" />
+          <span className="h-2.5 w-2.5 rounded-full ring-2 ring-offset-2 ring-foreground ring-offset-background" />
           Aujourd&apos;hui
         </span>
       </div>
