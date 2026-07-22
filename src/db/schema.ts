@@ -273,6 +273,24 @@ export const interventionComments = pgTable("intervention_comments", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+export const paiementProprietaireStatutEnum = pgEnum("paiement_proprietaire_statut", ["en_attente", "paye"]);
+
+// Suivi de ce que Moderna Agency doit reverser au propriétaire (loyers perçus pour son compte,
+// nuitées dues entre villas...), visible depuis son espace /p/[token].
+export const paiementsProprietaire = pgTable("paiements_proprietaire", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
+  titre: text("titre").notNull(),
+  description: text("description"),
+  montant: numeric("montant", { precision: 10, scale: 2 }),
+  devise: text("devise").default("DH").notNull(),
+  statut: paiementProprietaireStatutEnum("statut").default("en_attente").notNull(),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const gendarmerieForms = pgTable("gendarmerie_forms", {
   id: uuid("id").defaultRandom().primaryKey(),
   reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "cascade" }),
