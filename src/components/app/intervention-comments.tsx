@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatUtcDayMonthTime } from "@/lib/now";
+import { cn } from "@/lib/utils";
 import {
   addInterventionComment,
   updateInterventionComment,
@@ -54,12 +55,15 @@ export function InterventionComments({
     const trimmed = message.trim();
     if (!trimmed) return;
     const finalAuteur = authorOptions && authorOptions.length > 1 ? selectedAuteur : auteur;
+    // "Kamel" écrit toujours pour Moderna Agency, même depuis le lien propriétaire — les
+    // autres prénoms de la liste sont bien les propriétaires réels de la villa.
+    const finalAuteurType: "staff" | "proprietaire" = finalAuteur === "Kamel" ? "staff" : auteurType;
     startTransition(async () => {
       try {
-        await addInterventionComment(interventionId, finalAuteur, auteurType, trimmed);
+        await addInterventionComment(interventionId, finalAuteur, finalAuteurType, trimmed);
         setLocalComments((prev) => [
           ...prev,
-          { id: `local-${Date.now()}`, auteur: finalAuteur, auteurType, message: trimmed, createdAt: new Date() },
+          { id: `local-${Date.now()}`, auteur: finalAuteur, auteurType: finalAuteurType, message: trimmed, createdAt: new Date() },
         ]);
         setMessage("");
       } catch (err) {
@@ -168,8 +172,14 @@ export function CommentItem({
     <div className="rounded-md bg-muted/40 p-2 text-sm">
       <div className="flex items-center gap-1.5">
         <span className="font-medium">{comment.auteur}</span>
-        <Badge variant="outline" className="text-[10px]">
-          {comment.auteurType === "proprietaire" ? "Propriétaire" : "Équipe"}
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px]",
+            comment.auteurType !== "proprietaire" && "border-orange-500/50 bg-orange-500/10 text-orange-700 dark:text-orange-400"
+          )}
+        >
+          {comment.auteurType === "proprietaire" ? "Propriétaire" : "Moderna Agency"}
         </Badge>
         <span className="text-xs text-muted-foreground">{formatUtcDayMonthTime(comment.createdAt)}</span>
         {!isLocal && !editing ? (

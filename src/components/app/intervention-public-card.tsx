@@ -7,6 +7,7 @@ import { DevisDocument } from "@/components/app/devis-document";
 import { PrintButton } from "@/components/app/print-button";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { UrgenceBadge } from "@/components/app/urgence-badge";
+import { InterventionStatusControls } from "@/components/app/intervention-status-controls";
 import { Badge } from "@/components/ui/badge";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
 import { cn } from "@/lib/utils";
@@ -156,6 +157,10 @@ export function InterventionPublicCard({
           </div>
         </div>
       )}
+
+      <div className="mt-3">
+        <InterventionStatusControls interventionId={intervention.id} etape={intervention.etape} urgence={intervention.urgence} />
+      </div>
 
       {intervention.notes ? (
         <div className="mt-4 whitespace-pre-line rounded-md border border-dashed p-3 text-sm text-muted-foreground">

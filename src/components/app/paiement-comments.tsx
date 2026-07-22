@@ -45,12 +45,13 @@ export function PaiementComments({
     const trimmed = message.trim();
     if (!trimmed) return;
     const finalAuteur = authorOptions && authorOptions.length > 1 ? selectedAuteur : auteur;
+    const finalAuteurType: "staff" | "proprietaire" = finalAuteur === "Kamel" ? "staff" : auteurType;
     startTransition(async () => {
       try {
-        await addPaiementComment(paiementId, finalAuteur, auteurType, trimmed);
+        await addPaiementComment(paiementId, finalAuteur, finalAuteurType, trimmed);
         setLocalComments((prev) => [
           ...prev,
-          { id: `local-${Date.now()}`, auteur: finalAuteur, auteurType, message: trimmed, createdAt: new Date() },
+          { id: `local-${Date.now()}`, auteur: finalAuteur, auteurType: finalAuteurType, message: trimmed, createdAt: new Date() },
         ]);
         setMessage("");
       } catch (err) {
