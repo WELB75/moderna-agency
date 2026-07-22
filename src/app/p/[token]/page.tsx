@@ -25,9 +25,10 @@ import { AddTravauxRequestDialog } from "@/components/app/add-travaux-request-di
 import { OwnerTeamSection } from "@/components/app/owner-team-section";
 import { AddOwnerContactDialog } from "@/components/app/add-owner-contact-dialog";
 import { OwnerStayCalendar } from "@/components/app/owner-stay-calendar";
-import { CategorieSummary } from "@/components/app/categorie-summary";
+import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { sortByUrgence } from "@/lib/intervention-urgence";
+import { CATEGORIES } from "@/lib/intervention-categorie";
 import { CalendarDays, Wrench, Users, Eye, Wallet } from "lucide-react";
 
 // Point de départ du suivi : l'agence ne gère pas ces biens avant cette date,
@@ -222,6 +223,17 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
     );
   }
 
+  // Regroupe par catégorie : au premier coup d'œil on ne voit que les tuiles de
+  // catégorie, on clique dessus pour tomber sur le détail en cours/terminé.
+  function renderCategorieGroups(list: typeof villaInterventions): CategorieGroup[] {
+    return CATEGORIES.map((c): CategorieGroup | null => {
+      const items = list.filter((i) => i.categorie === c.key);
+      if (items.length === 0) return null;
+      const count = items.filter((i) => i.etape !== "termine").length;
+      return { categorie: c.key, count, content: renderInterventionList(items) };
+    }).filter((g): g is CategorieGroup => g !== null);
+  }
+
   return (
     <div className="mx-auto min-h-screen max-w-3xl space-y-6 p-4 sm:p-8">
       <div className="flex items-center justify-between gap-2 pb-2">
@@ -321,8 +333,11 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             </p>
             <AddTravauxRequestDialog villaId={villa.id} />
           </div>
-          <CategorieSummary items={mesDemandes} />
-          {renderInterventionList(mesDemandes)}
+          {mesDemandes.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>
+          ) : (
+            <CategorieFilterView groups={renderCategorieGroups(mesDemandes)} />
+          )}
         </TabsContent>
 
         <TabsContent value="constats" className="space-y-4 pt-2">
@@ -330,8 +345,11 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
             Ce que l&apos;équipe a constaté sur place (dégâts, entretien, réparations...). Échangez directement
             ci-dessous si besoin.
           </p>
-          <CategorieSummary items={constatsEquipe} />
-          {renderInterventionList(constatsEquipe)}
+          {constatsEquipe.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>
+          ) : (
+            <CategorieFilterView groups={renderCategorieGroups(constatsEquipe)} />
+          )}
         </TabsContent>
 
         <TabsContent value="paiement" className="space-y-4 pt-2">

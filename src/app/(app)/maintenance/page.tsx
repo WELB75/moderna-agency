@@ -10,13 +10,14 @@ import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
-import { CategorieSummary } from "@/components/app/categorie-summary";
+import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { deleteTechnician } from "@/lib/actions/technicians";
 import { sortByUrgence } from "@/lib/intervention-urgence";
+import { CATEGORIES } from "@/lib/intervention-categorie";
 import { Wrench, Users, ListTodo } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 
@@ -89,6 +90,27 @@ export default async function MaintenancePage() {
     .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
     .where(isNotNull(interventions.villaId))
     .orderBy(desc(interventions.createdAt));
+
+  // Regroupe par catégorie : au premier coup d'œil on ne voit que les tuiles de
+  // catégorie, on clique dessus pour tomber sur le détail des tâches.
+  function renderCategorieGroups(list: typeof villaInterventions): CategorieGroup[] {
+    return CATEGORIES.map((c): CategorieGroup | null => {
+      const items = list.filter((i) => i.categorie === c.key);
+      if (items.length === 0) return null;
+      const count = items.filter((i) => i.etape !== "termine").length;
+      return {
+        categorie: c.key,
+        count,
+        content: (
+          <div className="space-y-2">
+            {sortByUrgence(items).map((i) => (
+              <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
+            ))}
+          </div>
+        ),
+      };
+    }).filter((g): g is CategorieGroup => g !== null);
+  }
 
   const now = nowInMorocco();
   const upcoming = records
@@ -250,14 +272,7 @@ export default async function MaintenancePage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-4">
-              <CategorieSummary items={villaInterventions} />
-              <div className="space-y-2">
-                {sortByUrgence(villaInterventions).map((i) => (
-                  <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
-                ))}
-              </div>
-            </div>
+            <CategorieFilterView groups={renderCategorieGroups(villaInterventions)} />
           )}
         </TabsContent>
       </Tabs>

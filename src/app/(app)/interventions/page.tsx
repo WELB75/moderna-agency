@@ -5,8 +5,9 @@ import { interventions, villas, domaines, technicians, proprieteContacts, interv
 import { Card, CardContent } from "@/components/ui/card";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
-import { CategorieSummary } from "@/components/app/categorie-summary";
+import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
 import { sortByUrgence } from "@/lib/intervention-urgence";
+import { CATEGORIES } from "@/lib/intervention-categorie";
 import { Gauge } from "lucide-react";
 
 export default async function InterventionsPage() {
@@ -49,9 +50,6 @@ export default async function InterventionsPage() {
     .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
     .orderBy(desc(interventions.createdAt));
 
-  const enCours = sortByUrgence(allInterventions.filter((i) => i.etape !== "termine"));
-  const terminees = sortByUrgence(allInterventions.filter((i) => i.etape === "termine"));
-
   const allVillas = await db
     .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
     .from(villas);
@@ -84,6 +82,56 @@ export default async function InterventionsPage() {
     commentsByIntervention.set(c.interventionId, list);
   }
 
+  // Sépare en cours / terminées pour ne pas mélanger l'historique clos avec ce qui reste à suivre.
+  function renderList(list: typeof allInterventions) {
+    const enCours = sortByUrgence(list.filter((i) => i.etape !== "termine"));
+    const terminees = sortByUrgence(list.filter((i) => i.etape === "termine"));
+
+    return (
+      <div className="space-y-6">
+        {enCours.length > 0 ? (
+          <div className="space-y-2">
+            {enCours.map((i) => (
+              <InterventionCard
+                key={i.id}
+                intervention={i}
+                comments={commentsByIntervention.get(i.id) ?? []}
+                currentUserName={currentUserName}
+                technicians={allTechnicians}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        {terminees.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-muted-foreground">Terminées</p>
+            {terminees.map((i) => (
+              <InterventionCard
+                key={i.id}
+                intervention={i}
+                comments={commentsByIntervention.get(i.id) ?? []}
+                currentUserName={currentUserName}
+                technicians={allTechnicians}
+              />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
+  // Regroupe par catégorie : au premier coup d'œil on ne voit que les tuiles de
+  // catégorie, on clique dessus pour tomber sur le détail en cours/terminées.
+  function renderCategorieGroups(list: typeof allInterventions): CategorieGroup[] {
+    return CATEGORIES.map((c): CategorieGroup | null => {
+      const items = list.filter((i) => i.categorie === c.key);
+      if (items.length === 0) return null;
+      const count = items.filter((i) => i.etape !== "termine").length;
+      return { categorie: c.key, count, content: renderList(items) };
+    }).filter((g): g is CategorieGroup => g !== null);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -107,37 +155,7 @@ export default async function InterventionsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-6">
-          <CategorieSummary items={allInterventions} />
-          {enCours.length > 0 ? (
-            <div className="space-y-2">
-              {enCours.map((i) => (
-                <InterventionCard
-                  key={i.id}
-                  intervention={i}
-                  comments={commentsByIntervention.get(i.id) ?? []}
-                  currentUserName={currentUserName}
-                  technicians={allTechnicians}
-                />
-              ))}
-            </div>
-          ) : null}
-
-          {terminees.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">Terminées</p>
-              {terminees.map((i) => (
-                <InterventionCard
-                  key={i.id}
-                  intervention={i}
-                  comments={commentsByIntervention.get(i.id) ?? []}
-                  currentUserName={currentUserName}
-                  technicians={allTechnicians}
-                />
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <CategorieFilterView groups={renderCategorieGroups(allInterventions)} />
       )}
     </div>
   );

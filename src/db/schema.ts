@@ -285,6 +285,7 @@ export const interventionComments = pgTable("intervention_comments", {
   auteur: text("auteur").notNull(),
   auteurType: text("auteur_type").notNull(), // "staff" | "proprietaire"
   message: text("message").notNull(),
+  audioUrl: text("audio_url"), // note vocale jointe (WhatsApp...), optionnelle
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
