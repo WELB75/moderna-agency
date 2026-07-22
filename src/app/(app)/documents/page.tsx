@@ -48,13 +48,28 @@ export default async function DocumentsPage() {
       completedAt: gendarmerieForms.completedAt,
       villaNom: villas.nom,
       villaNumero: villas.numero,
+      villaType: villas.type,
+      domaineNom: domaines.nom,
       guestName: reservations.guestName,
     })
     .from(gendarmerieForms)
     .leftJoin(villas, eq(gendarmerieForms.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
     .orderBy(desc(gendarmerieForms.createdAt))
     .limit(50);
+
+  // Même répartition que le tableau de bord : Aimad gère Zaraba + Noria (appartements),
+  // Kamel gère Moderna II.
+  function equipeDe(row: { villaType: string | null; domaineNom: string | null }): "kamel" | "aimad" | "autre" {
+    if (row.domaineNom === "Domaine Moderna II") return "kamel";
+    if (row.domaineNom === "Domaine Zaraba" || row.villaType === "appartement") return "aimad";
+    return "autre";
+  }
+
+  const fichesKamel = fichesPolice.filter((f) => equipeDe(f) === "kamel");
+  const fichesAimad = fichesPolice.filter((f) => equipeDe(f) === "aimad");
+  const fichesAutres = fichesPolice.filter((f) => equipeDe(f) === "autre");
 
   const contrats = await db
     .select({
@@ -103,9 +118,13 @@ export default async function DocumentsPage() {
     piecesParDomaine.get(key)!.push(p);
   }
 
-  const fichesRemplies = fichesPolice.filter((f) => f.statut === "complete").length;
-  const fichesTauxCompletion =
-    fichesPolice.length > 0 ? Math.round((fichesRemplies / fichesPolice.length) * 100) : 0;
+  function ficheStats(list: typeof fichesPolice) {
+    const remplies = list.filter((f) => f.statut === "complete").length;
+    const taux = list.length > 0 ? Math.round((remplies / list.length) * 100) : 0;
+    return { total: list.length, remplies, enAttente: list.length - remplies, taux };
+  }
+  const statsKamel = ficheStats(fichesKamel);
+  const statsAimad = ficheStats(fichesAimad);
 
   const contratsSignes = contrats.filter((c) => c.statut === "signe").length;
   const contratsTauxSignature =
@@ -136,39 +155,44 @@ export default async function DocumentsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="fiche-police" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Fiches générées" value={fichesPolice.length} />
-            <StatCard label="Remplies" value={fichesRemplies} />
-            <StatCard label="En attente" value={fichesPolice.length - fichesRemplies} />
-            <StatCard label="Taux de complétion" value={`${fichesTauxCompletion}%`} />
-          </div>
-
+        <TabsContent value="fiche-police" className="space-y-6">
           <GenerateFichePoliceForm domaines={allDomaines} villas={allVillas} />
 
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Fiches générées
-            </p>
-            {fichesPolice.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucune fiche pour l&apos;instant.</p>
-            ) : (
-              fichesPolice.map((f) => (
-                <DocumentRow
-                  key={f.id}
-                  href={f.statut === "complete" ? `/gendarmerie/${f.id}` : `/g/${f.id}`}
-                  title={
-                    (f.villaNom ? `${f.villaNom} (n°${f.villaNumero})` : "Logement supprimé") +
-                    (f.guestName ? ` · ${f.guestName}` : "")
-                  }
-                  subtitle={format(new Date(f.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}
-                  badgeLabel={f.statut === "complete" ? "Rempli" : "En attente"}
-                  badgeVariant={f.statut === "complete" ? "default" : "outline"}
-                  deleteAction={deleteGendarmerieForm.bind(null, f.id)}
-                />
-              ))
-            )}
-          </div>
+          {[
+            { label: "Kamel · Moderna II", stats: statsKamel, list: fichesKamel },
+            { label: "Aimad · Zaraba & Noria", stats: statsAimad, list: fichesAimad },
+            ...(fichesAutres.length > 0 ? [{ label: "Autres", stats: ficheStats(fichesAutres), list: fichesAutres }] : []),
+          ].map(({ label, stats, list }) => (
+            <div key={label} className="space-y-3">
+              <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatCard label="Fiches générées" value={stats.total} />
+                <StatCard label="Remplies" value={stats.remplies} />
+                <StatCard label="En attente" value={stats.enAttente} />
+                <StatCard label="Taux de complétion" value={`${stats.taux}%`} />
+              </div>
+              <div className="space-y-2">
+                {list.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Aucune fiche pour l&apos;instant.</p>
+                ) : (
+                  list.map((f) => (
+                    <DocumentRow
+                      key={f.id}
+                      href={f.statut === "complete" ? `/gendarmerie/${f.id}` : `/g/${f.id}`}
+                      title={
+                        (f.villaNom ? `${f.villaNom} (n°${f.villaNumero})` : "Logement supprimé") +
+                        (f.guestName ? ` · ${f.guestName}` : "")
+                      }
+                      subtitle={format(new Date(f.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}
+                      badgeLabel={f.statut === "complete" ? "Rempli" : "En attente"}
+                      badgeVariant={f.statut === "complete" ? "default" : "outline"}
+                      deleteAction={deleteGendarmerieForm.bind(null, f.id)}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          ))}
         </TabsContent>
 
         <TabsContent value="contrat" className="space-y-4">
