@@ -1,5 +1,6 @@
 import { eq, asc, desc, gte, and, or, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -42,6 +43,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
       domaineId: villas.domaineId,
       proprietaireNom: villas.proprietaireNom,
       portailAuteurs: villas.portailAuteurs,
+      photoUrl: villas.photoUrl,
     })
     .from(villas)
     .where(eq(villas.lienProprietaireToken, token))
@@ -217,11 +219,25 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
         <p className="text-xs text-muted-foreground">Espace propriétaire</p>
       </div>
 
-      <div>
-        <h1 className="text-xl font-bold sm:text-2xl">
-          {villa.nom} (n°{villa.numero})
-        </h1>
-        <p className="text-sm text-muted-foreground">{villa.proprietaireNom ? `Bienvenue, ${villa.proprietaireNom}` : "Bienvenue"}</p>
+      <div className="overflow-hidden rounded-xl border">
+        {villa.photoUrl ? (
+          <div className="relative aspect-video w-full">
+            <Image
+              src={villa.photoUrl}
+              alt={villa.nom}
+              fill
+              sizes="(max-width: 1024px) 100vw, 768px"
+              className="object-cover"
+              priority
+            />
+          </div>
+        ) : null}
+        <div className="bg-card p-4 sm:p-6">
+          <h1 className="text-xl font-bold sm:text-2xl">
+            {villa.nom} (n°{villa.numero})
+          </h1>
+          <p className="text-sm text-muted-foreground">{villa.proprietaireNom ? `Bienvenue, ${villa.proprietaireNom}` : "Bienvenue"}</p>
+        </div>
       </div>
 
       <Tabs defaultValue="sejours">
@@ -302,7 +318,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
           {villaPaiements.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Rien pour l&apos;instant.
+                Cette section est en cours de mise en place. Elle sera bientôt disponible.
               </CardContent>
             </Card>
           ) : (
