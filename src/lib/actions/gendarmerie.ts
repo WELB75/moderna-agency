@@ -71,6 +71,31 @@ export async function generateGendarmerieForms(villaId: string, nbAdultes: numbe
   return forms;
 }
 
+// Pour un groupe qui préfère tout remplir sur le même lien plutôt qu'un lien par adulte :
+// une seule fiche, pré-remplie avec le nombre d'adultes et d'enfants indiqué à la création.
+export async function createGroupGendarmerieForm(villaId: string, nbAdultes: number, nbEnfants: number) {
+  await auth.protect();
+  const user = await currentUser();
+  const safeAdultes = Math.min(Math.max(Math.round(nbAdultes), 1), 20);
+  const safeEnfants = Math.min(Math.max(Math.round(nbEnfants), 0), 20);
+
+  const db = getDb();
+  const [form] = await db
+    .insert(gendarmerieForms)
+    .values({
+      villaId,
+      reservationId: null,
+      nbAdultesPrevu: safeAdultes,
+      nbEnfantsPrevu: safeEnfants,
+      createdByUserId: user?.id ?? null,
+      createdByName: user?.fullName ?? user?.username ?? "Équipe",
+    })
+    .returning();
+
+  revalidatePath("/documents");
+  return form;
+}
+
 // Volontairement sans auth.protect() : le client remplit via le lien public /g/[id],
 // sans se connecter.
 export async function submitGendarmerieOccupants(

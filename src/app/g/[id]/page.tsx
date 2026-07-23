@@ -17,6 +17,8 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
       villaNom: villas.nom,
       nbAdultes: reservations.nbAdultes,
       nbEnfants: reservations.nbEnfants,
+      nbAdultesPrevu: gendarmerieForms.nbAdultesPrevu,
+      nbEnfantsPrevu: gendarmerieForms.nbEnfantsPrevu,
     })
     .from(gendarmerieForms)
     .leftJoin(villas, eq(gendarmerieForms.villaId, villas.id))
@@ -46,8 +48,8 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
         <GendarmerieForm
           formId={form.id}
           villaNom={form.villaNom ?? "votre logement"}
-          nbAdultes={form.nbAdultes ?? 1}
-          nbEnfants={form.nbEnfants ?? 0}
+          nbAdultes={form.nbAdultes ?? form.nbAdultesPrevu ?? 1}
+          nbEnfants={form.nbEnfants ?? form.nbEnfantsPrevu ?? 0}
         />
       )}
     </div>

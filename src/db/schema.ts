@@ -328,6 +328,11 @@ export const gendarmerieForms = pgTable("gendarmerie_forms", {
   // Le Bulletin Individuel ne concerne légalement que les adultes ; les photos des
   // passeports des enfants sont collectées à part, pour les besoins propres de l'agence.
   enfantsPassportUrls: jsonb("enfants_passport_urls").$type<string[]>().default([]),
+  // Nombre d'adultes/enfants prévu quand ce lien unique n'est pas rattaché à une réservation
+  // (généré depuis Documents pour tout un groupe) : sert à pré-remplir le formulaire avec
+  // le bon nombre de personnes dès l'ouverture du lien, sans devoir cliquer "Ajouter" à la main.
+  nbAdultesPrevu: integer("nb_adultes_prevu"),
+  nbEnfantsPrevu: integer("nb_enfants_prevu"),
   createdByUserId: text("created_by_user_id"),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
