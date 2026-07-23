@@ -29,6 +29,7 @@ import { CategorieFilterView, type CategorieGroup } from "@/components/app/categ
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CATEGORIES } from "@/lib/intervention-categorie";
+import { cn } from "@/lib/utils";
 import { CalendarDays, Wrench, Users, Eye, Wallet } from "lucide-react";
 
 // Point de départ du suivi : l'agence ne gère pas ces biens avant cette date,
@@ -223,6 +224,78 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
     );
   }
 
+  // Récapitulatif mensuel des loyers perçus par réservation, pour la transparence
+  // financière demandée par les propriétaires (tarif, montant payé, acquitté ou non).
+  function renderMonthlyFinancials() {
+    const active = villaReservations.filter((r) => r.status !== "annulee");
+    if (active.length === 0) return null;
+
+    const groups = new Map<string, typeof active>();
+    for (const r of active) {
+      const key = format(new Date(r.checkIn), "yyyy-MM");
+      const list = groups.get(key) ?? [];
+      list.push(r);
+      groups.set(key, list);
+    }
+    const sortedKeys = Array.from(groups.keys()).sort();
+
+    return (
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Tableau financier mensuel
+        </p>
+        <div className="space-y-2">
+          {sortedKeys.map((key) => {
+            const list = groups.get(key)!;
+            const totalLoyer = list.reduce((sum, r) => sum + Number(r.loyerTotal ?? 0), 0);
+            const totalPaye = list.reduce((sum, r) => sum + Number(r.montantPaye ?? 0), 0);
+            const devise = list[0]?.devisePaiement ?? "EUR";
+            const label = format(new Date(key + "-01"), "MMMM yyyy", { locale: fr });
+            return (
+              <Card key={key}>
+                <CardContent className="space-y-2 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-1">
+                    <p className="font-medium capitalize">{label}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {totalPaye.toFixed(2)} / {totalLoyer.toFixed(2)} {devise}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    {list.map((r) => {
+                      const loyer = r.loyerTotal !== null ? Number(r.loyerTotal) : null;
+                      const paye = Number(r.montantPaye ?? 0);
+                      const acquitte = loyer !== null && loyer > 0 && paye >= loyer;
+                      return (
+                        <div key={r.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5 text-sm">
+                          <span className="text-muted-foreground">
+                            {r.guestName} · {format(new Date(r.checkIn), "d MMM", { locale: fr })}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs",
+                              loyer === null
+                                ? "text-muted-foreground"
+                                : acquitte
+                                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                                  : "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                            )}
+                          >
+                            {loyer === null ? "Tarif non renseigné" : acquitte ? "Acquitté" : "Non acquitté"}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   // Regroupe par catégorie : au premier coup d'œil on ne voit que les tuiles de
   // catégorie, on clique dessus pour tomber sur le détail en cours/terminé.
   function renderCategorieGroups(list: typeof villaInterventions): CategorieGroup[] {
@@ -309,21 +382,43 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {sejoursActuelsEtFuturs.map((r) => (
                   <Card key={r.id}>
-                    <CardContent className="flex items-center justify-between gap-2 py-3">
-                      <div>
+                    <CardContent className="space-y-1.5 py-3">
+                      <div className="flex items-center justify-between gap-2">
                         <p className="font-medium">
                           {format(new Date(r.checkIn), "d MMM yyyy", { locale: fr })} →{" "}
                           {format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}
                         </p>
-                        <p className="text-sm text-muted-foreground">{r.canal || "Réservation"}</p>
+                        <Badge>Loué</Badge>
                       </div>
-                      <Badge>Loué</Badge>
+                      <p className="text-sm text-muted-foreground">
+                        {r.guestName} · {r.canal || "Réservation"}
+                      </p>
+                      <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        {r.loyerTotal ? (
+                          <span>
+                            Tarif : {Number(r.loyerTotal).toFixed(2)} {r.devisePaiement}
+                          </span>
+                        ) : null}
+                        {r.montantPaye ? (
+                          <span>
+                            Payé : {Number(r.montantPaye).toFixed(2)} {r.devisePaiement}
+                          </span>
+                        ) : null}
+                        {r.moyenPaiement ? <span>Paiement : {r.moyenPaiement}</span> : null}
+                        {r.caution ? (
+                          <span>
+                            Caution : {Number(r.caution).toFixed(2)} {r.devisePaiement} (
+                            {r.cautionPayee ? "versée" : "non versée"})
+                          </span>
+                        ) : null}
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
             </div>
           )}
+          {renderMonthlyFinancials()}
         </TabsContent>
 
         <TabsContent value="travaux" className="space-y-4 pt-2">
