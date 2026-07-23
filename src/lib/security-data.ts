@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -15,9 +15,11 @@ async function buildVillaSecurityData(
   db: ReturnType<typeof getDb>,
   villa: { id: string; nom: string; numero: string }
 ): Promise<VillaSecurityData> {
-  const [form] = await db
+  const allForms = await db
     .select({
       id: gendarmerieForms.id,
+      reservationId: gendarmerieForms.reservationId,
+      createdAt: gendarmerieForms.createdAt,
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       nbAdultes: reservations.nbAdultes,
@@ -32,33 +34,56 @@ async function buildVillaSecurityData(
     .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
     .leftJoin(contratsLocation, eq(gendarmerieForms.contratId, contratsLocation.id))
     .where(and(eq(gendarmerieForms.villaId, villa.id), eq(gendarmerieForms.statut, "complete")))
-    .orderBy(desc(gendarmerieForms.completedAt))
-    .limit(1);
+    .orderBy(desc(gendarmerieForms.completedAt));
 
-  const adultOccupants = form
-    ? await db
-        .select({
-          id: gendarmerieOccupants.id,
-          nom: gendarmerieOccupants.nom,
-          prenom: gendarmerieOccupants.prenom,
-          nationalite: gendarmerieOccupants.nationalite,
-          photoPieceUrl: gendarmerieOccupants.photoPieceUrl,
-        })
-        .from(gendarmerieOccupants)
-        .where(eq(gendarmerieOccupants.formId, form.id))
-        .orderBy(gendarmerieOccupants.createdAt)
-    : [];
+  const form = allForms[0];
+
+  // Un Bulletin Individuel est rempli par une seule personne : quand plusieurs adultes
+  // séjournent ensemble, l'équipe génère un lien distinct par adulte (generateGendarmerieForms),
+  // tous créés dans le même insert (même createdAt). Si on ne gardait que la toute dernière
+  // fiche complétée, on ne verrait qu'un seul adulte du groupe — on regroupe donc ici toutes
+  // les fiches de ce même lot pour retrouver tout le monde.
+  const formGroup =
+    form && !form.reservationId
+      ? allForms.filter(
+          (f) => !f.reservationId && f.createdAt.getTime() === form.createdAt.getTime()
+        )
+      : form
+        ? [form]
+        : [];
+
+  const adultOccupants =
+    formGroup.length > 0
+      ? await db
+          .select({
+            id: gendarmerieOccupants.id,
+            nom: gendarmerieOccupants.nom,
+            prenom: gendarmerieOccupants.prenom,
+            nationalite: gendarmerieOccupants.nationalite,
+            photoPieceUrl: gendarmerieOccupants.photoPieceUrl,
+          })
+          .from(gendarmerieOccupants)
+          .where(
+            inArray(
+              gendarmerieOccupants.formId,
+              formGroup.map((f) => f.id)
+            )
+          )
+          .orderBy(gendarmerieOccupants.createdAt)
+      : [];
 
   // Le Bulletin Individuel ne concerne légalement que les adultes (table gendarmerieOccupants) ;
   // les photos des enfants sont collectées à part, sans nom associé — on les ajoute quand même
   // ici pour que la sécurité voie bien tout le monde qui accompagne la réservation.
-  const enfantsOccupants = (form?.enfantsPassportUrls ?? []).map((url, i) => ({
-    id: `${form?.id}-enfant-${i}`,
-    nom: "Enfant",
-    prenom: null,
-    nationalite: null,
-    photoPieceUrl: url,
-  }));
+  const enfantsOccupants = formGroup.flatMap((f, fi) =>
+    (f.enfantsPassportUrls ?? []).map((url, i) => ({
+      id: `${f.id}-enfant-${fi}-${i}`,
+      nom: "Enfant",
+      prenom: null,
+      nationalite: null,
+      photoPieceUrl: url,
+    }))
+  );
 
   const occupants = [...adultOccupants, ...enfantsOccupants];
 
