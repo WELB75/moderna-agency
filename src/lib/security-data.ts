@@ -77,9 +77,18 @@ async function buildVillaSecurityData(
       ? [form]
       : [];
 
-  const formesAdultes = formesIndividuelles.length > 0 ? formesIndividuelles : formesReservation;
+  // Sécurité : si le séjour en cours (nouvelle arrivée) n'a pas encore de fiche remplie, on
+  // ne doit jamais afficher "aucune personne enregistrée" tant qu'une fiche complétée existe
+  // pour cette villa — on garde la dernière fiche connue affichée jusqu'à ce qu'une nouvelle
+  // la remplace (le document doit toujours pouvoir être présenté en cas de contrôle).
+  const derniereFicheConnue = form ? [form] : [];
+  const formesAdultes =
+    formesIndividuelles.length > 0 ? formesIndividuelles : formesReservation.length > 0 ? formesReservation : derniereFicheConnue;
   // Les enfants peuvent en théorie être présents sur n'importe quelle fiche du séjour.
-  const formesEnfants = [...formesReservation, ...formesIndividuelles];
+  const formesEnfants =
+    formesReservation.length > 0 || formesIndividuelles.length > 0
+      ? [...formesReservation, ...formesIndividuelles]
+      : derniereFicheConnue;
 
   const adultOccupants =
     formesAdultes.length > 0
