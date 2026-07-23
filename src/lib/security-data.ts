@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -15,6 +15,25 @@ async function buildVillaSecurityData(
   db: ReturnType<typeof getDb>,
   villa: { id: string; nom: string; numero: string }
 ): Promise<VillaSecurityData> {
+  const now = nowInMorocco();
+
+  // Le séjour en cours (s'il y en a un) sert de référence pour regrouper toutes les fiches
+  // qui lui appartiennent : la fiche liée à la réservation (adultes + enfants) ET les liens
+  // individuels générés en plus pour chaque adulte (un Bulletin Individuel par personne).
+  const [sejourActuel] = await db
+    .select({ id: reservations.id, checkIn: reservations.checkIn, checkOut: reservations.checkOut })
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.villaId, villa.id),
+        lte(reservations.checkIn, now),
+        gte(reservations.checkOut, now),
+        ne(reservations.status, "annulee")
+      )
+    )
+    .orderBy(desc(reservations.checkIn))
+    .limit(1);
+
   const allForms = await db
     .select({
       id: gendarmerieForms.id,
@@ -39,21 +58,31 @@ async function buildVillaSecurityData(
   const form = allForms[0];
 
   // Un Bulletin Individuel est rempli par une seule personne : quand plusieurs adultes
-  // séjournent ensemble, l'équipe génère un lien distinct par adulte (generateGendarmerieForms),
-  // tous créés dans le même insert (même createdAt). Si on ne gardait que la toute dernière
-  // fiche complétée, on ne verrait qu'un seul adulte du groupe — on regroupe donc ici toutes
-  // les fiches de ce même lot pour retrouver tout le monde.
-  const formGroup =
-    form && !form.reservationId
-      ? allForms.filter(
-          (f) => !f.reservationId && f.createdAt.getTime() === form.createdAt.getTime()
-        )
-      : form
-        ? [form]
-        : [];
+  // séjournent ensemble, l'équipe génère en plus un lien distinct par adulte
+  // (generateGendarmerieForms, sans réservation associée) — le format légalement correct.
+  // Quand ces liens individuels existent pour le séjour en cours, ils remplacent la fiche
+  // groupée pour les adultes (sinon on compterait les mêmes personnes deux fois) ; les
+  // enfants, eux, ne sont jamais collectés que sur la fiche groupée liée à la réservation.
+  const formesIndividuelles = sejourActuel
+    ? allForms.filter(
+        (f) => !f.reservationId && f.createdAt >= sejourActuel.checkIn && f.createdAt <= sejourActuel.checkOut
+      )
+    : form && !form.reservationId
+      ? allForms.filter((f) => !f.reservationId && f.createdAt.getTime() === form.createdAt.getTime())
+      : [];
+
+  const formesReservation = sejourActuel
+    ? allForms.filter((f) => f.reservationId === sejourActuel.id)
+    : form?.reservationId
+      ? [form]
+      : [];
+
+  const formesAdultes = formesIndividuelles.length > 0 ? formesIndividuelles : formesReservation;
+  // Les enfants peuvent en théorie être présents sur n'importe quelle fiche du séjour.
+  const formesEnfants = [...formesReservation, ...formesIndividuelles];
 
   const adultOccupants =
-    formGroup.length > 0
+    formesAdultes.length > 0
       ? await db
           .select({
             id: gendarmerieOccupants.id,
@@ -66,7 +95,7 @@ async function buildVillaSecurityData(
           .where(
             inArray(
               gendarmerieOccupants.formId,
-              formGroup.map((f) => f.id)
+              formesAdultes.map((f) => f.id)
             )
           )
           .orderBy(gendarmerieOccupants.createdAt)
@@ -75,27 +104,38 @@ async function buildVillaSecurityData(
   // Le Bulletin Individuel ne concerne légalement que les adultes (table gendarmerieOccupants) ;
   // les photos des enfants sont collectées à part, sans nom associé — on les ajoute quand même
   // ici pour que la sécurité voie bien tout le monde qui accompagne la réservation.
-  const enfantsOccupants = formGroup.flatMap((f, fi) =>
-    (f.enfantsPassportUrls ?? []).map((url, i) => ({
-      id: `${f.id}-enfant-${fi}-${i}`,
-      nom: "Enfant",
-      prenom: null,
-      nationalite: null,
-      photoPieceUrl: url,
-    }))
+  const enfantsVus = new Set<string>();
+  const enfantsOccupants = formesEnfants.flatMap((f) =>
+    (f.enfantsPassportUrls ?? [])
+      .filter((url) => {
+        if (enfantsVus.has(url)) return false;
+        enfantsVus.add(url);
+        return true;
+      })
+      .map((url, i) => ({
+        id: `${f.id}-enfant-${i}`,
+        nom: "Enfant",
+        prenom: null,
+        nationalite: null,
+        photoPieceUrl: url,
+      }))
   );
 
   const occupants = [...adultOccupants, ...enfantsOccupants];
 
-  const arrivee = form?.checkIn
-    ? format(new Date(form.checkIn), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })
-    : formatDateFr(form?.contratDateArrivee ?? "") || null;
-  const depart = form?.checkOut
-    ? format(new Date(form.checkOut), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })
-    : formatDateFr(form?.contratDateDepart ?? "") || null;
-  const nbAdultes = form?.nbAdultes ?? form?.contratNbAdultes ?? null;
-  const nbEnfants = form?.nbEnfants ?? form?.contratNbEnfants ?? 0;
-  const arriveeAujourdhui = form?.checkIn ? isSameDay(new Date(form.checkIn), nowInMorocco()) : false;
+  // Pour les dates/effectifs, on préfère la fiche du groupe qui a une réservation associée
+  // (les liens individuels seuls n'ont ni dates ni nombre d'adultes/enfants renseignés).
+  const referenceForm = formesReservation[0] ?? form;
+
+  const arrivee = referenceForm?.checkIn
+    ? format(new Date(referenceForm.checkIn), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })
+    : formatDateFr(referenceForm?.contratDateArrivee ?? "") || null;
+  const depart = referenceForm?.checkOut
+    ? format(new Date(referenceForm.checkOut), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })
+    : formatDateFr(referenceForm?.contratDateDepart ?? "") || null;
+  const nbAdultes = referenceForm?.nbAdultes ?? referenceForm?.contratNbAdultes ?? null;
+  const nbEnfants = referenceForm?.nbEnfants ?? referenceForm?.contratNbEnfants ?? 0;
+  const arriveeAujourdhui = referenceForm?.checkIn ? isSameDay(new Date(referenceForm.checkIn), nowInMorocco()) : false;
 
   return {
     villaId: villa.id,
