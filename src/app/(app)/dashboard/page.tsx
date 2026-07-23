@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
+import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
@@ -213,7 +214,10 @@ export default async function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-col items-start gap-1.5 sm:items-end">
-          <SyncIcalButton className="w-full sm:w-auto" />
+          <div className="flex flex-col gap-1.5 sm:flex-row">
+            <SyncIcalButton className="w-full sm:w-auto" />
+            <ImportSuperhoteCsvDialog />
+          </div>
           {lastSync?.finishedAt ? (
             <p className="text-xs text-muted-foreground">
               Dernière synchro {lastSync.success === false ? "(échec)" : ""} : {format(lastSync.finishedAt, "d MMM HH:mm", { locale: fr })}

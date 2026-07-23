@@ -4,9 +4,10 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { reservations } from "@/db/schema";
+import { reservations, villas } from "@/db/schema";
 import { runIcalSync } from "@/lib/ical/sync";
 import { nowInMorocco } from "@/lib/now";
+import { parseSuperhoteCsv } from "@/lib/superhote-csv";
 
 export async function createReservation(formData: FormData) {
   await auth.protect();
@@ -184,6 +185,76 @@ export async function unvalidateReservationEvent(reservationId: string, kind: "i
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
+}
+
+function sameCalendarDay(a: Date, b: Date) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
+}
+
+// L'iCal Superhote ne transmet pas les prix/paiements (limitation du format). Superhote propose
+// en revanche un export CSV (Calendriers → Actions → Exporter les réservations) qui les contient :
+// on rapproche chaque ligne à une réservation existante par villa + dates de séjour, et on remplit
+// loyerTotal/montantPaye automatiquement, plutôt que de les ressaisir une par une à la main.
+export async function importSuperhoteCsv(csvText: string) {
+  await auth.protect();
+
+  const rows = parseSuperhoteCsv(csvText);
+  if (rows.length === 0) throw new Error("Fichier vide ou illisible.");
+
+  const db = getDb();
+  const allVillas = await db.select({ id: villas.id, nom: villas.nom }).from(villas);
+  const allReservations = await db.select().from(reservations);
+
+  let matched = 0;
+  const unmatched: string[] = [];
+
+  for (const row of rows) {
+    const rentalRaw = (row["rental"] ?? "").toLowerCase();
+    const villa = allVillas
+      .filter((v) => v.nom && rentalRaw.startsWith(v.nom.toLowerCase()))
+      .sort((a, b) => b.nom.length - a.nom.length)[0];
+
+    const guestLabel = `${row["guest first name"] ?? ""} ${row["guest last name"] ?? ""}`.trim();
+    const checkinRaw = row["checkin"];
+    const checkoutRaw = row["checkout"];
+
+    if (!villa || !checkinRaw || !checkoutRaw) {
+      unmatched.push(`${guestLabel} (${checkinRaw || "date inconnue"})`);
+      continue;
+    }
+
+    const checkin = new Date(checkinRaw + "T00:00:00Z");
+    const checkout = new Date(checkoutRaw + "T00:00:00Z");
+    const reservation = allReservations.find(
+      (r) => r.villaId === villa.id && sameCalendarDay(new Date(r.checkIn), checkin) && sameCalendarDay(new Date(r.checkOut), checkout)
+    );
+
+    if (!reservation) {
+      unmatched.push(`${guestLabel} (${checkinRaw})`);
+      continue;
+    }
+
+    const totalPrice = row["total price"] ? Number(row["total price"]) : null;
+    const totalPayments = row["total payments"] ? Number(row["total payments"]) : null;
+    const newStatus = row["status"] === "Cancelled" ? "annulee" : reservation.status;
+
+    await db
+      .update(reservations)
+      .set({
+        loyerTotal: totalPrice !== null && !Number.isNaN(totalPrice) ? totalPrice.toFixed(2) : reservation.loyerTotal,
+        montantPaye: totalPayments !== null && !Number.isNaN(totalPayments) ? totalPayments.toFixed(2) : reservation.montantPaye,
+        status: newStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(reservations.id, reservation.id));
+
+    matched++;
+  }
+
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+
+  return { matched, unmatchedCount: unmatched.length, unmatched: unmatched.slice(0, 10) };
 }
 
 export async function triggerIcalSync() {
