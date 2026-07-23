@@ -236,7 +236,6 @@ export function CommentItem({
         <>
           <p className="mt-0.5 whitespace-pre-line">{comment.message}</p>
           {comment.audioUrl ? (
-            // eslint-disable-next-line jsx-a11y/media-has-caption
             <audio controls src={comment.audioUrl} className="mt-1.5 h-9 w-full max-w-xs" />
           ) : null}
         </>

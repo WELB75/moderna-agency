@@ -452,7 +452,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
           {villaPaiements.length === 0 ? (
             <Card>
               <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                Cette section est en cours de mise en place. Elle sera bientôt disponible.
+                Rien pour l&apos;instant.
               </CardContent>
             </Card>
           ) : (
