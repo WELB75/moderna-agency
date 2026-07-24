@@ -3,7 +3,17 @@ import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { reservations, villas, domaines, maintenanceRecords, superhoteSyncLog, gendarmerieForms, contratsLocation } from "@/db/schema";
+import {
+  reservations,
+  villas,
+  domaines,
+  maintenanceRecords,
+  superhoteSyncLog,
+  gendarmerieForms,
+  contratsLocation,
+  personnel,
+  personnelAffectations,
+} from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
@@ -16,7 +26,7 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { phonesMatch } from "@/lib/phone";
 
@@ -111,11 +121,36 @@ export default async function DashboardPage() {
     }
   }
 
+  // Ménage/cuisine : qui est affecté à ce séjour, pour le voir directement sur la carte
+  // sans devoir aller sur la page Personnel.
+  const relatedAffectations =
+    reservationIds.length > 0
+      ? await db
+          .select({
+            reservationId: personnelAffectations.reservationId,
+            nom: personnel.nom,
+            role: personnel.role,
+          })
+          .from(personnelAffectations)
+          .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
+          .where(inArray(personnelAffectations.reservationId, reservationIds))
+      : [];
+  const menageNomsByReservation = new Map<string, string[]>();
+  const cuisineNomsByReservation = new Map<string, string[]>();
+  for (const a of relatedAffectations) {
+    const map = a.role === "menage" ? menageNomsByReservation : cuisineNomsByReservation;
+    const list = map.get(a.reservationId) ?? [];
+    list.push(a.nom);
+    map.set(a.reservationId, list);
+  }
+
   const upcomingWithDocs = upcoming.map((r) => {
     const ficheStatut = ficheStatutByReservation.get(r.id) ?? null;
     const dateKey = r.villaId ? `${r.villaId}|${format(new Date(r.checkIn), "yyyy-MM-dd")}` : null;
     const contratStatut = dateKey ? (contratStatutByVillaAndDate.get(dateKey) ?? null) : null;
-    return { ...r, ficheStatut, contratStatut };
+    const menageNoms = menageNomsByReservation.get(r.id) ?? [];
+    const cuisineNoms = cuisineNomsByReservation.get(r.id) ?? [];
+    return { ...r, ficheStatut, contratStatut, menageNoms, cuisineNoms };
   });
 
   // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
@@ -368,6 +403,8 @@ type ReservationRow = {
   aRelancer: boolean;
   ficheStatut: "complete" | "en_attente" | null;
   contratStatut: "signe" | "en_attente" | null;
+  menageNoms: string[];
+  cuisineNoms: string[];
 };
 
 type MaintenanceRow = {
@@ -571,6 +608,26 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             </Badge>
           </div>
         )}
+
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          <Badge
+            variant="outline"
+            className={
+              r.menageNoms.length > 0
+                ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                : "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+            }
+          >
+            <Sparkles className="h-3 w-3" />
+            Ménage {r.menageNoms.length > 0 ? r.menageNoms.join(", ") : "non affecté"}
+          </Badge>
+          {r.cuisineNoms.length > 0 ? (
+            <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+              <ChefHat className="h-3 w-3" />
+              Cuisine {r.cuisineNoms.join(", ")}
+            </Badge>
+          ) : null}
+        </div>
 
         {r.notes ? (
           <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
