@@ -8,6 +8,7 @@ import { InterventionCard } from "@/components/app/intervention-card";
 import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CATEGORIES } from "@/lib/intervention-categorie";
+import { computeCategorieStats } from "@/lib/categorie-stats";
 import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs } from "@/lib/domaines-actifs";
 import { Gauge } from "lucide-react";
 
@@ -167,7 +168,7 @@ export default async function InterventionsPage() {
           </CardContent>
         </Card>
       ) : (
-        <CategorieFilterView groups={renderCategorieGroups(allInterventions)} />
+        <CategorieFilterView groups={renderCategorieGroups(allInterventions)} stats={computeCategorieStats(allInterventions)} />
       )}
     </div>
   );

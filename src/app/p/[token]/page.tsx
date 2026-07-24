@@ -23,6 +23,7 @@ import { OwnerTeamSection } from "@/components/app/owner-team-section";
 import { AddOwnerContactDialog } from "@/components/app/add-owner-contact-dialog";
 import { OwnerStayCalendar } from "@/components/app/owner-stay-calendar";
 import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
+import { computeCategorieStats } from "@/lib/categorie-stats";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CATEGORIES } from "@/lib/intervention-categorie";
 import { CalendarDays, Wrench, Users, Eye } from "lucide-react";
@@ -305,7 +306,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
           {mesDemandes.length === 0 ? (
             <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>
           ) : (
-            <CategorieFilterView groups={renderCategorieGroups(mesDemandes)} />
+            <CategorieFilterView groups={renderCategorieGroups(mesDemandes)} stats={computeCategorieStats(mesDemandes)} />
           )}
         </TabsContent>
 
@@ -317,7 +318,10 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
           {constatsEquipe.length === 0 ? (
             <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>
           ) : (
-            <CategorieFilterView groups={renderCategorieGroups(constatsEquipe)} />
+            <CategorieFilterView
+              groups={renderCategorieGroups(constatsEquipe)}
+              stats={computeCategorieStats(constatsEquipe)}
+            />
           )}
         </TabsContent>
 

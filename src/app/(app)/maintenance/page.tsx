@@ -11,6 +11,7 @@ import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
 import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
+import { computeCategorieStats } from "@/lib/categorie-stats";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { PhoneLink } from "@/components/app/phone-link";
@@ -288,7 +289,10 @@ export default async function MaintenancePage() {
               </CardContent>
             </Card>
           ) : (
-            <CategorieFilterView groups={renderCategorieGroups(villaInterventions)} />
+            <CategorieFilterView
+              groups={renderCategorieGroups(villaInterventions)}
+              stats={computeCategorieStats(villaInterventions)}
+            />
           )}
         </TabsContent>
       </Tabs>
