@@ -1,5 +1,5 @@
 import { asc, and, ne, gte, lte, eq, inArray } from "drizzle-orm";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddPersonnelDialog } from "@/components/app/add-personnel-dialog";
+import { EditPersonnelDialog } from "@/components/app/edit-personnel-dialog";
 import { PersonnelActifToggle } from "@/components/app/personnel-actif-toggle";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
@@ -47,31 +48,34 @@ export default async function PersonnelPage() {
   const upcomingIds = upcoming.map((r) => r.id);
   const upcomingAffectations =
     upcomingIds.length > 0
-      ? await db
-          .select({
-            id: personnelAffectations.id,
-            reservationId: personnelAffectations.reservationId,
-            personnelId: personnelAffectations.personnelId,
-          })
-          .from(personnelAffectations)
-          .where(inArray(personnelAffectations.reservationId, upcomingIds))
+      ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, upcomingIds))
       : [];
-  const affectationsByReservation = new Map<string, { affectationId: string; personnelId: string; role: string }[]>();
+  const affectationsByReservation = new Map<
+    string,
+    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null }[]
+  >();
   for (const a of upcomingAffectations) {
     const p = personnelById.get(a.personnelId);
     if (!p) continue;
     const list = affectationsByReservation.get(a.reservationId) ?? [];
-    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role });
+    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role, faitAt: a.faitAt, nbJours: a.nbJours });
     affectationsByReservation.set(a.reservationId, list);
   }
   function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
     return (affectationsByReservation.get(reservationId) ?? [])
       .filter((a) => a.role === role)
-      .map((a) => ({ affectationId: a.affectationId, personnelId: a.personnelId, nom: personnelById.get(a.personnelId)!.nom }));
+      .map((a) => ({
+        affectationId: a.affectationId,
+        personnelId: a.personnelId,
+        nom: personnelById.get(a.personnelId)!.nom,
+        faitAt: a.faitAt,
+        nbJours: a.nbJours,
+      }));
   }
 
-  // Statistiques du mois en cours : combien de ménages/cuisines chacun a faits, et dans
-  // combien de villas différentes — pour repérer les déséquilibres entre le personnel.
+  // Statistiques du mois en cours : pour le ménage, on ne compte que les affectations
+  // confirmées faites (pas juste assignées) ; pour la cuisine, le nombre de jours réels
+  // (nbJours si renseigné, sinon la durée du séjour) — pour repérer les déséquilibres.
   const debutMois = startOfMonth(now);
   const finMois = endOfMonth(now);
   const moisReservations = (
@@ -79,6 +83,8 @@ export default async function PersonnelPage() {
       .select({
         id: reservations.id,
         villaId: reservations.villaId,
+        checkIn: reservations.checkIn,
+        checkOut: reservations.checkOut,
         domaineNom: domaines.nom,
       })
       .from(reservations)
@@ -87,33 +93,40 @@ export default async function PersonnelPage() {
       .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, debutMois), lte(reservations.checkOut, finMois)))
   ).filter((r) => domaineEstActif(r.domaineNom));
   const moisReservationIds = moisReservations.map((r) => r.id);
-  const villaIdByReservation = new Map(moisReservations.map((r) => [r.id, r.villaId]));
+  const moisReservationById = new Map(moisReservations.map((r) => [r.id, r]));
 
   const moisAffectations =
     moisReservationIds.length > 0
-      ? await db
-          .select({ reservationId: personnelAffectations.reservationId, personnelId: personnelAffectations.personnelId })
-          .from(personnelAffectations)
-          .where(inArray(personnelAffectations.reservationId, moisReservationIds))
+      ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, moisReservationIds))
       : [];
 
-  function computeStats(roster: typeof allPersonnel) {
+  function computeStatsMenage(roster: typeof allPersonnel) {
     return roster
       .map((p) => {
-        const mine = moisAffectations.filter((a) => a.personnelId === p.id);
-        const villaIds = mine.map((a) => villaIdByReservation.get(a.reservationId)).filter((v): v is string => Boolean(v));
-        return {
-          id: p.id,
-          nom: p.nom,
-          actif: p.actif,
-          total: mine.length,
-          villasDistinctes: new Set(villaIds).size,
-        };
+        const mine = moisAffectations.filter((a) => a.personnelId === p.id && a.faitAt);
+        const villaIds = mine.map((a) => moisReservationById.get(a.reservationId)?.villaId).filter((v): v is string => Boolean(v));
+        return { id: p.id, nom: p.nom, actif: p.actif, total: mine.length, villasDistinctes: new Set(villaIds).size };
       })
       .sort((a, b) => b.total - a.total);
   }
-  const statsMenage = computeStats(menageRoster);
-  const statsCuisine = computeStats(cuisineRoster);
+
+  function computeStatsCuisine(roster: typeof allPersonnel) {
+    return roster
+      .map((p) => {
+        const mine = moisAffectations.filter((a) => a.personnelId === p.id);
+        const villaIds = mine.map((a) => moisReservationById.get(a.reservationId)?.villaId).filter((v): v is string => Boolean(v));
+        const totalJours = mine.reduce((sum, a) => {
+          const r = moisReservationById.get(a.reservationId);
+          if (!r) return sum;
+          const jours = a.nbJours ?? Math.max(1, differenceInCalendarDays(new Date(r.checkOut), new Date(r.checkIn)));
+          return sum + jours;
+        }, 0);
+        return { id: p.id, nom: p.nom, actif: p.actif, total: totalJours, villasDistinctes: new Set(villaIds).size };
+      })
+      .sort((a, b) => b.total - a.total);
+  }
+  const statsMenage = computeStatsMenage(menageRoster);
+  const statsCuisine = computeStatsCuisine(cuisineRoster);
 
   return (
     <div className="space-y-6">
@@ -145,7 +158,9 @@ export default async function PersonnelPage() {
 
         <TabsContent value="affectations" className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Séjours à venir : qui s&apos;occupe du ménage et, si besoin, de la cuisine.
+            Séjours à venir : qui s&apos;occupe du ménage et, si besoin, de la cuisine. Clique sur un nom en
+            ménage pour confirmer que c&apos;est fait au départ du client ; indique le nombre de jours en
+            cuisine si ce n&apos;est pas tout le séjour.
           </p>
           {upcoming.length === 0 ? (
             <Card>
@@ -169,12 +184,14 @@ export default async function PersonnelPage() {
                   <div className="flex flex-wrap items-center gap-4">
                     <PersonnelAffectationEditor
                       reservationId={r.id}
+                      role="menage"
                       label="Ménage"
                       assigned={assignedFor(r.id, "menage")}
                       options={menageOptions}
                     />
                     <PersonnelAffectationEditor
                       reservationId={r.id}
+                      role="cuisine"
                       label="Cuisine"
                       assigned={assignedFor(r.id, "cuisine")}
                       options={cuisineOptions}
@@ -188,11 +205,15 @@ export default async function PersonnelPage() {
 
         <TabsContent value="statistiques" className="space-y-6">
           <p className="text-sm text-muted-foreground">
-            {format(now, "MMMM yyyy", { locale: fr })} — nombre de ménages/cuisines faits et nombre de villas
-            différentes couvertes, pour comparer la charge entre le personnel.
+            {format(now, "MMMM yyyy", { locale: fr })} — pour comparer la charge entre le personnel.
           </p>
-          <StatsSection title="Femmes de ménage" rows={statsMenage} unit="ménage" />
-          <StatsSection title="Cuisinières" rows={statsCuisine} unit="prestation" />
+          <StatsSection
+            title="Femmes de ménage"
+            rows={statsMenage}
+            unit="ménage confirmé"
+            unitPlural="ménages confirmés"
+          />
+          <StatsSection title="Cuisinières" rows={statsCuisine} unit="jour de cuisine" unitPlural="jours de cuisine" />
         </TabsContent>
       </Tabs>
     </div>
@@ -230,6 +251,7 @@ function RosterSection({
                   {p.notes ? <p className="mt-0.5 text-sm text-muted-foreground">{p.notes}</p> : null}
                 </div>
                 <div className="flex items-center gap-2">
+                  <EditPersonnelDialog personnelId={p.id} nom={p.nom} telephone={p.telephone} notes={p.notes} />
                   <PersonnelActifToggle personnelId={p.id} actif={p.actif} />
                   <ConfirmDeleteButton
                     action={deletePersonnel.bind(null, p.id)}
@@ -250,10 +272,12 @@ function StatsSection({
   title,
   rows,
   unit,
+  unitPlural,
 }: {
   title: string;
   rows: { id: string; nom: string; actif: boolean; total: number; villasDistinctes: number }[];
   unit: string;
+  unitPlural: string;
 }) {
   return (
     <Card>
@@ -273,8 +297,7 @@ function StatsSection({
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Badge variant="secondary">
-                    {r.total} {unit}
-                    {r.total > 1 ? "s" : ""}
+                    {r.total} {r.total > 1 ? unitPlural : unit}
                   </Badge>
                   <span>
                     {r.villasDistinctes} villa{r.villasDistinctes > 1 ? "s" : ""} différente

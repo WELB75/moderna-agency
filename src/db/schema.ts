@@ -489,6 +489,11 @@ export const personnelAffectations = pgTable(
     personnelId: uuid("personnel_id")
       .references(() => personnel.id, { onDelete: "cascade" })
       .notNull(),
+    // Ménage : coché une fois le départ du client passé et le ménage réellement confirmé fait
+    // (l'affectation seule ne prouve pas que c'est fait).
+    faitAt: timestamp("fait_at", { withTimezone: true }),
+    // Cuisine : nombre de jours si elle n'a pas couvert tout le séjour (null = séjour complet).
+    nbJours: integer("nb_jours"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId)]

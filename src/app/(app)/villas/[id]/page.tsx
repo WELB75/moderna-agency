@@ -97,27 +97,29 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   const villaReservationIds = allVillaReservations.map((r) => r.id);
   const allAffectations =
     villaReservationIds.length > 0
-      ? await db
-          .select({
-            id: personnelAffectations.id,
-            reservationId: personnelAffectations.reservationId,
-            personnelId: personnelAffectations.personnelId,
-          })
-          .from(personnelAffectations)
-          .where(inArray(personnelAffectations.reservationId, villaReservationIds))
+      ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, villaReservationIds))
       : [];
-  const affectationsByReservation = new Map<string, { affectationId: string; personnelId: string; role: string }[]>();
+  const affectationsByReservation = new Map<
+    string,
+    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null }[]
+  >();
   for (const a of allAffectations) {
     const p = personnelById.get(a.personnelId);
     if (!p) continue;
     const list = affectationsByReservation.get(a.reservationId) ?? [];
-    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role });
+    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role, faitAt: a.faitAt, nbJours: a.nbJours });
     affectationsByReservation.set(a.reservationId, list);
   }
   function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
     return (affectationsByReservation.get(reservationId) ?? [])
       .filter((a) => a.role === role)
-      .map((a) => ({ affectationId: a.affectationId, personnelId: a.personnelId, nom: personnelById.get(a.personnelId)!.nom }));
+      .map((a) => ({
+        affectationId: a.affectationId,
+        personnelId: a.personnelId,
+        nom: personnelById.get(a.personnelId)!.nom,
+        faitAt: a.faitAt,
+        nbJours: a.nbJours,
+      }));
   }
 
   const allGendarmerieForms = await db
@@ -511,12 +513,14 @@ function ReservationListItem({
       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <PersonnelAffectationEditor
           reservationId={r.id}
+          role="menage"
           label="Ménage"
           assigned={menageAssigned}
           options={personnelMenageOptions}
         />
         <PersonnelAffectationEditor
           reservationId={r.id}
+          role="cuisine"
           label="Cuisine"
           assigned={cuisineAssigned}
           options={personnelCuisineOptions}
