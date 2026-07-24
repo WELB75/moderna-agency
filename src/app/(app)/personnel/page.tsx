@@ -138,9 +138,10 @@ export default async function PersonnelPage() {
   function computeStatsMenage(roster: typeof allPersonnel) {
     return roster
       .map((p) => {
-        const mine = moisAffectations.filter((a) => a.personnelId === p.id && a.faitAt);
+        const mine = moisAffectations.filter((a) => a.personnelId === p.id);
+        const confirmes = mine.filter((a) => a.faitAt).length;
         const villaIds = mine.map((a) => moisReservationById.get(a.reservationId)?.villaId).filter((v): v is string => Boolean(v));
-        return { id: p.id, nom: p.nom, actif: p.actif, total: mine.length, villasDistinctes: new Set(villaIds).size };
+        return { id: p.id, nom: p.nom, actif: p.actif, total: mine.length, confirmes, villasDistinctes: new Set(villaIds).size };
       })
       .sort((a, b) => b.total - a.total);
   }
@@ -227,12 +228,7 @@ export default async function PersonnelPage() {
           <p className="text-sm text-muted-foreground">
             {format(now, "MMMM yyyy", { locale: fr })} — pour comparer la charge entre le personnel.
           </p>
-          <StatsSection
-            title="Femmes de ménage"
-            rows={statsMenage}
-            unit="ménage confirmé"
-            unitPlural="ménages confirmés"
-          />
+          <StatsSection title="Femmes de ménage" rows={statsMenage} unit="ménage affecté" unitPlural="ménages affectés" />
           <StatsSection title="Cuisinières" rows={statsCuisine} unit="jour de cuisine" unitPlural="jours de cuisine" />
         </TabsContent>
       </Tabs>
@@ -360,7 +356,7 @@ function StatsSection({
   unitPlural,
 }: {
   title: string;
-  rows: { id: string; nom: string; actif: boolean; total: number; villasDistinctes: number }[];
+  rows: { id: string; nom: string; actif: boolean; total: number; confirmes?: number; villasDistinctes: number }[];
   unit: string;
   unitPlural: string;
 }) {
@@ -384,6 +380,18 @@ function StatsSection({
                   <Badge variant="secondary">
                     {r.total} {r.total > 1 ? unitPlural : unit}
                   </Badge>
+                  {r.confirmes !== undefined ? (
+                    <Badge
+                      variant="outline"
+                      className={
+                        r.confirmes > 0
+                          ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {r.confirmes} confirmé{r.confirmes > 1 ? "s" : ""}
+                    </Badge>
+                  ) : null}
                   <span>
                     {r.villasDistinctes} villa{r.villasDistinctes > 1 ? "s" : ""} différente
                     {r.villasDistinctes > 1 ? "s" : ""}
