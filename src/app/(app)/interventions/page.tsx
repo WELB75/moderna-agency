@@ -8,6 +8,7 @@ import { InterventionCard } from "@/components/app/intervention-card";
 import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CATEGORIES } from "@/lib/intervention-categorie";
+import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs } from "@/lib/domaines-actifs";
 import { Gauge } from "lucide-react";
 
 export default async function InterventionsPage() {
@@ -15,7 +16,7 @@ export default async function InterventionsPage() {
   const user = await currentUser();
   const currentUserName = user?.fullName ?? user?.username ?? "Équipe";
 
-  const allInterventions = await db
+  const allInterventionsRaw = await db
     .select({
       id: interventions.id,
       titre: interventions.titre,
@@ -50,21 +51,32 @@ export default async function InterventionsPage() {
     .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
     .orderBy(desc(interventions.createdAt));
 
-  const allVillas = await db
-    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
-    .from(villas);
-  const allDomaines = await db.select().from(domaines).orderBy(asc(domaines.nom));
+  // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
+  const allInterventions = allInterventionsRaw.filter((i) => domaineEstActif(i.domaineNom));
+
+  const allDomaines = filtrerDomainesActifs(await db.select().from(domaines).orderBy(asc(domaines.nom)));
+  const domaineIdsActifs = idsDomainesActifs(allDomaines);
+  const allVillas = (
+    await db
+      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
+      .from(villas)
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  const villaIdsActifs = new Set(allVillas.map((v) => v.id));
   const allTechnicians = await db
     .select({ id: technicians.id, nom: technicians.nom, fonction: technicians.fonction })
     .from(technicians);
-  const allContacts = await db
-    .select({
-      villaId: proprieteContacts.villaId,
-      domaineId: proprieteContacts.domaineId,
-      nom: proprieteContacts.nom,
-      role: proprieteContacts.role,
-    })
-    .from(proprieteContacts);
+  const allContacts = (
+    await db
+      .select({
+        villaId: proprieteContacts.villaId,
+        domaineId: proprieteContacts.domaineId,
+        nom: proprieteContacts.nom,
+        role: proprieteContacts.role,
+      })
+      .from(proprieteContacts)
+  ).filter(
+    (c) => (!c.villaId || villaIdsActifs.has(c.villaId)) && (!c.domaineId || domaineIdsActifs.has(c.domaineId))
+  );
 
   const interventionIds = allInterventions.map((i) => i.id);
   const allComments =

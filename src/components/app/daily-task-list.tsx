@@ -8,7 +8,6 @@ import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { createDailyTask, toggleDailyTask, deleteDailyTask } from "@/lib/actions/daily-tasks";
 
@@ -21,28 +20,9 @@ type DailyTask = {
   completedAt: Date | null;
 };
 
-const ONGLETS = [
-  { value: "kamel", label: "Kamel · Moderna II" },
-  { value: "aimad", label: "Aimad · Zaraba & Noria" },
-] as const;
-
+// Phase de test : une seule équipe (Domaine Moderna II), plus besoin de séparer par onglet.
 export function DailyTaskList({ tasks }: { tasks: DailyTask[] }) {
-  return (
-    <Tabs defaultValue="kamel">
-      <TabsList className="h-auto flex-wrap">
-        {ONGLETS.map((o) => (
-          <TabsTrigger key={o.value} value={o.value}>
-            {o.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
-      {ONGLETS.map((o) => (
-        <TabsContent key={o.value} value={o.value}>
-          <DailyTaskPanel assigne={o.value} tasks={tasks.filter((t) => t.assigne === o.value)} />
-        </TabsContent>
-      ))}
-    </Tabs>
-  );
+  return <DailyTaskPanel assigne="kamel" tasks={tasks.filter((t) => t.assigne === "kamel")} />;
 }
 
 function DailyTaskPanel({ assigne, tasks }: { assigne: string; tasks: DailyTask[] }) {

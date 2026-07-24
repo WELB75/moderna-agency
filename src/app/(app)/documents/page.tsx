@@ -12,6 +12,7 @@ import { DocumentRow } from "@/components/app/document-row";
 import { PrintButton } from "@/components/app/print-button";
 import { deleteGendarmerieForm } from "@/lib/actions/gendarmerie";
 import { deleteContrat } from "@/lib/actions/contrats";
+import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs } from "@/lib/domaines-actifs";
 import { FileText, FileSignature, IdCard, Download } from "lucide-react";
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
@@ -29,16 +30,21 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
 export default async function DocumentsPage() {
   const db = getDb();
 
-  const allDomaines = await db
-    .select({ id: domaines.id, nom: domaines.nom, mapsUrl: domaines.mapsUrl })
-    .from(domaines)
-    .where(eq(domaines.estBase, false))
-    .orderBy(asc(domaines.nom));
+  const allDomaines = filtrerDomainesActifs(
+    await db
+      .select({ id: domaines.id, nom: domaines.nom, mapsUrl: domaines.mapsUrl })
+      .from(domaines)
+      .where(eq(domaines.estBase, false))
+      .orderBy(asc(domaines.nom))
+  );
+  const domaineIdsActifs = idsDomainesActifs(allDomaines);
 
-  const allVillas = await db
-    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
-    .from(villas)
-    .orderBy(asc(villas.numero));
+  const allVillas = (
+    await db
+      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
+      .from(villas)
+      .orderBy(asc(villas.numero))
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
 
   const fichesPolice = await db
     .select({
@@ -59,31 +65,28 @@ export default async function DocumentsPage() {
     .orderBy(desc(gendarmerieForms.createdAt))
     .limit(50);
 
-  // Même répartition que le tableau de bord : Aimad gère Zaraba + Noria (appartements),
-  // Kamel gère Moderna II.
-  function equipeDe(row: { villaType: string | null; domaineNom: string | null }): "kamel" | "aimad" | "autre" {
-    if (row.domaineNom === "Domaine Moderna II") return "kamel";
-    if (row.domaineNom === "Domaine Zaraba" || row.villaType === "appartement") return "aimad";
-    return "autre";
-  }
+  // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
+  const fichesVisibles = fichesPolice.filter((f) => domaineEstActif(f.domaineNom));
+  const fichesKamel = fichesVisibles.filter((f) => f.domaineNom === "Domaine Moderna II");
+  const fichesAutres = fichesVisibles.filter((f) => f.domaineNom !== "Domaine Moderna II");
 
-  const fichesKamel = fichesPolice.filter((f) => equipeDe(f) === "kamel");
-  const fichesAimad = fichesPolice.filter((f) => equipeDe(f) === "aimad");
-  const fichesAutres = fichesPolice.filter((f) => equipeDe(f) === "autre");
-
-  const contrats = await db
-    .select({
-      id: contratsLocation.id,
-      statut: contratsLocation.statut,
-      locataireNom: contratsLocation.locataireNom,
-      createdAt: contratsLocation.createdAt,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-    })
-    .from(contratsLocation)
-    .leftJoin(villas, eq(contratsLocation.villaId, villas.id))
-    .orderBy(desc(contratsLocation.createdAt))
-    .limit(50);
+  const villaIdsActifs = new Set(allVillas.map((v) => v.id));
+  const contrats = (
+    await db
+      .select({
+        id: contratsLocation.id,
+        statut: contratsLocation.statut,
+        locataireNom: contratsLocation.locataireNom,
+        createdAt: contratsLocation.createdAt,
+        villaId: contratsLocation.villaId,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+      })
+      .from(contratsLocation)
+      .leftJoin(villas, eq(contratsLocation.villaId, villas.id))
+      .orderBy(desc(contratsLocation.createdAt))
+      .limit(50)
+  ).filter((c) => !c.villaId || villaIdsActifs.has(c.villaId));
 
   const dossierContratIds = new Set(
     (await db.select({ contratId: gendarmerieForms.contratId }).from(gendarmerieForms))
@@ -112,7 +115,7 @@ export default async function DocumentsPage() {
     .orderBy(desc(gendarmerieOccupants.createdAt));
 
   const piecesParDomaine = new Map<string, typeof piecesIdentite>();
-  for (const p of piecesIdentite) {
+  for (const p of piecesIdentite.filter((p) => domaineEstActif(p.domaineNom))) {
     const key = p.domaineNom ?? "Sans domaine";
     if (!piecesParDomaine.has(key)) piecesParDomaine.set(key, []);
     piecesParDomaine.get(key)!.push(p);
@@ -124,7 +127,6 @@ export default async function DocumentsPage() {
     return { total: list.length, remplies, enAttente: list.length - remplies, taux };
   }
   const statsKamel = ficheStats(fichesKamel);
-  const statsAimad = ficheStats(fichesAimad);
 
   const contratsSignes = contrats.filter((c) => c.statut === "signe").length;
   const contratsTauxSignature =
@@ -159,8 +161,7 @@ export default async function DocumentsPage() {
           <GenerateFichePoliceForm domaines={allDomaines} villas={allVillas} />
 
           {[
-            { label: "Kamel · Moderna II", stats: statsKamel, list: fichesKamel },
-            { label: "Aimad · Zaraba & Noria", stats: statsAimad, list: fichesAimad },
+            { label: "Moderna II", stats: statsKamel, list: fichesKamel },
             ...(fichesAutres.length > 0 ? [{ label: "Autres", stats: ficheStats(fichesAutres), list: fichesAutres }] : []),
           ].map(({ label, stats, list }) => (
             <div key={label} className="space-y-3">

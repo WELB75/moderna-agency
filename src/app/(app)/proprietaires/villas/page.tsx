@@ -3,25 +3,28 @@ import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines } from "@/db/schema";
 import { ProprietaireList } from "@/components/app/proprietaire-list";
+import { domaineEstActif } from "@/lib/domaines-actifs";
 import { ChevronLeft } from "lucide-react";
 
 export default async function ProprietairesVillasPage() {
   const db = getDb();
 
-  const allVillas = await db
-    .select({
-      id: villas.id,
-      nom: villas.nom,
-      numero: villas.numero,
-      type: villas.type,
-      domaineNom: domaines.nom,
-      proprietaireNom: villas.proprietaireNom,
-      proprietaireTelephone: villas.proprietaireTelephone,
-    })
-    .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(eq(villas.type, "villa"))
-    .orderBy(asc(domaines.nom), asc(villas.numero));
+  const allVillas = (
+    await db
+      .select({
+        id: villas.id,
+        nom: villas.nom,
+        numero: villas.numero,
+        type: villas.type,
+        domaineNom: domaines.nom,
+        proprietaireNom: villas.proprietaireNom,
+        proprietaireTelephone: villas.proprietaireTelephone,
+      })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(eq(villas.type, "villa"))
+      .orderBy(asc(domaines.nom), asc(villas.numero))
+  ).filter((v) => domaineEstActif(v.domaineNom));
 
   return (
     <div className="space-y-6">

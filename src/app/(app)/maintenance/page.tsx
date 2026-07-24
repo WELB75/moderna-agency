@@ -18,78 +18,94 @@ import { deleteMaintenanceRecord } from "@/lib/actions/maintenance";
 import { deleteTechnician } from "@/lib/actions/technicians";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CATEGORIES } from "@/lib/intervention-categorie";
+import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, idsVillasActives } from "@/lib/domaines-actifs";
 import { Wrench, Users, ListTodo } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 
 export default async function MaintenancePage() {
   const db = getDb();
 
-  const records = await db
-    .select({
-      id: maintenanceRecords.id,
-      categorie: maintenanceRecords.categorie,
-      equipement: maintenanceRecords.equipement,
-      dateIntervention: maintenanceRecords.dateIntervention,
-      prochaineDatePrevue: maintenanceRecords.prochaineDatePrevue,
-      prestataire: maintenanceRecords.prestataire,
-      cout: maintenanceRecords.cout,
-      notes: maintenanceRecords.notes,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-    })
-    .from(maintenanceRecords)
-    .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
-    .orderBy(desc(maintenanceRecords.dateIntervention));
+  const allDomaines = filtrerDomainesActifs(await db.select().from(domaines).orderBy(domaines.nom));
+  const domaineIdsActifs = idsDomainesActifs(allDomaines);
 
-  const allVillas = await db
-    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
-    .from(villas);
+  const allVillas = (
+    await db
+      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
+      .from(villas)
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  const villaIdsActifs = idsVillasActives(allVillas, domaineIdsActifs);
+
+  const records = (
+    await db
+      .select({
+        id: maintenanceRecords.id,
+        categorie: maintenanceRecords.categorie,
+        equipement: maintenanceRecords.equipement,
+        dateIntervention: maintenanceRecords.dateIntervention,
+        prochaineDatePrevue: maintenanceRecords.prochaineDatePrevue,
+        prestataire: maintenanceRecords.prestataire,
+        cout: maintenanceRecords.cout,
+        notes: maintenanceRecords.notes,
+        villaId: maintenanceRecords.villaId,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+      })
+      .from(maintenanceRecords)
+      .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
+      .orderBy(desc(maintenanceRecords.dateIntervention))
+  ).filter((r) => !r.villaId || villaIdsActifs.has(r.villaId));
+
   const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);
-  const allDomaines = await db.select().from(domaines).orderBy(domaines.nom);
-  const allContacts = await db
-    .select({
-      villaId: proprieteContacts.villaId,
-      domaineId: proprieteContacts.domaineId,
-      nom: proprieteContacts.nom,
-      role: proprieteContacts.role,
-    })
-    .from(proprieteContacts);
+  const allContacts = (
+    await db
+      .select({
+        villaId: proprieteContacts.villaId,
+        domaineId: proprieteContacts.domaineId,
+        nom: proprieteContacts.nom,
+        role: proprieteContacts.role,
+      })
+      .from(proprieteContacts)
+  ).filter(
+    (c) => (!c.villaId || villaIdsActifs.has(c.villaId)) && (!c.domaineId || domaineIdsActifs.has(c.domaineId))
+  );
 
-  const villaInterventions = await db
-    .select({
-      id: interventions.id,
-      titre: interventions.titre,
-      probleme: interventions.probleme,
-      lieu: interventions.lieu,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-      domaineId: interventions.domaineId,
-      domaineNom: domaines.nom,
-      domaineMapsUrl: domaines.mapsUrl,
-      prestataire: interventions.prestataire,
-      technicianId: interventions.technicianId,
-      urgence: interventions.urgence,
-      categorie: interventions.categorie,
-      etape: interventions.etape,
-      notes: interventions.notes,
-      attachmentUrls: interventions.attachmentUrls,
-      devis: interventions.devis,
-      signaleAt: interventions.signaleAt,
-      contacteAt: interventions.contacteAt,
-      planifieAt: interventions.planifieAt,
-      debutAt: interventions.debutAt,
-      finAt: interventions.finAt,
-      validationStatut: interventions.validationStatut,
-      validationNote: interventions.validationNote,
-      validationAt: interventions.validationAt,
-      createdByName: interventions.createdByName,
-      createdAt: interventions.createdAt,
-    })
-    .from(interventions)
-    .leftJoin(villas, eq(interventions.villaId, villas.id))
-    .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
-    .where(isNotNull(interventions.villaId))
-    .orderBy(desc(interventions.createdAt));
+  const villaInterventions = (
+    await db
+      .select({
+        id: interventions.id,
+        titre: interventions.titre,
+        probleme: interventions.probleme,
+        lieu: interventions.lieu,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineId: interventions.domaineId,
+        domaineNom: domaines.nom,
+        domaineMapsUrl: domaines.mapsUrl,
+        prestataire: interventions.prestataire,
+        technicianId: interventions.technicianId,
+        urgence: interventions.urgence,
+        categorie: interventions.categorie,
+        etape: interventions.etape,
+        notes: interventions.notes,
+        attachmentUrls: interventions.attachmentUrls,
+        devis: interventions.devis,
+        signaleAt: interventions.signaleAt,
+        contacteAt: interventions.contacteAt,
+        planifieAt: interventions.planifieAt,
+        debutAt: interventions.debutAt,
+        finAt: interventions.finAt,
+        validationStatut: interventions.validationStatut,
+        validationNote: interventions.validationNote,
+        validationAt: interventions.validationAt,
+        createdByName: interventions.createdByName,
+        createdAt: interventions.createdAt,
+      })
+      .from(interventions)
+      .leftJoin(villas, eq(interventions.villaId, villas.id))
+      .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
+      .where(isNotNull(interventions.villaId))
+      .orderBy(desc(interventions.createdAt))
+  ).filter((i) => domaineEstActif(i.domaineNom));
 
   // Regroupe par catégorie : au premier coup d'œil on ne voit que les tuiles de
   // catégorie, on clique dessus pour tomber sur le détail des tâches.

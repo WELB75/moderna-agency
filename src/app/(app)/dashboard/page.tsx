@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { currentUser } from "@clerk/nextjs/server";
 import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
 import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -7,7 +6,6 @@ import { getDb } from "@/db";
 import { reservations, villas, domaines, maintenanceRecords, superhoteSyncLog, gendarmerieForms, contratsLocation } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 import { PaymentSummary } from "@/components/app/payment-info";
@@ -120,14 +118,8 @@ export default async function DashboardPage() {
     return { ...r, ficheStatut, contratStatut };
   });
 
-  const villaUpcoming = upcomingWithDocs.filter((r) => r.villaType !== "appartement");
-  const appartementUpcoming = upcomingWithDocs.filter((r) => r.villaType === "appartement");
-  const zarabaUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Zaraba");
-  const modernaIIUpcoming = villaUpcoming.filter((r) => r.domaineNom === "Domaine Moderna II");
-  // Aimad gère Zaraba ET Noria (les appartements).
-  const aimadUpcoming = [...zarabaUpcoming, ...appartementUpcoming].sort(
-    (a, b) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime()
-  );
+  // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
+  const modernaIIUpcoming = upcomingWithDocs.filter((r) => r.domaineNom === "Domaine Moderna II");
 
   const upcomingMaintenance = await db
     .select({
@@ -174,10 +166,6 @@ export default async function DashboardPage() {
     );
   const occupiedVillaIds = new Set(activeNow.map((r) => r.villaId));
   const villasLibres = allVillas.filter((v) => !occupiedVillaIds.has(v.id));
-  // Même répartition que les onglets : Aimad gère Zaraba + Noria (appartements), Kamel gère Moderna II.
-  const villasLibresAimad = villasLibres.filter(
-    (v) => v.domaineNom === "Domaine Zaraba" || v.type === "appartement"
-  );
   const villasLibresKamel = villasLibres.filter((v) => v.domaineNom === "Domaine Moderna II");
 
   // Plan du domaine confirmé par Kamel : le champ "numero" correspond à la position 1-17 sur le terrain.
@@ -186,17 +174,9 @@ export default async function DashboardPage() {
     .map((v) => ({ id: v.id, nom: v.nom, position: parseInt(v.numero, 10), libre: !occupiedVillaIds.has(v.id) }))
     .filter((v) => !Number.isNaN(v.position));
 
-  const villaMaintenance = upcomingMaintenance.filter((m) => m.villaType !== "appartement");
-  const appartementMaintenance = upcomingMaintenance.filter((m) => m.villaType === "appartement");
-  const zarabaMaintenance = villaMaintenance.filter((m) => m.domaineNom === "Domaine Zaraba");
-  const modernaIIMaintenance = villaMaintenance.filter((m) => m.domaineNom === "Domaine Moderna II");
-  const aimadMaintenance = [...zarabaMaintenance, ...appartementMaintenance];
+  const modernaIIMaintenance = upcomingMaintenance.filter((m) => m.domaineNom === "Domaine Moderna II");
 
   const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(now, i));
-
-  const user = await currentUser();
-  const userEmail = user?.emailAddresses?.[0]?.emailAddress?.toLowerCase();
-  const isAimad = Boolean(userEmail && userEmail === process.env.AIMAD_EMAIL?.toLowerCase());
 
   const [lastSync] = await db
     .select({ finishedAt: superhoteSyncLog.finishedAt, success: superhoteSyncLog.success })
@@ -226,28 +206,9 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {isAimad ? (
-        <>
-          <VillasLibresCard villas={villasLibresAimad} />
-          <PersonPanel reservations={aimadUpcoming} maintenance={aimadMaintenance} days={days} now={now} />
-        </>
-      ) : (
-        <Tabs defaultValue="kamel">
-          <TabsList className="h-auto flex-wrap">
-            <TabsTrigger value="kamel">Kamel · Moderna II</TabsTrigger>
-            <TabsTrigger value="aimad">Aimad · Zaraba &amp; Noria</TabsTrigger>
-          </TabsList>
-          <TabsContent value="kamel" className="space-y-6 pt-2">
-            <VillasLibresCard villas={villasLibresKamel} />
-            <DomainePlanModernaII villas={modernaIIPlanVillas} />
-            <PersonPanel reservations={modernaIIUpcoming} maintenance={modernaIIMaintenance} days={days} now={now} />
-          </TabsContent>
-          <TabsContent value="aimad" className="space-y-6 pt-2">
-            <VillasLibresCard villas={villasLibresAimad} />
-            <PersonPanel reservations={aimadUpcoming} maintenance={aimadMaintenance} days={days} now={now} />
-          </TabsContent>
-        </Tabs>
-      )}
+      <VillasLibresCard villas={villasLibresKamel} />
+      <DomainePlanModernaII villas={modernaIIPlanVillas} />
+      <PersonPanel reservations={modernaIIUpcoming} maintenance={modernaIIMaintenance} days={days} now={now} />
     </div>
   );
 }

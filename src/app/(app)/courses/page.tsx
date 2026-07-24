@@ -9,27 +9,30 @@ import { AddReceiptDialog } from "@/components/app/add-receipt-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { deleteReceipt } from "@/lib/actions/courses";
+import { filtrerDomainesActifs, domaineEstActif } from "@/lib/domaines-actifs";
 import { Receipt } from "lucide-react";
 
 export default async function CoursesPage() {
   const db = getDb();
 
-  const allDomaines = await db.select().from(domaines).orderBy(asc(domaines.nom));
+  const allDomaines = filtrerDomainesActifs(await db.select().from(domaines).orderBy(asc(domaines.nom)));
   const allProducts = await db.select().from(products).orderBy(asc(products.nom));
 
-  const allReceipts = await db
-    .select({
-      id: receipts.id,
-      photoUrl: receipts.photoUrl,
-      montant: receipts.montant,
-      notes: receipts.notes,
-      createdByName: receipts.createdByName,
-      createdAt: receipts.createdAt,
-      domaineNom: domaines.nom,
-    })
-    .from(receipts)
-    .leftJoin(domaines, eq(receipts.domaineId, domaines.id))
-    .orderBy(desc(receipts.createdAt));
+  const allReceipts = (
+    await db
+      .select({
+        id: receipts.id,
+        photoUrl: receipts.photoUrl,
+        montant: receipts.montant,
+        notes: receipts.notes,
+        createdByName: receipts.createdByName,
+        createdAt: receipts.createdAt,
+        domaineNom: domaines.nom,
+      })
+      .from(receipts)
+      .leftJoin(domaines, eq(receipts.domaineId, domaines.id))
+      .orderBy(desc(receipts.createdAt))
+  ).filter((r) => domaineEstActif(r.domaineNom));
 
   const allReceiptItems = await db
     .select({

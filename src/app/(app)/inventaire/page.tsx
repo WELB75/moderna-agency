@@ -11,38 +11,61 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProcedureCard } from "@/components/app/procedure-card";
 import { DomaineStockSection } from "@/components/app/domaine-stock-section";
 import { VillaStockPanel } from "@/components/app/villa-stock-panel";
+import { filtrerDomainesActifs, idsDomainesActifs } from "@/lib/domaines-actifs";
 import { ClipboardCheck, ListChecks, Plus, Boxes } from "lucide-react";
 
 export default async function InventairePage() {
   const db = getDb();
 
-  const checklists = await db
-    .select({
-      id: inventoryChecklists.id,
-      type: inventoryChecklists.type,
-      status: inventoryChecklists.status,
-      clientNom: inventoryChecklists.clientNom,
-      createdAt: inventoryChecklists.createdAt,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-    })
-    .from(inventoryChecklists)
-    .leftJoin(villas, eq(inventoryChecklists.villaId, villas.id))
-    .orderBy(desc(inventoryChecklists.createdAt));
+  const allDomainesRaw = await db.select().from(domaines).orderBy(asc(domaines.nom));
+  const allDomaines = filtrerDomainesActifs(allDomainesRaw);
+  const domaineIdsActifs = idsDomainesActifs(allDomainesRaw);
+
+  const allStockVillas = (
+    await db
+      .select({
+        id: villas.id,
+        nom: villas.nom,
+        numero: villas.numero,
+        domaineId: villas.domaineId,
+        domaineNom: domaines.nom,
+      })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(eq(villas.type, "villa"))
+      .orderBy(asc(domaines.nom), asc(villas.numero))
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  const villaIdsActifs = new Set(allStockVillas.map((v) => v.id));
+
+  const checklists = (
+    await db
+      .select({
+        id: inventoryChecklists.id,
+        type: inventoryChecklists.type,
+        status: inventoryChecklists.status,
+        clientNom: inventoryChecklists.clientNom,
+        createdAt: inventoryChecklists.createdAt,
+        villaId: inventoryChecklists.villaId,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+      })
+      .from(inventoryChecklists)
+      .leftJoin(villas, eq(inventoryChecklists.villaId, villas.id))
+      .orderBy(desc(inventoryChecklists.createdAt))
+  ).filter((c) => !c.villaId || villaIdsActifs.has(c.villaId));
 
   const procedures = await db.select().from(procedureTemplates).orderBy(asc(procedureTemplates.ordre));
 
-  const allDomaines = await db.select().from(domaines).orderBy(asc(domaines.nom));
   const allProducts = await db.select().from(products).orderBy(asc(products.nom));
   const allDomaineStock = await db.select().from(domaineStock);
-  const allVillaStock = await db.select().from(villaStock);
+  const allVillaStock = (await db.select().from(villaStock)).filter((s) => villaIdsActifs.has(s.villaId));
 
-  const baseDomaine = allDomaines.find((d) => d.estBase);
+  const baseDomaine = allDomainesRaw.find((d) => d.estBase);
   const stockBureau = allDomaineStock
     .filter((s) => s.domaineId === baseDomaine?.id)
     .reduce((sum, s) => sum + s.quantite, 0);
   const stockDomaines = allDomaineStock
-    .filter((s) => s.domaineId !== baseDomaine?.id)
+    .filter((s) => s.domaineId !== baseDomaine?.id && domaineIdsActifs.has(s.domaineId))
     .reduce((sum, s) => sum + s.quantite, 0);
   const stockVillasTotal = allVillaStock.reduce((sum, s) => sum + s.quantite, 0);
   const produitsEnRuptureBureau = baseDomaine
@@ -51,17 +74,6 @@ export default async function InventairePage() {
         return !stock || stock.quantite === 0;
       }).length
     : 0;
-  const allStockVillas = await db
-    .select({
-      id: villas.id,
-      nom: villas.nom,
-      numero: villas.numero,
-      domaineNom: domaines.nom,
-    })
-    .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(eq(villas.type, "villa"))
-    .orderBy(asc(domaines.nom), asc(villas.numero));
 
   return (
     <div className="space-y-6">

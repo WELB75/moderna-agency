@@ -8,29 +8,32 @@ import { Badge } from "@/components/ui/badge";
 import { AddVillaDialog } from "@/components/app/add-villa-dialog";
 import { AddDomaineDialog } from "@/components/app/add-domaine-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
+import { filtrerDomainesActifs, domaineEstActif } from "@/lib/domaines-actifs";
 import { Building2, ChevronRight } from "lucide-react";
 
 export default async function VillasPage() {
   const db = getDb();
-  const allDomaines = await db.select().from(domaines).orderBy(domaines.nom);
-  const allVillas = await db
-    .select({
-      id: villas.id,
-      numero: villas.numero,
-      nom: villas.nom,
-      adresse: villas.adresse,
-      notes: villas.notes,
-      photoUrl: villas.photoUrl,
-      icalUrl: villas.icalUrl,
-      domaineId: villas.domaineId,
-      createdAt: villas.createdAt,
-      updatedAt: villas.updatedAt,
-      domaineNom: domaines.nom,
-    })
-    .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(eq(villas.type, "villa"))
-    .orderBy(desc(villas.createdAt));
+  const allDomaines = filtrerDomainesActifs(await db.select().from(domaines).orderBy(domaines.nom));
+  const allVillas = (
+    await db
+      .select({
+        id: villas.id,
+        numero: villas.numero,
+        nom: villas.nom,
+        adresse: villas.adresse,
+        notes: villas.notes,
+        photoUrl: villas.photoUrl,
+        icalUrl: villas.icalUrl,
+        domaineId: villas.domaineId,
+        createdAt: villas.createdAt,
+        updatedAt: villas.updatedAt,
+        domaineNom: domaines.nom,
+      })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(eq(villas.type, "villa"))
+      .orderBy(desc(villas.createdAt))
+  ).filter((v) => domaineEstActif(v.domaineNom));
 
   return (
     <div className="space-y-6">

@@ -7,9 +7,8 @@ import { formatDateFr } from "@/lib/format-date";
 import { nowInMorocco } from "@/lib/now";
 import type { VillaSecurityData } from "@/components/app/villa-security-block";
 
-// Pour l'instant, la sécurité ne concerne que les villas (pas les appartements Noria) :
-// chaque domaine a ses propres agents, il ne faut jamais mélanger les deux.
-const DOMAINES_SECURITE = ["Domaine Zaraba", "Domaine Moderna II"];
+// Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
+const DOMAINES_SECURITE = ["Domaine Moderna II"];
 
 async function buildVillaSecurityData(
   db: ReturnType<typeof getDb>,
