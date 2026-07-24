@@ -25,6 +25,7 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { PhoneLink } from "@/components/app/phone-link";
 import { CheckinMessageButton } from "@/components/app/checkin-message-button";
 import { FichePoliceMessageButton } from "@/components/app/fiche-police-message-button";
+import { CopyTextButton } from "@/components/app/copy-text-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
@@ -568,6 +569,30 @@ function buildResumeDomaine(domaineName: string, checkIns: ReservationRow[], che
   return `Se rendre à ${domaineName} : ${parts.join(" et ")}.`;
 }
 
+// Résumé texte prêt à copier-coller (ex. envoyer à Imane sur WhatsApp) — reprend les infos
+// essentielles de la carte sans avoir à tout retaper à la main.
+function buildReservationSummary(r: ReservationRow, kind: "in" | "out"): string {
+  const lines: string[] = [];
+  lines.push(r.villaNom ? `${r.villaNom} (villa n°${r.villaNumero})` : "Villa non renseignée");
+  const target = kind === "in" ? r.checkIn : r.checkOut;
+  lines.push(
+    `${kind === "in" ? "Check-in" : "Check-out"} : ${format(new Date(target), "EEEE d MMMM 'à' HH:mm", { locale: fr })}`
+  );
+  if (kind === "in") {
+    lines.push(`Départ prévu le ${format(new Date(r.checkOut), "d MMMM yyyy", { locale: fr })}`);
+  }
+  const effectif = [
+    r.nbAdultes ? `${r.nbAdultes} adulte${r.nbAdultes > 1 ? "s" : ""}` : null,
+    r.nbEnfants ? `${r.nbEnfants} enfant${r.nbEnfants > 1 ? "s" : ""}` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  lines.push(`${r.guestName}${effectif ? ` · ${effectif}` : ""}`);
+  if (r.notes) lines.push(r.notes);
+  if (r.guestPhone) lines.push(`Téléphone : ${r.guestPhone}`);
+  return lines.join("\n");
+}
+
 function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
@@ -693,6 +718,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
               ficheId={r.ficheId}
             />
           ) : null}
+          <CopyTextButton text={buildReservationSummary(r, kind)} label="Copier pour Imane" />
         </div>
         <EditReservationTimeDialog
           reservationId={r.id}
