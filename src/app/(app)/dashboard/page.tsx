@@ -24,6 +24,7 @@ import { GuestCount } from "@/components/app/guest-count";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { PhoneLink } from "@/components/app/phone-link";
 import { CheckinMessageButton } from "@/components/app/checkin-message-button";
+import { FichePoliceMessageButton } from "@/components/app/fiche-police-message-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
@@ -92,16 +93,18 @@ export default async function DashboardPage() {
   const relatedFiches =
     reservationIds.length > 0
       ? await db
-          .select({ reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
+          .select({ id: gendarmerieForms.id, reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
           .from(gendarmerieForms)
           .where(inArray(gendarmerieForms.reservationId, reservationIds))
       : [];
   const ficheStatutByReservation = new Map<string, "complete" | "en_attente">();
+  const ficheIdByReservation = new Map<string, string>();
   for (const f of relatedFiches) {
     if (!f.reservationId) continue;
     const current = ficheStatutByReservation.get(f.reservationId);
     if (f.statut === "complete" || current !== "complete") {
       ficheStatutByReservation.set(f.reservationId, f.statut === "complete" ? "complete" : "en_attente");
+      ficheIdByReservation.set(f.reservationId, f.id);
     }
   }
 
@@ -148,11 +151,12 @@ export default async function DashboardPage() {
 
   const upcomingWithDocs = upcoming.map((r) => {
     const ficheStatut = ficheStatutByReservation.get(r.id) ?? null;
+    const ficheId = ficheIdByReservation.get(r.id) ?? null;
     const dateKey = r.villaId ? `${r.villaId}|${format(new Date(r.checkIn), "yyyy-MM-dd")}` : null;
     const contratStatut = dateKey ? (contratStatutByVillaAndDate.get(dateKey) ?? null) : null;
     const menageNoms = menageNomsByReservation.get(r.id) ?? [];
     const cuisineNoms = cuisineNomsByReservation.get(r.id) ?? [];
-    return { ...r, ficheStatut, contratStatut, menageNoms, cuisineNoms };
+    return { ...r, ficheStatut, ficheId, contratStatut, menageNoms, cuisineNoms };
   });
 
   // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
@@ -404,6 +408,7 @@ type ReservationRow = {
   checkoutValidePar: string | null;
   aRelancer: boolean;
   ficheStatut: "complete" | "en_attente" | null;
+  ficheId: string | null;
   contratStatut: "signe" | "en_attente" | null;
   menageNoms: string[];
   cuisineNoms: string[];
@@ -672,6 +677,9 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
           {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : null}
           {r.guestPhone && kind === "in" && !isProprietaire ? (
             <CheckinMessageButton phone={r.guestPhone} guestName={r.guestName} checkIn={new Date(r.checkIn)} now={nowInMorocco()} />
+          ) : null}
+          {r.guestPhone && kind === "in" && !isProprietaire && r.villaId && r.ficheStatut !== "complete" ? (
+            <FichePoliceMessageButton reservationId={r.id} villaId={r.villaId} phone={r.guestPhone} ficheId={r.ficheId} />
           ) : null}
         </div>
         <EditReservationTimeDialog
