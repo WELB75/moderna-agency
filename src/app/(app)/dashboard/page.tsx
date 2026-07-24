@@ -26,8 +26,9 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat, type LucideIcon } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 
 const DAYS_AHEAD = 7;
@@ -580,52 +581,31 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
 
-        {isProprietaire ? null : (
-          <div className="mt-1.5 flex flex-wrap gap-1.5">
-            <Badge
-              variant="outline"
-              className={
-                r.ficheStatut === "complete"
-                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "text-muted-foreground"
-              }
-            >
-              <FileText className="h-3 w-3" />
-              Fiche police{" "}
-              {r.ficheStatut === "complete" ? "faite" : r.ficheStatut === "en_attente" ? "en attente" : "manquante"}
-            </Badge>
-            <Badge
-              variant="outline"
-              className={
-                r.contratStatut === "signe"
-                  ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                  : "text-muted-foreground"
-              }
-            >
-              <FileSignature className="h-3 w-3" />
-              Contrat{" "}
-              {r.contratStatut === "signe" ? "signé" : r.contratStatut === "en_attente" ? "en attente" : "manquant"}
-            </Badge>
-          </div>
-        )}
-
-        <div className="mt-1.5 flex flex-wrap gap-1.5">
-          <Badge
-            variant="outline"
-            className={
-              r.menageNoms.length > 0
-                ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                : "border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-            }
-          >
-            <Sparkles className="h-3 w-3" />
-            Ménage {r.menageNoms.length > 0 ? r.menageNoms.join(", ") : "non affecté"}
-          </Badge>
+        <div className="mt-2 grid grid-cols-2 gap-1.5">
+          {isProprietaire ? null : (
+            <>
+              <StatusChip
+                icon={FileText}
+                label="Fiche police"
+                value={r.ficheStatut === "complete" ? "Faite" : r.ficheStatut === "en_attente" ? "En attente" : "Manquante"}
+                done={r.ficheStatut === "complete"}
+              />
+              <StatusChip
+                icon={FileSignature}
+                label="Contrat"
+                value={r.contratStatut === "signe" ? "Signé" : r.contratStatut === "en_attente" ? "En attente" : "Manquant"}
+                done={r.contratStatut === "signe"}
+              />
+            </>
+          )}
+          <StatusChip
+            icon={Sparkles}
+            label="Ménage"
+            value={r.menageNoms.length > 0 ? r.menageNoms.join(", ") : "Non affecté"}
+            done={r.menageNoms.length > 0}
+          />
           {r.cuisineNoms.length > 0 ? (
-            <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-              <ChefHat className="h-3 w-3" />
-              Cuisine {r.cuisineNoms.join(", ")}
-            </Badge>
+            <StatusChip icon={ChefHat} label="Cuisine" value={r.cuisineNoms.join(", ")} done />
           ) : null}
         </div>
 
@@ -663,6 +643,37 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
           validePar={kind === "in" ? r.checkinValidePar : r.checkoutValidePar}
         />
       </div>
+    </div>
+  );
+}
+
+// Petit statut compact (icône + libellé + valeur) en grille, pour remplacer l'empilement de
+// badges pilule : plus lisible d'un coup d'œil, groupe visuellement tous les indicateurs.
+function StatusChip({
+  icon: Icon,
+  label,
+  value,
+  done,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  done: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs",
+        done
+          ? "border-emerald-500/30 bg-emerald-500/5 dark:border-emerald-500/20"
+          : "border-amber-500/30 bg-amber-500/5 dark:border-amber-500/20"
+      )}
+    >
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", done ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")} />
+      <span className="min-w-0 truncate">
+        <span className="text-muted-foreground">{label} · </span>
+        <span className="font-medium text-foreground">{value}</span>
+      </span>
     </div>
   );
 }
