@@ -621,7 +621,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
 
-        <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <div className="mt-2 flex flex-wrap gap-1.5">
           {isProprietaire ? null : (
             <>
               <StatusChip

@@ -12,7 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen flex-1 flex-col">
         <AppHeader />
         <main className="flex-1 overflow-y-auto pb-20 md:pb-6">
-          <div className="mx-auto w-full max-w-5xl p-4 md:p-6">{children}</div>
+          <div className="mx-auto w-full max-w-7xl p-4 md:p-6">{children}</div>
         </main>
       </div>
       <BottomNav />
