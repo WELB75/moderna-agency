@@ -90,16 +90,11 @@ export async function updateOperationalInfo(formData: FormData) {
   const reservationId = String(formData.get("reservationId") ?? "");
   if (!reservationId) throw new Error("Réservation introuvable.");
 
-  const menagePersonnelId = String(formData.get("menagePersonnelId") ?? "");
-  const cuisinePersonnelId = String(formData.get("cuisinePersonnelId") ?? "");
-
   const db = getDb();
   await db
     .update(reservations)
     .set({
       assigneCheckin: String(formData.get("assigneCheckin") ?? "").trim() || null,
-      menagePersonnelId: menagePersonnelId && menagePersonnelId !== "none" ? menagePersonnelId : null,
-      cuisinePersonnelId: cuisinePersonnelId && cuisinePersonnelId !== "none" ? cuisinePersonnelId : null,
       formulaireBienvenueEnvoye: formData.get("formulaireBienvenueEnvoye") === "on",
       formulaireCheckinRecu: formData.get("formulaireCheckinRecu") === "on",
       aRelancer: formData.get("aRelancer") === "on",

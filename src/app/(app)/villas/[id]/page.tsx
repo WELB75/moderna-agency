@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { eq, ne, and, or, asc, desc, gte } from "drizzle-orm";
+import { eq, ne, and, or, asc, desc, gte, inArray } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -17,6 +17,7 @@ import {
   interventions,
   cashEntries,
   personnel,
+  personnelAffectations,
 } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { OperationalSummary, EditOperationalInfoDialog } from "@/components/app/operational-info";
+import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { GendarmerieAction } from "@/components/app/gendarmerie-action";
 import { deleteVilla } from "@/lib/actions/villas";
 import { deleteReservation } from "@/lib/actions/reservations";
@@ -82,15 +84,41 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   const allDomaines = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(domaines.nom);
 
   const allPersonnel = await db.select().from(personnel).orderBy(asc(personnel.nom));
-  const personnelMenage = allPersonnel.filter((p) => p.role === "menage" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
-  const personnelCuisine = allPersonnel.filter((p) => p.role === "cuisine" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
-  const personnelNomById = new Map(allPersonnel.map((p) => [p.id, p.nom]));
+  const personnelMenageOptions = allPersonnel.filter((p) => p.role === "menage" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const personnelCuisineOptions = allPersonnel.filter((p) => p.role === "cuisine" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
 
   const allVillaReservations = await db
     .select()
     .from(reservations)
     .where(and(eq(reservations.villaId, id), ne(reservations.status, "annulee")))
     .orderBy(asc(reservations.checkIn));
+
+  const villaReservationIds = allVillaReservations.map((r) => r.id);
+  const allAffectations =
+    villaReservationIds.length > 0
+      ? await db
+          .select({
+            id: personnelAffectations.id,
+            reservationId: personnelAffectations.reservationId,
+            personnelId: personnelAffectations.personnelId,
+          })
+          .from(personnelAffectations)
+          .where(inArray(personnelAffectations.reservationId, villaReservationIds))
+      : [];
+  const affectationsByReservation = new Map<string, { affectationId: string; personnelId: string; role: string }[]>();
+  for (const a of allAffectations) {
+    const p = personnelById.get(a.personnelId);
+    if (!p) continue;
+    const list = affectationsByReservation.get(a.reservationId) ?? [];
+    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role });
+    affectationsByReservation.set(a.reservationId, list);
+  }
+  function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
+    return (affectationsByReservation.get(reservationId) ?? [])
+      .filter((a) => a.role === role)
+      .map((a) => ({ affectationId: a.affectationId, personnelId: a.personnelId, nom: personnelById.get(a.personnelId)!.nom }));
+  }
 
   const allGendarmerieForms = await db
     .select({ id: gendarmerieForms.id, statut: gendarmerieForms.statut, reservationId: gendarmerieForms.reservationId })
@@ -286,9 +314,10 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                 villaId={villa.id}
                 gendarmerieForm={gendarmerieByReservation.get(r.id) ?? null}
                 proprietaireTelephone={villa.proprietaireTelephone}
-                personnelMenage={personnelMenage}
-                personnelCuisine={personnelCuisine}
-                personnelNomById={personnelNomById}
+                personnelMenageOptions={personnelMenageOptions}
+                personnelCuisineOptions={personnelCuisineOptions}
+                menageAssigned={assignedFor(r.id, "menage")}
+                cuisineAssigned={assignedFor(r.id, "cuisine")}
               />
             ))
           )}
@@ -308,9 +337,10 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                     r={r}
                     muted
                     proprietaireTelephone={villa.proprietaireTelephone}
-                    personnelMenage={personnelMenage}
-                    personnelCuisine={personnelCuisine}
-                    personnelNomById={personnelNomById}
+                    personnelMenageOptions={personnelMenageOptions}
+                    personnelCuisineOptions={personnelCuisineOptions}
+                    menageAssigned={assignedFor(r.id, "menage")}
+                    cuisineAssigned={assignedFor(r.id, "cuisine")}
                   />
                 ))}
               </div>
@@ -403,18 +433,20 @@ function ReservationListItem({
   villaId,
   gendarmerieForm,
   proprietaireTelephone,
-  personnelMenage,
-  personnelCuisine,
-  personnelNomById,
+  personnelMenageOptions,
+  personnelCuisineOptions,
+  menageAssigned,
+  cuisineAssigned,
 }: {
   r: typeof reservations.$inferSelect;
   muted?: boolean;
   villaId?: string;
   gendarmerieForm?: { id: string; statut: string } | null;
   proprietaireTelephone?: string | null;
-  personnelMenage: { id: string; nom: string }[];
-  personnelCuisine: { id: string; nom: string }[];
-  personnelNomById: Map<string, string>;
+  personnelMenageOptions: { id: string; nom: string }[];
+  personnelCuisineOptions: { id: string; nom: string }[];
+  menageAssigned: PersonnelAssigne[];
+  cuisineAssigned: PersonnelAssigne[];
 }) {
   const isProprietaire = phonesMatch(r.guestPhone, proprietaireTelephone);
 
@@ -451,10 +483,6 @@ function ReservationListItem({
           <EditOperationalInfoDialog
             reservationId={r.id}
             assigneCheckin={r.assigneCheckin}
-            menagePersonnelId={r.menagePersonnelId}
-            cuisinePersonnelId={r.cuisinePersonnelId}
-            personnelMenage={personnelMenage}
-            personnelCuisine={personnelCuisine}
             formulaireBienvenueEnvoye={r.formulaireBienvenueEnvoye}
             formulaireCheckinRecu={r.formulaireCheckinRecu}
             aRelancer={r.aRelancer}
@@ -476,12 +504,24 @@ function ReservationListItem({
       ) : null}
       <OperationalSummary
         assigneCheckin={r.assigneCheckin}
-        menagePersonnelNom={r.menagePersonnelId ? personnelNomById.get(r.menagePersonnelId) : null}
-        cuisinePersonnelNom={r.cuisinePersonnelId ? personnelNomById.get(r.cuisinePersonnelId) : null}
         formulaireBienvenueEnvoye={r.formulaireBienvenueEnvoye}
         formulaireCheckinRecu={r.formulaireCheckinRecu}
         aRelancer={r.aRelancer}
       />
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+        <PersonnelAffectationEditor
+          reservationId={r.id}
+          label="Ménage"
+          assigned={menageAssigned}
+          options={personnelMenageOptions}
+        />
+        <PersonnelAffectationEditor
+          reservationId={r.id}
+          label="Cuisine"
+          assigned={cuisineAssigned}
+          options={personnelCuisineOptions}
+        />
+      </div>
       {isProprietaire ? null : (
         <div className="mt-2">
           <PaymentSummary

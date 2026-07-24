@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, reservations } from "@/db/schema";
+import { personnel, personnelAffectations } from "@/db/schema";
 
 export async function createPersonnel(formData: FormData) {
   await auth.protect();
@@ -42,17 +42,25 @@ export async function deletePersonnel(personnelId: string) {
   revalidatePath("/personnel");
 }
 
-export async function assignPersonnel(
-  reservationId: string,
-  kind: "menage" | "cuisine",
-  personnelId: string | null
-) {
+// Plusieurs personnes peuvent être affectées au même séjour (ex. 2-3 femmes de ménage
+// pour une grande villa) — d'où une simple ligne ajoutée/retirée plutôt qu'un champ unique.
+export async function addPersonnelAffectation(reservationId: string, personnelId: string) {
   await auth.protect();
   const db = getDb();
   await db
-    .update(reservations)
-    .set(kind === "menage" ? { menagePersonnelId: personnelId } : { cuisinePersonnelId: personnelId })
-    .where(eq(reservations.id, reservationId));
+    .insert(personnelAffectations)
+    .values({ reservationId, personnelId })
+    .onConflictDoNothing();
+
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+}
+
+export async function removePersonnelAffectation(affectationId: string) {
+  await auth.protect();
+  const db = getDb();
+  await db.delete(personnelAffectations).where(eq(personnelAffectations.id, affectationId));
 
   revalidatePath("/personnel");
   revalidatePath("/villas");

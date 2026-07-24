@@ -1,14 +1,14 @@
-import { asc, and, ne, gte, lte, eq } from "drizzle-orm";
+import { asc, and, ne, gte, lte, eq, inArray } from "drizzle-orm";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { personnel, reservations, villas, domaines } from "@/db/schema";
+import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddPersonnelDialog } from "@/components/app/add-personnel-dialog";
 import { PersonnelActifToggle } from "@/components/app/personnel-actif-toggle";
-import { PersonnelAssignSelect } from "@/components/app/personnel-assign-select";
+import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { deletePersonnel } from "@/lib/actions/personnel";
@@ -25,6 +25,7 @@ export default async function PersonnelPage() {
   const cuisineRoster = allPersonnel.filter((p) => p.role === "cuisine");
   const menageOptions = menageRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const cuisineOptions = cuisineRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
 
   const upcoming = (
     await db
@@ -35,8 +36,6 @@ export default async function PersonnelPage() {
         villaNom: villas.nom,
         villaNumero: villas.numero,
         domaineNom: domaines.nom,
-        menagePersonnelId: reservations.menagePersonnelId,
-        cuisinePersonnelId: reservations.cuisinePersonnelId,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -45,6 +44,32 @@ export default async function PersonnelPage() {
       .orderBy(asc(reservations.checkOut))
   ).filter((r) => domaineEstActif(r.domaineNom));
 
+  const upcomingIds = upcoming.map((r) => r.id);
+  const upcomingAffectations =
+    upcomingIds.length > 0
+      ? await db
+          .select({
+            id: personnelAffectations.id,
+            reservationId: personnelAffectations.reservationId,
+            personnelId: personnelAffectations.personnelId,
+          })
+          .from(personnelAffectations)
+          .where(inArray(personnelAffectations.reservationId, upcomingIds))
+      : [];
+  const affectationsByReservation = new Map<string, { affectationId: string; personnelId: string; role: string }[]>();
+  for (const a of upcomingAffectations) {
+    const p = personnelById.get(a.personnelId);
+    if (!p) continue;
+    const list = affectationsByReservation.get(a.reservationId) ?? [];
+    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role });
+    affectationsByReservation.set(a.reservationId, list);
+  }
+  function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
+    return (affectationsByReservation.get(reservationId) ?? [])
+      .filter((a) => a.role === role)
+      .map((a) => ({ affectationId: a.affectationId, personnelId: a.personnelId, nom: personnelById.get(a.personnelId)!.nom }));
+  }
+
   // Statistiques du mois en cours : combien de ménages/cuisines chacun a faits, et dans
   // combien de villas différentes — pour repérer les déséquilibres entre le personnel.
   const debutMois = startOfMonth(now);
@@ -52,34 +77,43 @@ export default async function PersonnelPage() {
   const moisReservations = (
     await db
       .select({
+        id: reservations.id,
         villaId: reservations.villaId,
-        villaNom: villas.nom,
         domaineNom: domaines.nom,
-        menagePersonnelId: reservations.menagePersonnelId,
-        cuisinePersonnelId: reservations.cuisinePersonnelId,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, debutMois), lte(reservations.checkOut, finMois)))
   ).filter((r) => domaineEstActif(r.domaineNom));
+  const moisReservationIds = moisReservations.map((r) => r.id);
+  const villaIdByReservation = new Map(moisReservations.map((r) => [r.id, r.villaId]));
 
-  function computeStats(roster: typeof allPersonnel, key: "menagePersonnelId" | "cuisinePersonnelId") {
+  const moisAffectations =
+    moisReservationIds.length > 0
+      ? await db
+          .select({ reservationId: personnelAffectations.reservationId, personnelId: personnelAffectations.personnelId })
+          .from(personnelAffectations)
+          .where(inArray(personnelAffectations.reservationId, moisReservationIds))
+      : [];
+
+  function computeStats(roster: typeof allPersonnel) {
     return roster
       .map((p) => {
-        const mine = moisReservations.filter((r) => r[key] === p.id);
+        const mine = moisAffectations.filter((a) => a.personnelId === p.id);
+        const villaIds = mine.map((a) => villaIdByReservation.get(a.reservationId)).filter((v): v is string => Boolean(v));
         return {
           id: p.id,
           nom: p.nom,
           actif: p.actif,
           total: mine.length,
-          villasDistinctes: new Set(mine.filter((r) => r.villaId).map((r) => r.villaId)).size,
+          villasDistinctes: new Set(villaIds).size,
         };
       })
       .sort((a, b) => b.total - a.total);
   }
-  const statsMenage = computeStats(menageRoster, "menagePersonnelId");
-  const statsCuisine = computeStats(cuisineRoster, "cuisinePersonnelId");
+  const statsMenage = computeStats(menageRoster);
+  const statsCuisine = computeStats(cuisineRoster);
 
   return (
     <div className="space-y-6">
@@ -132,25 +166,19 @@ export default async function PersonnelPage() {
                       {r.guestName} · départ le {format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Ménage</p>
-                      <PersonnelAssignSelect
-                        reservationId={r.id}
-                        kind="menage"
-                        currentId={r.menagePersonnelId}
-                        options={menageOptions}
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-xs text-muted-foreground">Cuisine</p>
-                      <PersonnelAssignSelect
-                        reservationId={r.id}
-                        kind="cuisine"
-                        currentId={r.cuisinePersonnelId}
-                        options={cuisineOptions}
-                      />
-                    </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <PersonnelAffectationEditor
+                      reservationId={r.id}
+                      label="Ménage"
+                      assigned={assignedFor(r.id, "menage")}
+                      options={menageOptions}
+                    />
+                    <PersonnelAffectationEditor
+                      reservationId={r.id}
+                      label="Cuisine"
+                      assigned={assignedFor(r.id, "cuisine")}
+                      options={cuisineOptions}
+                    />
                   </div>
                 </div>
               ))}

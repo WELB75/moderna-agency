@@ -144,9 +144,7 @@ export const reservations = pgTable(
     // Suivi opérationnel équivalent à ce que montre Superhote mais qu'on ne peut pas récupérer
     // via leur flux iCal (pas d'API accessible) : renseigné à la main.
     assigneCheckin: text("assigne_checkin"),
-    assigneMenage: text("assigne_menage"), // ancien champ texte libre, remplacé par menagePersonnelId
-    menagePersonnelId: uuid("menage_personnel_id").references(() => personnel.id, { onDelete: "set null" }),
-    cuisinePersonnelId: uuid("cuisine_personnel_id").references(() => personnel.id, { onDelete: "set null" }),
+    assigneMenage: text("assigne_menage"), // ancien champ texte libre, remplacé par personnelAffectations
     formulaireBienvenueEnvoye: boolean("formulaire_bienvenue_envoye").default(false).notNull(),
     formulaireCheckinRecu: boolean("formulaire_checkin_recu").default(false).notNull(),
     aRelancer: boolean("a_relancer").default(false).notNull(),
@@ -477,6 +475,24 @@ export const personnel = pgTable("personnel", {
   actif: boolean("actif").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// Table de liaison : plusieurs personnes (ménage ou cuisine) peuvent être affectées au même
+// séjour (ex. 2-3 femmes de ménage pour une grande villa) — d'où une table à part plutôt
+// qu'une simple colonne FK unique sur reservations.
+export const personnelAffectations = pgTable(
+  "personnel_affectations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    reservationId: uuid("reservation_id")
+      .references(() => reservations.id, { onDelete: "cascade" })
+      .notNull(),
+    personnelId: uuid("personnel_id")
+      .references(() => personnel.id, { onDelete: "cascade" })
+      .notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId)]
+);
 
 export const products = pgTable(
   "products",
