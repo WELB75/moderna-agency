@@ -685,7 +685,13 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             <CheckinMessageButton phone={r.guestPhone} guestName={r.guestName} checkIn={new Date(r.checkIn)} now={nowInMorocco()} />
           ) : null}
           {r.guestPhone && kind === "in" && !isProprietaire && r.villaId && r.ficheStatut !== "complete" ? (
-            <FichePoliceMessageButton reservationId={r.id} villaId={r.villaId} phone={r.guestPhone} ficheId={r.ficheId} />
+            <FichePoliceMessageButton
+              reservationId={r.id}
+              villaId={r.villaId}
+              phone={r.guestPhone}
+              guestName={r.guestName}
+              ficheId={r.ficheId}
+            />
           ) : null}
         </div>
         <EditReservationTimeDialog

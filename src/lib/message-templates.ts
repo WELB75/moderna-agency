@@ -13,3 +13,9 @@ export function buildCheckinReminderMessage(guestName: string, checkIn: Date, no
 
   return `Salam ${guestName},\n\nEn espérant que vous allez bien ?\n\nC'est Kamel pour votre check-in ${quand} in sha-a Allah.\n\nAvez-vous une idée sur votre horaire d'arrivée à la Villa ? Merci.`;
 }
+
+// Message envoyé avec le lien de la fiche de police, à demander avant l'arrivée — toujours
+// signé au nom de l'agence (pas juste "Kamel"), pour rester officiel sur ce sujet sécurité.
+export function buildFichePoliceMessage(guestName: string, link: string): string {
+  return `Bonjour ${guestName},\n\nJe vous prépare le lien pour compléter la fiche de police, nécessaire pour la sécurité du domaine et pour vous protéger ainsi que le propriétaire.\n\n${link}\n\nMerci,\nKamel, Moderna Agency`;
+}
