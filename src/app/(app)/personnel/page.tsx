@@ -1,4 +1,4 @@
-import { asc, and, ne, gte, lte, eq, inArray, isNull } from "drizzle-orm";
+import { asc, and, ne, gte, lte, eq, inArray, isNull, or } from "drizzle-orm";
 import { format, startOfMonth, endOfMonth, differenceInCalendarDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -29,11 +29,10 @@ export default async function PersonnelPage() {
   const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
 
   // Séparé en deux listes distinctes plutôt qu'une seule "à venir" mélangeant les deux dates :
-  // la cuisine se prépare pour une arrivée, le ménage se fait après un départ — utiliser la
-  // validation réelle du check-in/check-out (pas juste la date prévue) évite qu'un départ déjà
-  // fait plus tôt que prévu (ex. propriétaire parti en avance) traîne encore dans la liste.
-  // La borne basse (2 jours en arrière) laisse remonter un check-in/check-out en retard de
-  // validation sans faire réapparaître de très vieilles réservations jamais nettoyées.
+  // la cuisine se prépare pour une arrivée, le ménage se fait après un départ. On garde une
+  // entrée visible tant que le check-in/check-out n'est pas validé, OU si il vient d'être
+  // validé récemment (le ménage se fait juste après un départ réel, même anticipé — ex.
+  // propriétaire parti plus tôt que prévu, on doit encore pouvoir affecter qui nettoie).
   const fenetreBasse = subDays(now, 2);
   const arrivees = (
     await db
@@ -48,7 +47,13 @@ export default async function PersonnelPage() {
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(and(ne(reservations.status, "annulee"), isNull(reservations.checkinValideAt), gte(reservations.checkIn, fenetreBasse)))
+      .where(
+        and(
+          ne(reservations.status, "annulee"),
+          gte(reservations.checkIn, fenetreBasse),
+          or(isNull(reservations.checkinValideAt), gte(reservations.checkinValideAt, fenetreBasse))
+        )
+      )
       .orderBy(asc(reservations.checkIn))
   ).filter((r) => domaineEstActif(r.domaineNom));
 
@@ -65,7 +70,13 @@ export default async function PersonnelPage() {
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(and(ne(reservations.status, "annulee"), isNull(reservations.checkoutValideAt), gte(reservations.checkOut, fenetreBasse)))
+      .where(
+        and(
+          ne(reservations.status, "annulee"),
+          gte(reservations.checkOut, fenetreBasse),
+          or(isNull(reservations.checkoutValideAt), gte(reservations.checkoutValideAt, fenetreBasse))
+        )
+      )
       .orderBy(asc(reservations.checkOut))
   ).filter((r) => domaineEstActif(r.domaineNom));
 
@@ -180,20 +191,10 @@ export default async function PersonnelPage() {
           <RosterSection title="Cuisinières" role="cuisine" people={cuisineRoster} />
         </TabsContent>
 
-        <TabsContent value="affectations" className="space-y-6">
-          <AffectationSection
-            title="Arrivées"
-            description="Un client arrive : qui s'occupe de la cuisine pendant son séjour (si besoin) ?"
-            icon={LogIn}
-            list={arrivees}
-            dateLabel="arrivée"
-            getDate={(r) => r.checkIn}
-            role="cuisine"
-            label="Cuisine"
-            options={cuisineOptions}
-            assignedFor={assignedFor}
-            emptyLabel="Aucune arrivée en attente."
-          />
+        <TabsContent value="affectations" className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          {/* Départs en premier : c'est le plus urgent, la villa doit être prête avant l'arrivée
+              suivante. Les deux colonnes restent visibles côte à côte sur grand écran, sans
+              devoir scroller jusqu'en bas pour retrouver le ménage. */}
           <AffectationSection
             title="Départs"
             description="Un client part : qui fait le ménage juste après ?"
@@ -206,6 +207,19 @@ export default async function PersonnelPage() {
             options={menageOptions}
             assignedFor={assignedFor}
             emptyLabel="Aucun départ en attente."
+          />
+          <AffectationSection
+            title="Arrivées"
+            description="Un client arrive : qui s'occupe de la cuisine pendant son séjour (si besoin) ?"
+            icon={LogIn}
+            list={arrivees}
+            dateLabel="arrivée"
+            getDate={(r) => r.checkIn}
+            role="cuisine"
+            label="Cuisine"
+            options={cuisineOptions}
+            assignedFor={assignedFor}
+            emptyLabel="Aucune arrivée en attente."
           />
         </TabsContent>
 

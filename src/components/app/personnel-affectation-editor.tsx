@@ -181,10 +181,11 @@ function CuisineBadge({
         onChange={(e) => setJours(e.target.value)}
         onBlur={handleBlur}
         disabled={disabled || isPending}
-        placeholder="j"
+        placeholder="nb"
         title="Nombre de jours si ce n'est pas tout le séjour"
-        className="h-5 w-10 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
+        className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
       />
+      <span className="text-muted-foreground">{jours === "1" ? "jour" : "jours"}</span>
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
