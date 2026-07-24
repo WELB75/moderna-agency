@@ -1,0 +1,263 @@
+import { asc, and, ne, gte, lte, eq } from "drizzle-orm";
+import { format, startOfMonth, endOfMonth } from "date-fns";
+import { fr } from "date-fns/locale";
+import { getDb } from "@/db";
+import { personnel, reservations, villas, domaines } from "@/db/schema";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AddPersonnelDialog } from "@/components/app/add-personnel-dialog";
+import { PersonnelActifToggle } from "@/components/app/personnel-actif-toggle";
+import { PersonnelAssignSelect } from "@/components/app/personnel-assign-select";
+import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { PhoneLink } from "@/components/app/phone-link";
+import { deletePersonnel } from "@/lib/actions/personnel";
+import { domaineEstActif } from "@/lib/domaines-actifs";
+import { nowInMorocco } from "@/lib/now";
+import { Users, CalendarClock, BarChart3 } from "lucide-react";
+
+export default async function PersonnelPage() {
+  const db = getDb();
+  const now = nowInMorocco();
+
+  const allPersonnel = await db.select().from(personnel).orderBy(asc(personnel.nom));
+  const menageRoster = allPersonnel.filter((p) => p.role === "menage");
+  const cuisineRoster = allPersonnel.filter((p) => p.role === "cuisine");
+  const menageOptions = menageRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const cuisineOptions = cuisineRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+
+  const upcoming = (
+    await db
+      .select({
+        id: reservations.id,
+        guestName: reservations.guestName,
+        checkOut: reservations.checkOut,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+        menagePersonnelId: reservations.menagePersonnelId,
+        cuisinePersonnelId: reservations.cuisinePersonnelId,
+      })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, now)))
+      .orderBy(asc(reservations.checkOut))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+
+  // Statistiques du mois en cours : combien de ménages/cuisines chacun a faits, et dans
+  // combien de villas différentes — pour repérer les déséquilibres entre le personnel.
+  const debutMois = startOfMonth(now);
+  const finMois = endOfMonth(now);
+  const moisReservations = (
+    await db
+      .select({
+        villaId: reservations.villaId,
+        villaNom: villas.nom,
+        domaineNom: domaines.nom,
+        menagePersonnelId: reservations.menagePersonnelId,
+        cuisinePersonnelId: reservations.cuisinePersonnelId,
+      })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, debutMois), lte(reservations.checkOut, finMois)))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+
+  function computeStats(roster: typeof allPersonnel, key: "menagePersonnelId" | "cuisinePersonnelId") {
+    return roster
+      .map((p) => {
+        const mine = moisReservations.filter((r) => r[key] === p.id);
+        return {
+          id: p.id,
+          nom: p.nom,
+          actif: p.actif,
+          total: mine.length,
+          villasDistinctes: new Set(mine.filter((r) => r.villaId).map((r) => r.villaId)).size,
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+  }
+  const statsMenage = computeStats(menageRoster, "menagePersonnelId");
+  const statsCuisine = computeStats(cuisineRoster, "cuisinePersonnelId");
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Personnel</h1>
+        <p className="text-sm text-muted-foreground">Femmes de ménage et cuisinières — affectations et suivi</p>
+      </div>
+
+      <Tabs defaultValue="equipe">
+        <TabsList>
+          <TabsTrigger value="equipe">
+            <Users className="h-4 w-4" />
+            Équipe
+          </TabsTrigger>
+          <TabsTrigger value="affectations">
+            <CalendarClock className="h-4 w-4" />
+            Affectations
+          </TabsTrigger>
+          <TabsTrigger value="statistiques">
+            <BarChart3 className="h-4 w-4" />
+            Statistiques
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="equipe" className="space-y-6">
+          <RosterSection title="Femmes de ménage" role="menage" people={menageRoster} />
+          <RosterSection title="Cuisinières" role="cuisine" people={cuisineRoster} />
+        </TabsContent>
+
+        <TabsContent value="affectations" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Séjours à venir : qui s&apos;occupe du ménage et, si besoin, de la cuisine.
+          </p>
+          {upcoming.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
+                <CalendarClock className="h-8 w-8" />
+                <p>Aucun séjour à venir.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {upcoming.map((r) => (
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                  <div>
+                    <p className="font-medium">
+                      {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {r.guestName} · départ le {format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Ménage</p>
+                      <PersonnelAssignSelect
+                        reservationId={r.id}
+                        kind="menage"
+                        currentId={r.menagePersonnelId}
+                        options={menageOptions}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground">Cuisine</p>
+                      <PersonnelAssignSelect
+                        reservationId={r.id}
+                        kind="cuisine"
+                        currentId={r.cuisinePersonnelId}
+                        options={cuisineOptions}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="statistiques" className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            {format(now, "MMMM yyyy", { locale: fr })} — nombre de ménages/cuisines faits et nombre de villas
+            différentes couvertes, pour comparer la charge entre le personnel.
+          </p>
+          <StatsSection title="Femmes de ménage" rows={statsMenage} unit="ménage" />
+          <StatsSection title="Cuisinières" rows={statsCuisine} unit="prestation" />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function RosterSection({
+  title,
+  role,
+  people,
+}: {
+  title: string;
+  role: "menage" | "cuisine";
+  people: (typeof personnel.$inferSelect)[];
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <CardTitle className="text-base">{title}</CardTitle>
+        <AddPersonnelDialog defaultRole={role} />
+      </CardHeader>
+      <CardContent>
+        {people.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Personne enregistrée pour l&apos;instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {people.map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-medium">{p.nom}</p>
+                    {!p.actif ? <Badge variant="outline">Inactif</Badge> : null}
+                  </div>
+                  {p.telephone ? <PhoneLink phone={p.telephone} /> : null}
+                  {p.notes ? <p className="mt-0.5 text-sm text-muted-foreground">{p.notes}</p> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <PersonnelActifToggle personnelId={p.id} actif={p.actif} />
+                  <ConfirmDeleteButton
+                    action={deletePersonnel.bind(null, p.id)}
+                    title={`Supprimer ${p.nom} ?`}
+                    description="Ses affectations passées perdront le lien vers son nom. Préfère désactiver plutôt que supprimer si elle a déjà travaillé."
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatsSection({
+  title,
+  rows,
+  unit,
+}: {
+  title: string;
+  rows: { id: string; nom: string; actif: boolean; total: number; villasDistinctes: number }[];
+  unit: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Personne enregistrée pour l&apos;instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium">{r.nom}</p>
+                  {!r.actif ? <Badge variant="outline">Inactif</Badge> : null}
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Badge variant="secondary">
+                    {r.total} {unit}
+                    {r.total > 1 ? "s" : ""}
+                  </Badge>
+                  <span>
+                    {r.villasDistinctes} villa{r.villasDistinctes > 1 ? "s" : ""} différente
+                    {r.villasDistinctes > 1 ? "s" : ""}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

@@ -400,11 +400,21 @@ function DayCard({
     new Set([...checkIns, ...checkOuts].map((r) => r.domaineNom ?? "Sans domaine"))
   ).sort();
 
-  const domaineGroups = domaineNames.map((domaineName) => ({
-    domaineName,
-    checkIns: checkIns.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName),
-    checkOuts: checkOuts.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName),
-  }));
+  const domaineGroups = domaineNames.map((domaineName) => {
+    const domaineCheckIns = checkIns.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
+    const domaineCheckOuts = checkOuts.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
+    // Trié par horaire réel : les check-out sont le matin, les check-in l'après-midi,
+    // donc ça place naturellement les check-out en premier sans règle figée.
+    const items: { r: ReservationRow; kind: "in" | "out" }[] = [
+      ...domaineCheckIns.map((r) => ({ r, kind: "in" as const })),
+      ...domaineCheckOuts.map((r) => ({ r, kind: "out" as const })),
+    ].sort(
+      (a, b) =>
+        new Date(a.kind === "in" ? a.r.checkIn : a.r.checkOut).getTime() -
+        new Date(b.kind === "in" ? b.r.checkIn : b.r.checkOut).getTime()
+    );
+    return { domaineName, checkIns: domaineCheckIns, checkOuts: domaineCheckOuts, items };
+  });
 
   return (
     <Card>
@@ -436,11 +446,8 @@ function DayCard({
                 <div key={g.domaineName} className="space-y-2">
                   <DomaineBadge nom={g.domaineName} />
                   <div className="space-y-2">
-                    {g.checkIns.map((r) => (
-                      <ReservationRowCard key={`in-${r.id}`} r={r} kind="in" />
-                    ))}
-                    {g.checkOuts.map((r) => (
-                      <ReservationRowCard key={`out-${r.id}`} r={r} kind="out" />
+                    {g.items.map(({ r, kind }) => (
+                      <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />
                     ))}
                   </div>
                 </div>

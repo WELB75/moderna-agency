@@ -144,7 +144,9 @@ export const reservations = pgTable(
     // Suivi opérationnel équivalent à ce que montre Superhote mais qu'on ne peut pas récupérer
     // via leur flux iCal (pas d'API accessible) : renseigné à la main.
     assigneCheckin: text("assigne_checkin"),
-    assigneMenage: text("assigne_menage"),
+    assigneMenage: text("assigne_menage"), // ancien champ texte libre, remplacé par menagePersonnelId
+    menagePersonnelId: uuid("menage_personnel_id").references(() => personnel.id, { onDelete: "set null" }),
+    cuisinePersonnelId: uuid("cuisine_personnel_id").references(() => personnel.id, { onDelete: "set null" }),
     formulaireBienvenueEnvoye: boolean("formulaire_bienvenue_envoye").default(false).notNull(),
     formulaireCheckinRecu: boolean("formulaire_checkin_recu").default(false).notNull(),
     aRelancer: boolean("a_relancer").default(false).notNull(),
@@ -458,6 +460,21 @@ export const proprieteContacts = pgTable("propriete_contacts", {
   // Personnel payé régulièrement (femme de ménage, jardinier...) : sert à afficher un
   // rappel "à payer ce mois-ci" en croisant avec les dépenses de la Caisse.
   paiementRecurrent: boolean("paiement_recurrent").default(false).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const personnelRoleEnum = pgEnum("personnel_role", ["menage", "cuisine"]);
+
+// Répertoire du personnel ménage/cuisine, indépendant des villas : une même personne peut
+// tourner sur plusieurs villas, on la retrouve donc toujours sous la même fiche pour compter
+// ses affectations (équité entre le personnel).
+export const personnel = pgTable("personnel", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nom: text("nom").notNull(),
+  role: personnelRoleEnum("role").notNull(),
+  telephone: text("telephone"),
+  notes: text("notes"),
+  actif: boolean("actif").default(true).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

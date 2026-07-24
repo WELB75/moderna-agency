@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -21,24 +22,33 @@ import { updateOperationalInfo } from "@/lib/actions/reservations";
 
 export function OperationalSummary({
   assigneCheckin,
-  assigneMenage,
+  menagePersonnelNom,
+  cuisinePersonnelNom,
   formulaireBienvenueEnvoye,
   formulaireCheckinRecu,
   aRelancer,
 }: {
   assigneCheckin: string | null;
-  assigneMenage: string | null;
+  menagePersonnelNom?: string | null;
+  cuisinePersonnelNom?: string | null;
   formulaireBienvenueEnvoye: boolean;
   formulaireCheckinRecu: boolean;
   aRelancer: boolean;
 }) {
-  const hasAnything = assigneCheckin || assigneMenage || formulaireBienvenueEnvoye || formulaireCheckinRecu || aRelancer;
+  const hasAnything =
+    assigneCheckin ||
+    menagePersonnelNom ||
+    cuisinePersonnelNom ||
+    formulaireBienvenueEnvoye ||
+    formulaireCheckinRecu ||
+    aRelancer;
   if (!hasAnything) return null;
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
       {assigneCheckin ? <Badge variant="outline">Check-in : {assigneCheckin}</Badge> : null}
-      {assigneMenage ? <Badge variant="outline">Ménage : {assigneMenage}</Badge> : null}
+      {menagePersonnelNom ? <Badge variant="outline">Ménage : {menagePersonnelNom}</Badge> : null}
+      {cuisinePersonnelNom ? <Badge variant="outline">Cuisine : {cuisinePersonnelNom}</Badge> : null}
       {formulaireBienvenueEnvoye ? <Badge variant="outline">Bienvenue envoyé</Badge> : null}
       {formulaireCheckinRecu ? <Badge variant="outline">Formulaire check-in reçu</Badge> : null}
       {aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
@@ -49,14 +59,20 @@ export function OperationalSummary({
 export function EditOperationalInfoDialog({
   reservationId,
   assigneCheckin,
-  assigneMenage,
+  menagePersonnelId,
+  cuisinePersonnelId,
+  personnelMenage,
+  personnelCuisine,
   formulaireBienvenueEnvoye,
   formulaireCheckinRecu,
   aRelancer,
 }: {
   reservationId: string;
   assigneCheckin: string | null;
-  assigneMenage: string | null;
+  menagePersonnelId?: string | null;
+  cuisinePersonnelId?: string | null;
+  personnelMenage: { id: string; nom: string }[];
+  personnelCuisine: { id: string; nom: string }[];
   formulaireBienvenueEnvoye: boolean;
   formulaireCheckinRecu: boolean;
   aRelancer: boolean;
@@ -65,10 +81,14 @@ export function EditOperationalInfoDialog({
   const [bienvenue, setBienvenue] = useState(formulaireBienvenueEnvoye);
   const [checkinRecu, setCheckinRecu] = useState(formulaireCheckinRecu);
   const [relancer, setRelancer] = useState(aRelancer);
+  const [menage, setMenage] = useState(menagePersonnelId ?? "none");
+  const [cuisine, setCuisine] = useState(cuisinePersonnelId ?? "none");
   const [isPending, startTransition] = useTransition();
 
   async function handleSubmit(formData: FormData) {
     formData.set("reservationId", reservationId);
+    formData.set("menagePersonnelId", menage);
+    formData.set("cuisinePersonnelId", cuisine);
     if (bienvenue) formData.set("formulaireBienvenueEnvoye", "on");
     if (checkinRecu) formData.set("formulaireCheckinRecu", "on");
     if (relancer) formData.set("aRelancer", "on");
@@ -100,14 +120,42 @@ export function EditOperationalInfoDialog({
           </DialogDescription>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="assigneCheckin">Assigné check-in</Label>
+            <Input id="assigneCheckin" name="assigneCheckin" defaultValue={assigneCheckin ?? ""} placeholder="Ex. Kamel" />
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="assigneCheckin">Assigné check-in</Label>
-              <Input id="assigneCheckin" name="assigneCheckin" defaultValue={assigneCheckin ?? ""} placeholder="Ex. Aimad" />
+              <Label>Ménage</Label>
+              <Select value={menage} onValueChange={setMenage}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucune</SelectItem>
+                  {personnelMenage.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="assigneMenage">Assigné ménage</Label>
-              <Input id="assigneMenage" name="assigneMenage" defaultValue={assigneMenage ?? ""} placeholder="Ex. Touria" />
+              <Label>Cuisine</Label>
+              <Select value={cuisine} onValueChange={setCuisine}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucune</SelectItem>
+                  {personnelCuisine.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.nom}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <div className="space-y-2">

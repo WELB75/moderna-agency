@@ -16,6 +16,7 @@ import {
   proprieteContacts,
   interventions,
   cashEntries,
+  personnel,
 } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -79,6 +80,11 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   const typeLabel = villa.type === "appartement" ? "Appartement" : "Villa";
 
   const allDomaines = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(domaines.nom);
+
+  const allPersonnel = await db.select().from(personnel).orderBy(asc(personnel.nom));
+  const personnelMenage = allPersonnel.filter((p) => p.role === "menage" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const personnelCuisine = allPersonnel.filter((p) => p.role === "cuisine" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const personnelNomById = new Map(allPersonnel.map((p) => [p.id, p.nom]));
 
   const allVillaReservations = await db
     .select()
@@ -280,6 +286,9 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                 villaId={villa.id}
                 gendarmerieForm={gendarmerieByReservation.get(r.id) ?? null}
                 proprietaireTelephone={villa.proprietaireTelephone}
+                personnelMenage={personnelMenage}
+                personnelCuisine={personnelCuisine}
+                personnelNomById={personnelNomById}
               />
             ))
           )}
@@ -294,7 +303,15 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
               </summary>
               <div className="space-y-3 border-t p-3">
                 {pastReservations.map((r) => (
-                  <ReservationListItem key={r.id} r={r} muted proprietaireTelephone={villa.proprietaireTelephone} />
+                  <ReservationListItem
+                    key={r.id}
+                    r={r}
+                    muted
+                    proprietaireTelephone={villa.proprietaireTelephone}
+                    personnelMenage={personnelMenage}
+                    personnelCuisine={personnelCuisine}
+                    personnelNomById={personnelNomById}
+                  />
                 ))}
               </div>
             </details>
@@ -386,12 +403,18 @@ function ReservationListItem({
   villaId,
   gendarmerieForm,
   proprietaireTelephone,
+  personnelMenage,
+  personnelCuisine,
+  personnelNomById,
 }: {
   r: typeof reservations.$inferSelect;
   muted?: boolean;
   villaId?: string;
   gendarmerieForm?: { id: string; statut: string } | null;
   proprietaireTelephone?: string | null;
+  personnelMenage: { id: string; nom: string }[];
+  personnelCuisine: { id: string; nom: string }[];
+  personnelNomById: Map<string, string>;
 }) {
   const isProprietaire = phonesMatch(r.guestPhone, proprietaireTelephone);
 
@@ -428,7 +451,10 @@ function ReservationListItem({
           <EditOperationalInfoDialog
             reservationId={r.id}
             assigneCheckin={r.assigneCheckin}
-            assigneMenage={r.assigneMenage}
+            menagePersonnelId={r.menagePersonnelId}
+            cuisinePersonnelId={r.cuisinePersonnelId}
+            personnelMenage={personnelMenage}
+            personnelCuisine={personnelCuisine}
             formulaireBienvenueEnvoye={r.formulaireBienvenueEnvoye}
             formulaireCheckinRecu={r.formulaireCheckinRecu}
             aRelancer={r.aRelancer}
@@ -450,7 +476,8 @@ function ReservationListItem({
       ) : null}
       <OperationalSummary
         assigneCheckin={r.assigneCheckin}
-        assigneMenage={r.assigneMenage}
+        menagePersonnelNom={r.menagePersonnelId ? personnelNomById.get(r.menagePersonnelId) : null}
+        cuisinePersonnelNom={r.cuisinePersonnelId ? personnelNomById.get(r.cuisinePersonnelId) : null}
         formulaireBienvenueEnvoye={r.formulaireBienvenueEnvoye}
         formulaireCheckinRecu={r.formulaireCheckinRecu}
         aRelancer={r.aRelancer}
