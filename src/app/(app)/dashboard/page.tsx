@@ -25,11 +25,12 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { PhoneLink } from "@/components/app/phone-link";
 import { CheckinMessageButton } from "@/components/app/checkin-message-button";
 import { FichePoliceMessageButton } from "@/components/app/fiche-police-message-button";
-import { CopyTextButton } from "@/components/app/copy-text-button";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat, type LucideIcon } from "lucide-react";
+import { StatusChip } from "@/components/app/status-chip";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
@@ -569,30 +570,6 @@ function buildResumeDomaine(domaineName: string, checkIns: ReservationRow[], che
   return `Se rendre à ${domaineName} : ${parts.join(" et ")}.`;
 }
 
-// Résumé texte prêt à copier-coller (ex. envoyer à Imane sur WhatsApp) — reprend les infos
-// essentielles de la carte sans avoir à tout retaper à la main.
-function buildReservationSummary(r: ReservationRow, kind: "in" | "out"): string {
-  const lines: string[] = [];
-  lines.push(r.villaNom ? `${r.villaNom} (villa n°${r.villaNumero})` : "Villa non renseignée");
-  const target = kind === "in" ? r.checkIn : r.checkOut;
-  lines.push(
-    `${kind === "in" ? "Check-in" : "Check-out"} : ${format(new Date(target), "EEEE d MMMM 'à' HH:mm", { locale: fr })}`
-  );
-  if (kind === "in") {
-    lines.push(`Départ prévu le ${format(new Date(r.checkOut), "d MMMM yyyy", { locale: fr })}`);
-  }
-  const effectif = [
-    r.nbAdultes ? `${r.nbAdultes} adulte${r.nbAdultes > 1 ? "s" : ""}` : null,
-    r.nbEnfants ? `${r.nbEnfants} enfant${r.nbEnfants > 1 ? "s" : ""}` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
-  lines.push(`${r.guestName}${effectif ? ` · ${effectif}` : ""}`);
-  if (r.notes) lines.push(r.notes);
-  if (r.guestPhone) lines.push(`Téléphone : ${r.guestPhone}`);
-  return lines.join("\n");
-}
-
 function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
@@ -718,7 +695,11 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
               ficheId={r.ficheId}
             />
           ) : null}
-          <CopyTextButton text={buildReservationSummary(r, kind)} label="Copier pour Imane" />
+          <CopyLinkButton
+            path={`/r/${r.id}`}
+            label="Copier pour Imane"
+            successMessage="Lien copié — envoie-le à Imane, elle verra les mêmes infos."
+          />
         </div>
         <EditReservationTimeDialog
           reservationId={r.id}
@@ -738,33 +719,3 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
   );
 }
 
-// Petit statut compact (icône + libellé + valeur) en grille, pour remplacer l'empilement de
-// badges pilule : plus lisible d'un coup d'œil, groupe visuellement tous les indicateurs.
-function StatusChip({
-  icon: Icon,
-  label,
-  value,
-  done,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  done: boolean;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs",
-        done
-          ? "border-emerald-500/30 bg-emerald-500/5 dark:border-emerald-500/20"
-          : "border-amber-500/30 bg-amber-500/5 dark:border-amber-500/20"
-      )}
-    >
-      <Icon className={cn("h-3.5 w-3.5 shrink-0", done ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")} />
-      <span className="min-w-0 truncate">
-        <span className="text-muted-foreground">{label} · </span>
-        <span className="font-medium text-foreground">{value}</span>
-      </span>
-    </div>
-  );
-}
