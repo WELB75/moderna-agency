@@ -78,7 +78,11 @@ export function PersonnelAffectationEditor({
               ))}
             </SelectContent>
           </Select>
-        ) : null}
+        ) : options.length === 0 ? (
+          <span className="text-xs text-muted-foreground">Personne dans l&apos;équipe (onglet Équipe)</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">Toute l&apos;équipe est déjà affectée ici</span>
+        )}
       </div>
     </div>
   );
