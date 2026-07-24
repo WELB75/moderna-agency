@@ -1,6 +1,7 @@
 // Convertit un numéro (local marocain "06...", international "+33...", "00...")
-// en lien wa.me utilisable directement pour ouvrir une discussion WhatsApp.
-export function toWhatsAppUrl(rawPhone: string): string {
+// en lien wa.me utilisable directement pour ouvrir une discussion WhatsApp. Un message
+// optionnel est pré-rempli dans le champ de saisie (encore modifiable avant l'envoi).
+export function toWhatsAppUrl(rawPhone: string, message?: string): string {
   let normalized = rawPhone.replace(/[^\d+]/g, "");
 
   if (normalized.startsWith("00")) {
@@ -11,7 +12,8 @@ export function toWhatsAppUrl(rawPhone: string): string {
     normalized = `+212${normalized}`;
   }
 
-  return `https://wa.me/${normalized.replace(/\D/g, "")}`;
+  const base = `https://wa.me/${normalized.replace(/\D/g, "")}`;
+  return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
 
 // Compare deux numéros en ignorant l'indicatif pays / le 0 initial (formats mélangés :

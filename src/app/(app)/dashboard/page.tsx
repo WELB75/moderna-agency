@@ -23,6 +23,7 @@ import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { PhoneLink } from "@/components/app/phone-link";
+import { CheckinMessageButton } from "@/components/app/checkin-message-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
@@ -484,9 +485,17 @@ function DayCard({
                 <div key={g.domaineName} className="space-y-2">
                   <DomaineBadge nom={g.domaineName} />
                   <div className="space-y-2">
-                    {g.items.map(({ r, kind }) => (
-                      <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />
-                    ))}
+                    {groupTurnoverRows(g.items).map((row, i) =>
+                      row.length === 2 ? (
+                        <div key={i} className="grid gap-2 lg:grid-cols-2">
+                          {row.map(({ r, kind }) => (
+                            <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />
+                          ))}
+                        </div>
+                      ) : (
+                        row.map(({ r, kind }) => <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />)
+                      )
+                    )}
                   </div>
                 </div>
               ))}
@@ -496,6 +505,37 @@ function DayCard({
       </CardContent>
     </Card>
   );
+}
+
+// Regroupe check-in et check-out de la même villa (turnover le même jour) pour les afficher
+// côte à côte sur grand écran plutôt qu'empilés — les autres restent seuls sur leur ligne.
+function groupTurnoverRows(
+  items: { r: ReservationRow; kind: "in" | "out" }[]
+): { r: ReservationRow; kind: "in" | "out" }[][] {
+  const byVilla = new Map<string, { r: ReservationRow; kind: "in" | "out" }[]>();
+  for (const item of items) {
+    if (!item.r.villaId) continue;
+    const list = byVilla.get(item.r.villaId) ?? [];
+    list.push(item);
+    byVilla.set(item.r.villaId, list);
+  }
+
+  const rows: { r: ReservationRow; kind: "in" | "out" }[][] = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const key = `${item.kind}-${item.r.id}`;
+    if (seen.has(key)) continue;
+    const villaGroup = item.r.villaId ? byVilla.get(item.r.villaId) : undefined;
+    if (villaGroup && villaGroup.length === 2 && villaGroup[0].kind !== villaGroup[1].kind) {
+      const pair = [...villaGroup].sort((a) => (a.kind === "out" ? -1 : 1));
+      rows.push(pair);
+      pair.forEach((p) => seen.add(`${p.kind}-${p.r.id}`));
+    } else {
+      rows.push([item]);
+      seen.add(key);
+    }
+  }
+  return rows;
 }
 
 // Synthèse en une phrase de ce qu'il y a à faire dans ce domaine ce jour-là
@@ -628,7 +668,12 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
       </Link>
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
-        {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : <span />}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : null}
+          {r.guestPhone && kind === "in" && !isProprietaire ? (
+            <CheckinMessageButton phone={r.guestPhone} guestName={r.guestName} checkIn={new Date(r.checkIn)} now={nowInMorocco()} />
+          ) : null}
+        </div>
         <EditReservationTimeDialog
           reservationId={r.id}
           checkIn={new Date(r.checkIn)}
