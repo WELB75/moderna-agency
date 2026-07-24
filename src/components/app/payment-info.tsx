@@ -41,13 +41,7 @@ export function PaymentSummary({
   devisePaiement: string;
 }) {
   if (loyerTotal === null) {
-    return (
-      <div className="mt-2">
-        <Badge variant="destructive">
-          Montant du loyer non renseigné — clique sur &laquo; Paiement &raquo;
-        </Badge>
-      </div>
-    );
+    return null;
   }
 
   const total = Number(loyerTotal);

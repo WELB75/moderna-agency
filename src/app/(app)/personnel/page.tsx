@@ -1,5 +1,5 @@
-import { asc, and, ne, gte, lte, eq, inArray } from "drizzle-orm";
-import { format, startOfMonth, endOfMonth, differenceInCalendarDays } from "date-fns";
+import { asc, and, ne, gte, lte, eq, inArray, isNull } from "drizzle-orm";
+import { format, startOfMonth, endOfMonth, differenceInCalendarDays, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
@@ -15,7 +15,7 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
-import { Users, CalendarClock, BarChart3 } from "lucide-react";
+import { Users, CalendarClock, BarChart3, LogIn, LogOut, type LucideIcon } from "lucide-react";
 
 export default async function PersonnelPage() {
   const db = getDb();
@@ -28,7 +28,31 @@ export default async function PersonnelPage() {
   const cuisineOptions = cuisineRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
 
-  const upcoming = (
+  // Séparé en deux listes distinctes plutôt qu'une seule "à venir" mélangeant les deux dates :
+  // la cuisine se prépare pour une arrivée, le ménage se fait après un départ — utiliser la
+  // validation réelle du check-in/check-out (pas juste la date prévue) évite qu'un départ déjà
+  // fait plus tôt que prévu (ex. propriétaire parti en avance) traîne encore dans la liste.
+  // La borne basse (2 jours en arrière) laisse remonter un check-in/check-out en retard de
+  // validation sans faire réapparaître de très vieilles réservations jamais nettoyées.
+  const fenetreBasse = subDays(now, 2);
+  const arrivees = (
+    await db
+      .select({
+        id: reservations.id,
+        guestName: reservations.guestName,
+        checkIn: reservations.checkIn,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+      })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), isNull(reservations.checkinValideAt), gte(reservations.checkIn, fenetreBasse)))
+      .orderBy(asc(reservations.checkIn))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+
+  const departs = (
     await db
       .select({
         id: reservations.id,
@@ -41,14 +65,14 @@ export default async function PersonnelPage() {
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, now)))
+      .where(and(ne(reservations.status, "annulee"), isNull(reservations.checkoutValideAt), gte(reservations.checkOut, fenetreBasse)))
       .orderBy(asc(reservations.checkOut))
   ).filter((r) => domaineEstActif(r.domaineNom));
 
-  const upcomingIds = upcoming.map((r) => r.id);
+  const affectationIds = Array.from(new Set([...arrivees.map((r) => r.id), ...departs.map((r) => r.id)]));
   const upcomingAffectations =
-    upcomingIds.length > 0
-      ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, upcomingIds))
+    affectationIds.length > 0
+      ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, affectationIds))
       : [];
   const affectationsByReservation = new Map<
     string,
@@ -156,51 +180,33 @@ export default async function PersonnelPage() {
           <RosterSection title="Cuisinières" role="cuisine" people={cuisineRoster} />
         </TabsContent>
 
-        <TabsContent value="affectations" className="space-y-3">
-          <p className="text-sm text-muted-foreground">
-            Séjours à venir : qui s&apos;occupe du ménage et, si besoin, de la cuisine. Clique sur un nom en
-            ménage pour confirmer que c&apos;est fait au départ du client ; indique le nombre de jours en
-            cuisine si ce n&apos;est pas tout le séjour.
-          </p>
-          {upcoming.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
-                <CalendarClock className="h-8 w-8" />
-                <p>Aucun séjour à venir.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {upcoming.map((r) => (
-                <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-                  <div>
-                    <p className="font-medium">
-                      {r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      {r.guestName} · départ le {format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-4">
-                    <PersonnelAffectationEditor
-                      reservationId={r.id}
-                      role="menage"
-                      label="Ménage"
-                      assigned={assignedFor(r.id, "menage")}
-                      options={menageOptions}
-                    />
-                    <PersonnelAffectationEditor
-                      reservationId={r.id}
-                      role="cuisine"
-                      label="Cuisine"
-                      assigned={assignedFor(r.id, "cuisine")}
-                      options={cuisineOptions}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+        <TabsContent value="affectations" className="space-y-6">
+          <AffectationSection
+            title="Arrivées"
+            description="Un client arrive : qui s'occupe de la cuisine pendant son séjour (si besoin) ?"
+            icon={LogIn}
+            list={arrivees}
+            dateLabel="arrivée"
+            getDate={(r) => r.checkIn}
+            role="cuisine"
+            label="Cuisine"
+            options={cuisineOptions}
+            assignedFor={assignedFor}
+            emptyLabel="Aucune arrivée en attente."
+          />
+          <AffectationSection
+            title="Départs"
+            description="Un client part : qui fait le ménage juste après ?"
+            icon={LogOut}
+            list={departs}
+            dateLabel="départ"
+            getDate={(r) => r.checkOut}
+            role="menage"
+            label="Ménage"
+            options={menageOptions}
+            assignedFor={assignedFor}
+            emptyLabel="Aucun départ en attente."
+          />
         </TabsContent>
 
         <TabsContent value="statistiques" className="space-y-6">
@@ -217,6 +223,71 @@ export default async function PersonnelPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function AffectationSection<T extends { id: string; guestName: string; villaNom: string | null; villaNumero: string | null }>({
+  title,
+  description,
+  icon: Icon,
+  list,
+  dateLabel,
+  getDate,
+  role,
+  label,
+  options,
+  assignedFor,
+  emptyLabel,
+}: {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  list: T[];
+  dateLabel: string;
+  getDate: (item: T) => Date;
+  role: "menage" | "cuisine";
+  label: string;
+  options: { id: string; nom: string }[];
+  assignedFor: (reservationId: string, role: "menage" | "cuisine") => PersonnelAssigne[];
+  emptyLabel: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Icon className="h-4 w-4" />
+          {title}
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </CardHeader>
+      <CardContent>
+        {list.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{emptyLabel}</p>
+        ) : (
+          <div className="space-y-2">
+            {list.map((item) => (
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                <div>
+                  <p className="font-medium">
+                    {item.villaNom ? `${item.villaNom} (n°${item.villaNumero})` : "Villa non renseignée"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {item.guestName} · {dateLabel} le {format(getDate(item), "d MMM yyyy", { locale: fr })}
+                  </p>
+                </div>
+                <PersonnelAffectationEditor
+                  reservationId={item.id}
+                  role={role}
+                  label={label}
+                  assigned={assignedFor(item.id, role)}
+                  options={options}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
