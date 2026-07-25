@@ -25,6 +25,7 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { PhoneLink } from "@/components/app/phone-link";
 import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
 import { LocationMessageButton } from "@/components/app/location-message-button";
+import { SecurityMessageButton } from "@/components/app/security-message-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
@@ -65,6 +66,7 @@ export default async function DashboardPage() {
       proprietaireTelephone: villas.proprietaireTelephone,
       domaineNom: domaines.nom,
       domaineMapsUrl: domaines.mapsUrl,
+      domaineSecuritePhone: domaines.securitePhone,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
       caution: reservations.caution,
@@ -420,6 +422,7 @@ type ReservationRow = {
   proprietaireTelephone: string | null;
   domaineNom: string | null;
   domaineMapsUrl: string | null;
+  domaineSecuritePhone: string | null;
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
@@ -760,11 +763,13 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
               label="Copier pour Imane"
               successMessage="Lien copié — envoie-le à Imane, elle verra les mêmes infos."
             />
-            {r.villaId ? (
-              <CopyLinkButton
-                path={`/securite/villa/${r.villaId}`}
-                label="Lien sécurité"
-                successMessage="Lien copié — pour le gardien du domaine."
+            {r.villaId && r.domaineSecuritePhone ? (
+              <SecurityMessageButton
+                securityPhone={r.domaineSecuritePhone}
+                guestName={r.guestName}
+                villaNom={r.villaNom ?? "Villa"}
+                villaNumero={r.villaNumero ?? "?"}
+                villaId={r.villaId}
               />
             ) : null}
           </div>

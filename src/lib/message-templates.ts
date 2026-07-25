@@ -24,3 +24,9 @@ export function buildArrivalMessage(guestName: string, checkIn: Date, now: Date,
 export function buildLocationMessage(guestName: string, domaineNom: string, mapsUrl: string): string {
   return `Bonjour ${guestName},\n\nVoici la localisation du ${domaineNom} pour votre arrivée.\n\n${mapsUrl}\n\nN'hésitez pas à nous écrire si vous avez besoin d'aide pour trouver le chemin. À bientôt !\n\nKamel, Moderna Agency`;
 }
+
+// Message envoyé au gardien/sécurité du domaine (en arabe, car ils ne lisent pas le français) :
+// prévient de l'arrivée d'un client et transmet le lien de la fiche des occupants.
+export function buildSecurityMessage(guestName: string, villaNom: string, villaNumero: string, link: string): string {
+  return `السلام عليكم،\n\nضيف جديد (${guestName}) سيصل إلى ${villaNom} (فيلا رقم ${villaNumero}).\n\nهذا رابط الأمن الخاص بمعلومات الضيوف:\n\n${link}\n\nشكرا`;
+}

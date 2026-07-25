@@ -73,6 +73,7 @@ export const domaines = pgTable("domaines", {
   nom: text("nom").notNull(),
   adresse: text("adresse"),
   mapsUrl: text("maps_url"), // lien Google Maps partageable (localisation du domaine)
+  securitePhone: text("securite_phone"), // WhatsApp du gardien/sécurité du domaine
   estBase: boolean("est_base").default(false).notNull(), // entrepôt central (ex. Bureau Moderna Agency) : source des transferts de stock
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
