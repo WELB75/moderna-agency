@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { X, Check } from "lucide-react";
+import { X, Check, Circle } from "lucide-react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -107,6 +107,8 @@ export function PersonnelAffectationEditor({
   );
 }
 
+// Bouton (pas juste un badge à plat) pour que ce soit visuellement clair que c'est cliquable :
+// gris avec cercle vide = pas encore fait, vert avec coche = confirmé, comme un interrupteur.
 function MenageBadge({
   a,
   disabled,
@@ -120,30 +122,29 @@ function MenageBadge({
 }) {
   const fait = Boolean(a.faitAt);
   return (
-    <Badge
-      variant={fait ? "default" : "secondary"}
-      className={cn("gap-1 py-1 pr-1", fait && "bg-emerald-600 hover:bg-emerald-600 dark:bg-emerald-600")}
-    >
-      <button
+    <div className="inline-flex items-center gap-0.5">
+      <Button
         type="button"
+        variant={fait ? "default" : "outline"}
+        size="sm"
         onClick={() => onToggleFait(a.affectationId, !fait)}
         disabled={disabled}
-        className="flex items-center gap-1"
+        className={cn(fait && "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600")}
         title={fait ? "Ménage confirmé fait au départ — cliquer pour annuler" : "Cliquer pour confirmer que le ménage a été fait"}
       >
-        {fait ? <Check className="h-3 w-3" /> : null}
+        {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
         {a.nom}
-      </button>
+      </Button>
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
         disabled={disabled}
-        className="rounded-full p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         aria-label={`Retirer ${a.nom}`}
       >
-        <X className="h-3 w-3" />
+        <X className="h-3.5 w-3.5" />
       </button>
-    </Badge>
+    </div>
   );
 }
 
@@ -172,7 +173,7 @@ function CuisineBadge({
   }
 
   return (
-    <Badge variant="secondary" className="gap-1 py-1 pr-1">
+    <div className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium">
       {a.nom}
       <Input
         type="number"
@@ -190,11 +191,11 @@ function CuisineBadge({
         type="button"
         onClick={() => onRemove(a.affectationId)}
         disabled={disabled}
-        className="rounded-full p-0.5 hover:bg-foreground/10"
+        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         aria-label={`Retirer ${a.nom}`}
       >
-        <X className="h-3 w-3" />
+        <X className="h-3.5 w-3.5" />
       </button>
-    </Badge>
+    </div>
   );
 }
