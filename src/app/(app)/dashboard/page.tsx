@@ -733,6 +733,13 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
               label="Copier pour Imane"
               successMessage="Lien copié — envoie-le à Imane, elle verra les mêmes infos."
             />
+            {r.villaId ? (
+              <CopyLinkButton
+                path={`/securite/villa/${r.villaId}`}
+                label="Lien sécurité"
+                successMessage="Lien copié — pour le gardien du domaine."
+              />
+            ) : null}
           </div>
 
           <EditReservationTimeDialog
