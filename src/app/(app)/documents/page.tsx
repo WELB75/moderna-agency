@@ -1,9 +1,10 @@
 import Image from "next/image";
-import { desc, eq, asc, isNotNull, ne } from "drizzle-orm";
+import { desc, eq, asc, isNotNull, ne, and, gte } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants, contratsLocation, villas, domaines, reservations } from "@/db/schema";
+import { nowInMorocco } from "@/lib/now";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GenerateFichePoliceForm } from "@/components/app/generate-fiche-police-form";
@@ -75,6 +76,9 @@ export default async function DocumentsPage() {
   // Pour pré-remplir le contrat de location depuis une réservation Superhote existante
   // (nom, dates, effectif, et le loyer/caution quand ils ont été renseignés) plutôt que de
   // tout retaper à la main.
+  // Trié par ordre d'arrivée (la prochaine en premier) plutôt que par date de création — pour
+  // que les séjours déjà passés depuis longtemps ne noient pas ceux qui arrivent bientôt.
+  const nowForContrats = nowInMorocco();
   const reservationsForContrat = (
     await db
       .select({
@@ -91,8 +95,8 @@ export default async function DocumentsPage() {
         devisePaiement: reservations.devisePaiement,
       })
       .from(reservations)
-      .where(ne(reservations.status, "annulee"))
-      .orderBy(desc(reservations.checkIn))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, nowForContrats)))
+      .orderBy(asc(reservations.checkIn))
   ).filter((r) => r.villaId && villaIdsActifs.has(r.villaId));
 
   const contrats = (
