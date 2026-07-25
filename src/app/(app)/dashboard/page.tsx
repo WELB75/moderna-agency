@@ -30,8 +30,9 @@ import { EditReservationTimeDialog } from "@/components/app/edit-reservation-tim
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { StatusChip } from "@/components/app/status-chip";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat, ChevronRight } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat, ChevronRight, Wallet } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 
@@ -138,6 +139,9 @@ export default async function DashboardPage() {
             reservationId: personnelAffectations.reservationId,
             nom: personnel.nom,
             role: personnel.role,
+            faitAt: personnelAffectations.faitAt,
+            nbJours: personnelAffectations.nbJours,
+            payeAt: personnelAffectations.payeAt,
           })
           .from(personnelAffectations)
           .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
@@ -145,11 +149,15 @@ export default async function DashboardPage() {
       : [];
   const menageNomsByReservation = new Map<string, string[]>();
   const cuisineNomsByReservation = new Map<string, string[]>();
+  const affectationsByReservationForCash = new Map<string, typeof relatedAffectations>();
   for (const a of relatedAffectations) {
     const map = a.role === "menage" ? menageNomsByReservation : cuisineNomsByReservation;
     const list = map.get(a.reservationId) ?? [];
     list.push(a.nom);
     map.set(a.reservationId, list);
+    const all = affectationsByReservationForCash.get(a.reservationId) ?? [];
+    all.push(a);
+    affectationsByReservationForCash.set(a.reservationId, all);
   }
 
   const upcomingWithDocs = upcoming.map((r) => {
@@ -159,7 +167,18 @@ export default async function DashboardPage() {
     const contratStatut = dateKey ? (contratStatutByVillaAndDate.get(dateKey) ?? null) : null;
     const menageNoms = menageNomsByReservation.get(r.id) ?? [];
     const cuisineNoms = cuisineNomsByReservation.get(r.id) ?? [];
-    return { ...r, ficheStatut, ficheId, contratStatut, menageNoms, cuisineNoms };
+    // Cash à prévoir pour ce séjour : ménage (200 MAD une fois confirmé fait) + cuisine
+    // (200 MAD/jour, due au check-out), pas encore payés — pour savoir combien apporter en
+    // liquide avant de partir sur place.
+    const cashAPrevoir = (affectationsByReservationForCash.get(r.id) ?? []).reduce((sum, a) => {
+      if (a.payeAt) return sum;
+      const montant =
+        a.role === "menage"
+          ? montantMenageDu(a.faitAt)
+          : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt);
+      return sum + montant;
+    }, 0);
+    return { ...r, ficheStatut, ficheId, contratStatut, menageNoms, cuisineNoms, cashAPrevoir };
   });
 
   // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
@@ -416,6 +435,7 @@ type ReservationRow = {
   contratStatut: "signe" | "en_attente" | null;
   menageNoms: string[];
   cuisineNoms: string[];
+  cashAPrevoir: number;
 };
 
 type MaintenanceRow = {
@@ -651,6 +671,13 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             <StatusChip icon={ChefHat} label="Cuisine" value={r.cuisineNoms.join(", ")} done />
           ) : null}
         </div>
+
+        {kind === "out" && r.cashAPrevoir > 0 ? (
+          <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-800 dark:text-amber-400">
+            <Wallet className="h-3.5 w-3.5 shrink-0" />
+            Cash à prévoir : {r.cashAPrevoir} MAD
+          </div>
+        ) : null}
 
         {r.notes ? (
           <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">

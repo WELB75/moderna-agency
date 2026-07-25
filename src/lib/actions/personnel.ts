@@ -2,7 +2,7 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations } from "@/db/schema";
 
@@ -107,4 +107,19 @@ export async function updateAffectationJours(affectationId: string, nbJours: num
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
+}
+
+// Marque payées d'un coup toutes les affectations dues et pas encore payées d'une personne —
+// évite de devoir cocher chaque ménage/jour de cuisine un par un après un paiement en liquide.
+export async function markAffectationsPaid(affectationIds: string[]) {
+  await auth.protect();
+  if (affectationIds.length === 0) return;
+  const db = getDb();
+  await db
+    .update(personnelAffectations)
+    .set({ payeAt: new Date() })
+    .where(inArray(personnelAffectations.id, affectationIds));
+
+  revalidatePath("/personnel");
+  revalidatePath("/dashboard");
 }

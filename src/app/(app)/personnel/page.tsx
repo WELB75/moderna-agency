@@ -12,10 +12,12 @@ import { PersonnelActifToggle } from "@/components/app/personnel-actif-toggle";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
+import { MarkPaidButton } from "@/components/app/mark-paid-button";
 import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
-import { Users, CalendarClock, BarChart3, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
+import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
+import { Users, CalendarClock, BarChart3, Wallet, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function PersonnelPage() {
@@ -165,6 +167,46 @@ export default async function PersonnelPage() {
   const statsMenage = computeStatsMenage(menageRoster);
   const statsCuisine = computeStatsCuisine(cuisineRoster);
 
+  // Paiements dus (200 MAD/ménage confirmé, 200 MAD/jour de cuisine) : sur toutes les
+  // affectations pas encore payées, pas seulement le mois en cours — une dette ne doit pas
+  // disparaître simplement parce qu'on a changé de mois.
+  const unpaidAffectations = await db.select().from(personnelAffectations).where(isNull(personnelAffectations.payeAt));
+  const unpaidReservationIds = Array.from(new Set(unpaidAffectations.map((a) => a.reservationId)));
+  const unpaidReservations =
+    unpaidReservationIds.length > 0
+      ? await db
+          .select({ id: reservations.id, checkIn: reservations.checkIn, checkOut: reservations.checkOut, checkoutValideAt: reservations.checkoutValideAt })
+          .from(reservations)
+          .where(inArray(reservations.id, unpaidReservationIds))
+      : [];
+  const unpaidReservationById = new Map(unpaidReservations.map((r) => [r.id, r]));
+
+  function computeDus(roster: typeof allPersonnel, role: "menage" | "cuisine") {
+    return roster
+      .map((p) => {
+        const mine = unpaidAffectations.filter((a) => a.personnelId === p.id);
+        let montant = 0;
+        const affectationIds: string[] = [];
+        for (const a of mine) {
+          const r = unpaidReservationById.get(a.reservationId);
+          if (!r) continue;
+          const m =
+            role === "menage"
+              ? montantMenageDu(a.faitAt)
+              : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt);
+          if (m > 0) {
+            montant += m;
+            affectationIds.push(a.id);
+          }
+        }
+        return { id: p.id, nom: p.nom, actif: p.actif, montant, affectationIds };
+      })
+      .sort((a, b) => b.montant - a.montant);
+  }
+  const dusMenage = computeDus(menageRoster, "menage");
+  const dusCuisine = computeDus(cuisineRoster, "cuisine");
+  const totalDu = [...dusMenage, ...dusCuisine].reduce((sum, r) => sum + r.montant, 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -185,6 +227,11 @@ export default async function PersonnelPage() {
           <TabsTrigger value="statistiques">
             <BarChart3 className="h-4 w-4" />
             Statistiques
+          </TabsTrigger>
+          <TabsTrigger value="paiements">
+            <Wallet className="h-4 w-4" />
+            Paiements
+            {totalDu > 0 ? <Badge className="ml-1">{totalDu} MAD</Badge> : null}
           </TabsTrigger>
         </TabsList>
 
@@ -239,6 +286,15 @@ export default async function PersonnelPage() {
 
           <StatsSection title="Femmes de ménage" rows={statsMenage} unit="ménage affecté" unitPlural="ménages affectés" />
           <StatsSection title="Cuisinières" rows={statsCuisine} unit="jour de cuisine" unitPlural="jours de cuisine" />
+        </TabsContent>
+
+        <TabsContent value="paiements" className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Ménage : 200 MAD par personne une fois le ménage confirmé fait. Cuisine : 200 MAD par jour, dû au
+            check-out du client. Total à prévoir en liquide : <span className="font-semibold text-foreground">{totalDu} MAD</span>.
+          </p>
+          <PaymentsSection title="Femmes de ménage" rows={dusMenage} />
+          <PaymentsSection title="Cuisinières" rows={dusCuisine} />
         </TabsContent>
       </Tabs>
     </div>
@@ -507,6 +563,43 @@ function StatsSection({
                     {r.villasDistinctes} villa{r.villasDistinctes > 1 ? "s" : ""} différente
                     {r.villasDistinctes > 1 ? "s" : ""}
                   </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PaymentsSection({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: { id: string; nom: string; actif: boolean; montant: number; affectationIds: string[] }[];
+}) {
+  const withDue = rows.filter((r) => r.montant > 0);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {withDue.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Rien à payer pour l&apos;instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {withDue.map((r) => (
+              <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-medium">{r.nom}</p>
+                  {!r.actif ? <Badge variant="outline">Inactif</Badge> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="bg-amber-600 hover:bg-amber-600">{r.montant} MAD dus</Badge>
+                  <MarkPaidButton affectationIds={r.affectationIds} />
                 </div>
               </div>
             ))}
