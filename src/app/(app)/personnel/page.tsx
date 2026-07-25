@@ -1,5 +1,5 @@
 import { asc, and, ne, gte, lte, eq, inArray, isNull, or } from "drizzle-orm";
-import { format, startOfMonth, endOfMonth, differenceInCalendarDays, subDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, differenceInCalendarDays, subDays, startOfDay, isSameDay, isBefore, isAfter } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
@@ -15,7 +15,8 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
-import { Users, CalendarClock, BarChart3, LogIn, LogOut, type LucideIcon } from "lucide-react";
+import { Users, CalendarClock, BarChart3, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default async function PersonnelPage() {
   const db = getDb();
@@ -208,6 +209,7 @@ export default async function PersonnelPage() {
             options={menageOptions}
             assignedFor={assignedFor}
             emptyLabel="Aucun départ en attente."
+            now={now}
           />
           <AffectationSection
             title="Arrivées"
@@ -221,6 +223,7 @@ export default async function PersonnelPage() {
             options={cuisineOptions}
             assignedFor={assignedFor}
             emptyLabel="Aucune arrivée en attente."
+            now={now}
           />
         </TabsContent>
 
@@ -228,6 +231,12 @@ export default async function PersonnelPage() {
           <p className="text-sm text-muted-foreground">
             {format(now, "MMMM yyyy", { locale: fr })} — pour comparer la charge entre le personnel.
           </p>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Leaderboard title="Classement ménage" rows={statsMenage} unit="ménage" unitPlural="ménages" />
+            <Leaderboard title="Classement cuisine" rows={statsCuisine} unit="jour" unitPlural="jours" />
+          </div>
+
           <StatsSection title="Femmes de ménage" rows={statsMenage} unit="ménage affecté" unitPlural="ménages affectés" />
           <StatsSection title="Cuisinières" rows={statsCuisine} unit="jour de cuisine" unitPlural="jours de cuisine" />
         </TabsContent>
@@ -248,6 +257,7 @@ function AffectationSection<T extends { id: string; guestName: string; villaNom:
   options,
   assignedFor,
   emptyLabel,
+  now,
 }: {
   title: string;
   description: string;
@@ -260,7 +270,36 @@ function AffectationSection<T extends { id: string; guestName: string; villaNom:
   options: { id: string; nom: string }[];
   assignedFor: (reservationId: string, role: "menage" | "cuisine") => PersonnelAssigne[];
   emptyLabel: string;
+  now: Date;
 }) {
+  const today = startOfDay(now);
+  // Priorité à aujourd'hui : c'est ce qu'il faut faire maintenant. Le reste à venir suit en
+  // dessous ; le passé (déjà dû, pas encore traité) est gardé mais replié — toujours compté
+  // dans les statistiques, juste plus en travers du quotidien.
+  const enRetard = list.filter((item) => isBefore(startOfDay(getDate(item)), today));
+  const aujourdhui = list.filter((item) => isSameDay(getDate(item), today));
+  const aVenir = list.filter((item) => isAfter(startOfDay(getDate(item)), today));
+
+  function renderItem(item: T) {
+    return (
+      <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+        <div>
+          <p className="font-medium">{item.villaNom ? `${item.villaNom} (n°${item.villaNumero})` : "Villa non renseignée"}</p>
+          <p className="text-sm text-muted-foreground">
+            {item.guestName} · {dateLabel} le {format(getDate(item), "d MMM yyyy", { locale: fr })}
+          </p>
+        </div>
+        <PersonnelAffectationEditor
+          reservationId={item.id}
+          role={role}
+          label={label}
+          assigned={assignedFor(item.id, role)}
+          options={options}
+        />
+      </div>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -270,31 +309,38 @@ function AffectationSection<T extends { id: string; guestName: string; villaNom:
         </CardTitle>
         <p className="text-sm text-muted-foreground">{description}</p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         {list.length === 0 ? (
           <p className="text-sm text-muted-foreground">{emptyLabel}</p>
         ) : (
-          <div className="space-y-2">
-            {list.map((item) => (
-              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-                <div>
-                  <p className="font-medium">
-                    {item.villaNom ? `${item.villaNom} (n°${item.villaNumero})` : "Villa non renseignée"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {item.guestName} · {dateLabel} le {format(getDate(item), "d MMM yyyy", { locale: fr })}
-                  </p>
-                </div>
-                <PersonnelAffectationEditor
-                  reservationId={item.id}
-                  role={role}
-                  label={label}
-                  assigned={assignedFor(item.id, role)}
-                  options={options}
-                />
+          <>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Aujourd&apos;hui · {format(today, "d MMMM", { locale: fr })}
+              </p>
+              {aujourdhui.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Rien pour aujourd&apos;hui.</p>
+              ) : (
+                <div className="space-y-2">{aujourdhui.map(renderItem)}</div>
+              )}
+            </div>
+
+            {aVenir.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">À venir</p>
+                <div className="space-y-2">{aVenir.map(renderItem)}</div>
               </div>
-            ))}
-          </div>
+            ) : null}
+
+            {enRetard.length > 0 ? (
+              <details className="group rounded-md border">
+                <summary className="cursor-pointer list-none p-3 text-sm font-medium text-muted-foreground marker:content-none">
+                  En retard ({enRetard.length}) — pas encore traité
+                </summary>
+                <div className="space-y-2 border-t p-3">{enRetard.map(renderItem)}</div>
+              </details>
+            ) : null}
+          </>
         )}
       </CardContent>
     </Card>
@@ -342,6 +388,71 @@ function RosterSection({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const RANK_STYLES = [
+  { badge: "bg-amber-500 text-white", row: "border-amber-500/40 bg-amber-500/5" },
+  { badge: "bg-zinc-400 text-white", row: "border-zinc-400/40 bg-zinc-400/5" },
+  { badge: "bg-orange-700 text-white", row: "border-orange-700/30 bg-orange-700/5" },
+];
+
+function Leaderboard({
+  title,
+  rows,
+  unit,
+  unitPlural,
+}: {
+  title: string;
+  rows: { id: string; nom: string; actif: boolean; total: number }[];
+  unit: string;
+  unitPlural: string;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Trophy className="h-4 w-4" />
+          {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Personne enregistrée pour l&apos;instant.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {rows.map((r, i) => {
+              const style = RANK_STYLES[i];
+              return (
+                <div
+                  key={r.id}
+                  className={cn(
+                    "flex items-center gap-3 rounded-md border p-2.5",
+                    style ? style.row : "border-border"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+                      style ? style.badge : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="flex-1 truncate font-medium">
+                    {r.nom}
+                    {!r.actif ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(inactif)</span> : null}
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold">
+                    {r.total} <span className="font-normal text-muted-foreground">{r.total > 1 ? unitPlural : unit}</span>
+                  </span>
+                </div>
+              );
+            })}
           </div>
         )}
       </CardContent>
