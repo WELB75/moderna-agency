@@ -180,6 +180,7 @@ export default async function PersonnelPage() {
             checkIn: reservations.checkIn,
             checkOut: reservations.checkOut,
             checkoutValideAt: reservations.checkoutValideAt,
+            villaId: reservations.villaId,
             villaNom: villas.nom,
             villaNumero: villas.numero,
           })
@@ -195,7 +196,13 @@ export default async function PersonnelPage() {
         const mine = unpaidAffectations.filter((a) => a.personnelId === p.id);
         let montant = 0;
         const affectationIds: string[] = [];
-        const details: { villaNom: string | null; villaNumero: string | null; guestName: string; montant: number }[] = [];
+        const details: {
+          villaId: string | null;
+          villaNom: string | null;
+          villaNumero: string | null;
+          guestName: string;
+          montant: number;
+        }[] = [];
         for (const a of mine) {
           const r = unpaidReservationById.get(a.reservationId);
           if (!r) continue;
@@ -206,7 +213,13 @@ export default async function PersonnelPage() {
           if (m > 0) {
             montant += m;
             affectationIds.push(a.id);
-            details.push({ villaNom: r.villaNom, villaNumero: r.villaNumero, guestName: r.guestName, montant: m });
+            details.push({
+              villaId: r.villaId,
+              villaNom: r.villaNom,
+              villaNumero: r.villaNumero,
+              guestName: r.guestName,
+              montant: m,
+            });
           }
         }
         return { id: p.id, nom: p.nom, actif: p.actif, montant, affectationIds, details };
@@ -303,8 +316,8 @@ export default async function PersonnelPage() {
             Ménage : 200 MAD par personne une fois le ménage confirmé fait. Cuisine : 200 MAD par jour, dû au
             check-out du client. Total à prévoir en liquide : <span className="font-semibold text-foreground">{totalDu} MAD</span>.
           </p>
-          <PaymentsSection title="Femmes de ménage" rows={dusMenage} />
-          <PaymentsSection title="Cuisinières" rows={dusCuisine} />
+          <PaymentsSection title="Femmes de ménage" role="menage" rows={dusMenage} />
+          <PaymentsSection title="Cuisinières" role="cuisine" rows={dusCuisine} />
         </TabsContent>
       </Tabs>
     </div>
@@ -573,16 +586,24 @@ function StatsSection({
 
 function PaymentsSection({
   title,
+  role,
   rows,
 }: {
   title: string;
+  role: "menage" | "cuisine";
   rows: {
     id: string;
     nom: string;
     actif: boolean;
     montant: number;
     affectationIds: string[];
-    details: { villaNom: string | null; villaNumero: string | null; guestName: string; montant: number }[];
+    details: {
+      villaId: string | null;
+      villaNom: string | null;
+      villaNumero: string | null;
+      guestName: string;
+      montant: number;
+    }[];
   }[];
 }) {
   const withDue = rows.filter((r) => r.montant > 0);
@@ -605,7 +626,7 @@ function PaymentsSection({
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge className="bg-amber-600 hover:bg-amber-600">{r.montant} MAD dus</Badge>
-                    <MarkPaidButton affectationIds={r.affectationIds} />
+                    <MarkPaidButton affectationIds={r.affectationIds} personnelNom={r.nom} role={role} details={r.details} />
                   </div>
                 </div>
                 {/* Le détail (quelle villa, quel client, combien) évite d'avoir à demander

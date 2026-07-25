@@ -1,10 +1,10 @@
 "use server";
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations } from "@/db/schema";
+import { personnel, personnelAffectations, cashEntries } from "@/db/schema";
 
 export async function createPersonnel(formData: FormData) {
   await auth.protect();
@@ -111,15 +111,50 @@ export async function updateAffectationJours(affectationId: string, nbJours: num
 
 // Marque payées d'un coup toutes les affectations dues et pas encore payées d'une personne —
 // évite de devoir cocher chaque ménage/jour de cuisine un par un après un paiement en liquide.
-export async function markAffectationsPaid(affectationIds: string[]) {
+// Ajoute aussi la dépense correspondante dans la caisse (payée en liquide) avec le nom de la
+// personne payée, pour ne pas avoir à la ressaisir manuellement après coup.
+export async function markAffectationsPaid(
+  affectationIds: string[],
+  personnelNom: string,
+  role: "menage" | "cuisine",
+  details: { villaId: string | null; villaNom: string | null; villaNumero: string | null; montant: number }[],
+) {
   await auth.protect();
   if (affectationIds.length === 0) return;
+  const user = await currentUser();
   const db = getDb();
   await db
     .update(personnelAffectations)
     .set({ payeAt: new Date() })
     .where(inArray(personnelAffectations.id, affectationIds));
 
+  // Une dépense de caisse est rattachée à une seule villa : on regroupe donc le montant par
+  // villa (le cas courant reste une seule villa par paiement).
+  const parVilla = new Map<string, { villaId: string | null; villaNom: string | null; villaNumero: string | null; montant: number }>();
+  for (const d of details) {
+    const cle = d.villaId ?? "aucune";
+    const existante = parVilla.get(cle);
+    if (existante) existante.montant += d.montant;
+    else parVilla.set(cle, { ...d });
+  }
+
+  const roleLabel = role === "menage" ? "ménage" : "cuisine";
+  for (const { villaId, villaNom, villaNumero, montant } of parVilla.values()) {
+    if (montant <= 0) continue;
+    await db.insert(cashEntries).values({
+      villaId,
+      type: "depense",
+      moyenPaiement: "especes",
+      montant: montant.toFixed(2),
+      description: `Paiement ${roleLabel} — ${personnelNom}${villaNom ? ` (${villaNom} n°${villaNumero})` : ""}`,
+      responsable: personnelNom,
+      photoUrls: [],
+      createdByUserId: user?.id ?? "inconnu",
+      createdByName: user?.fullName ?? user?.username ?? "Équipe",
+    });
+  }
+
   revalidatePath("/personnel");
   revalidatePath("/dashboard");
+  revalidatePath("/caisse");
 }
