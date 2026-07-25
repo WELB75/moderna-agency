@@ -247,7 +247,7 @@ export function emptyOccupant() {
     nationalite: "",
     profession: "",
     venantDe: "",
-    allantA: "",
+    allantA: "Maroc", // toujours au Maroc, aucune raison que ce soit ailleurs
     dateArrivee: "",
     domicileHabituel: "",
     typePiece: "",

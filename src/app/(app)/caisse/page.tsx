@@ -12,6 +12,7 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CaisseStats } from "@/components/app/caisse-stats";
 import { deleteCashEntry } from "@/lib/actions/caisse";
+import { domaineEstActif } from "@/lib/domaines-actifs";
 
 const TYPE_LABELS: Record<string, string> = {
   remise: "Argent confié",
@@ -36,27 +37,34 @@ type Entry = {
 export default async function CaissePage() {
   const db = getDb();
 
-  const entries = await db
-    .select({
-      id: cashEntries.id,
-      type: cashEntries.type,
-      moyenPaiement: cashEntries.moyenPaiement,
-      montant: cashEntries.montant,
-      description: cashEntries.description,
-      responsable: cashEntries.responsable,
-      photoUrls: cashEntries.photoUrls,
-      createdByName: cashEntries.createdByName,
-      createdAt: cashEntries.createdAt,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-      domaineNom: domaines.nom,
-    })
-    .from(cashEntries)
-    .leftJoin(villas, eq(cashEntries.villaId, villas.id))
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .orderBy(desc(cashEntries.createdAt));
+  const entries = (
+    await db
+      .select({
+        id: cashEntries.id,
+        type: cashEntries.type,
+        moyenPaiement: cashEntries.moyenPaiement,
+        montant: cashEntries.montant,
+        description: cashEntries.description,
+        responsable: cashEntries.responsable,
+        photoUrls: cashEntries.photoUrls,
+        createdByName: cashEntries.createdByName,
+        createdAt: cashEntries.createdAt,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+      })
+      .from(cashEntries)
+      .leftJoin(villas, eq(cashEntries.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .orderBy(desc(cashEntries.createdAt))
+  ).filter((e) => domaineEstActif(e.domaineNom));
 
-  const allVillas = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas);
+  const allVillas = (
+    await db
+      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineNom: domaines.nom })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+  ).filter((v) => domaineEstActif(v.domaineNom));
 
   const especes = entries.filter((e) => e.moyenPaiement === "especes");
   const virement = entries.filter((e) => e.moyenPaiement === "virement");
