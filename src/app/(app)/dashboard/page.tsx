@@ -23,8 +23,8 @@ import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { PhoneLink } from "@/components/app/phone-link";
-import { CheckinMessageButton } from "@/components/app/checkin-message-button";
-import { FichePoliceMessageButton } from "@/components/app/fiche-police-message-button";
+import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
+import { LocationMessageButton } from "@/components/app/location-message-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
@@ -63,6 +63,7 @@ export default async function DashboardPage() {
       numeroImmeuble: villas.numeroImmeuble,
       proprietaireTelephone: villas.proprietaireTelephone,
       domaineNom: domaines.nom,
+      domaineMapsUrl: domaines.mapsUrl,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
       caution: reservations.caution,
@@ -399,6 +400,7 @@ type ReservationRow = {
   numeroImmeuble: string | null;
   proprietaireTelephone: string | null;
   domaineNom: string | null;
+  domaineMapsUrl: string | null;
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
@@ -683,16 +685,24 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
         <div className="flex flex-wrap items-center gap-1.5">
           {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : null}
-          {r.guestPhone && kind === "in" && !isProprietaire ? (
-            <CheckinMessageButton phone={r.guestPhone} guestName={r.guestName} checkIn={new Date(r.checkIn)} now={nowInMorocco()} />
-          ) : null}
-          {r.guestPhone && kind === "in" && !isProprietaire && r.villaId && r.ficheStatut !== "complete" ? (
-            <FichePoliceMessageButton
+          {r.guestPhone && kind === "in" && !isProprietaire && r.villaId ? (
+            <ArrivalMessageButton
               reservationId={r.id}
               villaId={r.villaId}
               phone={r.guestPhone}
               guestName={r.guestName}
+              checkIn={new Date(r.checkIn)}
+              now={nowInMorocco()}
               ficheId={r.ficheId}
+              ficheComplete={r.ficheStatut === "complete"}
+            />
+          ) : null}
+          {r.guestPhone && kind === "in" && !isProprietaire && r.domaineMapsUrl ? (
+            <LocationMessageButton
+              phone={r.guestPhone}
+              guestName={r.guestName}
+              domaineNom={r.domaineNom ?? "domaine"}
+              mapsUrl={r.domaineMapsUrl}
             />
           ) : null}
           <CopyLinkButton
