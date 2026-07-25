@@ -30,7 +30,7 @@ import { EditReservationTimeDialog } from "@/components/app/edit-reservation-tim
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { StatusChip } from "@/components/app/status-chip";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat, ChevronRight } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
@@ -636,9 +636,52 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
 
+        {/* Un seul statut ménage/cuisine à la fois : le ménage se fait après un départ, la
+            cuisine se prépare pour une arrivée — les deux en même temps n'a pas de sens et
+            n'apporte que du bruit sur la carte. */}
         <div className="mt-2 flex flex-wrap gap-1.5">
+          {kind === "out" ? (
+            <StatusChip
+              icon={Sparkles}
+              label="Ménage"
+              value={r.menageNoms.length > 0 ? r.menageNoms.join(", ") : "Non affecté"}
+              done={r.menageNoms.length > 0}
+            />
+          ) : r.cuisineNoms.length > 0 ? (
+            <StatusChip icon={ChefHat} label="Cuisine" value={r.cuisineNoms.join(", ")} done />
+          ) : null}
+        </div>
+
+        {r.notes ? (
+          <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
+            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{r.notes}</span>
+          </div>
+        ) : null}
+      </Link>
+
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
+        {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : <span />}
+      </div>
+      <div className="px-3 pb-3">
+        <ValidateCheckinCheckoutButton
+          reservationId={r.id}
+          kind={kind}
+          valideAt={kind === "in" ? r.checkinValideAt : r.checkoutValideAt}
+          validePar={kind === "in" ? r.checkinValidePar : r.checkoutValidePar}
+        />
+      </div>
+
+      {/* Le reste (documents, paiement, messages, correction d'heure) est secondaire au
+          quotidien : replié par défaut pour que la carte reste lisible d'un coup d'œil. */}
+      <details className="group border-t">
+        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-medium text-muted-foreground marker:content-none hover:text-foreground">
+          <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+          Plus d&apos;infos
+        </summary>
+        <div className="space-y-3 px-3 pb-3">
           {isProprietaire ? null : (
-            <>
+            <div className="flex flex-wrap gap-1.5">
               <StatusChip
                 icon={FileText}
                 label="Fiche police"
@@ -651,80 +694,54 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
                 value={r.contratStatut === "signe" ? "Signé" : r.contratStatut === "en_attente" ? "En attente" : "Manquant"}
                 done={r.contratStatut === "signe"}
               />
-            </>
+            </div>
           )}
-          <StatusChip
-            icon={Sparkles}
-            label="Ménage"
-            value={r.menageNoms.length > 0 ? r.menageNoms.join(", ") : "Non affecté"}
-            done={r.menageNoms.length > 0}
-          />
-          {r.cuisineNoms.length > 0 ? (
-            <StatusChip icon={ChefHat} label="Cuisine" value={r.cuisineNoms.join(", ")} done />
-          ) : null}
-        </div>
 
-        {r.notes ? (
-          <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{r.notes}</span>
+          {isProprietaire ? null : (
+            <PaymentSummary
+              loyerTotal={r.loyerTotal}
+              montantPaye={r.montantPaye}
+              caution={r.caution}
+              cautionPayee={r.cautionPayee}
+              devisePaiement={r.devisePaiement}
+            />
+          )}
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {r.guestPhone && kind === "in" && !isProprietaire && r.villaId ? (
+              <ArrivalMessageButton
+                reservationId={r.id}
+                villaId={r.villaId}
+                phone={r.guestPhone}
+                guestName={r.guestName}
+                checkIn={new Date(r.checkIn)}
+                now={nowInMorocco()}
+                ficheId={r.ficheId}
+                ficheComplete={r.ficheStatut === "complete"}
+              />
+            ) : null}
+            {r.guestPhone && kind === "in" && !isProprietaire && r.domaineMapsUrl ? (
+              <LocationMessageButton
+                phone={r.guestPhone}
+                guestName={r.guestName}
+                domaineNom={r.domaineNom ?? "domaine"}
+                mapsUrl={r.domaineMapsUrl}
+              />
+            ) : null}
+            <CopyLinkButton
+              path={`/r/${r.id}`}
+              label="Copier pour Imane"
+              successMessage="Lien copié — envoie-le à Imane, elle verra les mêmes infos."
+            />
           </div>
-        ) : null}
 
-        {isProprietaire ? null : (
-          <PaymentSummary
-            loyerTotal={r.loyerTotal}
-            montantPaye={r.montantPaye}
-            caution={r.caution}
-            cautionPayee={r.cautionPayee}
-            devisePaiement={r.devisePaiement}
-          />
-        )}
-      </Link>
-
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : null}
-          {r.guestPhone && kind === "in" && !isProprietaire && r.villaId ? (
-            <ArrivalMessageButton
-              reservationId={r.id}
-              villaId={r.villaId}
-              phone={r.guestPhone}
-              guestName={r.guestName}
-              checkIn={new Date(r.checkIn)}
-              now={nowInMorocco()}
-              ficheId={r.ficheId}
-              ficheComplete={r.ficheStatut === "complete"}
-            />
-          ) : null}
-          {r.guestPhone && kind === "in" && !isProprietaire && r.domaineMapsUrl ? (
-            <LocationMessageButton
-              phone={r.guestPhone}
-              guestName={r.guestName}
-              domaineNom={r.domaineNom ?? "domaine"}
-              mapsUrl={r.domaineMapsUrl}
-            />
-          ) : null}
-          <CopyLinkButton
-            path={`/r/${r.id}`}
-            label="Copier pour Imane"
-            successMessage="Lien copié — envoie-le à Imane, elle verra les mêmes infos."
+          <EditReservationTimeDialog
+            reservationId={r.id}
+            checkIn={new Date(r.checkIn)}
+            checkOut={new Date(r.checkOut)}
           />
         </div>
-        <EditReservationTimeDialog
-          reservationId={r.id}
-          checkIn={new Date(r.checkIn)}
-          checkOut={new Date(r.checkOut)}
-        />
-      </div>
-      <div className="px-3 pb-3">
-        <ValidateCheckinCheckoutButton
-          reservationId={r.id}
-          kind={kind}
-          valideAt={kind === "in" ? r.checkinValideAt : r.checkoutValideAt}
-          validePar={kind === "in" ? r.checkinValidePar : r.checkoutValidePar}
-        />
-      </div>
+      </details>
     </div>
   );
 }
