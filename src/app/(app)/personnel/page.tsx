@@ -174,8 +174,17 @@ export default async function PersonnelPage() {
   const unpaidReservations =
     unpaidReservationIds.length > 0
       ? await db
-          .select({ id: reservations.id, checkIn: reservations.checkIn, checkOut: reservations.checkOut, checkoutValideAt: reservations.checkoutValideAt })
+          .select({
+            id: reservations.id,
+            guestName: reservations.guestName,
+            checkIn: reservations.checkIn,
+            checkOut: reservations.checkOut,
+            checkoutValideAt: reservations.checkoutValideAt,
+            villaNom: villas.nom,
+            villaNumero: villas.numero,
+          })
           .from(reservations)
+          .leftJoin(villas, eq(reservations.villaId, villas.id))
           .where(inArray(reservations.id, unpaidReservationIds))
       : [];
   const unpaidReservationById = new Map(unpaidReservations.map((r) => [r.id, r]));
@@ -186,6 +195,7 @@ export default async function PersonnelPage() {
         const mine = unpaidAffectations.filter((a) => a.personnelId === p.id);
         let montant = 0;
         const affectationIds: string[] = [];
+        const details: { villaNom: string | null; villaNumero: string | null; guestName: string; montant: number }[] = [];
         for (const a of mine) {
           const r = unpaidReservationById.get(a.reservationId);
           if (!r) continue;
@@ -196,9 +206,10 @@ export default async function PersonnelPage() {
           if (m > 0) {
             montant += m;
             affectationIds.push(a.id);
+            details.push({ villaNom: r.villaNom, villaNumero: r.villaNumero, guestName: r.guestName, montant: m });
           }
         }
-        return { id: p.id, nom: p.nom, actif: p.actif, montant, affectationIds };
+        return { id: p.id, nom: p.nom, actif: p.actif, montant, affectationIds, details };
       })
       .sort((a, b) => b.montant - a.montant);
   }
@@ -565,7 +576,14 @@ function PaymentsSection({
   rows,
 }: {
   title: string;
-  rows: { id: string; nom: string; actif: boolean; montant: number; affectationIds: string[] }[];
+  rows: {
+    id: string;
+    nom: string;
+    actif: boolean;
+    montant: number;
+    affectationIds: string[];
+    details: { villaNom: string | null; villaNumero: string | null; guestName: string; montant: number }[];
+  }[];
 }) {
   const withDue = rows.filter((r) => r.montant > 0);
   return (
@@ -579,14 +597,28 @@ function PaymentsSection({
         ) : (
           <div className="space-y-2">
             {withDue.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-                <div className="flex items-center gap-1.5">
-                  <p className="font-medium">{r.nom}</p>
-                  {!r.actif ? <Badge variant="outline">Inactif</Badge> : null}
+              <div key={r.id} className="space-y-2 rounded-md border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-medium">{r.nom}</p>
+                    {!r.actif ? <Badge variant="outline">Inactif</Badge> : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-600 hover:bg-amber-600">{r.montant} MAD dus</Badge>
+                    <MarkPaidButton affectationIds={r.affectationIds} />
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge className="bg-amber-600 hover:bg-amber-600">{r.montant} MAD dus</Badge>
-                  <MarkPaidButton affectationIds={r.affectationIds} />
+                {/* Le détail (quelle villa, quel client, combien) évite d'avoir à demander
+                    "c'est pour quoi ?" à chaque fois qu'un montant apparaît ici. */}
+                <div className="space-y-1 border-t pt-2 text-sm text-muted-foreground">
+                  {r.details.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2">
+                      <span>
+                        {d.villaNom ? `${d.villaNom} (n°${d.villaNumero})` : "Villa non renseignée"} · {d.guestName}
+                      </span>
+                      <span>{d.montant} MAD</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}

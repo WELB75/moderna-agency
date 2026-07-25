@@ -21,12 +21,28 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/app/signatur
 import { generateContrat, generateDossier } from "@/lib/actions/contrats";
 import { AGENCE_REPRESENTANT_DEFAUT } from "@/lib/contrat-template";
 
+export type ContratReservation = {
+  id: string;
+  villaId: string | null;
+  guestName: string;
+  checkIn: string | Date;
+  checkOut: string | Date;
+  nbAdultes: number | null;
+  nbEnfants: number | null;
+  loyerTotal: string | null;
+  montantPaye: string | null;
+  caution: string | null;
+  devisePaiement: string;
+};
+
 export function GenerateContratForm({
   domaines,
   villas,
+  reservations,
 }: {
   domaines: LieuDomaine[];
   villas: LieuVilla[];
+  reservations?: ContratReservation[];
 }) {
   const [domaineId, setDomaineId] = useState("");
   const [villaId, setVillaId] = useState("");
@@ -49,6 +65,30 @@ export function GenerateContratForm({
   const [generatedLink, setGeneratedLink] = useState("");
   const [isPending, startTransition] = useTransition();
   const sigRef = useRef<SignaturePadHandle>(null);
+
+  const villaReservations = villaId ? (reservations ?? []).filter((r) => r.villaId === villaId) : [];
+
+  // Pré-remplit depuis une réservation Superhote existante plutôt que de tout retaper : reste
+  // modifiable ensuite (l'adresse du locataire ou l'acompte exact ne viennent pas de Superhote).
+  function applyReservation(reservationId: string) {
+    const r = villaReservations.find((res) => res.id === reservationId);
+    if (!r) return;
+    setLocataireNom(r.guestName);
+    if (r.nbAdultes) setNbAdultes(String(r.nbAdultes));
+    if (r.nbEnfants !== null) setNbEnfants(String(r.nbEnfants));
+    setDateArrivee(format(new Date(r.checkIn), "yyyy-MM-dd"));
+    setDateDepart(format(new Date(r.checkOut), "yyyy-MM-dd"));
+    if (["DH", "EUR", "USD", "GBP"].includes(r.devisePaiement)) setDevise(r.devisePaiement);
+    if (r.loyerTotal) {
+      const total = Number(r.loyerTotal);
+      const paye = Number(r.montantPaye ?? 0);
+      setMontantTotal(r.loyerTotal);
+      setAcompteMontant(r.montantPaye ?? "");
+      setSoldeMontant(Math.max(0, total - paye).toFixed(2));
+    }
+    if (r.caution) setDepotGarantieMontant(r.caution);
+    toast.success("Champs pré-remplis depuis la réservation — vérifie avant de générer.");
+  }
 
   function handleGenerate() {
     if (!villaId) {
@@ -116,6 +156,23 @@ export function GenerateContratForm({
           onDomaineChange={setDomaineId}
           onVillaChange={setVillaId}
         />
+        {villaId && villaReservations.length > 0 ? (
+          <div className="space-y-1.5 rounded-md border bg-muted/30 p-3">
+            <Label>Pré-remplir depuis une réservation (optionnel)</Label>
+            <Select value="" onValueChange={applyReservation}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choisir une réservation Superhote..." />
+              </SelectTrigger>
+              <SelectContent>
+                {villaReservations.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.guestName} · {format(new Date(r.checkIn), "d MMM")} → {format(new Date(r.checkOut), "d MMM yyyy")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Nom du locataire</Label>

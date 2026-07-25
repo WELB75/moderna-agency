@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { desc, eq, asc, isNotNull } from "drizzle-orm";
+import { desc, eq, asc, isNotNull, ne } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -71,6 +71,30 @@ export default async function DocumentsPage() {
   const fichesAutres = fichesVisibles.filter((f) => f.domaineNom !== "Domaine Moderna II");
 
   const villaIdsActifs = new Set(allVillas.map((v) => v.id));
+
+  // Pour pré-remplir le contrat de location depuis une réservation Superhote existante
+  // (nom, dates, effectif, et le loyer/caution quand ils ont été renseignés) plutôt que de
+  // tout retaper à la main.
+  const reservationsForContrat = (
+    await db
+      .select({
+        id: reservations.id,
+        villaId: reservations.villaId,
+        guestName: reservations.guestName,
+        checkIn: reservations.checkIn,
+        checkOut: reservations.checkOut,
+        nbAdultes: reservations.nbAdultes,
+        nbEnfants: reservations.nbEnfants,
+        loyerTotal: reservations.loyerTotal,
+        montantPaye: reservations.montantPaye,
+        caution: reservations.caution,
+        devisePaiement: reservations.devisePaiement,
+      })
+      .from(reservations)
+      .where(ne(reservations.status, "annulee"))
+      .orderBy(desc(reservations.checkIn))
+  ).filter((r) => r.villaId && villaIdsActifs.has(r.villaId));
+
   const contrats = (
     await db
       .select({
@@ -204,7 +228,7 @@ export default async function DocumentsPage() {
             <StatCard label="Taux de signature" value={`${contratsTauxSignature}%`} />
           </div>
 
-          <GenerateContratForm domaines={allDomaines} villas={allVillas} />
+          <GenerateContratForm domaines={allDomaines} villas={allVillas} reservations={reservationsForContrat} />
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
