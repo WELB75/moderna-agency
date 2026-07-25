@@ -31,7 +31,8 @@ import { EditReservationTimeDialog } from "@/components/app/edit-reservation-tim
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { StatusChip } from "@/components/app/status-chip";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, Sparkles, ChefHat, ChevronRight, Wallet } from "lucide-react";
+import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, ChevronRight, Wallet } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
@@ -132,13 +133,16 @@ export default async function DashboardPage() {
     }
   }
 
-  // Ménage/cuisine : qui est affecté à ce séjour, pour le voir directement sur la carte
-  // sans devoir aller sur la page Personnel.
+  // Ménage/cuisine : qui est affecté à ce séjour, pour le voir directement sur la carte et
+  // pouvoir confirmer le ménage fait (ou en ajouter/retirer) sans devoir aller sur la page
+  // Personnel.
   const relatedAffectations =
     reservationIds.length > 0
       ? await db
           .select({
+            id: personnelAffectations.id,
             reservationId: personnelAffectations.reservationId,
+            personnelId: personnelAffectations.personnelId,
             nom: personnel.nom,
             role: personnel.role,
             faitAt: personnelAffectations.faitAt,
@@ -149,26 +153,30 @@ export default async function DashboardPage() {
           .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
           .where(inArray(personnelAffectations.reservationId, reservationIds))
       : [];
-  const menageNomsByReservation = new Map<string, string[]>();
-  const cuisineNomsByReservation = new Map<string, string[]>();
+  const menageAssignesByReservation = new Map<string, PersonnelAssigne[]>();
+  const cuisineAssignesByReservation = new Map<string, PersonnelAssigne[]>();
   const affectationsByReservationForCash = new Map<string, typeof relatedAffectations>();
   for (const a of relatedAffectations) {
-    const map = a.role === "menage" ? menageNomsByReservation : cuisineNomsByReservation;
+    const map = a.role === "menage" ? menageAssignesByReservation : cuisineAssignesByReservation;
     const list = map.get(a.reservationId) ?? [];
-    list.push(a.nom);
+    list.push({ affectationId: a.id, personnelId: a.personnelId, nom: a.nom, faitAt: a.faitAt, nbJours: a.nbJours });
     map.set(a.reservationId, list);
     const all = affectationsByReservationForCash.get(a.reservationId) ?? [];
     all.push(a);
     affectationsByReservationForCash.set(a.reservationId, all);
   }
 
+  const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true));
+  const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
+  const cuisineOptions = activePersonnel.filter((p) => p.role === "cuisine").map((p) => ({ id: p.id, nom: p.nom }));
+
   const upcomingWithDocs = upcoming.map((r) => {
     const ficheStatut = ficheStatutByReservation.get(r.id) ?? null;
     const ficheId = ficheIdByReservation.get(r.id) ?? null;
     const dateKey = r.villaId ? `${r.villaId}|${format(new Date(r.checkIn), "yyyy-MM-dd")}` : null;
     const contratStatut = dateKey ? (contratStatutByVillaAndDate.get(dateKey) ?? null) : null;
-    const menageNoms = menageNomsByReservation.get(r.id) ?? [];
-    const cuisineNoms = cuisineNomsByReservation.get(r.id) ?? [];
+    const menageAssignes = menageAssignesByReservation.get(r.id) ?? [];
+    const cuisineAssignes = cuisineAssignesByReservation.get(r.id) ?? [];
     // Cash à prévoir pour ce séjour : ménage (200 MAD une fois confirmé fait) + cuisine
     // (200 MAD/jour, due au check-out), pas encore payés — pour savoir combien apporter en
     // liquide avant de partir sur place.
@@ -180,7 +188,7 @@ export default async function DashboardPage() {
           : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt);
       return sum + montant;
     }, 0);
-    return { ...r, ficheStatut, ficheId, contratStatut, menageNoms, cuisineNoms, cashAPrevoir };
+    return { ...r, ficheStatut, ficheId, contratStatut, menageAssignes, cuisineAssignes, menageOptions, cuisineOptions, cashAPrevoir };
   });
 
   // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
@@ -436,8 +444,10 @@ type ReservationRow = {
   ficheStatut: "complete" | "en_attente" | null;
   ficheId: string | null;
   contratStatut: "signe" | "en_attente" | null;
-  menageNoms: string[];
-  cuisineNoms: string[];
+  menageAssignes: PersonnelAssigne[];
+  cuisineAssignes: PersonnelAssigne[];
+  menageOptions: { id: string; nom: string }[];
+  cuisineOptions: { id: string; nom: string }[];
   cashAPrevoir: number;
 };
 
@@ -659,22 +669,6 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
 
-        {/* Un seul statut ménage/cuisine à la fois : le ménage se fait après un départ, la
-            cuisine se prépare pour une arrivée — les deux en même temps n'a pas de sens et
-            n'apporte que du bruit sur la carte. */}
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {kind === "out" ? (
-            <StatusChip
-              icon={Sparkles}
-              label="Ménage"
-              value={r.menageNoms.length > 0 ? r.menageNoms.join(", ") : "Non affecté"}
-              done={r.menageNoms.length > 0}
-            />
-          ) : r.cuisineNoms.length > 0 ? (
-            <StatusChip icon={ChefHat} label="Cuisine" value={r.cuisineNoms.join(", ")} done />
-          ) : null}
-        </div>
-
         {kind === "out" && r.cashAPrevoir > 0 ? (
           <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-800 dark:text-amber-400">
             <Wallet className="h-3.5 w-3.5 shrink-0" />
@@ -689,6 +683,29 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
           </div>
         ) : null}
       </Link>
+
+      {/* En dehors du Link (bouton cliquable dans une carte cliquable = navigation
+          accidentelle). Un seul statut ménage/cuisine à la fois : le ménage se fait après un
+          départ, la cuisine se prépare pour une arrivée. */}
+      <div className="px-3 pb-2">
+        {kind === "out" ? (
+          <PersonnelAffectationEditor
+            reservationId={r.id}
+            role="menage"
+            label="Ménage — cliquer sur le nom pour confirmer fait"
+            assigned={r.menageAssignes}
+            options={r.menageOptions}
+          />
+        ) : (
+          <PersonnelAffectationEditor
+            reservationId={r.id}
+            role="cuisine"
+            label="Cuisine"
+            assigned={r.cuisineAssignes}
+            options={r.cuisineOptions}
+          />
+        )}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
         {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : <span />}
