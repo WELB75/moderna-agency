@@ -32,7 +32,7 @@ import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { StatusChip } from "@/components/app/status-chip";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, ChevronRight, Wallet } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
@@ -40,11 +40,21 @@ import { phonesMatch } from "@/lib/phone";
 
 const DAYS_AHEAD = 7;
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ semaine?: string }>;
+}) {
+  const { semaine } = await searchParams;
+  // Décalage en nombre de semaines de 7 jours par rapport à aujourd'hui : permet de naviguer
+  // vers les semaines passées (ou futures) avec des flèches, sans jamais toucher au "maintenant"
+  // réel utilisé pour l'occupation en cours ou les stats "aujourd'hui".
+  const offsetSemaines = Number.isFinite(Number(semaine)) ? Math.trunc(Number(semaine)) : 0;
   const db = getDb();
   const now = nowInMorocco();
-  const rangeStart = startOfDay(now);
-  const rangeEnd = endOfDay(addDays(now, DAYS_AHEAD - 1));
+  const viewAnchor = addDays(now, offsetSemaines * DAYS_AHEAD);
+  const rangeStart = startOfDay(viewAnchor);
+  const rangeEnd = endOfDay(addDays(viewAnchor, DAYS_AHEAD - 1));
 
   const upcoming = await db
     .select({
@@ -250,7 +260,7 @@ export default async function DashboardPage() {
 
   const modernaIIMaintenance = upcomingMaintenance.filter((m) => m.domaineNom === "Domaine Moderna II");
 
-  const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(now, i));
+  const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(viewAnchor, i));
 
   const [lastSync] = await db
     .select({ finishedAt: superhoteSyncLog.finishedAt, success: superhoteSyncLog.success })
@@ -262,7 +272,32 @@ export default async function DashboardPage() {
     <div className="w-full max-w-full space-y-6 overflow-x-hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Cette semaine</h1>
+          <div className="flex items-center gap-1.5">
+            <Link
+              href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Semaine précédente"
+              title="Semaine précédente"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+            <h1 className="text-2xl font-semibold tracking-tight">
+              {offsetSemaines === 0 ? "Cette semaine" : `Du ${format(rangeStart, "d MMM", { locale: fr })} au ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
+            </h1>
+            <Link
+              href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Semaine suivante"
+              title="Semaine suivante"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+            {offsetSemaines !== 0 ? (
+              <Link href="/dashboard" className="ml-1 text-sm text-primary underline-offset-4 hover:underline">
+                Revenir à aujourd&apos;hui
+              </Link>
+            ) : null}
+          </div>
           <p className="text-sm text-muted-foreground">
             {format(now, "EEEE d MMMM yyyy", { locale: fr })}
           </p>
