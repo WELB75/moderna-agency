@@ -251,6 +251,7 @@ export default async function PersonnelPage() {
         personnelId: personnelAffectations.personnelId,
         faitAt: personnelAffectations.faitAt,
         nbJours: personnelAffectations.nbJours,
+        payeAt: personnelAffectations.payeAt,
         checkIn: reservations.checkIn,
         checkOut: reservations.checkOut,
         checkoutValideAt: reservations.checkoutValideAt,
@@ -274,6 +275,7 @@ export default async function PersonnelPage() {
     villaNumero: string | null;
     guestName: string;
     date: Date;
+    payeAt: Date | null;
   };
   const historyEvents: HistoryEvent[] = [];
   for (const a of historyAffectations) {
@@ -290,6 +292,7 @@ export default async function PersonnelPage() {
         villaNumero: a.villaNumero,
         guestName: a.guestName,
         date: a.faitAt,
+        payeAt: a.payeAt,
       });
     } else {
       const montant = montantCuisineDu(a.nbJours, new Date(a.checkIn), new Date(a.checkOut), a.checkoutValideAt);
@@ -304,9 +307,31 @@ export default async function PersonnelPage() {
         villaNumero: a.villaNumero,
         guestName: a.guestName,
         date: a.checkoutValideAt ?? new Date(a.checkOut),
+        payeAt: a.payeAt,
       });
     }
   }
+
+  // Antécédents de paiement (demandés en plus des dus) : ce qui a déjà été payé, le plus
+  // récent d'abord, pour se souvenir de qui a été payé quand sans avoir à rouvrir la caisse.
+  function computePaidHistory(role: "menage" | "cuisine") {
+    const parPersonne = new Map<
+      string,
+      { nom: string; total: number; items: { villaNom: string | null; villaNumero: string | null; guestName: string; montant: number; payeAt: Date }[] }
+    >();
+    for (const e of historyEvents) {
+      if (e.role !== role || !e.payeAt) continue;
+      const cur = parPersonne.get(e.nom) ?? { nom: e.nom, total: 0, items: [] };
+      cur.total += e.montant;
+      cur.items.push({ villaNom: e.villaNom, villaNumero: e.villaNumero, guestName: e.guestName, montant: e.montant, payeAt: e.payeAt });
+      parPersonne.set(e.nom, cur);
+    }
+    return Array.from(parPersonne.values())
+      .map((p) => ({ ...p, items: p.items.sort((a, b) => b.payeAt.getTime() - a.payeAt.getTime()) }))
+      .sort((a, b) => b.items[0].payeAt.getTime() - a.items[0].payeAt.getTime());
+  }
+  const paidHistoryMenage = computePaidHistory("menage");
+  const paidHistoryCuisine = computePaidHistory("cuisine");
 
   const NB_SEMAINES_HISTORIQUE = 8;
   const semaines = Array.from({ length: NB_SEMAINES_HISTORIQUE }, (_, i) => {
@@ -429,6 +454,14 @@ export default async function PersonnelPage() {
           </p>
           <PaymentsSection title="Femmes de ménage" role="menage" rows={dusMenage} />
           <PaymentsSection title="Cuisinières" role="cuisine" rows={dusCuisine} />
+
+          <div>
+            <h2 className="mb-3 text-lg font-semibold tracking-tight">Antécédents de paiement</h2>
+            <div className="space-y-6">
+              <PaidHistorySection title="Femmes de ménage — déjà payé" rows={paidHistoryMenage} />
+              <PaidHistorySection title="Cuisinières — déjà payé" rows={paidHistoryCuisine} />
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
@@ -842,6 +875,55 @@ function PaymentsSection({
                     <div key={i} className="flex items-center justify-between gap-2">
                       <span>
                         {d.villaNom ? `${d.villaNom} (n°${d.villaNumero})` : "Villa non renseignée"} · {d.guestName}
+                      </span>
+                      <span>{d.montant} MAD</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Antécédents : ce qui a déjà été payé (le plus récent d'abord), demandé en plus des dus pour
+// se souvenir de qui a été payé quand sans avoir à rouvrir la caisse.
+function PaidHistorySection({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: {
+    nom: string;
+    total: number;
+    items: { villaNom: string | null; villaNumero: string | null; guestName: string; montant: number; payeAt: Date }[];
+  }[];
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun paiement enregistré pour l&apos;instant.</p>
+        ) : (
+          <div className="space-y-2">
+            {rows.map((r) => (
+              <div key={r.nom} className="space-y-2 rounded-md border p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="font-medium">{r.nom}</p>
+                  <Badge variant="secondary">{r.total} MAD payés</Badge>
+                </div>
+                <div className="space-y-1 border-t pt-2 text-sm text-muted-foreground">
+                  {r.items.map((d, i) => (
+                    <div key={i} className="flex flex-wrap items-center justify-between gap-2">
+                      <span>
+                        {d.villaNom ? `${d.villaNom} (n°${d.villaNumero})` : "Villa non renseignée"} · {d.guestName} ·{" "}
+                        {format(d.payeAt, "d MMM yyyy", { locale: fr })}
                       </span>
                       <span>{d.montant} MAD</span>
                     </div>
