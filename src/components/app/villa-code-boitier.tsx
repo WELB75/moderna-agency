@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { KeyRound, Pencil } from "lucide-react";
+import { KeyRound, DoorClosedLocked, Pencil, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +27,7 @@ function VillaCodeField({
   placeholder,
   value,
   action,
+  icon: Icon,
 }: {
   villaId: string;
   fieldName: string;
@@ -35,6 +36,7 @@ function VillaCodeField({
   placeholder: string;
   value: string | null;
   action: (formData: FormData) => Promise<void>;
+  icon: LucideIcon;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -56,7 +58,7 @@ function VillaCodeField({
     <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3">
       <div className="flex items-center gap-2.5">
         <div className="rounded-full bg-primary/10 p-2 text-primary">
-          <KeyRound className="h-4 w-4" />
+          <Icon className="h-4 w-4" />
         </div>
         <div>
           <p className="text-xs text-muted-foreground">{label}</p>
@@ -101,6 +103,7 @@ export function VillaCodeBoitier({ villaId, codeBoitier }: { villaId: string; co
       placeholder="Ex. 1526"
       value={codeBoitier}
       action={updateVillaCodeBoitier}
+      icon={KeyRound}
     />
   );
 }
@@ -111,10 +114,11 @@ export function VillaCodePorteEntree({ villaId, codePorteEntree }: { villaId: st
       villaId={villaId}
       fieldName="codePorteEntree"
       label="Code de la porte d'entrée"
-      dialogDescription="Digicode de la porte d'entrée de la villa (distinct du boîtier à clés)."
+      dialogDescription="Code de la poignée tactile de la porte d'entrée de la villa (distinct du boîtier à clés)."
       placeholder="Ex. 082421#"
       value={codePorteEntree}
       action={updateVillaCodePorteEntree}
+      icon={DoorClosedLocked}
     />
   );
 }

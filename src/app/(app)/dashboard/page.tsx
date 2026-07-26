@@ -32,7 +32,7 @@ import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { StatusChip } from "@/components/app/status-chip";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
-import { LogIn, LogOut, Wrench, Info, KeyRound, FileText, FileSignature, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, DoorClosedLocked, FileText, FileSignature, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
@@ -693,8 +693,8 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             </Badge>
           ) : null}
           {r.codePorteEntree ? (
-            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code de la porte d'entrée">
-              <KeyRound className="h-3 w-3" />
+            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code de la poignée tactile de la porte d'entrée">
+              <DoorClosedLocked className="h-3 w-3" />
               {r.codePorteEntree}
             </Badge>
           ) : null}
