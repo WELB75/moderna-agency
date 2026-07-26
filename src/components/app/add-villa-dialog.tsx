@@ -111,6 +111,10 @@ export function AddVillaDialog({
             <Input id="codeBoitier" name="codeBoitier" placeholder="Ex. 1526" />
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="codePorteEntree">Code de la porte d&apos;entrée (si différent)</Label>
+            <Input id="codePorteEntree" name="codePorteEntree" placeholder="Ex. 082421#" />
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="superhoteListingId">
               Identifiant Superhote (property_key)
             </Label>

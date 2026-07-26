@@ -15,14 +15,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { updateVillaCodeBoitier } from "@/lib/actions/villas";
+import { updateVillaCodeBoitier, updateVillaCodePorteEntree } from "@/lib/actions/villas";
 
-export function VillaCodeBoitier({
+// Certaines villas ont deux codes distincts (boîte à clés ET porte d'entrée) : un même
+// composant générique pour les deux, chacun relié à sa propre action serveur.
+function VillaCodeField({
   villaId,
-  codeBoitier,
+  fieldName,
+  label,
+  dialogDescription,
+  placeholder,
+  value,
+  action,
 }: {
   villaId: string;
-  codeBoitier: string | null;
+  fieldName: string;
+  label: string;
+  dialogDescription: string;
+  placeholder: string;
+  value: string | null;
+  action: (formData: FormData) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -31,7 +43,7 @@ export function VillaCodeBoitier({
     formData.set("villaId", villaId);
     startTransition(async () => {
       try {
-        await updateVillaCodeBoitier(formData);
+        await action(formData);
         toast.success("Code mis à jour.");
         setOpen(false);
       } catch (err) {
@@ -47,8 +59,8 @@ export function VillaCodeBoitier({
           <KeyRound className="h-4 w-4" />
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Code du boîtier à clés</p>
-          <p className="text-lg font-semibold tracking-wider">{codeBoitier ?? "Non renseigné"}</p>
+          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-lg font-semibold tracking-wider">{value ?? "Non renseigné"}</p>
         </div>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -59,13 +71,13 @@ export function VillaCodeBoitier({
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Code du boîtier</DialogTitle>
-            <DialogDescription>Code d&apos;accès à la boîte à clés / au digicode de la villa.</DialogDescription>
+            <DialogTitle>{label}</DialogTitle>
+            <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
           <form action={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="codeBoitier">Code</Label>
-              <Input id="codeBoitier" name="codeBoitier" defaultValue={codeBoitier ?? ""} placeholder="Ex. 1526" />
+              <Label htmlFor={fieldName}>Code</Label>
+              <Input id={fieldName} name={fieldName} defaultValue={value ?? ""} placeholder={placeholder} />
             </div>
             <DialogFooter>
               <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
@@ -76,5 +88,33 @@ export function VillaCodeBoitier({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export function VillaCodeBoitier({ villaId, codeBoitier }: { villaId: string; codeBoitier: string | null }) {
+  return (
+    <VillaCodeField
+      villaId={villaId}
+      fieldName="codeBoitier"
+      label="Code du boîtier à clés"
+      dialogDescription="Code d'accès à la boîte à clés / au digicode de la villa."
+      placeholder="Ex. 1526"
+      value={codeBoitier}
+      action={updateVillaCodeBoitier}
+    />
+  );
+}
+
+export function VillaCodePorteEntree({ villaId, codePorteEntree }: { villaId: string; codePorteEntree: string | null }) {
+  return (
+    <VillaCodeField
+      villaId={villaId}
+      fieldName="codePorteEntree"
+      label="Code de la porte d'entrée"
+      dialogDescription="Digicode de la porte d'entrée de la villa (distinct du boîtier à clés)."
+      placeholder="Ex. 082421#"
+      value={codePorteEntree}
+      action={updateVillaCodePorteEntree}
+    />
   );
 }

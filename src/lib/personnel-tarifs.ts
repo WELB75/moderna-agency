@@ -1,9 +1,9 @@
 import { differenceInCalendarDays } from "date-fns";
 
-// Tarifs fixes payés en liquide : 200 MAD par ménage confirmé fait, 200 MAD par jour de
+// Tarifs fixes payés en liquide : 200 MAD par ménage confirmé fait, 100 MAD par jour de
 // cuisine — définis une seule fois ici pour que le calcul soit cohérent partout.
 export const TARIF_MENAGE = 200;
-export const TARIF_CUISINE_JOUR = 200;
+export const TARIF_CUISINE_JOUR = 100;
 
 // Le ménage est dû dès qu'il est confirmé fait (pas juste affecté) — c'est le moment où,
 // dans la réalité, la villa est propre et prête pour l'arrivée suivante.

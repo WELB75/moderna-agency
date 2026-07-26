@@ -93,6 +93,9 @@ export const villas = pgTable(
     notes: text("notes"),
     description: text("description"),
     codeBoitier: text("code_boitier"), // code de la boîte à clés / digicode d'accès
+    // Certaines villas ont un second code, distinct du boîtier à clés, pour le digicode de la
+    // porte d'entrée elle-même.
+    codePorteEntree: text("code_porte_entree"),
     proprietaireNom: text("proprietaire_nom"),
     proprietaireTelephone: text("proprietaire_telephone"),
     // Prénoms des personnes autorisées à s'identifier comme auteur dans le chat de l'espace
@@ -495,7 +498,7 @@ export const personnelAffectations = pgTable(
     faitAt: timestamp("fait_at", { withTimezone: true }),
     // Cuisine : nombre de jours si elle n'a pas couvert tout le séjour (null = séjour complet).
     nbJours: integer("nb_jours"),
-    // Coché une fois la personne payée en liquide (200 MAD/ménage confirmé, 200 MAD/jour de
+    // Coché une fois la personne payée en liquide (200 MAD/ménage confirmé, 100 MAD/jour de
     // cuisine) — permet de calculer ce qu'il reste à payer sans le compter deux fois.
     payeAt: timestamp("paye_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

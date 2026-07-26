@@ -16,6 +16,7 @@ export async function createVilla(formData: FormData) {
   const superhoteListingId = String(formData.get("superhoteListingId") ?? "").trim();
   const domaineId = String(formData.get("domaineId") ?? "").trim();
   const codeBoitier = String(formData.get("codeBoitier") ?? "").trim();
+  const codePorteEntree = String(formData.get("codePorteEntree") ?? "").trim();
   const type = String(formData.get("type") ?? "villa").trim() || "villa";
 
   if (!numero || !nom) {
@@ -32,6 +33,7 @@ export async function createVilla(formData: FormData) {
     superhoteListingId: superhoteListingId || null,
     domaineId: domaineId || null,
     codeBoitier: codeBoitier || null,
+    codePorteEntree: codePorteEntree || null,
   });
 
   revalidatePath("/villas");
@@ -65,6 +67,23 @@ export async function updateVillaCodeBoitier(formData: FormData) {
   await db
     .update(villas)
     .set({ codeBoitier: codeBoitier || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}
+
+// Certaines villas ont un second code, distinct du boîtier à clés, pour le digicode de la
+// porte d'entrée elle-même.
+export async function updateVillaCodePorteEntree(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const codePorteEntree = String(formData.get("codePorteEntree") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ codePorteEntree: codePorteEntree || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);

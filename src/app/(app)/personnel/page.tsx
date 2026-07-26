@@ -1,5 +1,18 @@
 import { asc, and, ne, gte, lte, eq, inArray, isNull, or } from "drizzle-orm";
-import { format, startOfMonth, endOfMonth, differenceInCalendarDays, subDays, startOfDay, isSameDay, isBefore, isAfter } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  subWeeks,
+  differenceInCalendarDays,
+  subDays,
+  startOfDay,
+  isSameDay,
+  isBefore,
+  isAfter,
+} from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
@@ -17,7 +30,7 @@ import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
-import { Users, CalendarClock, BarChart3, Wallet, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
+import { Users, CalendarClock, BarChart3, Wallet, History, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default async function PersonnelPage() {
@@ -166,7 +179,7 @@ export default async function PersonnelPage() {
   const statsMenage = computeStatsMenage(menageRoster);
   const statsCuisine = computeStatsCuisine(cuisineRoster);
 
-  // Paiements dus (200 MAD/ménage confirmé, 200 MAD/jour de cuisine) : sur toutes les
+  // Paiements dus (200 MAD/ménage confirmé, 100 MAD/jour de cuisine) : sur toutes les
   // affectations pas encore payées, pas seulement le mois en cours — une dette ne doit pas
   // disparaître simplement parce qu'on a changé de mois.
   const unpaidAffectations = await db.select().from(personnelAffectations).where(isNull(personnelAffectations.payeAt));
@@ -230,6 +243,91 @@ export default async function PersonnelPage() {
   const dusCuisine = computeDus(cuisineRoster, "cuisine");
   const totalDu = [...dusMenage, ...dusCuisine].reduce((sum, r) => sum + r.montant, 0);
 
+  // Historique hebdomadaire : pour se souvenir de ce qui a été fait semaine par semaine depuis
+  // le début, pas seulement le mois en cours — au moins les 8 dernières semaines demandées.
+  const historyAffectations = (
+    await db
+      .select({
+        personnelId: personnelAffectations.personnelId,
+        faitAt: personnelAffectations.faitAt,
+        nbJours: personnelAffectations.nbJours,
+        checkIn: reservations.checkIn,
+        checkOut: reservations.checkOut,
+        checkoutValideAt: reservations.checkoutValideAt,
+        guestName: reservations.guestName,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+      })
+      .from(personnelAffectations)
+      .innerJoin(reservations, eq(personnelAffectations.reservationId, reservations.id))
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+
+  type HistoryEvent = {
+    nom: string;
+    role: "menage" | "cuisine";
+    montant: number;
+    jours: number | null;
+    villaNom: string | null;
+    villaNumero: string | null;
+    guestName: string;
+    date: Date;
+  };
+  const historyEvents: HistoryEvent[] = [];
+  for (const a of historyAffectations) {
+    const p = personnelById.get(a.personnelId);
+    if (!p) continue;
+    if (p.role === "menage") {
+      if (!a.faitAt) continue;
+      historyEvents.push({
+        nom: p.nom,
+        role: "menage",
+        montant: montantMenageDu(a.faitAt),
+        jours: null,
+        villaNom: a.villaNom,
+        villaNumero: a.villaNumero,
+        guestName: a.guestName,
+        date: a.faitAt,
+      });
+    } else {
+      const montant = montantCuisineDu(a.nbJours, new Date(a.checkIn), new Date(a.checkOut), a.checkoutValideAt);
+      if (montant <= 0) continue;
+      const jours = a.nbJours ?? Math.max(1, differenceInCalendarDays(new Date(a.checkOut), new Date(a.checkIn)));
+      historyEvents.push({
+        nom: p.nom,
+        role: "cuisine",
+        montant,
+        jours,
+        villaNom: a.villaNom,
+        villaNumero: a.villaNumero,
+        guestName: a.guestName,
+        date: a.checkoutValideAt ?? new Date(a.checkOut),
+      });
+    }
+  }
+
+  const NB_SEMAINES_HISTORIQUE = 8;
+  const semaines = Array.from({ length: NB_SEMAINES_HISTORIQUE }, (_, i) => {
+    const debut = startOfWeek(subWeeks(now, i), { weekStartsOn: 1 });
+    const fin = endOfWeek(debut, { weekStartsOn: 1 });
+    const events = historyEvents.filter((e) => e.date >= debut && e.date <= fin);
+    const menageEvents = events.filter((e) => e.role === "menage");
+    const cuisineEvents = events.filter((e) => e.role === "cuisine");
+    return {
+      debut,
+      fin,
+      estCetteSemaine: i === 0,
+      menageCount: menageEvents.length,
+      menageMontant: menageEvents.reduce((sum, e) => sum + e.montant, 0),
+      menageEvents,
+      cuisineJours: cuisineEvents.reduce((sum, e) => sum + (e.jours ?? 0), 0),
+      cuisineMontant: cuisineEvents.reduce((sum, e) => sum + e.montant, 0),
+      cuisineEvents,
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -250,6 +348,10 @@ export default async function PersonnelPage() {
           <TabsTrigger value="statistiques">
             <BarChart3 className="h-4 w-4" />
             Statistiques
+          </TabsTrigger>
+          <TabsTrigger value="historique">
+            <History className="h-4 w-4" />
+            Historique
           </TabsTrigger>
           <TabsTrigger value="paiements">
             <Wallet className="h-4 w-4" />
@@ -311,9 +413,18 @@ export default async function PersonnelPage() {
           <StatsSection title="Cuisinières" rows={statsCuisine} unit="jour de cuisine" unitPlural="jours de cuisine" />
         </TabsContent>
 
+        <TabsContent value="historique" className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Semaine par semaine (lundi à dimanche) — ménage confirmé fait, cuisine due au check-out.
+          </p>
+          {semaines.map((semaine, i) => (
+            <WeekHistoryCard key={i} semaine={semaine} />
+          ))}
+        </TabsContent>
+
         <TabsContent value="paiements" className="space-y-6">
           <p className="text-sm text-muted-foreground">
-            Ménage : 200 MAD par personne une fois le ménage confirmé fait. Cuisine : 200 MAD par jour, dû au
+            Ménage : 200 MAD par personne une fois le ménage confirmé fait. Cuisine : 100 MAD par jour, dû au
             check-out du client. Total à prévoir en liquide : <span className="font-semibold text-foreground">{totalDu} MAD</span>.
           </p>
           <PaymentsSection title="Femmes de ménage" role="menage" rows={dusMenage} />
@@ -577,6 +688,101 @@ function StatsSection({
                 </div>
               </div>
             ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+type HistoryEventForGroup = {
+  nom: string;
+  montant: number;
+  jours: number | null;
+  villaNom: string | null;
+  villaNumero: string | null;
+  guestName: string;
+};
+
+function groupHistoryByPerson(events: HistoryEventForGroup[]) {
+  const parPersonne = new Map<string, { nom: string; count: number; jours: number; montant: number }>();
+  for (const e of events) {
+    const cur = parPersonne.get(e.nom) ?? { nom: e.nom, count: 0, jours: 0, montant: 0 };
+    cur.count += 1;
+    cur.jours += e.jours ?? 0;
+    cur.montant += e.montant;
+    parPersonne.set(e.nom, cur);
+  }
+  return Array.from(parPersonne.values()).sort((a, b) => b.montant - a.montant);
+}
+
+function WeekHistoryCard({
+  semaine,
+}: {
+  semaine: {
+    debut: Date;
+    fin: Date;
+    estCetteSemaine: boolean;
+    menageCount: number;
+    menageMontant: number;
+    menageEvents: HistoryEventForGroup[];
+    cuisineJours: number;
+    cuisineMontant: number;
+    cuisineEvents: HistoryEventForGroup[];
+  };
+}) {
+  const menageParPersonne = groupHistoryByPerson(semaine.menageEvents);
+  const cuisineParPersonne = groupHistoryByPerson(semaine.cuisineEvents);
+  const total = semaine.menageMontant + semaine.cuisineMontant;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex flex-wrap items-center gap-2 text-base font-medium">
+          Semaine du {format(semaine.debut, "d MMM", { locale: fr })} au{" "}
+          {format(semaine.fin, "d MMM yyyy", { locale: fr })}
+          {semaine.estCetteSemaine ? <Badge variant="outline">Cette semaine</Badge> : null}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        {total === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucune activité cette semaine.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <p className="text-sm font-medium">
+                Ménage · {semaine.menageCount} {semaine.menageCount > 1 ? "ménages" : "ménage"} ·{" "}
+                {semaine.menageMontant} MAD
+              </p>
+              {menageParPersonne.length > 0 ? (
+                <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                  {menageParPersonne.map((p) => (
+                    <li key={p.nom}>
+                      {p.nom} — {p.count} × 200 MAD = {p.montant} MAD
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">Aucun.</p>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-medium">
+                Cuisine · {semaine.cuisineJours} {semaine.cuisineJours > 1 ? "jours" : "jour"} · {semaine.cuisineMontant}{" "}
+                MAD
+              </p>
+              {cuisineParPersonne.length > 0 ? (
+                <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                  {cuisineParPersonne.map((p) => (
+                    <li key={p.nom}>
+                      {p.nom} — {p.jours} {p.jours > 1 ? "jours" : "jour"} = {p.montant} MAD
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-sm text-muted-foreground">Aucune.</p>
+              )}
+            </div>
           </div>
         )}
       </CardContent>

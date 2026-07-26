@@ -63,6 +63,7 @@ export default async function DashboardPage() {
       villaId: villas.id,
       villaType: villas.type,
       codeBoitier: villas.codeBoitier,
+      codePorteEntree: villas.codePorteEntree,
       numeroImmeuble: villas.numeroImmeuble,
       proprietaireTelephone: villas.proprietaireTelephone,
       domaineNom: domaines.nom,
@@ -178,7 +179,7 @@ export default async function DashboardPage() {
     const menageAssignes = menageAssignesByReservation.get(r.id) ?? [];
     const cuisineAssignes = cuisineAssignesByReservation.get(r.id) ?? [];
     // Cash à prévoir pour ce séjour : ménage (200 MAD une fois confirmé fait) + cuisine
-    // (200 MAD/jour, due au check-out), pas encore payés — pour savoir combien apporter en
+    // (100 MAD/jour, due au check-out), pas encore payés — pour savoir combien apporter en
     // liquide avant de partir sur place.
     const cashAPrevoir = (affectationsByReservationForCash.get(r.id) ?? []).reduce((sum, a) => {
       if (a.payeAt) return sum;
@@ -426,6 +427,7 @@ type ReservationRow = {
   villaId: string | null;
   villaType: "villa" | "appartement" | null;
   codeBoitier: string | null;
+  codePorteEntree: string | null;
   numeroImmeuble: string | null;
   proprietaireTelephone: string | null;
   domaineNom: string | null;
@@ -650,9 +652,15 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             </Badge>
           ) : null}
           {r.codeBoitier ? (
-            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide">
+            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code du boîtier à clés">
               <KeyRound className="h-3 w-3" />
               {r.codeBoitier}
+            </Badge>
+          ) : null}
+          {r.codePorteEntree ? (
+            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code de la porte d'entrée">
+              <KeyRound className="h-3 w-3" />
+              {r.codePorteEntree}
             </Badge>
           ) : null}
           {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
