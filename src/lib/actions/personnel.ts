@@ -4,7 +4,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations, cashEntries } from "@/db/schema";
+import { personnel, personnelAffectations, cashEntries, reservations, villas } from "@/db/schema";
+import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 
 export async function createPersonnel(formData: FormData) {
   await auth.protect();
@@ -118,6 +119,65 @@ export async function updateAffectationAvecDejeuner(affectationId: string, avecD
   revalidatePath("/personnel");
   revalidatePath("/villas");
   revalidatePath("/dashboard");
+}
+
+// Marque payée une seule affectation directement depuis sa carte (cercle cliquable, comme le
+// "fait" du ménage) plutôt que de devoir passer par l'onglet Paiements — le montant réel est
+// recalculé côté serveur (pas celui affiché en aperçu côté client) et ajouté à la caisse.
+export async function markAffectationPaidSolo(affectationId: string) {
+  await auth.protect();
+  const db = getDb();
+
+  const [a] = await db.select().from(personnelAffectations).where(eq(personnelAffectations.id, affectationId)).limit(1);
+  if (!a) throw new Error("Affectation introuvable.");
+  if (a.payeAt) return;
+
+  const [p] = await db.select().from(personnel).where(eq(personnel.id, a.personnelId)).limit(1);
+  if (!p) throw new Error("Personne introuvable.");
+
+  const [r] = await db
+    .select({
+      guestName: reservations.guestName,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      checkoutValideAt: reservations.checkoutValideAt,
+      villaId: reservations.villaId,
+    })
+    .from(reservations)
+    .where(eq(reservations.id, a.reservationId))
+    .limit(1);
+  if (!r) throw new Error("Réservation introuvable.");
+
+  const montant =
+    p.role === "menage"
+      ? montantMenageDu(a.faitAt)
+      : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
+  if (montant <= 0) {
+    throw new Error("Rien à payer pour l'instant (check-out pas encore validé, ou ménage pas confirmé fait).");
+  }
+
+  const villa = r.villaId ? (await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, r.villaId)).limit(1))[0] : null;
+  const user = await currentUser();
+
+  await db.update(personnelAffectations).set({ payeAt: new Date() }).where(eq(personnelAffectations.id, affectationId));
+
+  const roleLabel = p.role === "menage" ? "ménage" : "cuisine";
+  await db.insert(cashEntries).values({
+    villaId: r.villaId,
+    type: "depense",
+    moyenPaiement: "especes",
+    montant: montant.toFixed(2),
+    description: `Paiement ${roleLabel} — ${p.nom}${villa ? ` (${villa.nom} n°${villa.numero})` : ""}`,
+    responsable: p.nom,
+    photoUrls: [],
+    createdByUserId: user?.id ?? "inconnu",
+    createdByName: user?.fullName ?? user?.username ?? "Équipe",
+  });
+
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+  revalidatePath("/caisse");
 }
 
 // Marque payées d'un coup toutes les affectations dues et pas encore payées d'une personne —

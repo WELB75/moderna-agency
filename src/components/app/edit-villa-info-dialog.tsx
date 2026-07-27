@@ -6,6 +6,7 @@ import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -33,6 +34,7 @@ export function EditVillaInfoDialog({
   domaineId,
   domaines,
   portailAuteurs,
+  notes,
   typeLabel = "Villa",
 }: {
   villaId: string;
@@ -43,6 +45,7 @@ export function EditVillaInfoDialog({
   domaineId: string | null;
   domaines: { id: string; nom: string }[];
   portailAuteurs?: string[] | null;
+  notes?: string | null;
   typeLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -125,6 +128,16 @@ export function EditVillaInfoDialog({
               name="portailAuteurs"
               defaultValue={(portailAuteurs ?? []).join(", ")}
               placeholder="Ex. Lila, Kamel, Mustapha"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="notes">Notes internes (ex. qui gère le ménage/la cuisine ici)</Label>
+            <Textarea
+              id="notes"
+              name="notes"
+              rows={3}
+              defaultValue={notes ?? ""}
+              placeholder="Ex. Ménage/cuisine gérés par Aisha directement, payée par le propriétaire."
             />
           </div>
           <DialogFooter>

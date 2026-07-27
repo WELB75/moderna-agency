@@ -179,6 +179,7 @@ export default async function DashboardPage({
       faitAt: a.faitAt,
       nbJours: a.nbJours,
       avecDejeuner: a.avecDejeuner,
+      payeAt: a.payeAt,
     });
     map.set(a.reservationId, list);
     const all = affectationsByReservationForCash.get(a.reservationId) ?? [];

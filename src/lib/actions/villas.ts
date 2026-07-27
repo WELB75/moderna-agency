@@ -118,6 +118,7 @@ export async function updateVillaInfo(formData: FormData) {
   const adresse = String(formData.get("adresse") ?? "").trim();
   const numeroImmeuble = String(formData.get("numeroImmeuble") ?? "").trim();
   const domaineId = String(formData.get("domaineId") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
   const portailAuteursRaw = String(formData.get("portailAuteurs") ?? "").trim();
   const portailAuteurs = portailAuteursRaw
     ? portailAuteursRaw.split(",").map((s) => s.trim()).filter(Boolean)
@@ -137,6 +138,7 @@ export async function updateVillaInfo(formData: FormData) {
       adresse: adresse || null,
       numeroImmeuble: numeroImmeuble || null,
       domaineId: domaineId || null,
+      notes: notes || null,
       portailAuteurs,
       updatedAt: new Date(),
     })

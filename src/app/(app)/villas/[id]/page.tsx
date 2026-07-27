@@ -102,7 +102,15 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       : [];
   const affectationsByReservation = new Map<
     string,
-    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null; avecDejeuner: boolean }[]
+    {
+      affectationId: string;
+      personnelId: string;
+      role: string;
+      faitAt: Date | null;
+      nbJours: number | null;
+      avecDejeuner: boolean;
+      payeAt: Date | null;
+    }[]
   >();
   for (const a of allAffectations) {
     const p = personnelById.get(a.personnelId);
@@ -115,6 +123,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       faitAt: a.faitAt,
       nbJours: a.nbJours,
       avecDejeuner: a.avecDejeuner,
+      payeAt: a.payeAt,
     });
     affectationsByReservation.set(a.reservationId, list);
   }
@@ -128,6 +137,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         faitAt: a.faitAt,
         nbJours: a.nbJours,
         avecDejeuner: a.avecDejeuner,
+        payeAt: a.payeAt,
       }));
   }
 
@@ -223,6 +233,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             domaineId={villa.domaineId}
             domaines={allDomaines}
             portailAuteurs={villa.portailAuteurs}
+            notes={villa.notes}
             typeLabel={typeLabel}
           />
           <ConfirmDeleteButton
@@ -233,6 +244,13 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           />
         </div>
       </div>
+
+      {villa.notes ? (
+        <div className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-400">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{villa.notes}</span>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <VillaCodeBoitier villaId={villa.id} codeBoitier={villa.codeBoitier} />

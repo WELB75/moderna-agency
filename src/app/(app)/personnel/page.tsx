@@ -112,7 +112,15 @@ export default async function PersonnelPage({
       : [];
   const affectationsByReservation = new Map<
     string,
-    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null; avecDejeuner: boolean }[]
+    {
+      affectationId: string;
+      personnelId: string;
+      role: string;
+      faitAt: Date | null;
+      nbJours: number | null;
+      avecDejeuner: boolean;
+      payeAt: Date | null;
+    }[]
   >();
   for (const a of upcomingAffectations) {
     const p = personnelById.get(a.personnelId);
@@ -125,6 +133,7 @@ export default async function PersonnelPage({
       faitAt: a.faitAt,
       nbJours: a.nbJours,
       avecDejeuner: a.avecDejeuner,
+      payeAt: a.payeAt,
     });
     affectationsByReservation.set(a.reservationId, list);
   }
@@ -138,6 +147,7 @@ export default async function PersonnelPage({
         faitAt: a.faitAt,
         nbJours: a.nbJours,
         avecDejeuner: a.avecDejeuner,
+        payeAt: a.payeAt,
       }));
   }
 
@@ -153,6 +163,7 @@ export default async function PersonnelPage({
         villaId: reservations.villaId,
         checkIn: reservations.checkIn,
         checkOut: reservations.checkOut,
+        checkoutValideAt: reservations.checkoutValideAt,
         domaineNom: domaines.nom,
       })
       .from(reservations)
@@ -195,6 +206,20 @@ export default async function PersonnelPage({
   }
   const statsMenage = computeStatsMenage(menageRoster);
   const statsCuisine = computeStatsCuisine(cuisineRoster);
+
+  // Total réellement remis en main propre ce mois-ci (pas ce qui est dû, ce qui a déjà été payé)
+  // — pour avoir un repère global à côté des classements par personne.
+  const totalPayeMois = moisAffectations.reduce((sum, a) => {
+    if (!a.payeAt) return sum;
+    const p = personnelById.get(a.personnelId);
+    const r = moisReservationById.get(a.reservationId);
+    if (!p || !r) return sum;
+    const montant =
+      p.role === "menage"
+        ? montantMenageDu(a.faitAt)
+        : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
+    return sum + montant;
+  }, 0);
 
   // Paiements dus (200 MAD/ménage confirmé, 100 ou 200 MAD/jour de cuisine selon petit-déjeuner
   // seul ou avec déjeuner) : sur toutes les affectations pas encore payées, pas seulement le
@@ -443,9 +468,15 @@ export default async function PersonnelPage({
         </TabsContent>
 
         <TabsContent value="statistiques" className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            {format(now, "MMMM yyyy", { locale: fr })} — pour comparer la charge entre le personnel.
-          </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {format(now, "MMMM yyyy", { locale: fr })} — pour comparer la charge entre le personnel.
+            </p>
+            <div className="rounded-md border bg-muted/30 px-3 py-1.5 text-sm">
+              Total reçu en direct ce mois-ci :{" "}
+              <span className="font-semibold text-foreground">{totalPayeMois} MAD</span>
+            </div>
+          </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Leaderboard title="Classement ménage" rows={statsMenage} unit="ménage" unitPlural="ménages" />
