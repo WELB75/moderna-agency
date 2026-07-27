@@ -179,12 +179,35 @@ export default async function PersonnelPage({
       ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, moisReservationIds))
       : [];
 
+  // Montant réellement reçu ce mois-ci par une personne (pas ce qui est dû) — affiché à côté de
+  // son total dans les classements, pour voir directement combien chacune a touché.
+  function montantPayeCeMois(personnelId: string, role: "menage" | "cuisine") {
+    return moisAffectations
+      .filter((a) => a.personnelId === personnelId && a.payeAt)
+      .reduce((sum, a) => {
+        const r = moisReservationById.get(a.reservationId);
+        if (!r) return sum;
+        const montant =
+          role === "menage"
+            ? montantMenageDu(a.faitAt)
+            : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
+        return sum + montant;
+      }, 0);
+  }
+
   function computeStatsMenage(roster: typeof allPersonnel) {
     return roster
       .map((p) => {
         const mine = moisAffectations.filter((a) => a.personnelId === p.id);
         const villaIds = mine.map((a) => moisReservationById.get(a.reservationId)?.villaId).filter((v): v is string => Boolean(v));
-        return { id: p.id, nom: p.nom, actif: p.actif, total: mine.length, villasDistinctes: new Set(villaIds).size };
+        return {
+          id: p.id,
+          nom: p.nom,
+          actif: p.actif,
+          total: mine.length,
+          villasDistinctes: new Set(villaIds).size,
+          montantPaye: montantPayeCeMois(p.id, "menage"),
+        };
       })
       .sort((a, b) => b.total - a.total);
   }
@@ -200,7 +223,14 @@ export default async function PersonnelPage({
           const jours = a.nbJours ?? Math.max(1, differenceInCalendarDays(new Date(r.checkOut), new Date(r.checkIn)));
           return sum + jours;
         }, 0);
-        return { id: p.id, nom: p.nom, actif: p.actif, total: totalJours, villasDistinctes: new Set(villaIds).size };
+        return {
+          id: p.id,
+          nom: p.nom,
+          actif: p.actif,
+          total: totalJours,
+          villasDistinctes: new Set(villaIds).size,
+          montantPaye: montantPayeCeMois(p.id, "cuisine"),
+        };
       })
       .sort((a, b) => b.total - a.total);
   }
@@ -681,7 +711,7 @@ function Leaderboard({
   unitPlural,
 }: {
   title: string;
-  rows: { id: string; nom: string; actif: boolean; total: number }[];
+  rows: { id: string; nom: string; actif: boolean; total: number; montantPaye: number }[];
   unit: string;
   unitPlural: string;
 }) {
@@ -720,8 +750,11 @@ function Leaderboard({
                     {r.nom}
                     {!r.actif ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(inactif)</span> : null}
                   </span>
-                  <span className="shrink-0 text-sm font-semibold">
-                    {r.total} <span className="font-normal text-muted-foreground">{r.total > 1 ? unitPlural : unit}</span>
+                  <span className="shrink-0 text-right text-sm font-semibold">
+                    <span className="block">
+                      {r.total} <span className="font-normal text-muted-foreground">{r.total > 1 ? unitPlural : unit}</span>
+                    </span>
+                    <span className="block text-xs font-normal text-muted-foreground">{r.montantPaye} MAD reçus</span>
                   </span>
                 </div>
               );
@@ -740,7 +773,7 @@ function StatsSection({
   unitPlural,
 }: {
   title: string;
-  rows: { id: string; nom: string; actif: boolean; total: number; villasDistinctes: number }[];
+  rows: { id: string; nom: string; actif: boolean; total: number; villasDistinctes: number; montantPaye: number }[];
   unit: string;
   unitPlural: string;
 }) {
@@ -768,6 +801,7 @@ function StatsSection({
                     {r.villasDistinctes} villa{r.villasDistinctes > 1 ? "s" : ""} différente
                     {r.villasDistinctes > 1 ? "s" : ""}
                   </span>
+                  <Badge variant="outline">{r.montantPaye} MAD reçus</Badge>
                 </div>
               </div>
             ))}
