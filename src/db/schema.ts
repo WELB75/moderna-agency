@@ -506,6 +506,21 @@ export const personnelAffectations = pgTable(
   (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId)]
 );
 
+// Fiche client : pour se souvenir des habitudes/préférences d'un voyageur qui revient
+// (nom complet, pas de split nom/prénom séparé — les noms de réservation ne s'y prêtent pas
+// de façon fiable). Le rapprochement avec les réservations passées se fait par téléphone
+// (voir phonesMatch), pas par une clé stricte : deux personnes d'une même famille peuvent
+// partager un numéro, donc on affiche une correspondance plutôt que de forcer un lien rigide.
+export const clients = pgTable("clients", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  nom: text("nom").notNull(),
+  telephone: text("telephone"),
+  email: text("email"),
+  notes: text("notes"), // habitudes / préférences (ex. "lit bébé à chaque fois", "aime les fruits secs")
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const products = pgTable(
   "products",
   {

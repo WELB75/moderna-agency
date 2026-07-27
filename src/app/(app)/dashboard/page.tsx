@@ -13,6 +13,7 @@ import {
   contratsLocation,
   personnel,
   personnelAffectations,
+  clients,
 } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,7 +33,7 @@ import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { StatusChip } from "@/components/app/status-chip";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
-import { LogIn, LogOut, Wrench, Info, KeyRound, DoorClosedLocked, FileText, FileSignature, ChevronLeft, ChevronRight, Wallet } from "lucide-react";
+import { LogIn, LogOut, Wrench, Info, KeyRound, DoorClosedLocked, FileText, FileSignature, ChevronLeft, ChevronRight, Wallet, UserCheck } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,14 @@ export default async function DashboardPage({
   const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
   const cuisineOptions = activePersonnel.filter((p) => p.role === "cuisine").map((p) => ({ id: p.id, nom: p.nom }));
 
+  // Client connu : rapproché par téléphone (pas par nom, trop instable) — pour retrouver ses
+  // habitudes s'il revient sans avoir à ouvrir la page Clients.
+  const allClients = await db.select({ nom: clients.nom, telephone: clients.telephone, notes: clients.notes }).from(clients);
+  function findClient(guestPhone: string | null) {
+    if (!guestPhone) return null;
+    return allClients.find((c) => phonesMatch(c.telephone, guestPhone)) ?? null;
+  }
+
   const upcomingWithDocs = upcoming.map((r) => {
     const ficheStatut = ficheStatutByReservation.get(r.id) ?? null;
     const ficheId = ficheIdByReservation.get(r.id) ?? null;
@@ -199,7 +208,19 @@ export default async function DashboardPage({
           : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt);
       return sum + montant;
     }, 0);
-    return { ...r, ficheStatut, ficheId, contratStatut, menageAssignes, cuisineAssignes, menageOptions, cuisineOptions, cashAPrevoir };
+    const clientConnu = findClient(r.guestPhone);
+    return {
+      ...r,
+      ficheStatut,
+      ficheId,
+      contratStatut,
+      menageAssignes,
+      cuisineAssignes,
+      menageOptions,
+      cuisineOptions,
+      cashAPrevoir,
+      clientConnu,
+    };
   });
 
   // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
@@ -486,6 +507,7 @@ type ReservationRow = {
   menageOptions: { id: string; nom: string }[];
   cuisineOptions: { id: string; nom: string }[];
   cashAPrevoir: number;
+  clientConnu: { nom: string; telephone: string | null; notes: string | null } | null;
 };
 
 type MaintenanceRow = {
@@ -711,6 +733,15 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
         </p>
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
+
+        {isIn && r.clientConnu ? (
+          <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-sm font-medium text-blue-800 dark:text-blue-400">
+            <UserCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>
+              Client connu ({r.clientConnu.nom}){r.clientConnu.notes ? ` — ${r.clientConnu.notes}` : ""}
+            </span>
+          </div>
+        ) : null}
 
         {kind === "out" && r.cashAPrevoir > 0 ? (
           <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-800 dark:text-amber-400">
