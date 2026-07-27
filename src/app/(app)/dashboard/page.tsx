@@ -159,6 +159,7 @@ export default async function DashboardPage({
             role: personnel.role,
             faitAt: personnelAffectations.faitAt,
             nbJours: personnelAffectations.nbJours,
+            avecDejeuner: personnelAffectations.avecDejeuner,
             payeAt: personnelAffectations.payeAt,
           })
           .from(personnelAffectations)
@@ -171,7 +172,14 @@ export default async function DashboardPage({
   for (const a of relatedAffectations) {
     const map = a.role === "menage" ? menageAssignesByReservation : cuisineAssignesByReservation;
     const list = map.get(a.reservationId) ?? [];
-    list.push({ affectationId: a.id, personnelId: a.personnelId, nom: a.nom, faitAt: a.faitAt, nbJours: a.nbJours });
+    list.push({
+      affectationId: a.id,
+      personnelId: a.personnelId,
+      nom: a.nom,
+      faitAt: a.faitAt,
+      nbJours: a.nbJours,
+      avecDejeuner: a.avecDejeuner,
+    });
     map.set(a.reservationId, list);
     const all = affectationsByReservationForCash.get(a.reservationId) ?? [];
     all.push(a);
@@ -198,14 +206,14 @@ export default async function DashboardPage({
     const menageAssignes = menageAssignesByReservation.get(r.id) ?? [];
     const cuisineAssignes = cuisineAssignesByReservation.get(r.id) ?? [];
     // Cash à prévoir pour ce séjour : ménage (200 MAD une fois confirmé fait) + cuisine
-    // (100 MAD/jour, due au check-out), pas encore payés — pour savoir combien apporter en
-    // liquide avant de partir sur place.
+    // (100 ou 200 MAD/jour selon petit-déjeuner seul ou avec déjeuner, due au check-out), pas
+    // encore payés — pour savoir combien apporter en liquide avant de partir sur place.
     const cashAPrevoir = (affectationsByReservationForCash.get(r.id) ?? []).reduce((sum, a) => {
       if (a.payeAt) return sum;
       const montant =
         a.role === "menage"
           ? montantMenageDu(a.faitAt)
-          : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt);
+          : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
       return sum + montant;
     }, 0);
     const clientConnu = findClient(r.guestPhone);

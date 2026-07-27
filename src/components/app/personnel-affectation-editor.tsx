@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { X, Check, Circle } from "lucide-react";
+import { useOptimistic, useState, useTransition } from "react";
+import { X, Check, Circle, Coffee, UtensilsCrossed } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
   removePersonnelAffectation,
   toggleAffectationFait,
   updateAffectationJours,
+  updateAffectationAvecDejeuner,
 } from "@/lib/actions/personnel";
 
 export type PersonnelAssigne = {
@@ -20,12 +21,25 @@ export type PersonnelAssigne = {
   nom: string;
   faitAt: Date | null;
   nbJours: number | null;
+  avecDejeuner: boolean;
 };
+
+type OptimisticAction =
+  | { type: "add"; personnelId: string; nom: string }
+  | { type: "remove"; affectationId: string }
+  | { type: "toggleFait"; affectationId: string; fait: boolean }
+  | { type: "setJours"; affectationId: string; nbJours: number | null }
+  | { type: "toggleAvecDejeuner"; affectationId: string; avecDejeuner: boolean };
 
 // Plusieurs personnes peuvent être affectées au même séjour (ex. 2-3 femmes de ménage pour
 // une grande villa) : chacune apparaît en badge retirable, et le menu déroulant ne propose que
 // celles qui ne sont pas déjà affectées. Le ménage se confirme fait (preuve pour les stats) ;
-// la cuisine peut préciser un nombre de jours si ce n'était pas tout le séjour.
+// la cuisine peut préciser un nombre de jours si ce n'était pas tout le séjour, et si elle fait
+// aussi le déjeuner (tarif différent).
+//
+// La liste passée en `assigned` est mise à jour de façon optimiste : chaque clic doit se voir
+// tout de suite, sans attendre l'aller-retour serveur + revalidation de la page, pour pouvoir
+// enchaîner l'affectation de la personne suivante sans interruption.
 export function PersonnelAffectationEditor({
   reservationId,
   role,
@@ -40,11 +54,43 @@ export function PersonnelAffectationEditor({
   options: { id: string; nom: string }[];
 }) {
   const [isPending, startTransition] = useTransition();
-  const assignedIds = new Set(assigned.map((a) => a.personnelId));
+  const [optimisticAssigned, applyOptimistic] = useOptimistic(assigned, (state, action: OptimisticAction) => {
+    switch (action.type) {
+      case "add":
+        return [
+          ...state,
+          {
+            affectationId: `optimistic-${action.personnelId}`,
+            personnelId: action.personnelId,
+            nom: action.nom,
+            faitAt: null,
+            nbJours: null,
+            avecDejeuner: false,
+          },
+        ];
+      case "remove":
+        return state.filter((a) => a.affectationId !== action.affectationId);
+      case "toggleFait":
+        return state.map((a) => (a.affectationId === action.affectationId ? { ...a, faitAt: action.fait ? new Date() : null } : a));
+      case "setJours":
+        return state.map((a) => (a.affectationId === action.affectationId ? { ...a, nbJours: action.nbJours } : a));
+      case "toggleAvecDejeuner":
+        return state.map((a) =>
+          a.affectationId === action.affectationId ? { ...a, avecDejeuner: action.avecDejeuner } : a
+        );
+      default:
+        return state;
+    }
+  });
+
+  const assignedIds = new Set(optimisticAssigned.map((a) => a.personnelId));
   const availableOptions = options.filter((o) => !assignedIds.has(o.id));
 
   function handleAdd(personnelId: string) {
+    const option = options.find((o) => o.id === personnelId);
+    if (!option) return;
     startTransition(async () => {
+      applyOptimistic({ type: "add", personnelId, nom: option.nom });
       try {
         await addPersonnelAffectation(reservationId, personnelId);
       } catch (err) {
@@ -55,6 +101,7 @@ export function PersonnelAffectationEditor({
 
   function handleRemove(affectationId: string) {
     startTransition(async () => {
+      applyOptimistic({ type: "remove", affectationId });
       try {
         await removePersonnelAffectation(affectationId);
       } catch (err) {
@@ -65,8 +112,31 @@ export function PersonnelAffectationEditor({
 
   function handleToggleFait(affectationId: string, fait: boolean) {
     startTransition(async () => {
+      applyOptimistic({ type: "toggleFait", affectationId, fait });
       try {
         await toggleAffectationFait(affectationId, fait);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
+  function handleSetJours(affectationId: string, nbJours: number | null) {
+    startTransition(async () => {
+      applyOptimistic({ type: "setJours", affectationId, nbJours });
+      try {
+        await updateAffectationJours(affectationId, nbJours);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
+  function handleToggleAvecDejeuner(affectationId: string, avecDejeuner: boolean) {
+    startTransition(async () => {
+      applyOptimistic({ type: "toggleAvecDejeuner", affectationId, avecDejeuner });
+      try {
+        await updateAffectationAvecDejeuner(affectationId, avecDejeuner);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -77,11 +147,18 @@ export function PersonnelAffectationEditor({
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
       <div className="flex flex-wrap items-center gap-1.5">
-        {assigned.map((a) =>
+        {optimisticAssigned.map((a) =>
           role === "menage" ? (
             <MenageBadge key={a.affectationId} a={a} disabled={isPending} onToggleFait={handleToggleFait} onRemove={handleRemove} />
           ) : (
-            <CuisineBadge key={a.affectationId} a={a} disabled={isPending} onRemove={handleRemove} />
+            <CuisineBadge
+              key={a.affectationId}
+              a={a}
+              disabled={isPending}
+              onRemove={handleRemove}
+              onSetJours={handleSetJours}
+              onToggleAvecDejeuner={handleToggleAvecDejeuner}
+            />
           )
         )}
         {availableOptions.length > 0 ? (
@@ -152,24 +229,21 @@ function CuisineBadge({
   a,
   disabled,
   onRemove,
+  onSetJours,
+  onToggleAvecDejeuner,
 }: {
   a: PersonnelAssigne;
   disabled: boolean;
   onRemove: (affectationId: string) => void;
+  onSetJours: (affectationId: string, nbJours: number | null) => void;
+  onToggleAvecDejeuner: (affectationId: string, avecDejeuner: boolean) => void;
 }) {
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
-  const [isPending, startTransition] = useTransition();
 
   function handleBlur() {
     const parsed = jours.trim() === "" ? null : Math.max(1, parseInt(jours, 10));
     if (parsed === a.nbJours || (parsed === null && a.nbJours === null)) return;
-    startTransition(async () => {
-      try {
-        await updateAffectationJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Erreur.");
-      }
-    });
+    onSetJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
   }
 
   return (
@@ -181,12 +255,31 @@ function CuisineBadge({
         value={jours}
         onChange={(e) => setJours(e.target.value)}
         onBlur={handleBlur}
-        disabled={disabled || isPending}
+        disabled={disabled}
         placeholder="nb"
         title="Nombre de jours si ce n'est pas tout le séjour"
         className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
       />
       <span className="text-muted-foreground">{jours === "1" ? "jour" : "jours"}</span>
+      <button
+        type="button"
+        onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}
+        disabled={disabled}
+        className={cn(
+          "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+          a.avecDejeuner
+            ? "border-amber-600 bg-amber-600 text-white hover:bg-amber-600"
+            : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+        )}
+        title={
+          a.avecDejeuner
+            ? "Petit-déjeuner + déjeuner (200 MAD/jour) — cliquer pour repasser à petit-déjeuner seul"
+            : "Petit-déjeuner seul (100 MAD/jour) — cliquer pour ajouter le déjeuner (200 MAD/jour)"
+        }
+      >
+        {a.avecDejeuner ? <UtensilsCrossed className="h-3 w-3" /> : <Coffee className="h-3 w-3" />}
+        {a.avecDejeuner ? "+ Déjeuner" : "PDJ seul"}
+      </button>
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}

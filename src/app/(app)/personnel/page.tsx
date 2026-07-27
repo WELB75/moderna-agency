@@ -103,13 +103,20 @@ export default async function PersonnelPage() {
       : [];
   const affectationsByReservation = new Map<
     string,
-    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null }[]
+    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null; avecDejeuner: boolean }[]
   >();
   for (const a of upcomingAffectations) {
     const p = personnelById.get(a.personnelId);
     if (!p) continue;
     const list = affectationsByReservation.get(a.reservationId) ?? [];
-    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role, faitAt: a.faitAt, nbJours: a.nbJours });
+    list.push({
+      affectationId: a.id,
+      personnelId: a.personnelId,
+      role: p.role,
+      faitAt: a.faitAt,
+      nbJours: a.nbJours,
+      avecDejeuner: a.avecDejeuner,
+    });
     affectationsByReservation.set(a.reservationId, list);
   }
   function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
@@ -121,6 +128,7 @@ export default async function PersonnelPage() {
         nom: personnelById.get(a.personnelId)!.nom,
         faitAt: a.faitAt,
         nbJours: a.nbJours,
+        avecDejeuner: a.avecDejeuner,
       }));
   }
 
@@ -179,9 +187,9 @@ export default async function PersonnelPage() {
   const statsMenage = computeStatsMenage(menageRoster);
   const statsCuisine = computeStatsCuisine(cuisineRoster);
 
-  // Paiements dus (200 MAD/ménage confirmé, 100 MAD/jour de cuisine) : sur toutes les
-  // affectations pas encore payées, pas seulement le mois en cours — une dette ne doit pas
-  // disparaître simplement parce qu'on a changé de mois.
+  // Paiements dus (200 MAD/ménage confirmé, 100 ou 200 MAD/jour de cuisine selon petit-déjeuner
+  // seul ou avec déjeuner) : sur toutes les affectations pas encore payées, pas seulement le
+  // mois en cours — une dette ne doit pas disparaître simplement parce qu'on a changé de mois.
   const unpaidAffectations = await db.select().from(personnelAffectations).where(isNull(personnelAffectations.payeAt));
   const unpaidReservationIds = Array.from(new Set(unpaidAffectations.map((a) => a.reservationId)));
   const unpaidReservations =
@@ -222,7 +230,7 @@ export default async function PersonnelPage() {
           const m =
             role === "menage"
               ? montantMenageDu(a.faitAt)
-              : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt);
+              : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
           if (m > 0) {
             montant += m;
             affectationIds.push(a.id);
@@ -251,6 +259,7 @@ export default async function PersonnelPage() {
         personnelId: personnelAffectations.personnelId,
         faitAt: personnelAffectations.faitAt,
         nbJours: personnelAffectations.nbJours,
+        avecDejeuner: personnelAffectations.avecDejeuner,
         payeAt: personnelAffectations.payeAt,
         checkIn: reservations.checkIn,
         checkOut: reservations.checkOut,
@@ -295,7 +304,7 @@ export default async function PersonnelPage() {
         payeAt: a.payeAt,
       });
     } else {
-      const montant = montantCuisineDu(a.nbJours, new Date(a.checkIn), new Date(a.checkOut), a.checkoutValideAt);
+      const montant = montantCuisineDu(a.nbJours, new Date(a.checkIn), new Date(a.checkOut), a.checkoutValideAt, a.avecDejeuner);
       if (montant <= 0) continue;
       const jours = a.nbJours ?? Math.max(1, differenceInCalendarDays(new Date(a.checkOut), new Date(a.checkIn)));
       historyEvents.push({
@@ -449,8 +458,9 @@ export default async function PersonnelPage() {
 
         <TabsContent value="paiements" className="space-y-6">
           <p className="text-sm text-muted-foreground">
-            Ménage : 200 MAD par personne une fois le ménage confirmé fait. Cuisine : 100 MAD par jour, dû au
-            check-out du client. Total à prévoir en liquide : <span className="font-semibold text-foreground">{totalDu} MAD</span>.
+            Ménage : 200 MAD par personne une fois le ménage confirmé fait. Cuisine : 100 MAD par jour (petit-déjeuner
+            seul) ou 200 MAD par jour (petit-déjeuner + déjeuner), dû au check-out du client. Total à prévoir en
+            liquide : <span className="font-semibold text-foreground">{totalDu} MAD</span>.
           </p>
           <PaymentsSection title="Femmes de ménage" role="menage" rows={dusMenage} />
           <PaymentsSection title="Cuisinières" role="cuisine" rows={dusCuisine} />

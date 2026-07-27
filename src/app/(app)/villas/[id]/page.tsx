@@ -102,13 +102,20 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       : [];
   const affectationsByReservation = new Map<
     string,
-    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null }[]
+    { affectationId: string; personnelId: string; role: string; faitAt: Date | null; nbJours: number | null; avecDejeuner: boolean }[]
   >();
   for (const a of allAffectations) {
     const p = personnelById.get(a.personnelId);
     if (!p) continue;
     const list = affectationsByReservation.get(a.reservationId) ?? [];
-    list.push({ affectationId: a.id, personnelId: a.personnelId, role: p.role, faitAt: a.faitAt, nbJours: a.nbJours });
+    list.push({
+      affectationId: a.id,
+      personnelId: a.personnelId,
+      role: p.role,
+      faitAt: a.faitAt,
+      nbJours: a.nbJours,
+      avecDejeuner: a.avecDejeuner,
+    });
     affectationsByReservation.set(a.reservationId, list);
   }
   function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
@@ -120,6 +127,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         nom: personnelById.get(a.personnelId)!.nom,
         faitAt: a.faitAt,
         nbJours: a.nbJours,
+        avecDejeuner: a.avecDejeuner,
       }));
   }
 

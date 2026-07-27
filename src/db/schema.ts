@@ -498,8 +498,12 @@ export const personnelAffectations = pgTable(
     faitAt: timestamp("fait_at", { withTimezone: true }),
     // Cuisine : nombre de jours si elle n'a pas couvert tout le séjour (null = séjour complet).
     nbJours: integer("nb_jours"),
-    // Coché une fois la personne payée en liquide (200 MAD/ménage confirmé, 100 MAD/jour de
-    // cuisine) — permet de calculer ce qu'il reste à payer sans le compter deux fois.
+    // Cuisine : 100 MAD/jour si elle ne fait que le petit-déjeuner, 200 MAD/jour si elle fait
+    // aussi le déjeuner.
+    avecDejeuner: boolean("avec_dejeuner").default(false).notNull(),
+    // Coché une fois la personne payée en liquide (200 MAD/ménage confirmé, 100 ou 200 MAD/jour
+    // de cuisine selon avecDejeuner) — permet de calculer ce qu'il reste à payer sans le compter
+    // deux fois.
     payeAt: timestamp("paye_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },

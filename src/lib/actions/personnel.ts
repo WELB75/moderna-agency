@@ -109,6 +109,17 @@ export async function updateAffectationJours(affectationId: string, nbJours: num
   revalidatePath("/villas");
 }
 
+// Cuisine : 100 MAD/jour si petit-déjeuner seul, 200 MAD/jour si elle fait aussi le déjeuner.
+export async function updateAffectationAvecDejeuner(affectationId: string, avecDejeuner: boolean) {
+  await auth.protect();
+  const db = getDb();
+  await db.update(personnelAffectations).set({ avecDejeuner }).where(eq(personnelAffectations.id, affectationId));
+
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+}
+
 // Marque payées d'un coup toutes les affectations dues et pas encore payées d'une personne —
 // évite de devoir cocher chaque ménage/jour de cuisine un par un après un paiement en liquide.
 // Ajoute aussi la dépense correspondante dans la caisse (payée en liquide) avec le nom de la
