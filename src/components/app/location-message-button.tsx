@@ -1,7 +1,15 @@
-import { MapPin } from "lucide-react";
+"use client";
+
+import { MapPin, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toWhatsAppUrl } from "@/lib/phone";
-import { buildLocationMessage } from "@/lib/message-templates";
+import { buildLocationMessage, type MessageLang } from "@/lib/message-templates";
 
 export function LocationMessageButton({
   phone,
@@ -14,13 +22,23 @@ export function LocationMessageButton({
   domaineNom: string;
   mapsUrl: string;
 }) {
-  const message = buildLocationMessage(guestName, domaineNom, mapsUrl);
+  function handleClick(lang: MessageLang) {
+    window.open(toWhatsAppUrl(phone, buildLocationMessage(guestName, domaineNom, mapsUrl, lang)), "_blank");
+  }
+
   return (
-    <Button asChild variant="outline" size="sm">
-      <a href={toWhatsAppUrl(phone, message)} target="_blank" rel="noreferrer">
-        <MapPin className="h-3.5 w-3.5" />
-        Localisation
-      </a>
-    </Button>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="sm">
+          <MapPin className="h-3.5 w-3.5" />
+          Localisation
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuItem onClick={() => handleClick("fr")}>Français</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleClick("en")}>English</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
