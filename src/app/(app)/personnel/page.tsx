@@ -18,7 +18,8 @@ import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PersonnelTabs } from "@/components/app/personnel-tabs";
 import { AddPersonnelDialog } from "@/components/app/add-personnel-dialog";
 import { EditPersonnelDialog } from "@/components/app/edit-personnel-dialog";
 import { PersonnelActifToggle } from "@/components/app/personnel-actif-toggle";
@@ -33,7 +34,15 @@ import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { Users, CalendarClock, BarChart3, Wallet, History, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export default async function PersonnelPage() {
+const ONGLETS_VALIDES = ["equipe", "affectations", "statistiques", "historique", "paiements"];
+
+export default async function PersonnelPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ onglet?: string }>;
+}) {
+  const { onglet } = await searchParams;
+  const ongletActif = onglet && ONGLETS_VALIDES.includes(onglet) ? onglet : "equipe";
   const db = getDb();
   const now = nowInMorocco();
 
@@ -369,7 +378,7 @@ export default async function PersonnelPage() {
         <p className="text-sm text-muted-foreground">Femmes de ménage et cuisinières — affectations et suivi</p>
       </div>
 
-      <Tabs defaultValue="equipe">
+      <PersonnelTabs defaultTab={ongletActif}>
         <TabsList>
           <TabsTrigger value="equipe">
             <Users className="h-4 w-4" />
@@ -473,7 +482,7 @@ export default async function PersonnelPage() {
             </div>
           </div>
         </TabsContent>
-      </Tabs>
+      </PersonnelTabs>
     </div>
   );
 }

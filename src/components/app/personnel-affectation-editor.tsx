@@ -14,6 +14,7 @@ import {
   updateAffectationJours,
   updateAffectationAvecDejeuner,
 } from "@/lib/actions/personnel";
+import { TARIF_MENAGE, TARIF_CUISINE_PETIT_DEJEUNER, TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER } from "@/lib/personnel-tarifs";
 
 export type PersonnelAssigne = {
   affectationId: string;
@@ -211,6 +212,7 @@ function MenageBadge({
       >
         {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
         {a.nom}
+        <span className={cn("font-normal", fait ? "text-white/80" : "text-muted-foreground")}>· {TARIF_MENAGE} MAD</span>
       </Button>
       <button
         type="button"
@@ -246,6 +248,13 @@ function CuisineBadge({
     onSetJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
   }
 
+  // Aperçu du montant en direct (pas seulement une fois payé) : 1 jour par défaut si le nombre
+  // de jours n'est pas encore précisé (séjour complet), pour toujours voir un montant concret
+  // dès qu'on choisit le niveau de service.
+  const joursApercu = jours.trim() === "" ? 1 : Math.max(1, parseInt(jours, 10) || 1);
+  const tarifJour = a.avecDejeuner ? TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER : TARIF_CUISINE_PETIT_DEJEUNER;
+  const montantApercu = joursApercu * tarifJour;
+
   return (
     <div className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium">
       {a.nom}
@@ -261,6 +270,9 @@ function CuisineBadge({
         className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
       />
       <span className="text-muted-foreground">{jours === "1" ? "jour" : "jours"}</span>
+      <span className="text-muted-foreground" title="Montant dû au check-out du client">
+        · {montantApercu} MAD
+      </span>
       <button
         type="button"
         onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}
