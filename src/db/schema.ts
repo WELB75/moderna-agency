@@ -96,6 +96,10 @@ export const villas = pgTable(
     // Certaines villas ont un second code, distinct du boîtier à clés, pour le digicode de la
     // porte d'entrée elle-même.
     codePorteEntree: text("code_porte_entree"),
+    // Certaines villas ont leur ménage/cuisine payés directement par le propriétaire, pas par
+    // l'agence : les affectations restent possibles (traçabilité), mais aucun montant ni
+    // paiement ne doit apparaître côté agence pour ces villas-là.
+    personnelPayeParProprietaire: boolean("personnel_paye_par_proprietaire").default(false).notNull(),
     proprietaireNom: text("proprietaire_nom"),
     proprietaireTelephone: text("proprietaire_telephone"),
     // Prénoms des personnes autorisées à s'identifier comme auteur dans le chat de l'espace

@@ -50,12 +50,16 @@ export function PersonnelAffectationEditor({
   label,
   assigned,
   options,
+  montantVisible = true,
 }: {
   reservationId: string;
   role: "menage" | "cuisine";
   label: string;
   assigned: PersonnelAssigne[];
   options: { id: string; nom: string }[];
+  // false pour les villas dont le ménage/cuisine est payé directement par le propriétaire :
+  // aucun montant ni bouton de paiement ne doit apparaître côté agence.
+  montantVisible?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [optimisticAssigned, applyOptimistic] = useOptimistic(assigned, (state, action: OptimisticAction) => {
@@ -168,7 +172,14 @@ export function PersonnelAffectationEditor({
       <div className="flex flex-wrap items-center gap-1.5">
         {optimisticAssigned.map((a) =>
           role === "menage" ? (
-            <MenageBadge key={a.affectationId} a={a} disabled={isPending} onToggleFait={handleToggleFait} onRemove={handleRemove} />
+            <MenageBadge
+              key={a.affectationId}
+              a={a}
+              disabled={isPending}
+              onToggleFait={handleToggleFait}
+              onRemove={handleRemove}
+              montantVisible={montantVisible}
+            />
           ) : (
             <CuisineBadge
               key={a.affectationId}
@@ -178,6 +189,7 @@ export function PersonnelAffectationEditor({
               onSetJours={handleSetJours}
               onToggleAvecDejeuner={handleToggleAvecDejeuner}
               onMarkPaid={handleMarkPaid}
+              montantVisible={montantVisible}
             />
           )
         )}
@@ -211,11 +223,13 @@ function MenageBadge({
   disabled,
   onToggleFait,
   onRemove,
+  montantVisible,
 }: {
   a: PersonnelAssigne;
   disabled: boolean;
   onToggleFait: (affectationId: string, fait: boolean) => void;
   onRemove: (affectationId: string) => void;
+  montantVisible: boolean;
 }) {
   const fait = Boolean(a.faitAt);
   return (
@@ -231,7 +245,9 @@ function MenageBadge({
       >
         {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
         {a.nom}
-        <span className={cn("font-normal", fait ? "text-white/80" : "text-muted-foreground")}>· {TARIF_MENAGE} MAD</span>
+        {montantVisible ? (
+          <span className={cn("font-normal", fait ? "text-white/80" : "text-muted-foreground")}>· {TARIF_MENAGE} MAD</span>
+        ) : null}
       </Button>
       <button
         type="button"
@@ -254,6 +270,7 @@ function CuisineBadge({
   onSetJours,
   onToggleAvecDejeuner,
   onMarkPaid,
+  montantVisible,
 }: {
   a: PersonnelAssigne;
   disabled: boolean;
@@ -261,6 +278,7 @@ function CuisineBadge({
   onSetJours: (affectationId: string, nbJours: number | null) => void;
   onToggleAvecDejeuner: (affectationId: string, avecDejeuner: boolean) => void;
   onMarkPaid: (affectationId: string) => void;
+  montantVisible: boolean;
 }) {
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
   const paye = Boolean(a.payeAt);
@@ -294,21 +312,30 @@ function CuisineBadge({
         className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
       />
       <span className="text-muted-foreground">{jours === "1" ? "jour" : "jours"}</span>
-      <button
-        type="button"
-        onClick={() => onMarkPaid(a.affectationId)}
-        disabled={disabled || paye}
-        className={cn(
-          "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
-          paye
-            ? "border-emerald-600 bg-emerald-600 text-white"
-            : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-        )}
-        title={paye ? "Payée — déjà ajoutée à la caisse" : `Cliquer pour marquer payée (${montantApercu} MAD) — ajouté directement à la caisse`}
-      >
-        {paye ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
-        {paye ? "Payée" : `${montantApercu} MAD`}
-      </button>
+      {montantVisible ? (
+        <button
+          type="button"
+          onClick={() => onMarkPaid(a.affectationId)}
+          disabled={disabled || paye}
+          className={cn(
+            "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+            paye
+              ? "border-emerald-600 bg-emerald-600 text-white"
+              : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+          )}
+          title={paye ? "Payée — déjà ajoutée à la caisse" : `Cliquer pour marquer payée (${montantApercu} MAD) — ajouté directement à la caisse`}
+        >
+          {paye ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
+          {paye ? "Payée" : `${montantApercu} MAD`}
+        </button>
+      ) : (
+        <span
+          className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs text-muted-foreground"
+          title="Payé directement par le propriétaire, pas par l'agence"
+        >
+          Payé par proprio
+        </span>
+      )}
       <button
         type="button"
         onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}

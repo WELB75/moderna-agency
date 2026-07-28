@@ -68,6 +68,7 @@ export default async function PersonnelPage({
         villaNom: villas.nom,
         villaNumero: villas.numero,
         domaineNom: domaines.nom,
+        personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -91,6 +92,7 @@ export default async function PersonnelPage({
         villaNom: villas.nom,
         villaNumero: villas.numero,
         domaineNom: domaines.nom,
+        personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -268,6 +270,7 @@ export default async function PersonnelPage({
             villaId: reservations.villaId,
             villaNom: villas.nom,
             villaNumero: villas.numero,
+            personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
           })
           .from(reservations)
           .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -290,7 +293,7 @@ export default async function PersonnelPage({
         }[] = [];
         for (const a of mine) {
           const r = unpaidReservationById.get(a.reservationId);
-          if (!r) continue;
+          if (!r || r.personnelPayeParProprietaire) continue;
           const m =
             role === "menage"
               ? montantMenageDu(a.faitAt)
@@ -548,7 +551,15 @@ export default async function PersonnelPage({
   );
 }
 
-function AffectationSection<T extends { id: string; guestName: string; villaNom: string | null; villaNumero: string | null }>({
+function AffectationSection<
+  T extends {
+    id: string;
+    guestName: string;
+    villaNom: string | null;
+    villaNumero: string | null;
+    personnelPayeParProprietaire: boolean | null;
+  },
+>({
   title,
   description,
   icon: Icon,
@@ -598,6 +609,7 @@ function AffectationSection<T extends { id: string; guestName: string; villaNom:
           label={label}
           assigned={assignedFor(item.id, role)}
           options={options}
+          montantVisible={!item.personnelPayeParProprietaire}
         />
       </div>
     );

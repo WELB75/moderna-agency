@@ -75,6 +75,7 @@ export default async function DashboardPage({
       villaType: villas.type,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
+      personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
       numeroImmeuble: villas.numeroImmeuble,
       proprietaireTelephone: villas.proprietaireTelephone,
       domaineNom: domaines.nom,
@@ -208,8 +209,9 @@ export default async function DashboardPage({
     const cuisineAssignes = cuisineAssignesByReservation.get(r.id) ?? [];
     // Cash à prévoir pour ce séjour : ménage (200 MAD une fois confirmé fait) + cuisine
     // (100 ou 200 MAD/jour selon petit-déjeuner seul ou avec déjeuner, due au check-out), pas
-    // encore payés — pour savoir combien apporter en liquide avant de partir sur place.
-    const cashAPrevoir = (affectationsByReservationForCash.get(r.id) ?? []).reduce((sum, a) => {
+    // encore payés — pour savoir combien apporter en liquide avant de partir sur place. Jamais
+    // pour les villas dont le propriétaire paie directement le personnel.
+    const cashAPrevoir = r.personnelPayeParProprietaire ? 0 : (affectationsByReservationForCash.get(r.id) ?? []).reduce((sum, a) => {
       if (a.payeAt) return sum;
       const montant =
         a.role === "menage"
@@ -493,6 +495,7 @@ type ReservationRow = {
   villaType: "villa" | "appartement" | null;
   codeBoitier: string | null;
   codePorteEntree: string | null;
+  personnelPayeParProprietaire: boolean | null;
   numeroImmeuble: string | null;
   proprietaireTelephone: string | null;
   domaineNom: string | null;
@@ -778,6 +781,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             label="Ménage — cliquer sur le nom pour confirmer fait"
             assigned={r.menageAssignes}
             options={r.menageOptions}
+            montantVisible={!r.personnelPayeParProprietaire}
           />
         ) : (
           <PersonnelAffectationEditor
@@ -786,6 +790,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             label="Cuisine"
             assigned={r.cuisineAssignes}
             options={r.cuisineOptions}
+            montantVisible={!r.personnelPayeParProprietaire}
           />
         )}
       </div>

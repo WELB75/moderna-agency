@@ -61,6 +61,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       adresse: villas.adresse,
       numeroImmeuble: villas.numeroImmeuble,
       notes: villas.notes,
+      personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
       description: villas.description,
       photoUrl: villas.photoUrl,
       galleryUrls: villas.galleryUrls,
@@ -234,6 +235,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             domaines={allDomaines}
             portailAuteurs={villa.portailAuteurs}
             notes={villa.notes}
+            personnelPayeParProprietaire={villa.personnelPayeParProprietaire}
             typeLabel={typeLabel}
           />
           <ConfirmDeleteButton
@@ -348,6 +350,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                 personnelCuisineOptions={personnelCuisineOptions}
                 menageAssigned={assignedFor(r.id, "menage")}
                 cuisineAssigned={assignedFor(r.id, "cuisine")}
+                personnelPayeParProprietaire={villa.personnelPayeParProprietaire}
               />
             ))
           )}
@@ -371,6 +374,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                     personnelCuisineOptions={personnelCuisineOptions}
                     menageAssigned={assignedFor(r.id, "menage")}
                     cuisineAssigned={assignedFor(r.id, "cuisine")}
+                    personnelPayeParProprietaire={villa.personnelPayeParProprietaire}
                   />
                 ))}
               </div>
@@ -467,6 +471,7 @@ function ReservationListItem({
   personnelCuisineOptions,
   menageAssigned,
   cuisineAssigned,
+  personnelPayeParProprietaire,
 }: {
   r: typeof reservations.$inferSelect;
   muted?: boolean;
@@ -477,6 +482,7 @@ function ReservationListItem({
   personnelCuisineOptions: { id: string; nom: string }[];
   menageAssigned: PersonnelAssigne[];
   cuisineAssigned: PersonnelAssigne[];
+  personnelPayeParProprietaire?: boolean;
 }) {
   const isProprietaire = phonesMatch(r.guestPhone, proprietaireTelephone);
 
@@ -545,6 +551,7 @@ function ReservationListItem({
           label="Ménage"
           assigned={menageAssigned}
           options={personnelMenageOptions}
+          montantVisible={!personnelPayeParProprietaire}
         />
         <PersonnelAffectationEditor
           reservationId={r.id}
@@ -552,6 +559,7 @@ function ReservationListItem({
           label="Cuisine"
           assigned={cuisineAssigned}
           options={personnelCuisineOptions}
+          montantVisible={!personnelPayeParProprietaire}
         />
       </div>
       {isProprietaire ? null : (

@@ -119,6 +119,7 @@ export async function updateVillaInfo(formData: FormData) {
   const numeroImmeuble = String(formData.get("numeroImmeuble") ?? "").trim();
   const domaineId = String(formData.get("domaineId") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim();
+  const personnelPayeParProprietaire = formData.get("personnelPayeParProprietaire") === "on";
   const portailAuteursRaw = String(formData.get("portailAuteurs") ?? "").trim();
   const portailAuteurs = portailAuteursRaw
     ? portailAuteursRaw.split(",").map((s) => s.trim()).filter(Boolean)
@@ -139,10 +140,13 @@ export async function updateVillaInfo(formData: FormData) {
       numeroImmeuble: numeroImmeuble || null,
       domaineId: domaineId || null,
       notes: notes || null,
+      personnelPayeParProprietaire,
       portailAuteurs,
       updatedAt: new Date(),
     })
     .where(eq(villas.id, villaId));
+  revalidatePath("/personnel");
+  revalidatePath("/dashboard");
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
