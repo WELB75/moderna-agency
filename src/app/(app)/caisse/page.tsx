@@ -13,9 +13,11 @@ import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CaisseStats } from "@/components/app/caisse-stats";
 import { deleteCashEntry } from "@/lib/actions/caisse";
 import { domaineEstActif } from "@/lib/domaines-actifs";
+import { cn } from "@/lib/utils";
 
 const TYPE_LABELS: Record<string, string> = {
   remise: "Argent confié",
+  loyer: "Loyer reçu",
   depense: "Dépense",
   restitution: "Restitution",
 };
@@ -124,19 +126,23 @@ function CaissePanel({
 
       {devises.map((devise) => {
         const enDevise = entries.filter((e) => e.devise === devise);
+        // Le loyer reçu d'un client est gardé à part de l'argent confié par la société : ce
+        // n'est pas la même origine, même si les deux sont des entrées de liquide.
         const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+        const totalLoyer = enDevise.filter((e) => e.type === "loyer").reduce((s, e) => s + Number(e.montant), 0);
         const totalDepense = enDevise.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
         const totalRestitution = enDevise
           .filter((e) => e.type === "restitution")
           .reduce((s, e) => s + Number(e.montant), 0);
-        const balance = totalRemise - totalDepense - totalRestitution;
+        const balance = totalRemise + totalLoyer - totalDepense - totalRestitution;
 
         return (
           <div key={devise} className="space-y-2">
             {devises.length > 1 ? <p className="text-sm font-medium text-muted-foreground">{devise}</p> : null}
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <SummaryCard label="Solde actuel" value={balance} devise={devise} highlight />
-              <SummaryCard label="Total confié" value={totalRemise} devise={devise} />
+              <SummaryCard label="Total confié (société)" value={totalRemise} devise={devise} />
+              <SummaryCard label="Total loyers reçus" value={totalLoyer} devise={devise} />
               <SummaryCard label="Total dépensé" value={totalDepense} devise={devise} />
               <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
             </div>
@@ -156,11 +162,16 @@ function CaissePanel({
               <div key={e.id} className="flex items-start justify-between gap-3 rounded-md border p-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <Badge variant={e.type === "remise" ? "secondary" : "outline"}>
+                    <Badge
+                      variant={e.type === "remise" || e.type === "loyer" ? "secondary" : "outline"}
+                      className={cn(
+                        e.type === "loyer" && "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                      )}
+                    >
                       {TYPE_LABELS[e.type]}
                     </Badge>
                     <span className="font-semibold">
-                      {e.type === "remise" ? "+" : "-"}
+                      {e.type === "remise" || e.type === "loyer" ? "+" : "-"}
                       {Number(e.montant).toFixed(2)} {e.devise}
                     </span>
                   </div>

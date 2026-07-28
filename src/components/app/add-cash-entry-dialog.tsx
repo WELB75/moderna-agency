@@ -42,6 +42,7 @@ export function AddCashEntryDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("remise");
+  const [devise, setDevise] = useState("MAD");
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -72,6 +73,7 @@ export function AddCashEntryDialog({
   async function handleSubmit(formData: FormData) {
     formData.set("type", type);
     formData.set("moyenPaiement", moyenPaiement);
+    formData.set("devise", devise);
     formData.set("photoUrls", JSON.stringify(photoUrls));
     startTransition(async () => {
       try {
@@ -106,15 +108,32 @@ export function AddCashEntryDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="remise">Argent confié (remise)</SelectItem>
+                <SelectItem value="remise">Argent confié par la société (remise)</SelectItem>
+                <SelectItem value="loyer">Loyer reçu d&apos;un client</SelectItem>
                 <SelectItem value="depense">Dépense</SelectItem>
                 <SelectItem value="restitution">Restitution</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="montant">Montant (DH)</Label>
-            <Input id="montant" name="montant" type="number" step="0.01" min="0" required />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="montant">Montant</Label>
+              <Input id="montant" name="montant" type="number" step="0.01" min="0" required />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Devise</Label>
+              <Select value={devise} onValueChange={setDevise}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="MAD">MAD (dirham)</SelectItem>
+                  <SelectItem value="EUR">EUR (euro)</SelectItem>
+                  <SelectItem value="USD">USD (dollar)</SelectItem>
+                  <SelectItem value="GBP">GBP (livre)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="villaId">Villa concernée</Label>

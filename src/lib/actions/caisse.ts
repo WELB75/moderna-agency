@@ -14,12 +14,13 @@ export async function createCashEntry(formData: FormData) {
   const type = String(formData.get("type") ?? "");
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "especes");
   const montant = String(formData.get("montant") ?? "").trim();
+  const devise = String(formData.get("devise") ?? "MAD").trim() || "MAD";
   const description = String(formData.get("description") ?? "").trim();
   const responsable = String(formData.get("responsable") ?? "").trim() || null;
   const photoUrlsRaw = String(formData.get("photoUrls") ?? "").trim();
   const photoUrls = photoUrlsRaw ? (JSON.parse(photoUrlsRaw) as string[]) : [];
 
-  if (!["remise", "depense", "restitution"].includes(type)) {
+  if (!["remise", "loyer", "depense", "restitution"].includes(type)) {
     throw new Error("Type de mouvement invalide.");
   }
   if (!["especes", "virement", "carte"].includes(moyenPaiement)) {
@@ -33,9 +34,10 @@ export async function createCashEntry(formData: FormData) {
   const db = getDb();
   await db.insert(cashEntries).values({
     villaId,
-    type: type as "remise" | "depense" | "restitution",
+    type: type as "remise" | "loyer" | "depense" | "restitution",
     moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",
     montant: montantNum.toFixed(2),
+    devise,
     description: description || null,
     responsable,
     photoUrls,

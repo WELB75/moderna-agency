@@ -13,7 +13,8 @@ import {
 import type { Devis } from "@/lib/devis-types";
 
 export const cashEntryTypeEnum = pgEnum("cash_entry_type", [
-  "remise", // argent confié par le propriétaire/client
+  "remise", // argent confié par la société (Imed) pour les dépenses courantes
+  "loyer", // loyer reçu directement d'un client (avance/solde de réservation) — à part de la remise société
   "depense", // dépense effectuée
   "restitution", // argent rendu
 ]);
