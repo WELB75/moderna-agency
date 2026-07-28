@@ -33,7 +33,21 @@ import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { StatusChip } from "@/components/app/status-chip";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
-import { LogIn, LogOut, Wrench, Info, KeyRound, DoorClosedLocked, FileText, FileSignature, ChevronLeft, ChevronRight, Wallet, UserCheck } from "lucide-react";
+import {
+  LogIn,
+  LogOut,
+  Wrench,
+  Info,
+  KeyRound,
+  DoorClosedLocked,
+  FileText,
+  FileSignature,
+  ChevronLeft,
+  ChevronRight,
+  Wallet,
+  UserCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
@@ -303,36 +317,36 @@ export default async function DashboardPage({
   return (
     <div className="w-full max-w-full space-y-6 overflow-x-hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-1.5">
-            <Link
-              href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Semaine précédente"
-              title="Semaine précédente"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Link>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {offsetSemaines === 0 ? "Cette semaine" : `Du ${format(rangeStart, "d MMM", { locale: fr })} au ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
-            </h1>
-            <Link
-              href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-              aria-label="Semaine suivante"
-              title="Semaine suivante"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Link>
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
+              <Link
+                href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Semaine précédente"
+                title="Semaine précédente"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+              <h1 className="px-1.5 text-base font-semibold tracking-tight sm:text-lg">
+                {offsetSemaines === 0 ? "Cette semaine" : `Du ${format(rangeStart, "d MMM", { locale: fr })} au ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
+              </h1>
+              <Link
+                href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Semaine suivante"
+                title="Semaine suivante"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
             {offsetSemaines !== 0 ? (
-              <Link href="/dashboard" className="ml-1 text-sm text-primary underline-offset-4 hover:underline">
-                Revenir à aujourd&apos;hui
+              <Link href="/dashboard" className="text-sm text-primary underline-offset-4 hover:underline">
+                Aujourd&apos;hui
               </Link>
             ) : null}
           </div>
-          <p className="text-sm text-muted-foreground">
-            {format(now, "EEEE d MMMM yyyy", { locale: fr })}
-          </p>
+          <p className="text-sm text-muted-foreground">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</p>
         </div>
         <div className="flex flex-col items-start gap-1.5 sm:items-end">
           <div className="flex flex-col gap-1.5 sm:flex-row">
@@ -684,13 +698,13 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
 
   return (
     <div
-      className={
-        "rounded-md border-l-4 transition-opacity " +
-        (isIn ? "border-l-emerald-500" : "border-l-red-500") +
-        (isDone ? " opacity-50" : "")
-      }
+      className={cn(
+        "rounded-md border-l-4 transition-opacity",
+        isIn ? "border-l-emerald-500" : "border-l-red-500",
+        isDone && "opacity-60"
+      )}
     >
-      <Link href={r.villaId ? `/villas/${r.villaId}` : "#"} className="block p-3 hover:bg-muted/50">
+      <Link href={r.villaId ? `/villas/${r.villaId}` : "#"} className="block space-y-2 p-3 hover:bg-muted/50">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             {isIn ? (
@@ -709,63 +723,65 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
           <Countdown target={target} variant={kind} />
         </div>
 
-        <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          <span className="text-sm text-muted-foreground">
-            {r.villaNom
-              ? `${r.villaNom} (${r.villaType === "appartement" ? "appt" : "villa"} n°${r.villaNumero})`
-              : "Logement non renseigné"}
-          </span>
-          {r.villaType === "appartement" && r.numeroImmeuble ? (
-            <Badge variant="outline" className="text-xs">
-              Immeuble {r.numeroImmeuble}
-            </Badge>
-          ) : null}
-          {r.codeBoitier ? (
-            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code du boîtier à clés">
-              <KeyRound className="h-3 w-3" />
-              {r.codeBoitier}
-            </Badge>
-          ) : null}
-          {r.codePorteEntree ? (
-            <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code de la poignée tactile de la porte d'entrée">
-              <DoorClosedLocked className="h-3 w-3" />
-              {r.codePorteEntree}
-            </Badge>
-          ) : null}
-          {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
-        </div>
-
-        <p className={"mt-1 text-sm font-semibold " + (isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
-          {isIn ? "Check-in" : "Check-out"} · {format(target, "HH:mm", { locale: fr })}
-          {isIn ? (
-            <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-              (départ le {format(new Date(r.checkOut), "d MMM", { locale: fr })})
+        <div>
+          <p className={cn("text-sm font-semibold", isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
+            {isIn ? "Check-in" : "Check-out"} · {format(target, "HH:mm", { locale: fr })}
+            {isIn ? (
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                (départ le {format(new Date(r.checkOut), "d MMM", { locale: fr })})
+              </span>
+            ) : null}
+          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <span className="text-sm text-muted-foreground">
+              {r.villaNom
+                ? `${r.villaNom} (${r.villaType === "appartement" ? "appt" : "villa"} n°${r.villaNumero})`
+                : "Logement non renseigné"}
             </span>
-          ) : null}
-        </p>
+            {r.villaType === "appartement" && r.numeroImmeuble ? (
+              <Badge variant="outline" className="text-xs">
+                Immeuble {r.numeroImmeuble}
+              </Badge>
+            ) : null}
+            {r.codeBoitier ? (
+              <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code du boîtier à clés">
+                <KeyRound className="h-3 w-3" />
+                {r.codeBoitier}
+              </Badge>
+            ) : null}
+            {r.codePorteEntree ? (
+              <Badge
+                variant="outline"
+                className="gap-1 text-xs font-semibold tracking-wide"
+                title="Code de la poignée tactile de la porte d'entrée"
+              >
+                <DoorClosedLocked className="h-3 w-3" />
+                {r.codePorteEntree}
+              </Badge>
+            ) : null}
+            {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
+          </div>
+        </div>
 
         <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
 
-        {isIn && r.clientConnu ? (
-          <div className="mt-1.5 flex items-start gap-1.5 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 py-1 text-sm font-medium text-blue-800 dark:text-blue-400">
-            <UserCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>
-              Client connu ({r.clientConnu.nom}){r.clientConnu.notes ? ` — ${r.clientConnu.notes}` : ""}
-            </span>
-          </div>
-        ) : null}
-
-        {kind === "out" && r.cashAPrevoir > 0 ? (
-          <div className="mt-1.5 flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-sm font-medium text-amber-800 dark:text-amber-400">
-            <Wallet className="h-3.5 w-3.5 shrink-0" />
-            Cash à prévoir : {r.cashAPrevoir} MAD
-          </div>
-        ) : null}
-
-        {r.notes ? (
-          <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
-            <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>{r.notes}</span>
+        {(isIn && r.clientConnu) || (kind === "out" && r.cashAPrevoir > 0) || r.notes ? (
+          <div className="space-y-1">
+            {isIn && r.clientConnu ? (
+              <InlineAlert tone="blue" icon={UserCheck}>
+                Client connu ({r.clientConnu.nom}){r.clientConnu.notes ? ` — ${r.clientConnu.notes}` : ""}
+              </InlineAlert>
+            ) : null}
+            {kind === "out" && r.cashAPrevoir > 0 ? (
+              <InlineAlert tone="amber" icon={Wallet}>
+                Cash à prévoir : {r.cashAPrevoir} MAD
+              </InlineAlert>
+            ) : null}
+            {r.notes ? (
+              <InlineAlert tone="amber" icon={Info}>
+                {r.notes}
+              </InlineAlert>
+            ) : null}
           </div>
         ) : null}
       </Link>
@@ -773,7 +789,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
       {/* En dehors du Link (bouton cliquable dans une carte cliquable = navigation
           accidentelle). Un seul statut ménage/cuisine à la fois : le ménage se fait après un
           départ, la cuisine se prépare pour une arrivée. */}
-      <div className="px-3 pb-2">
+      <div className="space-y-2 px-3 pb-3">
         {kind === "out" ? (
           <PersonnelAffectationEditor
             reservationId={r.id}
@@ -793,18 +809,16 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
             montantVisible={!r.personnelPayeParProprietaire}
           />
         )}
-      </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
-        {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : <span />}
-      </div>
-      <div className="px-3 pb-3">
-        <ValidateCheckinCheckoutButton
-          reservationId={r.id}
-          kind={kind}
-          valideAt={kind === "in" ? r.checkinValideAt : r.checkoutValideAt}
-          validePar={kind === "in" ? r.checkinValidePar : r.checkoutValidePar}
-        />
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : <span />}
+          <ValidateCheckinCheckoutButton
+            reservationId={r.id}
+            kind={kind}
+            valideAt={kind === "in" ? r.checkinValideAt : r.checkoutValideAt}
+            validePar={kind === "in" ? r.checkinValidePar : r.checkoutValidePar}
+          />
+        </div>
       </div>
 
       {/* Le reste (documents, paiement, messages, correction d'heure) est secondaire au
@@ -886,6 +900,33 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
           />
         </div>
       </details>
+    </div>
+  );
+}
+
+// Bandeau compact et cohérent pour les trois alertes de carte (client connu, cash à prévoir,
+// notes) : même gabarit, seule la couleur change selon le type — évite l'effet "mur de blocs
+// colorés" quand plusieurs alertes s'accumulent sur une même réservation.
+function InlineAlert({
+  tone,
+  icon: Icon,
+  children,
+}: {
+  tone: "amber" | "blue";
+  icon: LucideIcon;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-1.5 rounded-md border px-2 py-1 text-sm font-medium",
+        tone === "amber"
+          ? "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-400"
+          : "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-400"
+      )}
+    >
+      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+      <span>{children}</span>
     </div>
   );
 }
