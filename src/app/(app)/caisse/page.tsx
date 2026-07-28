@@ -24,6 +24,7 @@ type Entry = {
   id: string;
   type: string;
   montant: string;
+  devise: string;
   description: string | null;
   responsable: string | null;
   createdByName: string | null;
@@ -44,6 +45,7 @@ export default async function CaissePage() {
         type: cashEntries.type,
         moyenPaiement: cashEntries.moyenPaiement,
         montant: cashEntries.montant,
+        devise: cashEntries.devise,
         description: cashEntries.description,
         responsable: cashEntries.responsable,
         photoUrls: cashEntries.photoUrls,
@@ -110,12 +112,9 @@ function CaissePanel({
   villas: { id: string; nom: string; numero: string }[];
   moyenPaiement: "especes" | "virement" | "carte";
 }) {
-  const totalRemise = entries.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
-  const totalDepense = entries.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
-  const totalRestitution = entries
-    .filter((e) => e.type === "restitution")
-    .reduce((s, e) => s + Number(e.montant), 0);
-  const balance = totalRemise - totalDepense - totalRestitution;
+  // Des montants dans des devises différentes ne doivent jamais être additionnés ensemble
+  // (ex. 13000 MAD + 6400 EUR n'a aucun sens) : un jeu de totaux par devise présente.
+  const devises = Array.from(new Set(entries.map((e) => e.devise))).sort();
 
   return (
     <div className="space-y-6">
@@ -123,12 +122,27 @@ function CaissePanel({
         <AddCashEntryDialog villas={villas} moyenPaiement={moyenPaiement} />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-4">
-        <SummaryCard label="Solde actuel" value={balance} highlight />
-        <SummaryCard label="Total confié" value={totalRemise} />
-        <SummaryCard label="Total dépensé" value={totalDepense} />
-        <SummaryCard label="Total restitué" value={totalRestitution} />
-      </div>
+      {devises.map((devise) => {
+        const enDevise = entries.filter((e) => e.devise === devise);
+        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+        const totalDepense = enDevise.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
+        const totalRestitution = enDevise
+          .filter((e) => e.type === "restitution")
+          .reduce((s, e) => s + Number(e.montant), 0);
+        const balance = totalRemise - totalDepense - totalRestitution;
+
+        return (
+          <div key={devise} className="space-y-2">
+            {devises.length > 1 ? <p className="text-sm font-medium text-muted-foreground">{devise}</p> : null}
+            <div className="grid gap-3 sm:grid-cols-4">
+              <SummaryCard label="Solde actuel" value={balance} devise={devise} highlight />
+              <SummaryCard label="Total confié" value={totalRemise} devise={devise} />
+              <SummaryCard label="Total dépensé" value={totalDepense} devise={devise} />
+              <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
+            </div>
+          </div>
+        );
+      })}
 
       <Card>
         <CardHeader>
@@ -147,7 +161,7 @@ function CaissePanel({
                     </Badge>
                     <span className="font-semibold">
                       {e.type === "remise" ? "+" : "-"}
-                      {Number(e.montant).toFixed(2)} DH
+                      {Number(e.montant).toFixed(2)} {e.devise}
                     </span>
                   </div>
                   {e.description ? <p className="mt-1 text-sm">{e.description}</p> : null}
@@ -190,12 +204,22 @@ function CaissePanel({
   );
 }
 
-function SummaryCard({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+function SummaryCard({
+  label,
+  value,
+  devise,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  devise: string;
+  highlight?: boolean;
+}) {
   return (
     <Card>
       <CardContent className="py-4">
         <p className={highlight ? "text-2xl font-semibold text-primary" : "text-2xl font-semibold"}>
-          {value.toFixed(2)} DH
+          {value.toFixed(2)} {devise}
         </p>
         <p className="text-sm text-muted-foreground">{label}</p>
       </CardContent>
