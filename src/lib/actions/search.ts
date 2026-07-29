@@ -107,12 +107,25 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
     });
   }
 
+  // Une même personne peut avoir une entrée "ménage" et une entrée "cuisine" séparées (ex.
+  // Touria fait les deux) : un seul résultat par nom, la fiche /personnel/[id] regroupe déjà
+  // tous les rôles de cette personne.
+  const personnelParNom = new Map<string, (typeof personnelRows)[number]>();
   for (const p of personnelRows) {
+    const cle = p.nom.trim().toLowerCase();
+    const existant = personnelParNom.get(cle);
+    if (!existant || (existant.role === "cuisine" && p.role === "menage")) {
+      personnelParNom.set(cle, p);
+    }
+  }
+  for (const p of personnelParNom.values()) {
+    const roles = personnelRows.filter((r) => r.nom.trim().toLowerCase() === p.nom.trim().toLowerCase()).map((r) => r.role);
+    const rolesUniques = Array.from(new Set(roles));
     results.push({
       type: "personnel",
       id: p.id,
       title: p.nom,
-      subtitle: p.role === "menage" ? "Femme de ménage" : "Cuisinière",
+      subtitle: rolesUniques.map((r) => (r === "menage" ? "Femme de ménage" : "Cuisinière")).join(" & "),
       href: `/personnel/${p.id}`,
     });
   }
