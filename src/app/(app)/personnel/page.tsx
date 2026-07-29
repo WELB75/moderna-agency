@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { asc, and, ne, gte, lte, eq, inArray, isNull, or } from "drizzle-orm";
 import {
   format,
@@ -686,7 +687,9 @@ function RosterSection({
               <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <p className="font-medium">{p.nom}</p>
+                    <Link href={`/personnel/${p.id}`} className="font-medium hover:underline">
+                      {p.nom}
+                    </Link>
                     {!p.actif ? <Badge variant="outline">Inactif</Badge> : null}
                   </div>
                   {p.telephone ? <PhoneLink phone={p.telephone} /> : null}

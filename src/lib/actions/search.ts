@@ -83,7 +83,7 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
       id: r.id,
       title: r.guestName,
       subtitle: `${r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : "Villa non renseignée"} · ${format(new Date(r.checkIn), "d MMM yyyy", { locale: fr })} → ${format(new Date(r.checkOut), "d MMM yyyy", { locale: fr })}`,
-      href: `/r/${r.id}`,
+      href: `/reservations/${r.id}`,
     });
   }
 
@@ -113,7 +113,7 @@ export async function searchGlobal(query: string): Promise<SearchResult[]> {
       id: p.id,
       title: p.nom,
       subtitle: p.role === "menage" ? "Femme de ménage" : "Cuisinière",
-      href: "/personnel",
+      href: `/personnel/${p.id}`,
     });
   }
 
