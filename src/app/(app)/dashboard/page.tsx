@@ -32,6 +32,7 @@ import { EditReservationTimeDialog } from "@/components/app/edit-reservation-tim
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { MenuGrid } from "@/components/app/menu-grid";
+import { GlobalSearchBar } from "@/components/app/global-search-bar";
 import { StatusChip } from "@/components/app/status-chip";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import {
@@ -47,6 +48,7 @@ import {
   ChevronRight,
   Wallet,
   UserCheck,
+  MoreVertical,
   type LucideIcon,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
@@ -349,19 +351,29 @@ export default async function DashboardPage({
           </div>
           <p className="text-sm text-muted-foreground">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</p>
         </div>
-        <div className="flex flex-col items-start gap-1.5 sm:items-end">
-          <div className="flex flex-col gap-1.5 sm:flex-row">
-            <SyncIcalButton className="w-full sm:w-auto" />
-            <ImportSuperhoteCsvDialog />
+
+        {/* Actions de synchro/import : rarement utilisées au quotidien, donc repliées derrière
+            un déclencheur discret plutôt que deux boutons pleine largeur en haut de l'accueil. */}
+        <details className="group relative self-start">
+          <summary className="flex cursor-pointer list-none items-center justify-center border border-border p-2 text-muted-foreground marker:content-none hover:text-foreground">
+            <MoreVertical className="h-4 w-4" />
+          </summary>
+          <div className="absolute right-0 top-full z-20 mt-1 w-72 space-y-2 border border-border bg-popover p-3 shadow-lg">
+            <p className="text-xs font-medium text-muted-foreground">Options</p>
+            <div className="flex flex-col gap-1.5">
+              <SyncIcalButton className="w-full" />
+              <ImportSuperhoteCsvDialog />
+            </div>
+            {lastSync?.finishedAt ? (
+              <p className="text-xs text-muted-foreground">
+                Dernière synchro {lastSync.success === false ? "(échec)" : ""} : {format(lastSync.finishedAt, "d MMM HH:mm", { locale: fr })}
+              </p>
+            ) : null}
           </div>
-          {lastSync?.finishedAt ? (
-            <p className="text-xs text-muted-foreground">
-              Dernière synchro {lastSync.success === false ? "(échec)" : ""} : {format(lastSync.finishedAt, "d MMM HH:mm", { locale: fr })}
-            </p>
-          ) : null}
-        </div>
+        </details>
       </div>
 
+      <GlobalSearchBar />
       <MenuGrid />
 
       <VillasLibresCard villas={villasLibresKamel} />

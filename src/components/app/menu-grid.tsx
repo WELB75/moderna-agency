@@ -8,16 +8,16 @@ export function MenuGrid() {
   const items = navItems.filter((item) => item.href !== "/dashboard");
 
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
+    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
       {items.map((item) => {
         const Icon = item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
-            className="flex flex-col items-start justify-between gap-3 border border-border bg-muted/40 p-3 transition-colors hover:bg-muted"
+            className="flex aspect-square flex-col items-start justify-between border border-border bg-muted/40 p-4 transition-colors hover:bg-muted"
           >
-            <Icon className="h-5 w-5 shrink-0" />
+            <Icon className="h-6 w-6 shrink-0" />
             <span className="text-sm font-medium leading-tight">{item.label}</span>
           </Link>
         );
