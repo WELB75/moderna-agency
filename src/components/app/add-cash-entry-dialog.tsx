@@ -110,6 +110,7 @@ export function AddCashEntryDialog({
               <SelectContent>
                 <SelectItem value="remise">Argent confié par la société (remise)</SelectItem>
                 <SelectItem value="loyer">Loyer reçu d&apos;un client</SelectItem>
+                <SelectItem value="extra">Extra reçu d&apos;un client (petit-déj, options...)</SelectItem>
                 <SelectItem value="depense">Dépense</SelectItem>
                 <SelectItem value="restitution">Restitution</SelectItem>
               </SelectContent>

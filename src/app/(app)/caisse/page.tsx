@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 const TYPE_LABELS: Record<string, string> = {
   remise: "Argent confié",
   loyer: "Loyer reçu",
+  extra: "Extra (petit-déj, options)",
   depense: "Dépense",
   restitution: "Restitution",
 };
@@ -126,25 +127,43 @@ function CaissePanel({
 
       {devises.map((devise) => {
         const enDevise = entries.filter((e) => e.devise === devise);
-        // Le loyer reçu d'un client est gardé à part de l'argent confié par la société : ce
-        // n'est pas la même origine, même si les deux sont des entrées de liquide.
-        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+        // Deux étages bien séparés : les loyers reçus des clients (aucun rapport avec les
+        // dépenses) d'un côté, et l'argent confié par la société + ce qui en a été dépensé
+        // de l'autre. Les extras (petit-déj, options...) sont des recettes clients aussi,
+        // mais distinctes du loyer pur — donc jamais additionnées dans "Total loyers reçus".
         const totalLoyer = enDevise.filter((e) => e.type === "loyer").reduce((s, e) => s + Number(e.montant), 0);
+        const totalExtra = enDevise.filter((e) => e.type === "extra").reduce((s, e) => s + Number(e.montant), 0);
+        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
         const totalDepense = enDevise.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
         const totalRestitution = enDevise
           .filter((e) => e.type === "restitution")
           .reduce((s, e) => s + Number(e.montant), 0);
-        const balance = totalRemise + totalLoyer - totalDepense - totalRestitution;
+        const soldeSociete = totalRemise - totalDepense - totalRestitution;
 
         return (
-          <div key={devise} className="space-y-2">
+          <div key={devise} className="space-y-4">
             {devises.length > 1 ? <p className="text-sm font-medium text-muted-foreground">{devise}</p> : null}
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              <SummaryCard label="Solde actuel" value={balance} devise={devise} highlight />
-              <SummaryCard label="Total confié (société)" value={totalRemise} devise={devise} />
-              <SummaryCard label="Total loyers reçus" value={totalLoyer} devise={devise} />
-              <SummaryCard label="Total dépensé" value={totalDepense} devise={devise} />
-              <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Loyers perçus (clients)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <SummaryCard label="Total loyers reçus" value={totalLoyer} devise={devise} highlight />
+                <SummaryCard label="Extras (petit-déj, options...)" value={totalExtra} devise={devise} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Société (confié / dépenses)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <SummaryCard label="Solde société" value={soldeSociete} devise={devise} highlight />
+                <SummaryCard label="Total confié (société)" value={totalRemise} devise={devise} />
+                <SummaryCard label="Total dépensé" value={totalDepense} devise={devise} />
+                <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
+              </div>
             </div>
           </div>
         );
@@ -163,15 +182,16 @@ function CaissePanel({
                 <div>
                   <div className="flex items-center gap-2">
                     <Badge
-                      variant={e.type === "remise" || e.type === "loyer" ? "secondary" : "outline"}
+                      variant={e.type === "remise" || e.type === "loyer" || e.type === "extra" ? "secondary" : "outline"}
                       className={cn(
-                        e.type === "loyer" && "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400"
+                        e.type === "loyer" && "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400",
+                        e.type === "extra" && "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-400"
                       )}
                     >
                       {TYPE_LABELS[e.type]}
                     </Badge>
                     <span className="font-semibold">
-                      {e.type === "remise" || e.type === "loyer" ? "+" : "-"}
+                      {e.type === "remise" || e.type === "loyer" || e.type === "extra" ? "+" : "-"}
                       {Number(e.montant).toFixed(2)} {e.devise}
                     </span>
                   </div>
