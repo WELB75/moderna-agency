@@ -6,7 +6,7 @@ import { getDb } from "@/db";
 import { reservations, villas, domaines, gendarmerieForms, contratsLocation, personnel, personnelAffectations, clients } from "@/db/schema";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
-import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
+import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 import { phonesMatch } from "@/lib/phone";
 import { format } from "date-fns";
 
@@ -35,7 +35,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       villaType: villas.type,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
-      personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
+      personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       numeroImmeuble: villas.numeroImmeuble,
       proprietaireTelephone: villas.proprietaireTelephone,
       domaineNom: domaines.nom,
@@ -107,16 +107,14 @@ export default async function ReservationDetailPage({ params }: { params: Promis
   const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
   const cuisineOptions = activePersonnel.filter((p) => p.role === "cuisine").map((p) => ({ id: p.id, nom: p.nom }));
 
-  const cashAPrevoir = r.personnelPayeParProprietaire
-    ? 0
-    : affectations.reduce((sum, a) => {
-        if (a.payeAt) return sum;
-        const montant =
-          a.role === "menage"
-            ? montantMenageDu(a.faitAt)
-            : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
-        return sum + montant;
-      }, 0);
+  const cashAPrevoir = affectations.reduce((sum, a) => {
+    if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) return sum;
+    const montant =
+      a.role === "menage"
+        ? montantMenageDu(a.faitAt)
+        : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
+    return sum + montant;
+  }, 0);
 
   let clientConnu: { nom: string; telephone: string | null; notes: string | null } | null = null;
   if (r.guestPhone) {
@@ -126,6 +124,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
 
   const row: ReservationRow = {
     ...r,
+    personnelPayeParProprietaireNoms: r.personnelPayeParProprietaireNoms ?? [],
     ficheStatut,
     ficheId,
     contratStatut,

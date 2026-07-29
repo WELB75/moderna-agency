@@ -31,7 +31,7 @@ import { MarkPaidButton } from "@/components/app/mark-paid-button";
 import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
-import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
+import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 import { Users, CalendarClock, BarChart3, Wallet, History, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -69,7 +69,7 @@ export default async function PersonnelPage({
         villaNom: villas.nom,
         villaNumero: villas.numero,
         domaineNom: domaines.nom,
-        personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
+        personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -93,7 +93,7 @@ export default async function PersonnelPage({
         villaNom: villas.nom,
         villaNumero: villas.numero,
         domaineNom: domaines.nom,
-        personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
+        personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -271,7 +271,7 @@ export default async function PersonnelPage({
             villaId: reservations.villaId,
             villaNom: villas.nom,
             villaNumero: villas.numero,
-            personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
+            personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
           })
           .from(reservations)
           .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -294,7 +294,7 @@ export default async function PersonnelPage({
         }[] = [];
         for (const a of mine) {
           const r = unpaidReservationById.get(a.reservationId);
-          if (!r || r.personnelPayeParProprietaire) continue;
+          if (!r || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, p.nom)) continue;
           const m =
             role === "menage"
               ? montantMenageDu(a.faitAt)
@@ -558,7 +558,7 @@ function AffectationSection<
     guestName: string;
     villaNom: string | null;
     villaNumero: string | null;
-    personnelPayeParProprietaire: boolean | null;
+    personnelPayeParProprietaireNoms: string[] | null;
   },
 >({
   title,
@@ -610,7 +610,7 @@ function AffectationSection<
           label={label}
           assigned={assignedFor(item.id, role)}
           options={options}
-          montantVisible={!item.personnelPayeParProprietaire}
+          payeParProprietaireNoms={item.personnelPayeParProprietaireNoms ?? []}
         />
       </div>
     );

@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -36,7 +35,7 @@ export function EditVillaInfoDialog({
   domaines,
   portailAuteurs,
   notes,
-  personnelPayeParProprietaire,
+  personnelPayeParProprietaireNoms,
   typeLabel = "Villa",
 }: {
   villaId: string;
@@ -48,19 +47,17 @@ export function EditVillaInfoDialog({
   domaines: { id: string; nom: string }[];
   portailAuteurs?: string[] | null;
   notes?: string | null;
-  personnelPayeParProprietaire?: boolean;
+  personnelPayeParProprietaireNoms?: string[] | null;
   typeLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [selectedDomaine, setSelectedDomaine] = useState(domaineId ?? "");
-  const [payeParProprietaire, setPayeParProprietaire] = useState(personnelPayeParProprietaire ?? false);
   const [isPending, startTransition] = useTransition();
   const isAppartement = typeLabel === "Appartement";
 
   async function handleSubmit(formData: FormData) {
     formData.set("villaId", villaId);
     formData.set("domaineId", selectedDomaine);
-    if (payeParProprietaire) formData.set("personnelPayeParProprietaire", "on");
     startTransition(async () => {
       try {
         await updateVillaInfo(formData);
@@ -145,16 +142,20 @@ export function EditVillaInfoDialog({
               placeholder="Ex. Ménage/cuisine gérés par Aisha directement, payée par le propriétaire."
             />
           </div>
-          <div className="flex items-start gap-2 rounded-md border p-3">
-            <Checkbox
-              id="personnelPayeParProprietaire"
-              checked={payeParProprietaire}
-              onCheckedChange={(v) => setPayeParProprietaire(v === true)}
-            />
-            <Label htmlFor="personnelPayeParProprietaire" className="font-normal">
-              Ménage/cuisine payés directement par le propriétaire — masque les montants et
-              désactive le paiement via le système pour cette villa
+          <div className="space-y-1.5">
+            <Label htmlFor="personnelPayeParProprietaireNoms">
+              Personnel payé directement par le propriétaire (ménage et cuisine)
             </Label>
+            <Input
+              id="personnelPayeParProprietaireNoms"
+              name="personnelPayeParProprietaireNoms"
+              defaultValue={(personnelPayeParProprietaireNoms ?? []).join(", ")}
+              placeholder="Ex. Khaoula, Aisha"
+            />
+            <p className="text-xs text-muted-foreground">
+              Uniquement pour ces personnes précises sur cette villa : masque leurs montants et
+              désactive le paiement via le système. Le reste de l&apos;équipe reste payé normalement.
+            </p>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={isPending} className="w-full sm:w-auto">

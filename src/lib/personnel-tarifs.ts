@@ -1,5 +1,15 @@
 import { differenceInCalendarDays } from "date-fns";
 
+// L'exemption "payé par le propriétaire" est propre à certaines personnes précises pour une
+// villa donnée (ex. Khaoula pour la Villa Sofya, Aisha pour la Villa Wimiliim), pas à toute la
+// villa : les autres femmes de ménage/cuisinières qui y interviennent restent payées par
+// l'agence normalement.
+export function estPayeParProprietaire(noms: string[] | null | undefined, nom: string): boolean {
+  if (!noms || noms.length === 0) return false;
+  const cible = nom.trim().toLowerCase();
+  return noms.some((n) => n.trim().toLowerCase() === cible);
+}
+
 // Tarifs fixes payés en liquide, définis une seule fois ici pour que le calcul soit cohérent
 // partout : 200 MAD par ménage confirmé fait ; côté cuisine, 100 MAD/jour si elle ne fait que
 // le petit-déjeuner, 200 MAD/jour si elle fait aussi le déjeuner.

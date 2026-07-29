@@ -15,7 +15,12 @@ import {
   updateAffectationAvecDejeuner,
   markAffectationPaidSolo,
 } from "@/lib/actions/personnel";
-import { TARIF_MENAGE, TARIF_CUISINE_PETIT_DEJEUNER, TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER } from "@/lib/personnel-tarifs";
+import {
+  TARIF_MENAGE,
+  TARIF_CUISINE_PETIT_DEJEUNER,
+  TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER,
+  estPayeParProprietaire,
+} from "@/lib/personnel-tarifs";
 
 export type PersonnelAssigne = {
   affectationId: string;
@@ -50,16 +55,17 @@ export function PersonnelAffectationEditor({
   label,
   assigned,
   options,
-  montantVisible = true,
+  payeParProprietaireNoms = [],
 }: {
   reservationId: string;
   role: "menage" | "cuisine";
   label: string;
   assigned: PersonnelAssigne[];
   options: { id: string; nom: string }[];
-  // false pour les villas dont le ménage/cuisine est payé directement par le propriétaire :
-  // aucun montant ni bouton de paiement ne doit apparaître côté agence.
-  montantVisible?: boolean;
+  // Noms des personnes dont le ménage/cuisine est payé directement par le propriétaire pour
+  // cette villa : aucun montant ni bouton de paiement ne doit apparaître pour elles côté
+  // agence. Les autres personnes affectées à la même réservation restent payées normalement.
+  payeParProprietaireNoms?: string[];
 }) {
   const [isPending, startTransition] = useTransition();
   const [optimisticAssigned, applyOptimistic] = useOptimistic(assigned, (state, action: OptimisticAction) => {
@@ -178,7 +184,7 @@ export function PersonnelAffectationEditor({
               disabled={isPending}
               onToggleFait={handleToggleFait}
               onRemove={handleRemove}
-              montantVisible={montantVisible}
+              montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
             />
           ) : (
             <CuisineBadge
@@ -189,7 +195,7 @@ export function PersonnelAffectationEditor({
               onSetJours={handleSetJours}
               onToggleAvecDejeuner={handleToggleAvecDejeuner}
               onMarkPaid={handleMarkPaid}
-              montantVisible={montantVisible}
+              montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
             />
           )
         )}

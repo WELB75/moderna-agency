@@ -47,7 +47,7 @@ export type ReservationRow = {
   villaType: "villa" | "appartement" | null;
   codeBoitier: string | null;
   codePorteEntree: string | null;
-  personnelPayeParProprietaire: boolean | null;
+  personnelPayeParProprietaireNoms: string[];
   numeroImmeuble: string | null;
   proprietaireTelephone: string | null;
   domaineNom: string | null;
@@ -181,7 +181,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             label="Ménage — cliquer sur le nom pour confirmer fait"
             assigned={r.menageAssignes}
             options={r.menageOptions}
-            montantVisible={!r.personnelPayeParProprietaire}
+            payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
           />
         ) : (
           <PersonnelAffectationEditor
@@ -190,7 +190,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             label="Cuisine"
             assigned={r.cuisineAssignes}
             options={r.cuisineOptions}
-            montantVisible={!r.personnelPayeParProprietaire}
+            payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
           />
         )}
 

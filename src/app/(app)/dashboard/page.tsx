@@ -28,7 +28,7 @@ import { ReservationRowCard, type ReservationRow } from "@/components/app/reserv
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { LogIn, LogOut, Wrench, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
-import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
+import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 
@@ -68,7 +68,7 @@ export default async function DashboardPage({
       villaType: villas.type,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
-      personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
+      personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       numeroImmeuble: villas.numeroImmeuble,
       proprietaireTelephone: villas.proprietaireTelephone,
       domaineNom: domaines.nom,
@@ -204,8 +204,8 @@ export default async function DashboardPage({
     // (100 ou 200 MAD/jour selon petit-déjeuner seul ou avec déjeuner, due au check-out), pas
     // encore payés — pour savoir combien apporter en liquide avant de partir sur place. Jamais
     // pour les villas dont le propriétaire paie directement le personnel.
-    const cashAPrevoir = r.personnelPayeParProprietaire ? 0 : (affectationsByReservationForCash.get(r.id) ?? []).reduce((sum, a) => {
-      if (a.payeAt) return sum;
+    const cashAPrevoir = (affectationsByReservationForCash.get(r.id) ?? []).reduce((sum, a) => {
+      if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) return sum;
       const montant =
         a.role === "menage"
           ? montantMenageDu(a.faitAt)
@@ -215,6 +215,7 @@ export default async function DashboardPage({
     const clientConnu = findClient(r.guestPhone);
     return {
       ...r,
+      personnelPayeParProprietaireNoms: r.personnelPayeParProprietaireNoms ?? [],
       ficheStatut,
       ficheId,
       contratStatut,

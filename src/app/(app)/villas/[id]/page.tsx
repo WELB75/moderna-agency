@@ -61,7 +61,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       adresse: villas.adresse,
       numeroImmeuble: villas.numeroImmeuble,
       notes: villas.notes,
-      personnelPayeParProprietaire: villas.personnelPayeParProprietaire,
+      personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       description: villas.description,
       photoUrl: villas.photoUrl,
       galleryUrls: villas.galleryUrls,
@@ -235,7 +235,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             domaines={allDomaines}
             portailAuteurs={villa.portailAuteurs}
             notes={villa.notes}
-            personnelPayeParProprietaire={villa.personnelPayeParProprietaire}
+            personnelPayeParProprietaireNoms={villa.personnelPayeParProprietaireNoms}
             typeLabel={typeLabel}
           />
           <ConfirmDeleteButton
@@ -350,7 +350,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                 personnelCuisineOptions={personnelCuisineOptions}
                 menageAssigned={assignedFor(r.id, "menage")}
                 cuisineAssigned={assignedFor(r.id, "cuisine")}
-                personnelPayeParProprietaire={villa.personnelPayeParProprietaire}
+                personnelPayeParProprietaireNoms={villa.personnelPayeParProprietaireNoms}
               />
             ))
           )}
@@ -374,7 +374,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                     personnelCuisineOptions={personnelCuisineOptions}
                     menageAssigned={assignedFor(r.id, "menage")}
                     cuisineAssigned={assignedFor(r.id, "cuisine")}
-                    personnelPayeParProprietaire={villa.personnelPayeParProprietaire}
+                    personnelPayeParProprietaireNoms={villa.personnelPayeParProprietaireNoms}
                   />
                 ))}
               </div>
@@ -471,7 +471,7 @@ function ReservationListItem({
   personnelCuisineOptions,
   menageAssigned,
   cuisineAssigned,
-  personnelPayeParProprietaire,
+  personnelPayeParProprietaireNoms,
 }: {
   r: typeof reservations.$inferSelect;
   muted?: boolean;
@@ -482,7 +482,7 @@ function ReservationListItem({
   personnelCuisineOptions: { id: string; nom: string }[];
   menageAssigned: PersonnelAssigne[];
   cuisineAssigned: PersonnelAssigne[];
-  personnelPayeParProprietaire?: boolean;
+  personnelPayeParProprietaireNoms?: string[] | null;
 }) {
   const isProprietaire = phonesMatch(r.guestPhone, proprietaireTelephone);
 
@@ -551,7 +551,7 @@ function ReservationListItem({
           label="Ménage"
           assigned={menageAssigned}
           options={personnelMenageOptions}
-          montantVisible={!personnelPayeParProprietaire}
+          payeParProprietaireNoms={personnelPayeParProprietaireNoms ?? []}
         />
         <PersonnelAffectationEditor
           reservationId={r.id}
@@ -559,7 +559,7 @@ function ReservationListItem({
           label="Cuisine"
           assigned={cuisineAssigned}
           options={personnelCuisineOptions}
-          montantVisible={!personnelPayeParProprietaire}
+          payeParProprietaireNoms={personnelPayeParProprietaireNoms ?? []}
         />
       </div>
       {isProprietaire ? null : (
