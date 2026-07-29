@@ -91,9 +91,9 @@ function PlanSlot({ villa, position }: { villa: PlanVilla | undefined; position:
       <span className="truncate text-[10px] leading-tight">{villa ? villa.nom : "Non gérée"}</span>
       {villa && !villa.libre && villa.guestName ? (
         <>
-          <span className="truncate text-[10px] font-medium leading-tight">{villa.guestName}</span>
+          <span className="truncate text-[10px] font-medium leading-tight text-foreground">{villa.guestName}</span>
           {villa.checkIn && villa.checkOut ? (
-            <span className="truncate text-[9px] leading-tight opacity-80">
+            <span className="truncate text-[9px] leading-tight text-foreground/70">
               {format(new Date(villa.checkIn), "d MMM", { locale: fr })} → {format(new Date(villa.checkOut), "d MMM", { locale: fr })}
             </span>
           ) : null}
