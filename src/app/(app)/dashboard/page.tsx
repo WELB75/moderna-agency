@@ -31,6 +31,7 @@ import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
+import { MenuGrid } from "@/components/app/menu-grid";
 import { StatusChip } from "@/components/app/status-chip";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import {
@@ -360,6 +361,8 @@ export default async function DashboardPage({
           ) : null}
         </div>
       </div>
+
+      <MenuGrid />
 
       <VillasLibresCard villas={villasLibresKamel} />
       <DomainePlanModernaII villas={modernaIIPlanVillas} />
@@ -713,14 +716,10 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
               <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
             )}
             <p className="truncate font-medium">{r.guestName}</p>
-            {isProprietaire ? (
-              <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400">
-                Propriétaire
-              </Badge>
-            ) : null}
+            {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
             {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
           </div>
-          <Countdown target={target} variant={kind} />
+          <Countdown target={target} />
         </div>
 
         <div>
@@ -905,7 +904,7 @@ function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out"
 }
 
 // Bandeau compact et cohérent pour les trois alertes de carte (client connu, cash à prévoir,
-// notes) : même gabarit, seule la couleur change selon le type — évite l'effet "mur de blocs
+// notes) : fond neutre partout, seule l'icône porte la couleur — évite l'effet "mur de blocs
 // colorés" quand plusieurs alertes s'accumulent sur une même réservation.
 function InlineAlert({
   tone,
@@ -917,15 +916,13 @@ function InlineAlert({
   children: React.ReactNode;
 }) {
   return (
-    <div
-      className={cn(
-        "flex items-start gap-1.5 rounded-md border px-2 py-1 text-sm font-medium",
-        tone === "amber"
-          ? "border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-400"
-          : "border-blue-500/40 bg-blue-500/10 text-blue-800 dark:text-blue-400"
-      )}
-    >
-      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+    <div className="flex items-start gap-1.5 border border-border bg-muted/40 px-2 py-1 text-sm">
+      <Icon
+        className={cn(
+          "mt-0.5 h-3.5 w-3.5 shrink-0",
+          tone === "amber" ? "text-amber-600 dark:text-amber-400" : "text-foreground"
+        )}
+      />
       <span>{children}</span>
     </div>
   );

@@ -217,7 +217,8 @@ export function PersonnelAffectationEditor({
 }
 
 // Bouton (pas juste un badge à plat) pour que ce soit visuellement clair que c'est cliquable :
-// gris avec cercle vide = pas encore fait, vert avec coche = confirmé, comme un interrupteur.
+// gris avec cercle vide = pas encore fait, noir plein avec coche = confirmé, comme un
+// interrupteur — même traitement neutre que le reste de l'app, pas de couleur sémantique ici.
 function MenageBadge({
   a,
   disabled,
@@ -240,13 +241,14 @@ function MenageBadge({
         size="sm"
         onClick={() => onToggleFait(a.affectationId, !fait)}
         disabled={disabled}
-        className={cn(fait && "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-600")}
         title={fait ? "Ménage confirmé fait au départ — cliquer pour annuler" : "Cliquer pour confirmer que le ménage a été fait"}
       >
         {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
         {a.nom}
         {montantVisible ? (
-          <span className={cn("font-normal", fait ? "text-white/80" : "text-muted-foreground")}>· {TARIF_MENAGE} MAD</span>
+          <span className={cn("font-normal", fait ? "text-primary-foreground/70" : "text-muted-foreground")}>
+            · {TARIF_MENAGE} MAD
+          </span>
         ) : null}
       </Button>
       <button
@@ -318,9 +320,9 @@ function CuisineBadge({
           onClick={() => onMarkPaid(a.affectationId)}
           disabled={disabled || paye}
           className={cn(
-            "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+            "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
             paye
-              ? "border-emerald-600 bg-emerald-600 text-white"
+              ? "border-foreground bg-foreground text-background"
               : "border-border bg-transparent text-muted-foreground hover:bg-muted"
           )}
           title={paye ? "Payée — déjà ajoutée à la caisse" : `Cliquer pour marquer payée (${montantApercu} MAD) — ajouté directement à la caisse`}
@@ -330,7 +332,7 @@ function CuisineBadge({
         </button>
       ) : (
         <span
-          className="rounded-md border border-border bg-transparent px-1.5 py-0.5 text-xs text-muted-foreground"
+          className="border border-border bg-transparent px-1.5 py-0.5 text-xs text-muted-foreground"
           title="Payé directement par le propriétaire, pas par l'agence"
         >
           Payé par proprio
@@ -341,9 +343,9 @@ function CuisineBadge({
         onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}
         disabled={disabled || paye}
         className={cn(
-          "flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-xs",
+          "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
           a.avecDejeuner
-            ? "border-amber-600 bg-amber-600 text-white hover:bg-amber-600"
+            ? "border-foreground bg-foreground text-background hover:bg-foreground"
             : "border-border bg-transparent text-muted-foreground hover:bg-muted"
         )}
         title={

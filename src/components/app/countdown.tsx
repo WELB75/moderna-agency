@@ -17,15 +17,7 @@ function formatRemaining(ms: number) {
   return `${minutes} min`;
 }
 
-export function Countdown({
-  target,
-  variant = "neutral",
-  className,
-}: {
-  target: Date;
-  variant?: "in" | "out" | "neutral";
-  className?: string;
-}) {
+export function Countdown({ target, className }: { target: Date; className?: string }) {
   const [now, setNow] = useState(() => nowInMorocco());
 
   useEffect(() => {
@@ -36,13 +28,6 @@ export function Countdown({
   const diff = target.getTime() - now.getTime();
   const label = formatRemaining(diff);
 
-  const colorClass =
-    variant === "in"
-      ? "bg-emerald-600 hover:bg-emerald-600"
-      : variant === "out"
-        ? "bg-red-600 hover:bg-red-600"
-        : "";
-
   if (label === null) {
     return (
       <Badge variant="outline" className={cn("text-muted-foreground", className)} suppressHydrationWarning>
@@ -52,7 +37,7 @@ export function Countdown({
   }
 
   return (
-    <Badge className={cn(colorClass, className)} suppressHydrationWarning>
+    <Badge variant="outline" className={className} suppressHydrationWarning>
       Dans {label}
     </Badge>
   );
