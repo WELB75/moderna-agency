@@ -6,6 +6,7 @@ import { villas, reservations, superhoteSyncLog, ignoredBookings } from "@/db/sc
 import { parseIcs } from "@/lib/ical/parse";
 import { nowInMorocco } from "@/lib/now";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
+import { toTitleCase } from "@/lib/utils";
 
 export async function runIcalSync(): Promise<
   | { success: true; bookingsSynced: number; villasSynced: number; bookingsCancelled: number }
@@ -56,7 +57,7 @@ export async function runIcalSync(): Promise<
         if (ignoredIds.has(event.stableBookingId)) continue;
 
         seenBookingIds.push(event.stableBookingId);
-        const guestName = event.guestName?.trim() || event.summary?.trim() || "Réservation iCal";
+        const guestName = toTitleCase(event.guestName?.trim() || event.summary?.trim() || "Réservation iCal");
 
         let existing = await db
           .select({ id: reservations.id })

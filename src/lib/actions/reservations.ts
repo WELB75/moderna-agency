@@ -8,12 +8,13 @@ import { reservations, villas } from "@/db/schema";
 import { runIcalSync } from "@/lib/ical/sync";
 import { nowInMorocco } from "@/lib/now";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
+import { toTitleCase } from "@/lib/utils";
 
 export async function createReservation(formData: FormData) {
   await auth.protect();
 
   const villaId = String(formData.get("villaId") ?? "");
-  const guestName = String(formData.get("guestName") ?? "").trim();
+  const guestName = toTitleCase(String(formData.get("guestName") ?? "").trim());
   const guestPhone = String(formData.get("guestPhone") ?? "").trim();
   const checkIn = String(formData.get("checkIn") ?? "");
   const checkOut = String(formData.get("checkOut") ?? "");
