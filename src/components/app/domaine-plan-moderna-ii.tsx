@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,9 @@ export type PlanVilla = {
   nom: string;
   position: number;
   libre: boolean;
+  guestName: string | null;
+  checkIn: Date | null;
+  checkOut: Date | null;
 };
 
 export function DomainePlanModernaII({ villas }: { villas: PlanVilla[] }) {
@@ -84,6 +89,16 @@ function PlanSlot({ villa, position }: { villa: PlanVilla | undefined; position:
     <>
       <span className="text-xs font-semibold">n°{position}</span>
       <span className="truncate text-[10px] leading-tight">{villa ? villa.nom : "Non gérée"}</span>
+      {villa && !villa.libre && villa.guestName ? (
+        <>
+          <span className="truncate text-[10px] font-medium leading-tight">{villa.guestName}</span>
+          {villa.checkIn && villa.checkOut ? (
+            <span className="truncate text-[9px] leading-tight opacity-80">
+              {format(new Date(villa.checkIn), "d MMM", { locale: fr })} → {format(new Date(villa.checkOut), "d MMM", { locale: fr })}
+            </span>
+          ) : null}
+        </>
+      ) : null}
     </>
   );
 

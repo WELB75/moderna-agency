@@ -23,6 +23,7 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { MenuGrid } from "@/components/app/menu-grid";
 import { GlobalSearchBar } from "@/components/app/global-search-bar";
+import { CollapsibleSection } from "@/components/app/collapsible-section";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { LogIn, LogOut, Wrench, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
@@ -263,7 +264,12 @@ export default async function DashboardPage({
   // Occupation réelle = check-in validé sur place mais check-out pas encore validé (pas juste
   // la période de la réservation) : reflète qui a vraiment les clés en ce moment, pas le calendrier.
   const activeNow = await db
-    .select({ villaId: reservations.villaId })
+    .select({
+      villaId: reservations.villaId,
+      guestName: reservations.guestName,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+    })
     .from(reservations)
     .where(
       and(
@@ -273,13 +279,25 @@ export default async function DashboardPage({
       )
     );
   const occupiedVillaIds = new Set(activeNow.map((r) => r.villaId));
+  const occupantByVillaId = new Map(activeNow.filter((r) => r.villaId).map((r) => [r.villaId as string, r]));
   const villasLibres = allVillas.filter((v) => !occupiedVillaIds.has(v.id));
   const villasLibresKamel = villasLibres.filter((v) => v.domaineNom === "Domaine Moderna II");
 
   // Plan du domaine confirmé par Kamel : le champ "numero" correspond à la position 1-17 sur le terrain.
   const modernaIIPlanVillas: PlanVilla[] = allVillas
     .filter((v) => v.domaineNom === "Domaine Moderna II")
-    .map((v) => ({ id: v.id, nom: v.nom, position: parseInt(v.numero, 10), libre: !occupiedVillaIds.has(v.id) }))
+    .map((v) => {
+      const occupant = occupantByVillaId.get(v.id);
+      return {
+        id: v.id,
+        nom: v.nom,
+        position: parseInt(v.numero, 10),
+        libre: !occupiedVillaIds.has(v.id),
+        guestName: occupant?.guestName ?? null,
+        checkIn: occupant?.checkIn ?? null,
+        checkOut: occupant?.checkOut ?? null,
+      };
+    })
     .filter((v) => !Number.isNaN(v.position));
 
   const modernaIIMaintenance = upcomingMaintenance.filter((m) => m.domaineNom === "Domaine Moderna II");
@@ -352,7 +370,9 @@ export default async function DashboardPage({
       <MenuGrid />
 
       <VillasLibresCard villas={villasLibresKamel} />
-      <DomainePlanModernaII villas={modernaIIPlanVillas} />
+      <CollapsibleSection label="le plan du domaine">
+        <DomainePlanModernaII villas={modernaIIPlanVillas} />
+      </CollapsibleSection>
       <PersonPanel reservations={modernaIIUpcoming} maintenance={modernaIIMaintenance} days={days} now={now} />
     </div>
   );
