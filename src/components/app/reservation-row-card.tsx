@@ -8,7 +8,6 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
 import { LocationMessageButton } from "@/components/app/location-message-button";
 import { SecurityMessageButton } from "@/components/app/security-message-button";
-import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { StatusChip } from "@/components/app/status-chip";
@@ -262,11 +261,6 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 mapsUrl={r.domaineMapsUrl}
               />
             ) : null}
-            <CopyLinkButton
-              path={`/r/${r.id}`}
-              label="Copier pour Imane"
-              successMessage="Lien copié — envoie-le à Imane, elle verra les mêmes infos."
-            />
             {r.villaId && r.domaineSecuritePhone ? (
               <SecurityMessageButton
                 securityPhone={r.domaineSecuritePhone}
