@@ -249,7 +249,14 @@ function MenageBadge({
           <span className={cn("font-normal", fait ? "text-primary-foreground/70" : "text-muted-foreground")}>
             · {TARIF_MENAGE} MAD
           </span>
-        ) : null}
+        ) : (
+          <span
+            className={cn("font-normal", fait ? "text-primary-foreground/70" : "text-muted-foreground")}
+            title="Payé directement par le propriétaire, pas par l'agence"
+          >
+            · Payé par proprio
+          </span>
+        )}
       </Button>
       <button
         type="button"
