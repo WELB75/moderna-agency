@@ -18,6 +18,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
+import { SyncBeds24Button } from "@/components/app/sync-beds24-button";
 import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
@@ -356,6 +357,7 @@ export default async function DashboardPage({
             <p className="text-xs font-medium text-muted-foreground">Options</p>
             <div className="flex flex-col gap-1.5">
               <SyncIcalButton className="w-full" />
+              <SyncBeds24Button className="w-full" />
               <ImportSuperhoteCsvDialog />
             </div>
             {lastSync?.finishedAt ? (
