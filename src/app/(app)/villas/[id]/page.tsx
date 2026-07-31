@@ -500,8 +500,8 @@ function ReservationListItem({
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
-            <Badge variant={r.source === "superhote" ? "secondary" : "outline"}>
-              {r.source === "superhote" ? "Superhote" : "Manuel"}
+            <Badge variant={r.source === "manuel" ? "outline" : "secondary"}>
+              {r.source === "superhote" ? "Superhote" : r.source === "beds24" ? "Beds24" : "Manuel"}
             </Badge>
           </div>
         </div>

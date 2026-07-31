@@ -86,6 +86,7 @@ export type Beds24Booking = {
   lastName: string;
   email: string;
   price: number;
+  channel?: string; // ex. "direct", "airbnb", "bookingcom"
 };
 
 export async function beds24GetBookings(filters: {

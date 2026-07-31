@@ -112,6 +112,11 @@ export const villas = pgTable(
     portailAuteurs: jsonb("portail_auteurs").$type<string[]>().default([]),
     lienProprietaireToken: uuid("lien_proprietaire_token").defaultRandom().notNull(), // token du lien public /p/[token] consulté par le propriétaire
     icalUrl: text("ical_url"), // lien iCal Superhote pour synchroniser les réservations de cette villa
+    // Renseignés uniquement une fois la villa migrée vers Beds24 (remplacement progressif de
+    // Superhote) : tant que beds24RoomId est vide, la villa continue de fonctionner comme
+    // aujourd'hui (iCal Superhote), sans aucun effet de la synchro Beds24.
+    beds24PropertyId: text("beds24_property_id"),
+    beds24RoomId: text("beds24_room_id"),
     photoUrl: text("photo_url"),
     galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
     superhoteListingId: text("superhote_listing_id"),
@@ -127,6 +132,7 @@ export const reservations = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),
     superhoteBookingId: text("superhote_booking_id"),
+    beds24BookingId: text("beds24_booking_id"),
     guestName: text("guest_name").notNull(),
     guestPhone: text("guest_phone"),
     guestEmail: text("guest_email"),
@@ -163,7 +169,10 @@ export const reservations = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("reservations_superhote_booking_id_idx").on(t.superhoteBookingId)]
+  (t) => [
+    uniqueIndex("reservations_superhote_booking_id_idx").on(t.superhoteBookingId),
+    uniqueIndex("reservations_beds24_booking_id_idx").on(t.beds24BookingId),
+  ]
 );
 
 export const moyenPaiementCaisseEnum = pgEnum("moyen_paiement_caisse", ["especes", "virement", "carte"]);
