@@ -44,3 +44,6 @@ skills-lock.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# tesseract.js télécharge ces modèles au runtime (lecture MRZ des passeports) — pas à committer
+*.traineddata

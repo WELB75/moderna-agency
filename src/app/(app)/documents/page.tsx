@@ -8,6 +8,7 @@ import { nowInMorocco } from "@/lib/now";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GenerateFichePoliceForm } from "@/components/app/generate-fiche-police-form";
+import { PassportDropZone } from "@/components/app/passport-drop-zone";
 import { GenerateContratForm } from "@/components/app/generate-contrat-form";
 import { DocumentRow } from "@/components/app/document-row";
 import { PrintButton } from "@/components/app/print-button";
@@ -186,6 +187,7 @@ export default async function DocumentsPage() {
         </TabsList>
 
         <TabsContent value="fiche-police" className="space-y-6">
+          <PassportDropZone domaines={allDomaines} villas={allVillas} />
           <GenerateFichePoliceForm domaines={allDomaines} villas={allVillas} />
 
           {[
