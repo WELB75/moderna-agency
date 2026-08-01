@@ -21,7 +21,6 @@ import {
   DoorClosedLocked,
   FileText,
   FileSignature,
-  ChevronRight,
   Wallet,
   UserCheck,
   type LucideIcon,
@@ -205,14 +204,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
         </div>
       </div>
 
-      {/* Le reste (documents, paiement, messages, correction d'heure) est secondaire au
-          quotidien : replié par défaut pour que la carte reste lisible d'un coup d'œil. */}
-      <details className="group border-t">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-medium text-muted-foreground marker:content-none hover:text-foreground">
-          <ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
-          Plus d&apos;infos
-        </summary>
-        <div className="space-y-3 px-3 pb-3">
+      <div className="space-y-3 border-t px-3 pb-3 pt-3">
           {isProprietaire ? null : (
             <div className="flex flex-wrap gap-1.5">
               <StatusChip
@@ -277,8 +269,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             checkIn={new Date(r.checkIn)}
             checkOut={new Date(r.checkOut)}
           />
-        </div>
-      </details>
+      </div>
     </div>
   );
 }
