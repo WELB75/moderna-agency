@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
-import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays } from "date-fns";
+import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import {
@@ -29,7 +29,14 @@ import { ReservationRowCard, type ReservationRow } from "@/components/app/reserv
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { LogIn, LogOut, Wrench, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
-import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
+import {
+  montantMenageDu,
+  montantCuisineDu,
+  estPayeParProprietaire,
+  TARIF_MENAGE,
+  TARIF_CUISINE_PETIT_DEJEUNER,
+  TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER,
+} from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 
@@ -640,8 +647,29 @@ function groupTurnoverRows(
   return rows;
 }
 
-// Synthèse en une phrase de ce qu'il y a à faire dans ce domaine ce jour-là
-// (ex. "Se rendre à Domaine Zaraba : 1 check-in (Villa Azur) et 2 check-out (Villa X, Villa Y).").
+// Estimation de ce qu'il faudra prévoir en liquide pour le ménage/la cuisine d'un départ,
+// même si rien n'est encore confirmé fait (contrairement à cashAPrevoir, qui ne compte que ce
+// qui est déjà dû) — sert à savoir combien apporter avant même d'être sur place. Un ménage
+// affecté est supposé se faire (200 MAD/personne) ; une cuisine affectée est comptée sur toute
+// la durée du séjour si aucun nombre de jours n'a encore été précisé.
+function estimateCashPourDepart(r: ReservationRow): number {
+  let total = 0;
+  for (const a of r.menageAssignes) {
+    if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) continue;
+    total += TARIF_MENAGE;
+  }
+  for (const a of r.cuisineAssignes) {
+    if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) continue;
+    const jours = a.nbJours ?? Math.max(1, differenceInCalendarDays(new Date(r.checkOut), new Date(r.checkIn)));
+    const tarifJour = a.avecDejeuner ? TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER : TARIF_CUISINE_PETIT_DEJEUNER;
+    total += jours * tarifJour;
+  }
+  return total;
+}
+
+// Synthèse en une phrase de ce qu'il y a à faire dans ce domaine ce jour-là, avec le cash à
+// prévoir pour le personnel (ex. "Se rendre à Domaine Zaraba : 1 check-in (Villa Azur) et
+// 2 check-out (Villa X, Villa Y). Prévoir 400 MAD pour le ménage/la cuisine.").
 function buildResumeDomaine(domaineName: string, checkIns: ReservationRow[], checkOuts: ReservationRow[]): string {
   const parts: string[] = [];
   if (checkIns.length > 0) {
@@ -656,5 +684,7 @@ function buildResumeDomaine(domaineName: string, checkIns: ReservationRow[], che
       `${checkOuts.length} check-out${checkOuts.length > 1 ? "s" : ""}${noms.length ? ` (${noms.join(", ")})` : ""}`
     );
   }
-  return `Se rendre à ${domaineName} : ${parts.join(" et ")}.`;
+  const cashEstime = checkOuts.reduce((sum, r) => sum + estimateCashPourDepart(r), 0);
+  const cashSuffix = cashEstime > 0 ? ` Prévoir ${cashEstime} MAD pour le ménage/la cuisine.` : "";
+  return `Se rendre à ${domaineName} : ${parts.join(" et ")}.${cashSuffix}`;
 }
