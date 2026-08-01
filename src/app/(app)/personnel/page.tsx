@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonnelTabs } from "@/components/app/personnel-tabs";
+import { GlobalSearchBar } from "@/components/app/global-search-bar";
 import { AddPersonnelDialog } from "@/components/app/add-personnel-dialog";
 import { EditPersonnelDialog } from "@/components/app/edit-personnel-dialog";
 import { PersonnelActifToggle } from "@/components/app/personnel-actif-toggle";
@@ -468,6 +469,16 @@ export default async function PersonnelPage({
         </TabsContent>
 
         <TabsContent value="affectations" className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          {/* Les deux colonnes ci-dessous ne montrent que les 2 derniers jours + à venir (le
+              quotidien). Pour retrouver une réservation plus ancienne et y assigner du personnel
+              oublié, la recherche mène directement à sa fiche complète (/reservations/[id]), où
+              l'affectation reste modifiable quelle que soit l'ancienneté du séjour. */}
+          <div className="lg:col-span-2">
+            <p className="mb-1.5 text-xs text-muted-foreground">
+              Une réservation plus ancienne à corriger ? Cherche-la ici pour l&apos;ouvrir et affecter le personnel manquant.
+            </p>
+            <GlobalSearchBar />
+          </div>
           {/* Départs en premier : c'est le plus urgent, la villa doit être prête avant l'arrivée
               suivante. Les deux colonnes restent visibles côte à côte sur grand écran, sans
               devoir scroller jusqu'en bas pour retrouver le ménage. */}

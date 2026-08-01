@@ -41,6 +41,12 @@ export function ArrivalMessageButton({
   const [isPending, startTransition] = useTransition();
 
   function handleClick(lang: MessageLang) {
+    // La fenêtre doit s'ouvrir de façon synchrone, dans le prolongement direct du clic —
+    // sinon les navigateurs (Safari en particulier) ne la reconnaissent plus comme une
+    // action utilisateur légitime et bloquent le passage vers l'app WhatsApp, laissant une
+    // page vide bloquée sur l'écran de chargement WhatsApp. On ouvre donc un onglet vide
+    // tout de suite, et on le redirige une fois le lien de fiche (éventuellement créé) prêt.
+    const win = window.open("", "_blank");
     startTransition(async () => {
       try {
         let ficheLink: string | null = null;
@@ -53,8 +59,11 @@ export function ArrivalMessageButton({
           }
           ficheLink = `${window.location.origin}/g/${formId}`;
         }
-        window.open(toWhatsAppUrl(phone, buildArrivalMessage(guestName, checkIn, now, ficheLink, lang)), "_blank");
+        const url = toWhatsAppUrl(phone, buildArrivalMessage(guestName, checkIn, now, ficheLink, lang));
+        if (win) win.location.href = url;
+        else window.open(url, "_blank");
       } catch (err) {
+        win?.close();
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
     });
