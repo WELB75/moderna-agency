@@ -139,6 +139,9 @@ export const UI_TEXT: Record<
     childrenSubtitle: string;
     childPhotoLabel: (i: number) => string;
     addChild: string;
+    signOnlyTitle: string;
+    signOnlySubtitle: (villaNom: string) => string;
+    signOnlyConfirmName: string;
   }
 > = {
   fr: {
@@ -159,6 +162,9 @@ export const UI_TEXT: Record<
     childrenSubtitle: "Merci d'ajouter aussi une photo du passeport (ou CIN) de chaque enfant.",
     childPhotoLabel: (i) => `Passeport de l'enfant ${i}`,
     addChild: "Ajouter un enfant",
+    signOnlyTitle: "Vérifiez vos informations et signez",
+    signOnlySubtitle: (v) => `Vos informations ont déjà été saisies pour votre séjour à ${v}. Merci de vérifier puis de signer.`,
+    signOnlyConfirmName: "Tapez votre nom complet pour confirmer et signez ci-dessous",
   },
   en: {
     title: "Police registration form",
@@ -178,6 +184,9 @@ export const UI_TEXT: Record<
     childrenSubtitle: "Please also add a photo of each child's passport (or ID card).",
     childPhotoLabel: (i) => `Child ${i}'s passport`,
     addChild: "Add a child",
+    signOnlyTitle: "Review your information and sign",
+    signOnlySubtitle: (v) => `Your information has already been entered for your stay at ${v}. Please review it, then sign.`,
+    signOnlyConfirmName: "Type your full name to confirm, then sign below",
   },
   es: {
     title: "Ficha de policía",
@@ -197,6 +206,9 @@ export const UI_TEXT: Record<
     childrenSubtitle: "Añade también una foto del pasaporte (o DNI) de cada niño.",
     childPhotoLabel: (i) => `Pasaporte del niño/a ${i}`,
     addChild: "Añadir un niño",
+    signOnlyTitle: "Verifica tus datos y firma",
+    signOnlySubtitle: (v) => `Tus datos ya han sido introducidos para tu estancia en ${v}. Revísalos y luego firma.`,
+    signOnlyConfirmName: "Escribe tu nombre completo para confirmar y firma abajo",
   },
   ar: {
     title: "ورقة شخصية (الشرطة)",
@@ -216,6 +228,9 @@ export const UI_TEXT: Record<
     childrenSubtitle: "يرجى أيضا إضافة صورة جواز سفر (أو البطاقة الوطنية) لكل طفل.",
     childPhotoLabel: (i) => `جواز سفر الطفل ${i}`,
     addChild: "إضافة طفل",
+    signOnlyTitle: "تحقق من معلوماتك ووقّع",
+    signOnlySubtitle: (v) => `تم إدخال معلوماتك بالفعل لإقامتكم في ${v}. يرجى التحقق منها ثم التوقيع.`,
+    signOnlyConfirmName: "اكتب اسمك الكامل للتأكيد ثم وقّع أدناه",
   },
   nl: {
     title: "Politieformulier (gendarmerie)",
@@ -234,6 +249,9 @@ export const UI_TEXT: Record<
     childrenSubtitle: "Voeg ook een foto van het paspoort (of ID-kaart) van elk kind toe.",
     childPhotoLabel: (i) => `Paspoort van kind ${i}`,
     addChild: "Kind toevoegen",
+    signOnlyTitle: "Controleer uw gegevens en onderteken",
+    signOnlySubtitle: (v) => `Uw gegevens zijn al ingevoerd voor uw verblijf in ${v}. Controleer ze en onderteken daarna.`,
+    signOnlyConfirmName: "Typ uw volledige naam ter bevestiging en onderteken hieronder",
     photoPiece: "Foto van uw identiteitsdocument (paspoort, ID-kaart...)",
   },
 };

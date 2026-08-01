@@ -1,10 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { getDb } from "@/db";
-import { gendarmerieForms, villas, reservations } from "@/db/schema";
+import { gendarmerieForms, gendarmerieOccupants, villas, reservations } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { GendarmerieForm } from "@/components/app/gendarmerie-form";
+import { GendarmerieSignatureForm } from "@/components/app/gendarmerie-signature-form";
 
 export default async function PublicGendarmerieFormPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,6 +29,17 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
 
   if (!form) notFound();
 
+  // Occupants déjà pré-remplis par Kamel depuis les passeports/CIN reçus (cas "attente_signature") :
+  // le client n'a plus qu'à relire et signer, pas à ressaisir.
+  const occupants =
+    form.statut === "attente_signature"
+      ? await db
+          .select()
+          .from(gendarmerieOccupants)
+          .where(eq(gendarmerieOccupants.formId, form.id))
+          .orderBy(asc(gendarmerieOccupants.createdAt))
+      : [];
+
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-4 p-4 sm:p-8">
       <div className="flex flex-col items-center gap-3 pb-2 text-center">
@@ -44,6 +56,8 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
             Merci, ce formulaire a déjà été rempli. / Thank you, this form has already been submitted.
           </p>
         </div>
+      ) : form.statut === "attente_signature" ? (
+        <GendarmerieSignatureForm formId={form.id} villaNom={form.villaNom ?? "votre logement"} occupants={occupants} />
       ) : (
         <GendarmerieForm
           formId={form.id}

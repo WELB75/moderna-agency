@@ -2,7 +2,7 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants } from "@/db/schema";
 
@@ -138,6 +138,83 @@ export async function submitGendarmerieOccupants(
   await db
     .update(gendarmerieForms)
     .set({ statut: "complete", langue, enfantsPassportUrls, completedAt: new Date() })
+    .where(eq(gendarmerieForms.id, formId));
+
+  revalidatePath("/villas");
+  revalidatePath(`/g/${formId}`);
+}
+
+// Cas d'usage : Kamel reçoit les passeports/CIN directement (photo WhatsApp) et remplit lui-même
+// les informations des occupants (comme submitGendarmerieOccupants), mais SANS signature —
+// le client n'a plus ensuite qu'à ouvrir le lien /g/[id] et signer ce qui est déjà rempli,
+// au lieu de tout ressaisir. Le statut "attente_signature" fait basculer la page publique vers
+// une vue de relecture + signature uniquement (voir GendarmerieSignatureForm).
+export async function prefillGendarmerieOccupants(
+  formId: string,
+  occupants: Omit<OccupantInput, "signatureNom" | "signatureImage">[]
+) {
+  await auth.protect();
+  const db = getDb();
+
+  const [form] = await db.select().from(gendarmerieForms).where(eq(gendarmerieForms.id, formId)).limit(1);
+  if (!form) throw new Error("Formulaire introuvable.");
+
+  const validOccupants = occupants.filter((o) => o.nom.trim() || o.prenom.trim());
+  if (validOccupants.length === 0) throw new Error("Ajoute au moins un occupant.");
+
+  await db.insert(gendarmerieOccupants).values(
+    validOccupants.map((o) => ({
+      formId,
+      nom: o.nom.trim() || null,
+      prenom: o.prenom.trim() || null,
+      dateNaissance: o.dateNaissance.trim() || null,
+      lieuNaissance: o.lieuNaissance.trim() || null,
+      nationalite: o.nationalite.trim() || null,
+      profession: o.profession.trim() || null,
+      venantDe: o.venantDe.trim() || null,
+      allantA: o.allantA.trim() || null,
+      dateArrivee: o.dateArrivee.trim() || null,
+      domicileHabituel: o.domicileHabituel.trim() || null,
+      typePiece: o.typePiece.trim() || null,
+      numeroPiece: o.numeroPiece.trim() || null,
+      datePiece: o.datePiece.trim() || null,
+      lieuPiece: o.lieuPiece.trim() || null,
+      photoPieceUrl: o.photoPieceUrl || null,
+    }))
+  );
+
+  await db.update(gendarmerieForms).set({ statut: "attente_signature" }).where(eq(gendarmerieForms.id, formId));
+
+  revalidatePath("/villas");
+  revalidatePath(`/g/${formId}`);
+}
+
+// Volontairement sans auth.protect() : le client signe via le lien public /g/[id], sans se
+// connecter. Ne touche qu'à la signature de chaque occupant déjà pré-rempli par le staff — les
+// autres champs (nom, dates, pièce...) restent tels que saisis par Kamel depuis le passeport.
+export async function signGendarmerieOccupants(
+  formId: string,
+  langue: string,
+  signatures: { occupantId: string; signatureNom: string; signatureImage: string }[]
+) {
+  const db = getDb();
+
+  const [form] = await db.select().from(gendarmerieForms).where(eq(gendarmerieForms.id, formId)).limit(1);
+  if (!form) throw new Error("Formulaire introuvable.");
+
+  const validSignatures = signatures.filter((s) => s.signatureNom.trim() && s.signatureImage);
+  if (validSignatures.length === 0) throw new Error("Merci de signer avant d'envoyer.");
+
+  for (const s of validSignatures) {
+    await db
+      .update(gendarmerieOccupants)
+      .set({ signatureNom: s.signatureNom.trim(), signatureImage: s.signatureImage })
+      .where(and(eq(gendarmerieOccupants.id, s.occupantId), eq(gendarmerieOccupants.formId, formId)));
+  }
+
+  await db
+    .update(gendarmerieForms)
+    .set({ statut: "complete", langue, completedAt: new Date() })
     .where(eq(gendarmerieForms.id, formId));
 
   revalidatePath("/villas");
