@@ -4,6 +4,12 @@ import {
   format,
   startOfMonth,
   endOfMonth,
+  startOfYear,
+  endOfYear,
+  subMonths,
+  addMonths,
+  subYears,
+  addYears,
   startOfWeek,
   endOfWeek,
   subWeeks,
@@ -33,20 +39,30 @@ import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
-import { Users, CalendarClock, BarChart3, Wallet, History, LogIn, LogOut, Trophy, type LucideIcon } from "lucide-react";
+import { Users, CalendarClock, BarChart3, Wallet, History, LogIn, LogOut, Trophy, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ONGLETS_VALIDES = ["equipe", "affectations", "statistiques", "historique", "paiements"];
 
+function statsPeriodeHref(date: Date, vue: "mois" | "annee"): string {
+  const base = `/personnel?onglet=statistiques&mois=${format(date, "yyyy-MM")}`;
+  return vue === "annee" ? `${base}&vue=annee` : base;
+}
+
 export default async function PersonnelPage({
   searchParams,
 }: {
-  searchParams: Promise<{ onglet?: string }>;
+  searchParams: Promise<{ onglet?: string; mois?: string; vue?: string }>;
 }) {
-  const { onglet } = await searchParams;
+  const { onglet, mois, vue } = await searchParams;
   const ongletActif = onglet && ONGLETS_VALIDES.includes(onglet) ? onglet : "equipe";
   const db = getDb();
   const now = nowInMorocco();
+
+  // Onglet Statistiques : navigable mois par mois, ou vue annuelle complète — pour comparer
+  // la charge sur une plus longue période que le seul mois en cours.
+  const vueStats: "mois" | "annee" = vue === "annee" ? "annee" : "mois";
+  const moisAncre = mois && /^\d{4}-\d{2}$/.test(mois) ? new Date(`${mois}-01T00:00:00`) : now;
 
   const allPersonnel = await db.select().from(personnel).orderBy(asc(personnel.nom));
   const menageRoster = allPersonnel.filter((p) => p.role === "menage");
@@ -155,11 +171,12 @@ export default async function PersonnelPage({
       }));
   }
 
-  // Statistiques du mois en cours : pour le ménage, on ne compte que les affectations
-  // confirmées faites (pas juste assignées) ; pour la cuisine, le nombre de jours réels
-  // (nbJours si renseigné, sinon la durée du séjour) — pour repérer les déséquilibres.
-  const debutMois = startOfMonth(now);
-  const finMois = endOfMonth(now);
+  // Statistiques de la période sélectionnée (mois ou année entière) : pour le ménage, on ne
+  // compte que les affectations confirmées faites (pas juste assignées) ; pour la cuisine, le
+  // nombre de jours réels (nbJours si renseigné, sinon la durée du séjour) — pour repérer les
+  // déséquilibres.
+  const debutMois = vueStats === "annee" ? startOfYear(moisAncre) : startOfMonth(moisAncre);
+  const finMois = vueStats === "annee" ? endOfYear(moisAncre) : endOfMonth(moisAncre);
   const moisReservations = (
     await db
       .select({
@@ -514,11 +531,57 @@ export default async function PersonnelPage({
 
         <TabsContent value="statistiques" className="space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              {format(now, "MMMM yyyy", { locale: fr })} — pour comparer la charge entre le personnel.
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
+                <Link
+                  href={statsPeriodeHref(vueStats === "annee" ? subYears(moisAncre, 1) : subMonths(moisAncre, 1), vueStats)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={vueStats === "annee" ? "Année précédente" : "Mois précédent"}
+                  title={vueStats === "annee" ? "Année précédente" : "Mois précédent"}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Link>
+                <p className="min-w-32 px-1.5 text-center text-sm font-medium capitalize">
+                  {vueStats === "annee" ? moisAncre.getFullYear() : format(moisAncre, "MMMM yyyy", { locale: fr })}
+                </p>
+                <Link
+                  href={statsPeriodeHref(vueStats === "annee" ? addYears(moisAncre, 1) : addMonths(moisAncre, 1), vueStats)}
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={vueStats === "annee" ? "Année suivante" : "Mois suivant"}
+                  title={vueStats === "annee" ? "Année suivante" : "Mois suivant"}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="inline-flex items-center rounded-lg border bg-card p-0.5 text-sm">
+                <Link
+                  href={statsPeriodeHref(moisAncre, "mois")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1",
+                    vueStats === "mois" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Mois
+                </Link>
+                <Link
+                  href={statsPeriodeHref(moisAncre, "annee")}
+                  className={cn(
+                    "rounded-md px-2.5 py-1",
+                    vueStats === "annee" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Année
+                </Link>
+              </div>
+              {(vueStats === "mois" && format(moisAncre, "yyyy-MM") !== format(now, "yyyy-MM")) ||
+              (vueStats === "annee" && moisAncre.getFullYear() !== now.getFullYear()) ? (
+                <Link href="/personnel?onglet=statistiques" className="text-sm text-primary underline-offset-4 hover:underline">
+                  Aujourd&apos;hui
+                </Link>
+              ) : null}
+            </div>
             <div className="rounded-md border bg-muted/30 px-3 py-1.5 text-sm">
-              Total reçu en direct ce mois-ci :{" "}
+              Total reçu en direct {vueStats === "annee" ? "cette année" : "ce mois-ci"} :{" "}
               <span className="font-semibold text-foreground">{totalPayeMois} MAD</span>
             </div>
           </div>
