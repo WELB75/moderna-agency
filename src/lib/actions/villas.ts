@@ -89,6 +89,22 @@ export async function updateVillaCodePorteEntree(formData: FormData) {
   revalidatePath(`/villas/${villaId}`);
 }
 
+// Un troisième code possible, pour la porte de la chambre principale.
+export async function updateVillaCodeChambreMaster(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const codeChambreMaster = String(formData.get("codeChambreMaster") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ codeChambreMaster: codeChambreMaster || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}
+
 export async function updateVillaProprietaire(formData: FormData) {
   await auth.protect();
   const villaId = String(formData.get("villaId") ?? "").trim();

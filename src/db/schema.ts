@@ -99,6 +99,9 @@ export const villas = pgTable(
     // Certaines villas ont un second code, distinct du boîtier à clés, pour le digicode de la
     // porte d'entrée elle-même.
     codePorteEntree: text("code_porte_entree"),
+    // Un troisième code possible, pour la porte de la chambre principale (utile aux
+    // propriétaires/équipe, ex. dépôt d'affaires personnelles verrouillé pendant la location).
+    codeChambreMaster: text("code_chambre_master"),
     // Certaines personnes précises (pas toute une villa) sont payées directement par le
     // propriétaire pour le ménage ET la cuisine (ex. Khaoula pour la Villa Sofya, Aisha pour la
     // Villa Wimiliim) : les affectations restent possibles (traçabilité), mais aucun montant ni

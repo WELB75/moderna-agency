@@ -29,7 +29,7 @@ import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
 import { GuestCount } from "@/components/app/guest-count";
 import { VillaPhotoUploader } from "@/components/app/villa-photo-uploader";
-import { VillaCodeBoitier, VillaCodePorteEntree } from "@/components/app/villa-code-boitier";
+import { VillaCodeBoitier, VillaCodePorteEntree, VillaCodeChambreMaster } from "@/components/app/villa-code-boitier";
 import { VillaProprietaire } from "@/components/app/villa-proprietaire";
 import { ContactsSection } from "@/components/app/contacts-section";
 import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-button";
@@ -67,6 +67,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       galleryUrls: villas.galleryUrls,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
+      codeChambreMaster: villas.codeChambreMaster,
       proprietaireNom: villas.proprietaireNom,
       proprietaireTelephone: villas.proprietaireTelephone,
       portailAuteurs: villas.portailAuteurs,
@@ -257,6 +258,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       <div className="grid gap-3 sm:grid-cols-2">
         <VillaCodeBoitier villaId={villa.id} codeBoitier={villa.codeBoitier} />
         <VillaCodePorteEntree villaId={villa.id} codePorteEntree={villa.codePorteEntree} />
+        <VillaCodeChambreMaster villaId={villa.id} codeChambreMaster={villa.codeChambreMaster} />
         <VillaProprietaire
           villaId={villa.id}
           proprietaireNom={villa.proprietaireNom}

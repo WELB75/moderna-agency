@@ -35,6 +35,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       villaType: villas.type,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
+      codeChambreMaster: villas.codeChambreMaster,
       personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       numeroImmeuble: villas.numeroImmeuble,
       proprietaireTelephone: villas.proprietaireTelephone,

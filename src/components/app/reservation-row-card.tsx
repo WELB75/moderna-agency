@@ -20,6 +20,7 @@ import {
   Info,
   KeyRound,
   DoorClosedLocked,
+  BedDouble,
   FileText,
   FileSignature,
   Wallet,
@@ -47,6 +48,7 @@ export type ReservationRow = {
   villaType: "villa" | "appartement" | null;
   codeBoitier: string | null;
   codePorteEntree: string | null;
+  codeChambreMaster: string | null;
   personnelPayeParProprietaireNoms: string[];
   numeroImmeuble: string | null;
   proprietaireTelephone: string | null;
@@ -141,6 +143,16 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               >
                 <DoorClosedLocked className="h-3 w-3" />
                 {r.codePorteEntree}
+              </Badge>
+            ) : null}
+            {r.codeChambreMaster ? (
+              <Badge
+                variant="outline"
+                className="gap-1 text-xs font-semibold tracking-wide"
+                title="Code de la porte de la chambre master"
+              >
+                <BedDouble className="h-3 w-3" />
+                {r.codeChambreMaster}
               </Badge>
             ) : null}
             {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}

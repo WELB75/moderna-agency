@@ -78,6 +78,7 @@ export default async function DashboardPage({
       villaType: villas.type,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
+      codeChambreMaster: villas.codeChambreMaster,
       personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       numeroImmeuble: villas.numeroImmeuble,
       proprietaireTelephone: villas.proprietaireTelephone,

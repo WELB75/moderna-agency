@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { KeyRound, DoorClosedLocked, Pencil, type LucideIcon } from "lucide-react";
+import { KeyRound, DoorClosedLocked, BedDouble, Pencil, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { updateVillaCodeBoitier, updateVillaCodePorteEntree } from "@/lib/actions/villas";
+import { updateVillaCodeBoitier, updateVillaCodePorteEntree, updateVillaCodeChambreMaster } from "@/lib/actions/villas";
 
 // Certaines villas ont deux codes distincts (boîte à clés ET porte d'entrée) : un même
 // composant générique pour les deux, chacun relié à sa propre action serveur.
@@ -119,6 +119,21 @@ export function VillaCodePorteEntree({ villaId, codePorteEntree }: { villaId: st
       value={codePorteEntree}
       action={updateVillaCodePorteEntree}
       icon={DoorClosedLocked}
+    />
+  );
+}
+
+export function VillaCodeChambreMaster({ villaId, codeChambreMaster }: { villaId: string; codeChambreMaster: string | null }) {
+  return (
+    <VillaCodeField
+      villaId={villaId}
+      fieldName="codeChambreMaster"
+      label="Code de la chambre master"
+      dialogDescription="Code de la porte de la chambre principale (distinct du boîtier à clés et de la porte d'entrée)."
+      placeholder="Ex. 030278#"
+      value={codeChambreMaster}
+      action={updateVillaCodeChambreMaster}
+      icon={BedDouble}
     />
   );
 }
