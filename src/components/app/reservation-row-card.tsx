@@ -8,6 +8,7 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
 import { LocationMessageButton } from "@/components/app/location-message-button";
 import { SecurityMessageButton } from "@/components/app/security-message-button";
+import { DepartureMessageButton } from "@/components/app/departure-message-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { StatusChip } from "@/components/app/status-chip";
@@ -205,7 +206,10 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
       </div>
 
       <div className="space-y-3 border-t px-3 pb-3 pt-3">
-          {isProprietaire ? null : (
+          {/* Fiche police, contrat et messages d'arrivée/sécurité concernent l'arrivée d'un
+              client, pas son départ — inutile et trompeur de les montrer sur une carte de
+              checkout (le message sécurité dit littéralement "nouveau client à venir"). */}
+          {isProprietaire || kind !== "in" ? null : (
             <div className="flex flex-wrap gap-1.5">
               <StatusChip
                 icon={FileText}
@@ -253,7 +257,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 mapsUrl={r.domaineMapsUrl}
               />
             ) : null}
-            {r.villaId && r.domaineSecuritePhone ? (
+            {r.villaId && r.domaineSecuritePhone && kind === "in" ? (
               <SecurityMessageButton
                 securityPhone={r.domaineSecuritePhone}
                 guestName={r.guestName}
@@ -261,6 +265,9 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 villaNumero={r.villaNumero ?? "?"}
                 villaId={r.villaId}
               />
+            ) : null}
+            {r.guestPhone && kind === "out" && !isProprietaire ? (
+              <DepartureMessageButton phone={r.guestPhone} guestName={r.guestName} />
             ) : null}
           </div>
 

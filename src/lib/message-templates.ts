@@ -57,6 +57,15 @@ export function buildLocationMessage(
   return `Bonjour ${guestName},\n\nVoici la localisation du ${domaineNom} pour votre arrivée.\n\n${mapsUrl}\n\nN'hésitez pas à nous écrire si vous avez besoin d'aide pour trouver le chemin. À bientôt !\n\nKamel, Moderna Agency`;
 }
 
+// Message envoyé après le départ du client : remercie et souhaite un bon voyage, sans rien
+// demander en retour — contrairement au message d'arrivée, purement une formule de politesse.
+export function buildDepartureMessage(guestName: string, lang: MessageLang = "fr"): string {
+  if (lang === "en") {
+    return `Hello ${guestName},\n\nThank you very much for your stay with us. We hope you had a wonderful time and a safe trip back.\n\nIt was a pleasure hosting you, and we hope to welcome you again soon!\n\nKamel, Moderna Agency`;
+  }
+  return `Bonjour ${guestName},\n\nMerci beaucoup pour votre séjour parmi nous. Nous espérons que vous avez passé un excellent moment et que vous avez fait bon voyage.\n\nCe fut un plaisir de vous accueillir, et nous espérons vous revoir bientôt !\n\nKamel, Moderna Agency`;
+}
+
 // Message envoyé au gardien/sécurité du domaine (en arabe, car ils ne lisent pas le français) :
 // prévient de l'arrivée d'un client et transmet le lien de la fiche des occupants.
 export function buildSecurityMessage(guestName: string, villaNom: string, villaNumero: string, link: string): string {
