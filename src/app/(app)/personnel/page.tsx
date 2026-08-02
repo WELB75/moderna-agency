@@ -480,7 +480,7 @@ export default async function PersonnelPage({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="equipe" className="space-y-6">
+        <TabsContent value="equipe" className="grid gap-6 lg:grid-cols-2 lg:items-start">
           <RosterSection title="Femmes de ménage" role="menage" people={menageRoster} />
           <RosterSection title="Cuisinières" role="cuisine" people={cuisineRoster} />
         </TabsContent>
