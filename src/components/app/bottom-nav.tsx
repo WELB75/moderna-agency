@@ -15,7 +15,7 @@ import {
 
 const PRIMARY_COUNT = 4;
 
-export function BottomNav() {
+export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -24,6 +24,7 @@ export function BottomNav() {
   const isOverflowActive = overflowItems.some(
     (item) => pathname === item.href || pathname.startsWith(item.href + "/")
   );
+  const overflowHasUnread = unreadChatCount > 0 && overflowItems.some((item) => item.href === "/chat");
 
   return (
     <>
@@ -35,6 +36,7 @@ export function BottomNav() {
           {primaryItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
+            const badgeCount = item.href === "/chat" ? unreadChatCount : 0;
             return (
               <li key={item.href} className="min-w-0 flex-1">
                 <Link
@@ -44,7 +46,14 @@ export function BottomNav() {
                     active ? "text-primary" : "text-muted-foreground"
                   )}
                 >
-                  <Icon className="h-5 w-5 shrink-0" />
+                  <span className="relative">
+                    <Icon className="h-5 w-5 shrink-0" />
+                    {badgeCount > 0 ? (
+                      <span className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-semibold text-primary-foreground">
+                        {badgeCount}
+                      </span>
+                    ) : null}
+                  </span>
                   <span className="w-full truncate text-center">{item.label}</span>
                 </Link>
               </li>
@@ -60,7 +69,14 @@ export function BottomNav() {
                   isOverflowActive ? "text-primary" : "text-muted-foreground"
                 )}
               >
-                <MoreHorizontal className="h-5 w-5 shrink-0" />
+                <span className="relative">
+                  <MoreHorizontal className="h-5 w-5 shrink-0" />
+                  {overflowHasUnread ? (
+                    <span className="absolute -right-1.5 -top-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[9px] font-semibold text-primary-foreground">
+                      {unreadChatCount}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="w-full truncate text-center">Plus</span>
               </button>
             </li>
@@ -77,6 +93,7 @@ export function BottomNav() {
             {overflowItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               const Icon = item.icon;
+              const badgeCount = item.href === "/chat" ? unreadChatCount : 0;
               return (
                 <li key={item.href}>
                   <Link
@@ -89,6 +106,11 @@ export function BottomNav() {
                   >
                     <Icon className="h-4.5 w-4.5 shrink-0" />
                     {item.label}
+                    {badgeCount > 0 ? (
+                      <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold text-primary-foreground">
+                        {badgeCount}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );

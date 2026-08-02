@@ -9,6 +9,7 @@ import {
   uuid,
   pgEnum,
   uniqueIndex,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type { Devis } from "@/lib/devis-types";
 
@@ -632,6 +633,10 @@ export const chatMessages = pgTable("chat_messages", {
   id: uuid("id").defaultRandom().primaryKey(),
   categorie: chatCategorieEnum("categorie").notNull(),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "set null" }),
+  // Une réponse à un message précis (ex. Imane répond à une question sur le ménage) reste
+  // rattachée à son fil plutôt que noyée dans la liste générale de la catégorie — répondable à
+  // tout moment, pas seulement dans la foulée.
+  parentId: uuid("parent_id").references((): AnyPgColumn => chatMessages.id, { onDelete: "cascade" }),
   message: text("message").notNull(),
   traite: boolean("traite").default(false).notNull(),
   traiteAt: timestamp("traite_at", { withTimezone: true }),

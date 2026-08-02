@@ -38,6 +38,7 @@ export default async function ChatPage({
   const rows = await db
     .select({
       id: chatMessages.id,
+      parentId: chatMessages.parentId,
       categorie: chatMessages.categorie,
       message: chatMessages.message,
       traite: chatMessages.traite,

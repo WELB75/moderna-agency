@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { navItems } from "@/components/app/nav-items";
 import { Logo } from "@/components/app/logo";
 
-export function SidebarNav() {
+export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
   const pathname = usePathname();
 
   return (
@@ -20,6 +20,7 @@ export function SidebarNav() {
         {navItems.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
+          const badgeCount = item.href === "/chat" ? unreadChatCount : 0;
           return (
             <Link
               key={item.href}
@@ -33,6 +34,16 @@ export function SidebarNav() {
             >
               <Icon className="h-4 w-4" strokeWidth={1.5} />
               {item.label}
+              {badgeCount > 0 ? (
+                <span
+                  className={cn(
+                    "ml-auto flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-semibold normal-case tracking-normal",
+                    active ? "bg-black text-white" : "bg-white text-black"
+                  )}
+                >
+                  {badgeCount}
+                </span>
+              ) : null}
             </Link>
           );
         })}

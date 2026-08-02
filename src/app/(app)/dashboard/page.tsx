@@ -29,6 +29,7 @@ import { ReservationRowCard, type ReservationRow } from "@/components/app/reserv
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { LogIn, LogOut, Wrench, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { getUnreadChatCount } from "@/lib/actions/chat";
 import {
   montantMenageDu,
   montantCuisineDu,
@@ -54,6 +55,7 @@ export default async function DashboardPage({
   const offsetSemaines = Number.isFinite(Number(semaine)) ? Math.trunc(Number(semaine)) : 0;
   const db = getDb();
   const now = nowInMorocco();
+  const unreadChatCount = await getUnreadChatCount();
   const viewAnchor = addDays(now, offsetSemaines * DAYS_AHEAD);
   const rangeStart = startOfDay(viewAnchor);
   const rangeEnd = endOfDay(addDays(viewAnchor, DAYS_AHEAD - 1));
@@ -377,7 +379,7 @@ export default async function DashboardPage({
       </div>
 
       <GlobalSearchBar />
-      <MenuGrid />
+      <MenuGrid unreadChatCount={unreadChatCount} />
 
       <VillasLibresCard villas={villasLibresKamel} />
       <CollapsibleSection label="le plan du domaine">
