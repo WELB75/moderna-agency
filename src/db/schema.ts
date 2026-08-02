@@ -611,3 +611,32 @@ export const ignoredBookings = pgTable("ignored_bookings", {
   reason: text("reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// Catégories de messages, calquées sur les grandes sections déjà existantes de l'app — pour
+// qu'un message trouve toujours une place logique plutôt que de tout mélanger dans un seul flux.
+export const chatCategorieEnum = pgEnum("chat_categorie", [
+  "menage_cuisine",
+  "reservations",
+  "maintenance",
+  "caisse",
+  "securite_documents",
+  "urgent",
+  "general",
+]);
+
+// Chat interne catégorisé (remplace les messages vocaux WhatsApp, faciles à perdre) : chaque
+// message est écrit, horodaté, attribué à son auteur, et peut être marqué "traité" — surtout
+// utile pour les changements de personnel de dernière minute, qui restent visibles comme
+// "à traiter" tant que Kamel n'a pas confirmé les avoir pris en compte.
+export const chatMessages = pgTable("chat_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  categorie: chatCategorieEnum("categorie").notNull(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "set null" }),
+  message: text("message").notNull(),
+  traite: boolean("traite").default(false).notNull(),
+  traiteAt: timestamp("traite_at", { withTimezone: true }),
+  traitePar: text("traite_par"),
+  createdByUserId: text("created_by_user_id").notNull(),
+  createdByName: text("created_by_name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
