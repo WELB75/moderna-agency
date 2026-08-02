@@ -648,3 +648,19 @@ export const chatMessages = pgTable("chat_messages", {
   createdByName: text("created_by_name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// Historique de conversation par numéro WhatsApp pour l'agent IA de réservation (webhook Meta
+// Cloud API) — chaque appel du webhook est une invocation serverless indépendante, donc
+// l'historique (au format Anthropic MessageParam[]) doit être persisté ici entre les messages
+// d'une même conversation plutôt que gardé en mémoire.
+export const whatsappConversations = pgTable(
+  "whatsapp_conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    phone: text("phone").notNull(), // format international avec "+", ex "+33672516297"
+    messages: jsonb("messages").$type<unknown[]>().default([]).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("whatsapp_conversations_phone_idx").on(t.phone)]
+);
