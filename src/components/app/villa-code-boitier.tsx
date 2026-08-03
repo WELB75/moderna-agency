@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { KeyRound, DoorClosedLocked, BedDouble, Pencil, type LucideIcon } from "lucide-react";
+import { KeyRound, DoorClosedLocked, BedDouble, Wifi, BookOpen, Pencil, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { updateVillaCodeBoitier, updateVillaCodePorteEntree, updateVillaCodeChambreMaster } from "@/lib/actions/villas";
+import {
+  updateVillaCodeBoitier,
+  updateVillaCodePorteEntree,
+  updateVillaCodeChambreMaster,
+  updateVillaCodeWifi,
+  updateVillaGuideBienvenueUrl,
+} from "@/lib/actions/villas";
 
 // Certaines villas ont deux codes distincts (boîte à clés ET porte d'entrée) : un même
 // composant générique pour les deux, chacun relié à sa propre action serveur.
@@ -134,6 +140,36 @@ export function VillaCodeChambreMaster({ villaId, codeChambreMaster }: { villaId
       value={codeChambreMaster}
       action={updateVillaCodeChambreMaster}
       icon={BedDouble}
+    />
+  );
+}
+
+export function VillaCodeWifi({ villaId, codeWifi }: { villaId: string; codeWifi: string | null }) {
+  return (
+    <VillaCodeField
+      villaId={villaId}
+      fieldName="codeWifi"
+      label="Code Wifi"
+      dialogDescription="Mot de passe du réseau Wifi de la villa."
+      placeholder="Ex. moderna2026"
+      value={codeWifi}
+      action={updateVillaCodeWifi}
+      icon={Wifi}
+    />
+  );
+}
+
+export function VillaGuideBienvenueUrl({ villaId, guideBienvenueUrl }: { villaId: string; guideBienvenueUrl: string | null }) {
+  return (
+    <VillaCodeField
+      villaId={villaId}
+      fieldName="guideBienvenueUrl"
+      label="Guide de bienvenue"
+      dialogDescription="Lien (ex. Google Drive) vers le guide de bienvenue et les instructions d'arrivée en photos."
+      placeholder="Ex. https://drive.google.com/..."
+      value={guideBienvenueUrl}
+      action={updateVillaGuideBienvenueUrl}
+      icon={BookOpen}
     />
   );
 }

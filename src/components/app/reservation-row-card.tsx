@@ -6,8 +6,10 @@ import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { PhoneLink } from "@/components/app/phone-link";
 import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
+import { WelcomeMessageButton } from "@/components/app/welcome-message-button";
 import { LocationMessageButton } from "@/components/app/location-message-button";
 import { SecurityMessageButton } from "@/components/app/security-message-button";
+import { CheckoutMessageButton } from "@/components/app/checkout-message-button";
 import { DepartureMessageButton } from "@/components/app/departure-message-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
@@ -54,7 +56,9 @@ export type ReservationRow = {
   proprietaireTelephone: string | null;
   domaineNom: string | null;
   domaineMapsUrl: string | null;
+  domaineWazeUrl: string | null;
   domaineSecuritePhone: string | null;
+  guideBienvenueUrl: string | null;
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
@@ -261,12 +265,24 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 ficheComplete={r.ficheStatut === "complete"}
               />
             ) : null}
+            {r.guestPhone && kind === "in" && !isProprietaire && r.villaNom ? (
+              <WelcomeMessageButton
+                phone={r.guestPhone}
+                guestName={r.guestName}
+                villaNom={r.villaNom}
+                mapsUrl={r.domaineMapsUrl}
+                wazeUrl={r.domaineWazeUrl}
+                codeBoitier={r.codeBoitier}
+                guideBienvenueUrl={r.guideBienvenueUrl}
+              />
+            ) : null}
             {r.guestPhone && kind === "in" && !isProprietaire && r.domaineMapsUrl ? (
               <LocationMessageButton
                 phone={r.guestPhone}
                 guestName={r.guestName}
                 domaineNom={r.domaineNom ?? "domaine"}
                 mapsUrl={r.domaineMapsUrl}
+                wazeUrl={r.domaineWazeUrl}
               />
             ) : null}
             {r.villaId && r.domaineSecuritePhone && kind === "in" ? (
@@ -277,6 +293,9 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 villaNumero={r.villaNumero ?? "?"}
                 villaId={r.villaId}
               />
+            ) : null}
+            {r.guestPhone && kind === "out" && !isProprietaire && r.villaNom ? (
+              <CheckoutMessageButton phone={r.guestPhone} guestName={r.guestName} villaNom={r.villaNom} />
             ) : null}
             {r.guestPhone && kind === "out" && !isProprietaire ? (
               <DepartureMessageButton phone={r.guestPhone} guestName={r.guestName} />

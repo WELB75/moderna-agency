@@ -25,12 +25,12 @@ export async function createDomaine(formData: FormData) {
   revalidatePath("/villas");
 }
 
-export async function updateDomaineLocation(domaineId: string, mapsUrl: string) {
+export async function updateDomaineLocation(domaineId: string, mapsUrl: string, wazeUrl: string) {
   await auth.protect();
   const db = getDb();
   await db
     .update(domaines)
-    .set({ mapsUrl: mapsUrl.trim() || null })
+    .set({ mapsUrl: mapsUrl.trim() || null, wazeUrl: wazeUrl.trim() || null })
     .where(eq(domaines.id, domaineId));
   revalidatePath("/villas");
   revalidatePath("/interventions");

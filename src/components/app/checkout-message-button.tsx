@@ -1,6 +1,6 @@
 "use client";
 
-import { MapPin, ChevronDown } from "lucide-react";
+import { DoorOpen, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,31 +9,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toWhatsAppUrl } from "@/lib/phone";
-import { buildLocationMessage, type MessageLang } from "@/lib/message-templates";
+import { buildCheckoutMessage, type MessageLang } from "@/lib/message-templates";
 
-export function LocationMessageButton({
-  phone,
-  guestName,
-  domaineNom,
-  mapsUrl,
-  wazeUrl = null,
-}: {
-  phone: string;
-  guestName: string;
-  domaineNom: string;
-  mapsUrl: string;
-  wazeUrl?: string | null;
-}) {
+// Distinct du "Message de départ" existant (buildDepartureMessage, envoyé APRÈS que le client
+// soit parti) : celui-ci s'envoie le matin même du départ, avec la procédure de checkout.
+export function CheckoutMessageButton({ phone, guestName, villaNom }: { phone: string; guestName: string; villaNom: string }) {
   function handleClick(lang: MessageLang) {
-    window.open(toWhatsAppUrl(phone, buildLocationMessage(guestName, domaineNom, mapsUrl, wazeUrl, lang)), "_blank");
+    window.open(toWhatsAppUrl(phone, buildCheckoutMessage(guestName, villaNom, lang)), "_blank");
   }
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button type="button" variant="outline" size="sm">
-          <MapPin className="h-3.5 w-3.5" />
-          Localisation
+          <DoorOpen className="h-3.5 w-3.5" />
+          Instructions départ
           <ChevronDown className="h-3 w-3" />
         </Button>
       </DropdownMenuTrigger>

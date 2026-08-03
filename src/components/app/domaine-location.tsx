@@ -21,18 +21,21 @@ import { updateDomaineLocation } from "@/lib/actions/domaines";
 export function DomaineLocation({
   domaineId,
   mapsUrl,
+  wazeUrl = null,
 }: {
   domaineId: string;
   mapsUrl: string | null;
+  wazeUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(mapsUrl ?? "");
+  const [wazeValue, setWazeValue] = useState(wazeUrl ?? "");
   const [isPending, startTransition] = useTransition();
 
   function handleSave() {
     startTransition(async () => {
       try {
-        await updateDomaineLocation(domaineId, value);
+        await updateDomaineLocation(domaineId, value, wazeValue);
         toast.success("Localisation enregistrée.");
         setOpen(false);
       } catch (err) {
@@ -72,6 +75,15 @@ export function DomaineLocation({
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 placeholder="https://maps.app.goo.gl/..."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="wazeUrl">Lien Waze</Label>
+              <Input
+                id="wazeUrl"
+                value={wazeValue}
+                onChange={(e) => setWazeValue(e.target.value)}
+                placeholder="https://ul.waze.com/ul?..."
               />
             </div>
             <DialogFooter>

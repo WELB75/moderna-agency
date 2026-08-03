@@ -105,6 +105,36 @@ export async function updateVillaCodeChambreMaster(formData: FormData) {
   revalidatePath(`/villas/${villaId}`);
 }
 
+export async function updateVillaCodeWifi(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const codeWifi = String(formData.get("codeWifi") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ codeWifi: codeWifi || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}
+
+export async function updateVillaGuideBienvenueUrl(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const guideBienvenueUrl = String(formData.get("guideBienvenueUrl") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ guideBienvenueUrl: guideBienvenueUrl || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}
+
 export async function updateVillaProprietaire(formData: FormData) {
   await auth.protect();
   const villaId = String(formData.get("villaId") ?? "").trim();

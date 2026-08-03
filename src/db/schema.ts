@@ -76,6 +76,7 @@ export const domaines = pgTable("domaines", {
   nom: text("nom").notNull(),
   adresse: text("adresse"),
   mapsUrl: text("maps_url"), // lien Google Maps partageable (localisation du domaine)
+  wazeUrl: text("waze_url"), // lien Waze partageable (localisation du domaine)
   securitePhone: text("securite_phone"), // WhatsApp du gardien/sécurité du domaine
   estBase: boolean("est_base").default(false).notNull(), // entrepôt central (ex. Bureau Moderna Agency) : source des transferts de stock
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -102,6 +103,10 @@ export const villas = pgTable(
     // Un troisième code possible, pour la porte de la chambre principale (utile aux
     // propriétaires/équipe, ex. dépôt d'affaires personnelles verrouillé pendant la location).
     codeChambreMaster: text("code_chambre_master"),
+    codeWifi: text("code_wifi"),
+    // Guide de bienvenue + instructions d'arrivée en photos — même document pour les deux usages
+    // en pratique, un seul lien à tenir à jour (ex. Google Drive).
+    guideBienvenueUrl: text("guide_bienvenue_url"),
     // Certaines personnes précises (pas toute une villa) sont payées directement par le
     // propriétaire pour le ménage ET la cuisine (ex. Khaoula pour la Villa Sofya, Aisha pour la
     // Villa Wimiliim) : les affectations restent possibles (traçabilité), mais aucun montant ni

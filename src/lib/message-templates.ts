@@ -49,12 +49,77 @@ export function buildLocationMessage(
   guestName: string,
   domaineNom: string,
   mapsUrl: string,
+  wazeUrl: string | null = null,
   lang: MessageLang = "fr"
 ): string {
   if (lang === "en") {
-    return `Hello ${guestName},\n\nHere is the location of ${domaineNom} for your arrival.\n\n${mapsUrl}\n\nFeel free to message us if you need help finding the way. See you soon!\n\nKamel, Moderna Agency`;
+    const links = wazeUrl ? `🚗 Google Maps: ${mapsUrl}\n🚗 Waze: ${wazeUrl}` : mapsUrl;
+    return `Hello ${guestName},\n\nHere is the location of ${domaineNom} for your arrival.\n\n${links}\n\nFeel free to message us if you need help finding the way. See you soon!\n\nKamel, Moderna Agency`;
   }
-  return `Bonjour ${guestName},\n\nVoici la localisation du ${domaineNom} pour votre arrivée.\n\n${mapsUrl}\n\nN'hésitez pas à nous écrire si vous avez besoin d'aide pour trouver le chemin. À bientôt !\n\nKamel, Moderna Agency`;
+  const links = wazeUrl ? `🚗 Google Maps : ${mapsUrl}\n🚗 Waze : ${wazeUrl}` : mapsUrl;
+  return `Bonjour ${guestName},\n\nVoici la localisation du ${domaineNom} pour votre arrivée.\n\n${links}\n\nN'hésitez pas à nous écrire si vous avez besoin d'aide pour trouver le chemin. À bientôt !\n\nKamel, Moderna Agency`;
+}
+
+// Message unique de bienvenue, envoyé une fois que les infos pratiques sont prêtes (guide, code,
+// localisation) — remplace la volée de messages fragmentés que Superhote envoie automatiquement
+// (formulaire reçu, guide, localisation, règles, procédure d'arrivée en plusieurs messages
+// séparés) par un seul message condensé, moins envahissant pour le client. Les champs optionnels
+// (code, guide, waze) sont omis proprement s'ils ne sont pas renseignés pour cette villa.
+export function buildWelcomeMessage(
+  guestName: string,
+  villaNom: string,
+  mapsUrl: string | null,
+  wazeUrl: string | null,
+  codeBoitier: string | null,
+  guideBienvenueUrl: string | null,
+  lang: MessageLang = "fr"
+): string {
+  if (lang === "en") {
+    const lines = [
+      `Hello ${guestName}, thank you for your booking at ${villaNom}!`,
+      "",
+      guideBienvenueUrl ? `📔 Welcome guide: ${guideBienvenueUrl}` : null,
+      "🕒 Check-in from 15:00 / Check-out before 11:00",
+      mapsUrl || wazeUrl
+        ? `📍 Location:${mapsUrl ? ` Maps ${mapsUrl}` : ""}${wazeUrl ? ` — Waze ${wazeUrl}` : ""}`
+        : null,
+      codeBoitier ? `🔑 Lockbox code: ${codeBoitier}` : null,
+      "",
+      "Please send us the ID documents of all adult travelers before your arrival (speeds up check-in). A team member will contact you before you arrive to finalize check-in.",
+      "",
+      "A quick reminder: no parties, no unregistered guests, please leave the place clean and tidy on departure, and no smoking indoors. Any damage will be charged.",
+      "",
+      "Looking forward to welcoming you! Feel free to message us here for anything.",
+    ];
+    return lines.filter((l) => l !== null).join("\n");
+  }
+
+  const lines = [
+    `Bonjour ${guestName}, merci pour votre réservation à ${villaNom} !`,
+    "",
+    guideBienvenueUrl ? `📔 Guide de bienvenue : ${guideBienvenueUrl}` : null,
+    "🕒 Check-in à partir de 15h00 / Check-out avant 11h00",
+    mapsUrl || wazeUrl
+      ? `📍 Localisation :${mapsUrl ? ` Maps ${mapsUrl}` : ""}${wazeUrl ? ` — Waze ${wazeUrl}` : ""}`
+      : null,
+    codeBoitier ? `🔑 Code du boîtier à clé : ${codeBoitier}` : null,
+    "",
+    "Merci de nous envoyer les pièces d'identité de tous les voyageurs adultes avant votre arrivée (accélère l'enregistrement). Un membre de l'équipe vous contactera avant votre arrivée pour finaliser le check-in.",
+    "",
+    "Petit rappel : pas de soirées ni d'invités non comptés dans la réservation, merci de laisser les lieux propres et rangés au départ, et non-fumeur à l'intérieur. Toute dégradation sera facturée.",
+    "",
+    "Belle arrivée ! N'hésitez pas à nous écrire ici pour toute question.",
+  ];
+  return lines.filter((l) => l !== null).join("\n");
+}
+
+// Message envoyé le matin du départ, avec la procédure de checkout — distinct de
+// buildDepartureMessage (qui remercie APRÈS le départ, une fois le client déjà parti).
+export function buildCheckoutMessage(guestName: string, villaNom: string, lang: MessageLang = "fr"): string {
+  if (lang === "en") {
+    return `Hello ${guestName},\n\nWe hope you enjoyed your stay at ${villaNom}!\n\nCheck-out is at 11:00 AM at the latest. Before you leave:\n\n1. Gather the trash in the kitchen bag\n2. Leave towels on the beds, sorted by room\n3. Turn off lights and AC\n4. Lock the door by 11:00 AM\n5. Drop the keys in the lockbox (or contact us)\n6. Take your car out of the parking spot\n\nAny question before you go? We're here. Thank you and see you soon!\nModerna Agency Team`;
+  }
+  return `Bonjour ${guestName},\n\nNous espérons que votre séjour à ${villaNom} s'est bien passé !\n\nDépart à 11h00 maximum. Avant de partir :\n\n1. Regrouper les ordures dans le sac poubelle de la cuisine\n2. Regrouper les serviettes par chambre sur le lit\n3. Éteindre les lumières et la climatisation\n4. Fermer la porte à clé à 11h00 maximum\n5. Déposer les clés dans la boîte à clé (ou nous contacter)\n6. Sortir votre véhicule du parking\n\nUne question avant de partir ? On est là. Merci et à bientôt !\nL'équipe Moderna Agency`;
 }
 
 // Message envoyé après le départ du client : remercie et souhaite un bon voyage, sans rien
