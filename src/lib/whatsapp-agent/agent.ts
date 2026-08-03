@@ -259,7 +259,25 @@ Règles :
 - Une fois la réservation créée, confirme au client avec les dates, la villa et le prix total.`;
 }
 
-export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
+// Un historique persisté ne doit jamais se terminer par un tool_use non résolu (Claude rejette
+// alors TOUT appel futur avec ce même historique, ce qui bloque la conversation en boucle) — ça
+// arrive si un appel précédent a été interrompu (timeout Vercel, crash réseau) juste après avoir
+// reçu des tool_use mais avant que le tour ne soit sauvegardé dans un état cohérent. On répare en
+// coupant tout ce qui suit le dernier message assistant bien formé (texte, sans tool_use).
+export function repairMessageHistory(messages: MessageParam[]): MessageParam[] {
+  let lastValidEnd = messages.length;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "assistant" && Array.isArray(m.content) && m.content.some((b) => b.type === "tool_use")) {
+      lastValidEnd = i;
+    } else {
+      break;
+    }
+  }
+  return messages.slice(0, lastValidEnd);
+}
+
+export async function runAgentTurn(messages: MessageParam[], onRoundComplete?: (messages: MessageParam[]) => Promise<void>): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
   while (true) {
     const response = await client.messages.create({
@@ -279,20 +297,33 @@ export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
       return textBlock && textBlock.type === "text" ? textBlock.text : "";
     }
 
+    // Chaque bloc doit produire un tool_result, y compris en cas d'échec de l'outil lui-même —
+    // sinon un seul appel qui plante (ex. hoquet réseau/DB) laisserait le lot incomplet et le
+    // message assistant précédent (déjà poussé ci-dessus) resterait un tool_use sans réponse.
     const toolResults: ToolResultBlockParam[] = [];
     for (const block of response.content) {
       if (block.type !== "tool_use") continue;
       let result: unknown;
-      if (block.name === "check_availability") {
-        const input = block.input as { villa: string; dateArrivee: string; dateDepart: string };
-        result = await checkAvailability(input.villa, input.dateArrivee, input.dateDepart);
-      } else if (block.name === "create_booking") {
-        result = await createBooking(block.input as Record<string, unknown>);
-      } else {
-        result = { erreur: "Outil inconnu" };
+      try {
+        if (block.name === "check_availability") {
+          const input = block.input as { villa: string; dateArrivee: string; dateDepart: string };
+          result = await checkAvailability(input.villa, input.dateArrivee, input.dateDepart);
+        } else if (block.name === "create_booking") {
+          result = await createBooking(block.input as Record<string, unknown>);
+        } else {
+          result = { erreur: "Outil inconnu" };
+        }
+      } catch (err) {
+        console.error(`Échec outil ${block.name}:`, err);
+        result = { erreur: "Un souci technique est survenu pendant cette vérification." };
       }
       toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
     }
     messages.push({ role: "user", content: toolResults });
+
+    // Persiste dès que l'historique est de nouveau dans un état valide (tool_use tous résolus),
+    // pour qu'une interruption plus tard dans une conversation à plusieurs tours n'efface pas la
+    // progression déjà faite ni ne laisse un historique corrompu en base.
+    if (onRoundComplete) await onRoundComplete(messages);
   }
 }

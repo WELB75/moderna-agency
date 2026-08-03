@@ -659,6 +659,11 @@ export const whatsappConversations = pgTable(
     id: uuid("id").defaultRandom().primaryKey(),
     phone: text("phone").notNull(), // format international avec "+", ex "+33672516297"
     messages: jsonb("messages").$type<unknown[]>().default([]).notNull(),
+    // Id du dernier message WhatsApp traité (wamid...) — Meta peut livrer le même événement
+    // plusieurs fois (webhooks "at-least-once"), et deux traitements concurrents du même message
+    // pouvaient auparavant corrompre l'historique (cf incident du 02/08/2026). Sert à ignorer les
+    // doublons.
+    lastMessageId: text("last_message_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { whatsappConversations } from "@/db/schema";
-import { runAgentTurn } from "@/lib/whatsapp-agent/agent";
+import { runAgentTurn, repairMessageHistory } from "@/lib/whatsapp-agent/agent";
 
 export const maxDuration = 60;
 
@@ -51,12 +51,18 @@ async function loadConversation(phone: string) {
   return { db, existing: row };
 }
 
-async function saveConversation(db: ReturnType<typeof getDb>, phone: string, existingId: string | undefined, messages: MessageParam[]) {
-  if (existingId) {
-    await db.update(whatsappConversations).set({ messages, updatedAt: new Date() }).where(eq(whatsappConversations.id, existingId));
-  } else {
-    await db.insert(whatsappConversations).values({ phone, messages });
-  }
+// Upsert sur le numéro (index unique) plutôt qu'un choix insert/update basé sur l'état lu au
+// début de la requête : une conversation à plusieurs tours appelle ceci plusieurs fois dans la
+// même invocation, et un premier insert suivi d'un second insert (au lieu d'un update) casserait
+// l'index unique sur "phone".
+async function saveConversation(db: ReturnType<typeof getDb>, phone: string, messages: MessageParam[], lastMessageId: string) {
+  await db
+    .insert(whatsappConversations)
+    .values({ phone, messages, lastMessageId })
+    .onConflictDoUpdate({
+      target: whatsappConversations.phone,
+      set: { messages, updatedAt: new Date(), lastMessageId },
+    });
 }
 
 export async function POST(req: NextRequest) {
@@ -82,12 +88,22 @@ export async function POST(req: NextRequest) {
     }
 
     const { db, existing } = await loadConversation(from);
-    const messages: MessageParam[] = (existing?.messages as MessageParam[] | undefined) ?? [];
+
+    // Meta livre parfois deux fois le même événement (webhooks "at-least-once") — sans cette
+    // vérification, deux traitements concurrents du même message peuvent corrompre l'historique
+    // partagé (déjà arrivé le 02/08/2026 : conversation bloquée jusqu'à réparation manuelle).
+    if (existing?.lastMessageId && existing.lastMessageId === message.id) {
+      return NextResponse.json({ ok: true, dedup: true });
+    }
+
+    const messages: MessageParam[] = repairMessageHistory((existing?.messages as MessageParam[] | undefined) ?? []);
     messages.push({ role: "user", content: text });
 
-    const reply = await runAgentTurn(messages);
+    const reply = await runAgentTurn(messages, async (partial) => {
+      await saveConversation(db, from, partial, message.id);
+    });
 
-    await saveConversation(db, from, existing?.id, messages);
+    await saveConversation(db, from, messages, message.id);
     await sendWhatsAppText(message.from, reply);
 
     return NextResponse.json({ ok: true });
