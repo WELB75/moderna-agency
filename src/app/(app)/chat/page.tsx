@@ -78,11 +78,11 @@ export default async function ChatPage({
       </div>
 
       <PersonnelTabs defaultTab={ongletActif}>
-        <TabsList className="h-auto flex-wrap">
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
           {CATEGORIES.map((c) => {
             const count = nonTraiteParCategorie.get(c.value) ?? 0;
             return (
-              <TabsTrigger key={c.value} value={c.value}>
+              <TabsTrigger key={c.value} value={c.value} className="shrink-0">
                 {c.label}
                 {count > 0 ? <Badge className="ml-1">{count}</Badge> : null}
               </TabsTrigger>

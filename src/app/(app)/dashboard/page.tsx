@@ -380,7 +380,11 @@ export default async function DashboardPage({
       </div>
 
       <GlobalSearchBar />
-      <MenuGrid unreadChatCount={unreadChatCount} />
+      {/* Redondant sur desktop (le menu latéral donne déjà accès à tout, en toutes lettres) —
+          utile seulement là où ce menu est masqué, donc tablette/smartphone. */}
+      <div className="md:hidden">
+        <MenuGrid unreadChatCount={unreadChatCount} />
+      </div>
 
       <VillasLibresCard villas={villasLibresKamel} />
       <CollapsibleSection label="le plan du domaine">

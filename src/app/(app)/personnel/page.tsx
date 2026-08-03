@@ -456,24 +456,24 @@ export default async function PersonnelPage({
       </div>
 
       <PersonnelTabs defaultTab={ongletActif}>
-        <TabsList>
-          <TabsTrigger value="equipe">
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
+          <TabsTrigger value="equipe" className="shrink-0">
             <Users className="h-4 w-4" />
             Équipe
           </TabsTrigger>
-          <TabsTrigger value="affectations">
+          <TabsTrigger value="affectations" className="shrink-0">
             <CalendarClock className="h-4 w-4" />
             Affectations
           </TabsTrigger>
-          <TabsTrigger value="statistiques">
+          <TabsTrigger value="statistiques" className="shrink-0">
             <BarChart3 className="h-4 w-4" />
             Statistiques
           </TabsTrigger>
-          <TabsTrigger value="historique">
+          <TabsTrigger value="historique" className="shrink-0">
             <History className="h-4 w-4" />
             Historique
           </TabsTrigger>
-          <TabsTrigger value="paiements">
+          <TabsTrigger value="paiements" className="shrink-0">
             <Wallet className="h-4 w-4" />
             Paiements
             {totalDu > 0 ? <Badge className="ml-1">{totalDu} MAD</Badge> : null}

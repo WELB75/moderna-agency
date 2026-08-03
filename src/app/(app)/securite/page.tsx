@@ -23,9 +23,9 @@ export default async function SecuritePage() {
         <p className="text-sm text-muted-foreground">Aucun domaine pour l&apos;instant.</p>
       ) : (
         <Tabs defaultValue={domaines[0].id}>
-          <TabsList className="h-auto flex-wrap">
+          <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
             {domaines.map((d) => (
-              <TabsTrigger key={d.id} value={d.id}>
+              <TabsTrigger key={d.id} value={d.id} className="shrink-0">
                 {d.nom}
               </TabsTrigger>
             ))}

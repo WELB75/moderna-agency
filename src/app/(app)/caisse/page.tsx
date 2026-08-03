@@ -83,11 +83,11 @@ export default async function CaissePage() {
       </div>
 
       <Tabs defaultValue="especes">
-        <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="especes">Espèces</TabsTrigger>
-          <TabsTrigger value="virement">Virement bancaire</TabsTrigger>
-          <TabsTrigger value="carte">Carte bleue</TabsTrigger>
-          <TabsTrigger value="stats">Statistiques</TabsTrigger>
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
+          <TabsTrigger value="especes" className="shrink-0">Espèces</TabsTrigger>
+          <TabsTrigger value="virement" className="shrink-0">Virement bancaire</TabsTrigger>
+          <TabsTrigger value="carte" className="shrink-0">Carte bleue</TabsTrigger>
+          <TabsTrigger value="stats" className="shrink-0">Statistiques</TabsTrigger>
         </TabsList>
         <TabsContent value="especes" className="pt-2">
           <CaissePanel entries={especes} villas={allVillas} moyenPaiement="especes" />
