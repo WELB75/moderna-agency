@@ -49,9 +49,23 @@ const tools: Tool[] = [
   },
 ];
 
+// Un client peut donner une date absolue déjà passée (ex. "janvier 2026" alors qu'on est en août
+// 2026) sans que ce soit une expression relative que le modèle sait naturellement faire glisser à
+// l'année suivante ("21 juillet" → l'an prochain si déjà passé). Filet de sécurité déterministe :
+// on ne fait confiance ni à Claude ni au client sur ce point, on vérifie nous-mêmes.
+function pastDateError(dateArrivee: string): { erreur: string } | null {
+  const today = new Date().toISOString().slice(0, 10);
+  if (dateArrivee < today) {
+    return { erreur: `La date d'arrivée (${dateArrivee}) est déjà passée (nous sommes le ${today}) — demande au client de confirmer l'année ou la date exacte souhaitée, ne suppose rien.` };
+  }
+  return null;
+}
+
 async function checkAvailability(villaNom: string, dateArrivee: string, dateDepart: string) {
   const villa = VILLAS.find((v) => v.nom.toLowerCase() === villaNom.toLowerCase());
   if (!villa) return { erreur: `Villa "${villaNom}" non reconnue dans la liste.` };
+  const pastError = pastDateError(dateArrivee);
+  if (pastError) return pastError;
   const db = getDb();
   const rows = await db
     .select({ guestName: reservations.guestName, checkIn: reservations.checkIn, checkOut: reservations.checkOut })
@@ -123,6 +137,9 @@ function toInternationalPhone(telephone: unknown, countryIso: string): { value: 
 }
 
 async function createBooking(input: Record<string, unknown>) {
+  const pastError = pastDateError(String(input.dateArrivee));
+  if (pastError) return pastError;
+
   const villa = VILLAS.find((v) => v.nom.toLowerCase() === String(input.villa).toLowerCase());
   const n = nights(String(input.dateArrivee), String(input.dateDepart));
   const prixNuit = villa?.prixNuit ?? 0;
@@ -251,12 +268,15 @@ Règles :
 - Identifie la villa demandée (corrige fautes d'orthographe/surnoms, reconnais une description d'équipements).
 - Infos à collecter avant de pouvoir réserver : villa, dates d'arrivée/départ, nombre d'adultes et d'enfants, prénom, nom, email, téléphone, pays. Demande-les une à la fois ou groupées naturellement, ne les invente jamais.
 - Une fois ces infos obligatoires réunies (avant la confirmation finale), pose aussi ces questions complémentaires — utiles à l'équipe mais PAS bloquantes, si le client ne répond pas ou dit "non merci" tu continues normalement : besoin d'une cuisinière (et si oui, quels repas : petit-déjeuner seul, ou petit-déjeuner + déjeuner) ; besoin d'un lit bébé ; toute autre demande spécifique. Ne pose pas ces questions une par une façon interrogatoire — groupe-les naturellement en une ou deux questions.
-- Le téléphone du client sur WhatsApp est déjà au format international — mais reconfirme-le si un doute existe (ex. le client en donne un autre).
+- Le téléphone doit TOUJOURS inclure l'indicatif pays (+33, +212, +44...), même si le client donne un numéro différent de celui utilisé sur WhatsApp. Demande-le explicitement sous cette forme ("votre numéro avec l'indicatif du pays, ex. +33 6 51 21 12 76") ; si le client répond sans indicatif, redemande-le au lieu de deviner.
+- Les dates données par le client doivent être cohérentes avec aujourd'hui (${today}) : si une date semble déjà passée (ex. un mois/année manifestement révolu), ne suppose jamais qu'il s'agit d'une erreur d'année à corriger toi-même — demande au client de confirmer la date exacte souhaitée.
 - Ne jamais demander le prix au client ni en parler avant la confirmation finale — le prix est calculé automatiquement par l'agence à partir du tarif de la villa. Une fois la réservation créée, tu peux annoncer le prix total au client (donné par l'outil).
 - Utilise l'outil check_availability dès que tu as villa + dates, avant de continuer à collecter le reste.
 - Si la villa n'est pas disponible, préviens le client et propose-lui une autre villa si pertinent (seulement si tu as une bonne raison de penser qu'elle correspond).
+- Juste avant de demander la confirmation finale, redemande une dernière fois s'il y a autre chose de spécifique à noter (même si déjà abordé plus tôt dans la conversation) — pour être sûr de ne rien manquer avant de créer la réservation.
 - N'utilise create_booking qu'une fois TOUTES les infos obtenues ET une confirmation explicite du client ("oui", "c'est bon", "je confirme"...).
-- Une fois la réservation créée, confirme au client avec les dates, la villa et le prix total.`;
+- Une fois la réservation créée, confirme au client avec les dates, la villa et le prix total.
+- L'historique de cette conversation peut couvrir plusieurs jours, semaines ou mois — un message annoté "[Reprise après une pause de ...]" signale une reprise après une longue interruption. Dans ce cas, revérifie les informations discutées avant la pause (disponibilité, dates) avant de t'appuyer dessus : la situation a pu changer entre-temps.`;
 }
 
 // Un historique persisté ne doit jamais se terminer par un tool_use non résolu (Claude rejette

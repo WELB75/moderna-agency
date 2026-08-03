@@ -97,7 +97,18 @@ export async function POST(req: NextRequest) {
     }
 
     const messages: MessageParam[] = repairMessageHistory((existing?.messages as MessageParam[] | undefined) ?? []);
-    messages.push({ role: "user", content: text });
+
+    // Un client peut reprendre contact des jours/semaines/mois après le dernier message —
+    // l'historique complet est conservé (utile pour le contexte), mais sans annotation Claude n'a
+    // aucun moyen de savoir combien de temps s'est écoulé et pourrait s'appuyer sur des infos
+    // périmées (dispo, dates) comme si la conversation était ininterrompue.
+    const RESUME_GAP_MS = 6 * 60 * 60 * 1000;
+    const gapMs = existing?.updatedAt ? Date.now() - existing.updatedAt.getTime() : 0;
+    const userContent =
+      gapMs > RESUME_GAP_MS
+        ? `[Reprise après une pause de ${Math.round(gapMs / (24 * 60 * 60 * 1000)) || "moins d'un"} jour(s) — dernier échange le ${existing!.updatedAt.toLocaleDateString("fr-FR")}]\n${text}`
+        : text;
+    messages.push({ role: "user", content: userContent });
 
     const reply = await runAgentTurn(messages, async (partial) => {
       await saveConversation(db, from, partial, message.id);

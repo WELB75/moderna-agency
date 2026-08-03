@@ -27,7 +27,7 @@ export const VILLAS: { id: string; nom: string; blurb: string; prixNuit: number;
   { id: "8641e2ed-8711-4a3a-8dc8-4b3bd2a9a71f", nom: "Mila Cosy", blurb: "n°1, Noria", prixNuit: 90, superhoteId: "propertyKeyM8BheSj6auVs0VwJFhQlsYVaZ" },
   { id: "016306a5-301c-4efa-b4ad-ed709b40303f", nom: "Villa Lila", blurb: "n°14, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, hammam + salle de sport privés, piscine chauffée en option", prixNuit: 650, superhoteId: "propertyKeybMJXo1lOvdBtZ0JUw4sUr5Zyk" },
   { id: "ea6cd59d-287b-41f8-8d4f-aa147b93d083", nom: "Villa Wimiliim", blurb: "n°16, Domaine Moderna II — 4 chambres, piscine (avec vis-à-vis), jardin", prixNuit: 350, superhoteId: "propertyKeyEizrWAA0gVu9W19raPXvMf4xR" },
-  { id: "bf33c8ba-2f65-4a09-bedd-870646fcdd08", nom: "Villa Sofya", blurb: "n°13, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, mobilier Roche Bobois, cuisinière incluse, piscine chauffée en option", prixNuit: 650, superhoteId: "propertyKeyKOO2kUkhcSqDaTiwuRRFOV8Yy" },
+  { id: "bf33c8ba-2f65-4a09-bedd-870646fcdd08", nom: "Villa Sofya", blurb: "n°13, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, mobilier Roche Bobois, cuisinière incluse, barbecue, piscine chauffée en option", prixNuit: 650, superhoteId: "propertyKeyKOO2kUkhcSqDaTiwuRRFOV8Yy" },
 ];
 
 // Test réel autorisé pour n'importe quelle villa (avec clé Superhote connue) tant que la date
