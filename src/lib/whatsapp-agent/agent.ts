@@ -5,6 +5,7 @@ import { getDb } from "@/db";
 import { reservations } from "@/db/schema";
 import { VILLAS, isRealSuperhoteAttemptAllowed } from "./villas";
 import { buildConfirmationEmailHtml, sendConfirmationEmail } from "./email";
+import { initiateCuisineRequest } from "./staff";
 
 const client = new Anthropic();
 
@@ -197,6 +198,23 @@ async function createBooking(input: Record<string, unknown>) {
   } catch (err) {
     console.error("Échec de l'écriture dans Moderna Agency:", err);
     return { erreur: "Un souci technique est survenu, la réservation n'a pas pu être enregistrée." };
+  }
+
+  // 1bis) Si une cuisinière est demandée, déclenche la recherche automatique d'une candidate
+  // disponible (agent séparé, en arabe) — indépendant de l'email/Superhote ci-dessous, ne doit
+  // jamais faire échouer la réservation elle-même si ça plante.
+  if (cuisiniere && cuisiniere.toLowerCase() !== "non" && modernaBookingId) {
+    try {
+      const avecDejeuner = /d[ée]jeuner/.test(cuisiniere.toLowerCase().replace("petit-déjeuner", "").replace("petit déjeuner", ""));
+      await initiateCuisineRequest(modernaBookingId, {
+        villaNom: villa.nom,
+        dateArrivee: String(input.dateArrivee),
+        dateDepart: String(input.dateDepart),
+        avecDejeuner,
+      });
+    } catch (err) {
+      console.error("Échec initiation demande cuisine:", err);
+    }
   }
 
   const bookingRef = modernaBookingId ? modernaBookingId.slice(0, 8).toUpperCase() : "N/A";

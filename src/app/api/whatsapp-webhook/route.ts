@@ -4,6 +4,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { whatsappConversations } from "@/db/schema";
 import { runAgentTurn, repairMessageHistory } from "@/lib/whatsapp-agent/agent";
+import { findPendingRequestForPhone, handleStaffReply } from "@/lib/whatsapp-agent/staff";
 
 export const maxDuration = 60;
 
@@ -136,6 +137,17 @@ export async function POST(req: NextRequest) {
 
     if (!text) {
       await sendWhatsAppText(message.from, "Je ne peux lire que du texte ou des messages vocaux pour l'instant — pouvez-vous décrire votre demande de cette façon ?");
+      return NextResponse.json({ ok: true });
+    }
+
+    // Un numéro d'employée en attente de réponse à une proposition de mission est routé vers
+    // l'agent de coordination personnel plutôt que l'agent client — deux conversations
+    // totalement différentes sur le même numéro WhatsApp Meta (pas de second numéro pour
+    // l'instant).
+    const pendingStaffRequest = await findPendingRequestForPhone(from);
+    if (pendingStaffRequest) {
+      const staffReply = await handleStaffReply(pendingStaffRequest, text);
+      await sendWhatsAppText(message.from, staffReply);
       return NextResponse.json({ ok: true });
     }
 

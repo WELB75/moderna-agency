@@ -674,3 +674,25 @@ export const whatsappConversations = pgTable(
   },
   (t) => [uniqueIndex("whatsapp_conversations_phone_idx").on(t.phone)]
 );
+
+// Suivi d'une demande de personnel (ménage/cuisine) envoyée par l'agent IA via WhatsApp — une par
+// réservation+rôle. La cascade (essayer la personne suivante si refus/pas de réponse) a besoin de
+// se souvenir qui a déjà été sollicité et qui est en cours de sollicitation, entre deux appels de
+// webhook indépendants.
+export const staffAssignmentRequests = pgTable(
+  "staff_assignment_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    reservationId: uuid("reservation_id")
+      .references(() => reservations.id, { onDelete: "cascade" })
+      .notNull(),
+    role: personnelRoleEnum("role").notNull(),
+    statut: text("statut").default("en_recherche").notNull(), // en_recherche | confirme | sans_candidat
+    candidatsEssayes: jsonb("candidats_essayes").$type<string[]>().default([]).notNull(),
+    candidatActuelId: uuid("candidat_actuel_id").references(() => personnel.id, { onDelete: "set null" }),
+    personnelConfirmeId: uuid("personnel_confirme_id").references(() => personnel.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("staff_assignment_requests_reservation_role_idx").on(t.reservationId, t.role)]
+);
