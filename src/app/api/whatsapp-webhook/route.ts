@@ -43,6 +43,49 @@ async function sendWhatsAppText(to: string, body: string) {
   }
 }
 
+// Les messages vocaux WhatsApp arrivent comme un id de média, pas un fichier directement — il
+// faut d'abord résoudre son URL de téléchargement temporaire auprès de Meta, puis télécharger le
+// fichier lui-même (les deux appels nécessitent le même token d'accès).
+async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: ArrayBuffer; mimeType: string } | null> {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  if (!accessToken) return null;
+  const metaRes = await fetch(`https://graph.facebook.com/v25.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!metaRes.ok) {
+    console.error("Échec résolution média WhatsApp:", metaRes.status, await metaRes.text());
+    return null;
+  }
+  const meta = (await metaRes.json()) as { url: string; mime_type: string };
+  const fileRes = await fetch(meta.url, { headers: { Authorization: `Bearer ${accessToken}` } });
+  if (!fileRes.ok) {
+    console.error("Échec téléchargement média WhatsApp:", fileRes.status);
+    return null;
+  }
+  return { buffer: await fileRes.arrayBuffer(), mimeType: meta.mime_type };
+}
+
+// Transcription via l'API Whisper de Groq (rapide, peu coûteuse, compatible format OpenAI).
+async function transcribeAudio(buffer: ArrayBuffer, mimeType: string): Promise<string | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" : "bin";
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: mimeType }), `audio.${ext}`);
+  form.append("model", "whisper-large-v3-turbo");
+  const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}` },
+    body: form,
+  });
+  if (!res.ok) {
+    console.error("Échec transcription Groq:", res.status, await res.text());
+    return null;
+  }
+  const data = (await res.json()) as { text?: string };
+  return data.text?.trim() || null;
+}
+
 // Historique de conversation persisté en base (chaque appel de webhook est une exécution
 // serverless indépendante, rien ne survit en mémoire entre deux messages).
 async function loadConversation(phone: string) {
@@ -77,13 +120,22 @@ export async function POST(req: NextRequest) {
     // Pas un message entrant (ex. accusé de statut "delivered"/"read") — rien à faire.
     if (!message) return NextResponse.json({ ok: true });
 
-    // Seul le texte est géré pour l'instant ; les autres types (image, audio, localisation...)
-    // reçoivent une réponse de repli plutôt que d'être ignorés silencieusement côté client.
+    // Texte et messages vocaux sont gérés ; les autres types (image, localisation...) reçoivent
+    // une réponse de repli plutôt que d'être ignorés silencieusement côté client.
     const from = `+${message.from}`;
-    const text = message.type === "text" ? message.text?.body?.trim() : null;
+    let text = message.type === "text" ? message.text?.body?.trim() : null;
+
+    if (!text && message.type === "audio" && message.audio?.id) {
+      const media = await downloadWhatsAppMedia(message.audio.id);
+      if (media) text = await transcribeAudio(media.buffer, media.mimeType);
+      if (!text) {
+        await sendWhatsAppText(message.from, "Désolé, je n'ai pas réussi à comprendre ce message vocal — pouvez-vous réessayer ou l'écrire par texte ?");
+        return NextResponse.json({ ok: true });
+      }
+    }
 
     if (!text) {
-      await sendWhatsAppText(message.from, "Je ne peux lire que du texte pour l'instant — pouvez-vous décrire votre demande par écrit ?");
+      await sendWhatsAppText(message.from, "Je ne peux lire que du texte ou des messages vocaux pour l'instant — pouvez-vous décrire votre demande de cette façon ?");
       return NextResponse.json({ ok: true });
     }
 
