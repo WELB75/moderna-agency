@@ -34,11 +34,3 @@ export const VILLAS: { id: string; nom: string; blurb: string; prixNuit: number;
   { id: "bf33c8ba-2f65-4a09-bedd-870646fcdd08", nom: "Villa Sofya", blurb: "n°13, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, mobilier Roche Bobois, cuisinière incluse, barbecue, piscine chauffée en option", prixNuit: 650, caution: 1000, menage: 80, superhoteId: "propertyKeyKOO2kUkhcSqDaTiwuRRFOV8Yy" },
 ];
 
-// Test réel autorisé pour n'importe quelle villa (avec clé Superhote connue) tant que la date
-// d'arrivée est proche — marge de sécurité à 25 jours, sous le seuil de ~30 jours qui fait
-// planter Superhote (cf mémoire du projet). Au-delà, on reste en dry-run par sécurité, même si
-// en théorie ça devrait aussi marcher une fois le bug corrigé côté Superhote.
-export function isRealSuperhoteAttemptAllowed(dateArrivee: string) {
-  const days = (new Date(dateArrivee).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-  return days >= 0 && days <= 25;
-}

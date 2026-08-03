@@ -3,7 +3,7 @@ import { and, eq, gt, lt, ne } from "drizzle-orm";
 import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { reservations } from "@/db/schema";
-import { VILLAS, isRealSuperhoteAttemptAllowed } from "./villas";
+import { VILLAS } from "./villas";
 import { buildConfirmationEmailHtml, sendConfirmationEmail } from "./email";
 import { initiateCuisineRequest } from "./staff";
 
@@ -235,40 +235,15 @@ async function createBooking(input: Record<string, unknown>) {
     })
   );
 
-  // 2) Secondaire / diagnostic : tentative en parallèle vers Superhote, pendant qu'on attend
-  // leur support (endpoint peu fiable, cf mémoire du projet). N'affecte pas le succès côté
-  // client : que ça marche ou non côté Superhote, la résa existe déjà dans Moderna Agency.
-  const realAttempt = Boolean(villa.superhoteId) && isRealSuperhoteAttemptAllowed(String(input.dateArrivee));
-  if (realAttempt && process.env.SUPERHOTE_API_KEY) {
-    const bodyPayload = {
-      api_key: process.env.SUPERHOTE_API_KEY,
-      property_key: villa.superhoteId,
-      first_name: input.prenom,
-      last_name: input.nom,
-      email: input.email,
-      phone: phone.value,
-      country: countryIso,
-      checking: input.dateArrivee,
-      checkout: input.dateDepart,
-      nbr_adults: input.nombreAdultes,
-      nbr_children: input.nombreEnfants ?? 0,
-      price: total,
-      deposit: 0,
-      status: 1,
-      source: "Direct",
-      notes: notes || undefined,
-    };
-    try {
-      const res = await fetch(`${process.env.SUPERHOTE_API_BASE_URL ?? "https://app.superhote.com/api/v2"}/create-booking`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bodyPayload),
-      });
-      console.log(`Superhote (secondaire) HTTP ${res.status}: ${(await res.text()).slice(0, 300)}`);
-    } catch (err) {
-      console.error("Échec appel réseau Superhote (secondaire):", err);
-    }
-  }
+  // 2) Superhote : plus de tentative d'écriture directe via create-booking. Leur support a
+  // confirmé (2026-08-03) que cet endpoint est en réalité le moteur de paiement de leur site de
+  // réservation directe — il exige un card_token Stripe valide, un compte Stripe connecté sur le
+  // logement, et un tarif incluant exactement leurs frais de ménage/taxes de séjour. Sans un vrai
+  // tunnel de paiement, il ne peut structurellement jamais aboutir (500 générique sur dates
+  // lointaines libres, faute de gestion d'erreur de leur côté). La solution retenue à la place :
+  // un export iCal des réservations WhatsApp (voir /api/ical/export/[villaId]) que Superhote peut
+  // importer comme calendrier de blocage, pour éviter les doubles réservations sans passer par
+  // Stripe. Voir la mémoire du projet pour le détail de leur réponse.
 
   return { success: true, modernaBookingId, bookingRef, totalPrice: total, nights: n };
 }

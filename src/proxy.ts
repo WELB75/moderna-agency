@@ -4,6 +4,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/ical/sync",
+  "/api/ical/export/(.*)",
   "/api/whatsapp-webhook",
   "/icon",
   "/favicon.ico",
