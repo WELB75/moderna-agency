@@ -86,14 +86,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
 
   for (const r of rows) {
     const guestName = r.guestName || "Client Moderna Agency";
+    // Chaque valeur est échappée individuellement (antislash/virgule/point-virgule) avant d'être
+    // insérée dans les lignes — le "\n" entre lignes est l'échappement RFC5545 du retour à la
+    // ligne lui-même et ne doit surtout pas être rééchappé après coup (double antislash invalide).
     const descriptionLines = [
-      `Arriving - ${formatSuperhoteDateTime(r.checkIn, 15, 0)}`,
-      `Departing - ${formatSuperhoteDateTime(r.checkOut, 11, 0)}`,
+      `Arriving - ${escapeIcsText(formatSuperhoteDateTime(r.checkIn, 15, 0))}`,
+      `Departing - ${escapeIcsText(formatSuperhoteDateTime(r.checkOut, 11, 0))}`,
       `Number of Adults - ${r.nbAdultes ?? ""}`,
       `Number of Children - ${r.nbEnfants ?? 0}`,
-      `Guest Email - ${r.guestEmail ?? ""}`,
-      `Guest Phone - ${r.guestPhone ?? ""}`,
-      `Rental Name - ${r.villaNom ?? ""}`,
+      `Guest Email - ${escapeIcsText(r.guestEmail ?? "")}`,
+      `Guest Phone - ${escapeIcsText(r.guestPhone ?? "")}`,
+      `Rental Name - ${escapeIcsText(r.villaNom ?? "")}`,
     ].join("\\n");
 
     lines.push(
@@ -103,7 +106,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
       `DTSTART;VALUE=DATE:${toIcsDate(r.checkIn)}`,
       `DTEND;VALUE=DATE:${toIcsDate(r.checkOut)}`,
       foldLine(`SUMMARY:${escapeIcsText(guestName)} - Direct - ${r.id}`),
-      foldLine(`DESCRIPTION:${escapeIcsText(descriptionLines)}`),
+      foldLine(`DESCRIPTION:${descriptionLines}`),
       "END:VEVENT"
     );
   }
