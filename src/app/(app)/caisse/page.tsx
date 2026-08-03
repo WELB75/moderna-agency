@@ -158,10 +158,9 @@ function CaissePanel({
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Société (confié / dépenses)
               </p>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <SummaryCard label="Solde société" value={soldeSociete} devise={devise} highlight />
                 <SummaryCard label="Total confié (société)" value={totalRemise} devise={devise} />
-                <SummaryCard label="Total dépensé" value={totalDepense} devise={devise} />
                 <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
               </div>
             </div>
