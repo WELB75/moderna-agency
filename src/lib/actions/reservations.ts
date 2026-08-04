@@ -9,6 +9,7 @@ import { runIcalSync } from "@/lib/ical/sync";
 import { nowInMorocco } from "@/lib/now";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
 import { toTitleCase } from "@/lib/utils";
+import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 
 export async function createReservation(formData: FormData) {
   await auth.protect();
@@ -28,19 +29,31 @@ export async function createReservation(formData: FormData) {
   }
 
   const db = getDb();
-  await db.insert(reservations).values({
-    villaId,
-    guestName,
-    guestPhone: guestPhone || null,
-    checkIn: new Date(checkIn),
-    checkOut: new Date(checkOut),
-    guestsCount,
-    nbAdultes,
-    nbEnfants,
-    notes: notes || null,
-    source: "manuel",
-    status: "confirmee",
-  });
+  const [reservation] = await db
+    .insert(reservations)
+    .values({
+      villaId,
+      guestName,
+      guestPhone: guestPhone || null,
+      checkIn: new Date(checkIn),
+      checkOut: new Date(checkOut),
+      guestsCount,
+      nbAdultes,
+      nbEnfants,
+      notes: notes || null,
+      source: "manuel",
+      status: "confirmee",
+    })
+    .returning({ id: reservations.id });
+
+  // Sollicitation automatique d'une femme de ménage pour le nettoyage de fin de séjour — ne
+  // doit jamais faire échouer la création de la réservation elle-même si ça plante.
+  try {
+    const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+    if (villa) await initiateMenageRequest(reservation.id, villa.nom, checkOut.slice(0, 10));
+  } catch (err) {
+    console.error("Échec initiation demande ménage:", err);
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");

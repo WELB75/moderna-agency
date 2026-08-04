@@ -32,37 +32,55 @@ async function notifyTeam(reservationId: string, message: string) {
   });
 }
 
+const ROLE_LABEL: Record<"cuisine" | "menage", string> = { cuisine: "la cuisine", menage: "le ménage" };
+
 type Job = {
+  role: "cuisine" | "menage";
   villaNom: string;
-  dateArrivee: string; // YYYY-MM-DD
-  dateDepart: string;
-  avecDejeuner: boolean;
+  // Cuisine : jour de début du service (lendemain du check-in) → jour de fin (check-out).
+  // Ménage : nettoyage de fin de séjour, un seul jour — dateDebut === dateFin (le check-out).
+  dateDebut: string; // YYYY-MM-DD
+  dateFin: string;
+  avecDejeuner?: boolean; // cuisine uniquement
 };
 
 // Le ménage/la cuisine ne commence jamais le jour d'arrivée du client (il vient tout juste
 // d'arriver) mais le lendemain — donc la cuisinière est sollicitée pour travailler à partir
 // du lendemain du check-in, pas du check-in lui-même.
-function dayAfter(dateStr: string): string {
+export function dayAfter(dateStr: string): string {
   const d = new Date(dateStr);
   d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
 
 function buildOfferMessage(job: Job): string {
+  if (job.role === "menage") {
+    return `السلام عليكم،\n\nهل يمكنك تنظيف ${job.villaNom} يوم ${job.dateDebut} (مغادرة الضيوف)؟\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+  }
   const repas = job.avecDejeuner ? "الفطور والغداء" : "الفطور فقط";
-  return `السلام عليكم،\n\nهل يمكنك الطبخ في ${job.villaNom} من ${job.dateArrivee} إلى ${job.dateDepart}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+  return `السلام عليكم،\n\nهل يمكنك الطبخ في ${job.villaNom} من ${job.dateDebut} إلى ${job.dateFin}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
 }
 
-async function findNextCandidate(reservationId: string, checkIn: string, checkOut: string, excludeIds: string[]) {
+async function findNextCandidate(
+  role: "cuisine" | "menage",
+  reservationId: string,
+  dateDebut: string,
+  dateFin: string,
+  excludeIds: string[]
+) {
   const db = getDb();
   const candidates = await db
     .select({ id: personnel.id, nom: personnel.nom, telephone: personnel.telephone })
     .from(personnel)
-    .where(and(eq(personnel.role, "cuisine"), eq(personnel.actif, true)));
+    .where(and(eq(personnel.role, role), eq(personnel.actif, true)));
+
+  // Pour un nettoyage d'un seul jour, la fenêtre de conflit doit couvrir cette journée entière
+  // (le check-out lui-même) — on compare donc contre [dateDebut, dateFin + 1 jour).
+  const finExclusive = role === "menage" ? dayAfter(dateFin) : dateFin;
 
   for (const c of candidates) {
     if (!c.telephone || excludeIds.includes(c.id)) continue;
-    // Occupée si déjà affectée (cuisine) à une autre réservation dont les dates chevauchent.
+    // Occupée si déjà affectée (même rôle) à une autre réservation dont les dates chevauchent.
     const conflict = await db
       .select({ id: personnelAffectations.id })
       .from(personnelAffectations)
@@ -71,8 +89,8 @@ async function findNextCandidate(reservationId: string, checkIn: string, checkOu
         and(
           eq(personnelAffectations.personnelId, c.id),
           ne(personnelAffectations.reservationId, reservationId),
-          lt(reservations.checkIn, new Date(checkOut)),
-          gt(reservations.checkOut, new Date(checkIn))
+          lt(reservations.checkIn, new Date(finExclusive)),
+          gt(reservations.checkOut, new Date(dateDebut))
         )
       )
       .limit(1);
@@ -81,29 +99,70 @@ async function findNextCandidate(reservationId: string, checkIn: string, checkOu
   return null;
 }
 
-// Point d'entrée : appelé juste après la création d'une réservation WhatsApp où le client a
-// demandé une cuisinière. Cherche la première candidate disponible et lui envoie la proposition.
-export async function initiateCuisineRequest(reservationId: string, job: Job) {
+// Point d'entrée générique : cherche la première candidate disponible (ménage ou cuisine) et
+// lui envoie la proposition WhatsApp. Idempotent — si une affectation existe déjà (posée à la
+// main dans Personnel) ou qu'une demande est déjà en cours/traitée pour ce couple
+// réservation+rôle, ne fait rien (permet d'appeler cette fonction depuis plusieurs points
+// d'entrée — création manuelle, sync iCal, agent WhatsApp — sans risquer un double envoi).
+export async function initiateStaffRequest(reservationId: string, job: Job) {
   const db = getDb();
-  const candidate = await findNextCandidate(reservationId, job.dateArrivee, job.dateDepart, []);
+
+  const dejaAffecte = await db
+    .select({ id: personnelAffectations.id })
+    .from(personnelAffectations)
+    .innerJoin(personnel, eq(personnel.id, personnelAffectations.personnelId))
+    .where(and(eq(personnelAffectations.reservationId, reservationId), eq(personnel.role, job.role)))
+    .limit(1);
+  if (dejaAffecte.length > 0) return;
+
+  const dejaDemande = await db
+    .select({ id: staffAssignmentRequests.id })
+    .from(staffAssignmentRequests)
+    .where(and(eq(staffAssignmentRequests.reservationId, reservationId), eq(staffAssignmentRequests.role, job.role)))
+    .limit(1);
+  if (dejaDemande.length > 0) return;
+
+  const candidate = await findNextCandidate(job.role, reservationId, job.dateDebut, job.dateFin, []);
 
   if (!candidate) {
-    await db
-      .insert(staffAssignmentRequests)
-      .values({ reservationId, role: "cuisine", statut: "sans_candidat" })
-      .onConflictDoUpdate({ target: [staffAssignmentRequests.reservationId, staffAssignmentRequests.role], set: { statut: "sans_candidat", updatedAt: new Date() } });
-    await notifyTeam(reservationId, `⚠️ Aucune cuisinière disponible (avec téléphone, pas déjà prise) pour ${job.villaNom}, ${job.dateArrivee} → ${job.dateDepart} — à affecter manuellement.`);
+    await db.insert(staffAssignmentRequests).values({ reservationId, role: job.role, statut: "sans_candidat" });
+    await notifyTeam(
+      reservationId,
+      `⚠️ Aucune candidate disponible (avec téléphone, pas déjà prise) pour ${ROLE_LABEL[job.role]} — ${job.villaNom}, ${job.dateDebut} → ${job.dateFin} — à affecter manuellement.`
+    );
     return;
   }
 
   await db
     .insert(staffAssignmentRequests)
-    .values({ reservationId, role: "cuisine", statut: "en_recherche", candidatActuelId: candidate.id, candidatsEssayes: [candidate.id] })
-    .onConflictDoUpdate({
-      target: [staffAssignmentRequests.reservationId, staffAssignmentRequests.role],
-      set: { statut: "en_recherche", candidatActuelId: candidate.id, candidatsEssayes: [candidate.id], updatedAt: new Date() },
-    });
+    .values({ reservationId, role: job.role, statut: "en_recherche", candidatActuelId: candidate.id, candidatsEssayes: [candidate.id] });
   await sendWhatsAppText(candidate.telephone!, buildOfferMessage(job));
+}
+
+// Rétro-compatibilité : ancien nom utilisé par l'agent de réservation pour la cuisine.
+export async function initiateCuisineRequest(
+  reservationId: string,
+  job: { villaNom: string; dateArrivee: string; dateDepart: string; avecDejeuner: boolean }
+) {
+  await initiateStaffRequest(reservationId, {
+    role: "cuisine",
+    villaNom: job.villaNom,
+    dateDebut: job.dateArrivee,
+    dateFin: job.dateDepart,
+    avecDejeuner: job.avecDejeuner,
+  });
+}
+
+// Sollicite automatiquement une femme de ménage pour le nettoyage de fin de séjour (le jour du
+// check-out) — appelé pour TOUTE réservation, quelle que soit sa source (Superhote/iCal, saisie
+// manuelle, agent WhatsApp), pas seulement celles créées par le bot.
+export async function initiateMenageRequest(reservationId: string, villaNom: string, checkOut: string) {
+  await initiateStaffRequest(reservationId, {
+    role: "menage",
+    villaNom,
+    dateDebut: checkOut,
+    dateFin: checkOut,
+  });
 }
 
 // Cherche une demande en cours dont le candidat actuel est ce numéro — permet au webhook de
@@ -147,6 +206,21 @@ async function interpretReply(text: string): Promise<"oui" | "non" | "incertain"
   return "incertain";
 }
 
+function buildJobFromRequest(request: NonNullable<Awaited<ReturnType<typeof findPendingRequestForPhone>>>, villaNom: string): Job {
+  if (request.role === "menage") {
+    const checkOut = new Date(request.checkOut).toISOString().slice(0, 10);
+    return { role: "menage", villaNom, dateDebut: checkOut, dateFin: checkOut };
+  }
+  const avecDejeuner = /d[ée]jeuner/.test((request.notes ?? "").toLowerCase().replace("petit-déjeuner", "").replace("petit déjeuner", ""));
+  return {
+    role: "cuisine",
+    villaNom,
+    dateDebut: dayAfter(new Date(request.checkIn).toISOString().slice(0, 10)),
+    dateFin: new Date(request.checkOut).toISOString().slice(0, 10),
+    avecDejeuner,
+  };
+}
+
 // Traite la réponse d'une candidate en cours de sollicitation : confirme, ou passe à la
 // suivante en cascade si elle refuse. Renvoie le texte à répondre à l'expéditeur (l'employée).
 export async function handleStaffReply(
@@ -160,6 +234,8 @@ export async function handleStaffReply(
     return `عذرا، لم أفهم. من فضلك أجيبي بـ "نعم" أو "لا".`;
   }
 
+  const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
+
   if (decision === "oui") {
     await db.insert(personnelAffectations).values({ reservationId: request.reservationId, personnelId: request.candidatActuelId! }).onConflictDoNothing();
     await db
@@ -167,32 +243,27 @@ export async function handleStaffReply(
       .set({ statut: "confirme", personnelConfirmeId: request.candidatActuelId, updatedAt: new Date() })
       .where(eq(staffAssignmentRequests.id, request.requestId));
 
-    const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
     await notifyTeam(
       request.reservationId,
-      `✅ ${request.candidatNom} confirmée pour la cuisine — ${villa?.nom ?? "villa"}, ${new Date(request.checkIn).toLocaleDateString("fr-FR")} → ${new Date(request.checkOut).toLocaleDateString("fr-FR")}.`
+      `✅ ${request.candidatNom} confirmée pour ${ROLE_LABEL[request.role]} — ${villa?.nom ?? "villa"}, ${new Date(request.checkIn).toLocaleDateString("fr-FR")} → ${new Date(request.checkOut).toLocaleDateString("fr-FR")}.`
     );
     return `شكرا جزيلا! تم تأكيدك. موديرنا أجونسي`;
   }
 
   // decision === "non" : cascade vers la candidate suivante.
   const excludeIds = [...(request.candidatsEssayes as string[]), request.candidatActuelId!];
-  const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
-  const avecDejeuner = /d[ée]jeuner/.test((request.notes ?? "").toLowerCase().replace("petit-déjeuner", "").replace("petit déjeuner", ""));
-  const job: Job = {
-    villaNom: villa?.nom ?? "Villa",
-    dateArrivee: dayAfter(new Date(request.checkIn).toISOString().slice(0, 10)),
-    dateDepart: new Date(request.checkOut).toISOString().slice(0, 10),
-    avecDejeuner,
-  };
-  const next = await findNextCandidate(request.reservationId, job.dateArrivee, job.dateDepart, excludeIds);
+  const job = buildJobFromRequest(request, villa?.nom ?? "Villa");
+  const next = await findNextCandidate(request.role, request.reservationId, job.dateDebut, job.dateFin, excludeIds);
 
   if (!next) {
     await db
       .update(staffAssignmentRequests)
       .set({ statut: "sans_candidat", candidatsEssayes: excludeIds, updatedAt: new Date() })
       .where(eq(staffAssignmentRequests.id, request.requestId));
-    await notifyTeam(request.reservationId, `⚠️ Plus aucune cuisinière disponible pour ${job.villaNom}, ${job.dateArrivee} → ${job.dateDepart} (toutes sollicitées ou occupées) — à affecter manuellement.`);
+    await notifyTeam(
+      request.reservationId,
+      `⚠️ Plus aucune candidate disponible pour ${ROLE_LABEL[request.role]} — ${job.villaNom}, ${job.dateDebut} → ${job.dateFin} (toutes sollicitées ou occupées) — à affecter manuellement.`
+    );
     return `لا مشكلة، شكرا على الرد.`;
   }
 

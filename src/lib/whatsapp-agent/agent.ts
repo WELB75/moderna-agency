@@ -5,7 +5,7 @@ import { getDb } from "@/db";
 import { reservations } from "@/db/schema";
 import { VILLAS } from "./villas";
 import { buildConfirmationEmailHtml, sendConfirmationEmail } from "./email";
-import { initiateCuisineRequest } from "./staff";
+import { initiateCuisineRequest, initiateMenageRequest, dayAfter } from "./staff";
 
 const client = new Anthropic();
 
@@ -94,15 +94,6 @@ async function checkAvailability(villaNom: string, dateArrivee: string, dateDepa
 function nights(dateArrivee: string, dateDepart: string) {
   const ms = new Date(dateDepart).getTime() - new Date(dateArrivee).getTime();
   return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)));
-}
-
-// Le ménage/la cuisine ne commence jamais le jour d'arrivée du client (il vient tout juste
-// d'arriver) mais le lendemain — donc la cuisinière est sollicitée pour travailler à partir
-// du lendemain du check-in, pas du check-in lui-même.
-function dayAfter(dateStr: string): string {
-  const d = new Date(dateStr);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
 }
 
 // Superhote a renvoyé "The selected country is invalid" pour "France" — les erreurs Laravel de
@@ -223,6 +214,16 @@ async function createBooking(input: Record<string, unknown>) {
       });
     } catch (err) {
       console.error("Échec initiation demande cuisine:", err);
+    }
+  }
+
+  // 1ter) Le ménage de fin de séjour concerne TOUTE réservation (contrairement à la cuisine,
+  // optionnelle) — déclenché systématiquement, jamais bloquant pour la réservation elle-même.
+  if (modernaBookingId) {
+    try {
+      await initiateMenageRequest(modernaBookingId, villa.nom, String(input.dateDepart));
+    } catch (err) {
+      console.error("Échec initiation demande ménage:", err);
     }
   }
 
