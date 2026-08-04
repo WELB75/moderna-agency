@@ -6,8 +6,9 @@ import { cn } from "@/lib/utils";
 import { navItems } from "@/components/app/nav-items";
 import { Logo } from "@/components/app/logo";
 
-export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
+export function SidebarNav({ unreadChatCount = 0, hiddenHrefs = [] }: { unreadChatCount?: number; hiddenHrefs?: string[] }) {
   const pathname = usePathname();
+  const items = navItems.filter((item) => !hiddenHrefs.includes(item.href));
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col bg-black text-white md:flex print:hidden">
@@ -17,7 +18,7 @@ export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }
         </div>
       </div>
       <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => {
+        {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;
           const badgeCount = item.href === "/chat" ? unreadChatCount : 0;

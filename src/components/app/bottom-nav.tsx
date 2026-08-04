@@ -15,12 +15,13 @@ import {
 
 const PRIMARY_COUNT = 4;
 
-export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
+export function BottomNav({ unreadChatCount = 0, hiddenHrefs = [] }: { unreadChatCount?: number; hiddenHrefs?: string[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  const primaryItems = navItems.slice(0, PRIMARY_COUNT);
-  const overflowItems = navItems.slice(PRIMARY_COUNT);
+  const visibleItems = navItems.filter((item) => !hiddenHrefs.includes(item.href));
+  const primaryItems = visibleItems.slice(0, PRIMARY_COUNT);
+  const overflowItems = visibleItems.slice(PRIMARY_COUNT);
   const isOverflowActive = overflowItems.some(
     (item) => pathname === item.href || pathname.startsWith(item.href + "/")
   );

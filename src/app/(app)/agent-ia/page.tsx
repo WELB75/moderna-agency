@@ -1,19 +1,22 @@
 import { desc, eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
 import { getDb } from "@/db";
 import { whatsappConversations, staffAssignmentRequests, reservations, villas, personnel } from "@/db/schema";
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonnelTabs } from "@/components/app/personnel-tabs";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PhoneLink } from "@/components/app/phone-link";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { isKamel } from "@/lib/access";
 
 type ContentBlock = { type: string; text?: string; name?: string; input?: unknown };
 type StoredMessage = { role: "user" | "assistant"; content: string | ContentBlock[] };
 
 type Segment = { kind: "client" | "agent" | "outil"; text: string };
+
+type HistoriqueEntry = { at: string; type: "offre" | "reponse"; candidatNom: string; texte: string };
 
 // Les conversations sont stockées au format brut de l'API Anthropic (voir whatsapp-agent/agent.ts) :
 // un message "user" texte simple = vrai message du client ; un message "user" avec un tableau de
@@ -50,6 +53,8 @@ const STATUT_LABEL: Record<string, { label: string; className: string }> = {
 const ROLE_LABEL: Record<string, string> = { menage: "Ménage", cuisine: "Cuisine" };
 
 export default async function AgentIaPage({ searchParams }: { searchParams: Promise<{ onglet?: string }> }) {
+  if (!(await isKamel())) notFound();
+
   const { onglet } = await searchParams;
   const ongletActif = onglet === "personnel" ? "personnel" : "clients";
 
@@ -65,6 +70,7 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
       candidatsEssayes: staffAssignmentRequests.candidatsEssayes,
       candidatActuelId: staffAssignmentRequests.candidatActuelId,
       personnelConfirmeId: staffAssignmentRequests.personnelConfirmeId,
+      historique: staffAssignmentRequests.historique,
       updatedAt: staffAssignmentRequests.updatedAt,
       guestName: reservations.guestName,
       checkIn: reservations.checkIn,
@@ -150,9 +156,10 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
             staffRequests.map((r) => {
               const statut = STATUT_LABEL[r.statut] ?? { label: r.statut, className: "" };
               const essayees = (r.candidatsEssayes as string[]) ?? [];
+              const historique = (r.historique as HistoriqueEntry[]) ?? [];
               return (
-                <Card key={r.id}>
-                  <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
+                <details key={r.id} className="group rounded-lg border">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 p-4">
                     <div>
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{ROLE_LABEL[r.role] ?? r.role}</Badge>
@@ -178,8 +185,29 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(r.updatedAt), "d MMM yyyy HH:mm", { locale: fr })}
                     </span>
-                  </CardContent>
-                </Card>
+                  </summary>
+                  <div className="space-y-2 border-t p-4">
+                    {historique.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Aucun message échangé pour l&apos;instant.</p>
+                    ) : (
+                      historique.map((h, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                            h.type === "offre" && "ml-auto bg-primary/10",
+                            h.type === "reponse" && "ml-0 bg-muted"
+                          )}
+                        >
+                          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            {h.type === "offre" ? `Agent IA → ${h.candidatNom}` : `${h.candidatNom} → Agent IA`}
+                          </p>
+                          <p className="whitespace-pre-wrap">{h.texte}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </details>
               );
             })
           )}

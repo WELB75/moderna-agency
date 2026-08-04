@@ -697,6 +697,15 @@ export const staffAssignmentRequests = pgTable(
     candidatsEssayes: jsonb("candidats_essayes").$type<string[]>().default([]).notNull(),
     candidatActuelId: uuid("candidat_actuel_id").references(() => personnel.id, { onDelete: "set null" }),
     personnelConfirmeId: uuid("personnel_confirme_id").references(() => personnel.id, { onDelete: "set null" }),
+    // Journal des échanges WhatsApp (offre envoyée + réponse reçue, pour chaque candidate
+    // sollicitée en cascade) — pour que Kamel puisse relire ce qui a réellement été dit, pas
+    // juste le statut final. Contrairement à whatsappConversations (agent client), rien n'existait
+    // avant pour ce fil : ajouté après que Kamel a demandé pourquoi l'onglet "Sollicitations
+    // personnel" n'affichait pas de messages.
+    historique: jsonb("historique")
+      .$type<{ at: string; type: "offre" | "reponse"; candidatNom: string; texte: string }[]>()
+      .default([])
+      .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -30,6 +30,7 @@ import { type PersonnelAssigne } from "@/components/app/personnel-affectation-ed
 import { LogIn, LogOut, Wrench, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { getUnreadChatCount } from "@/lib/actions/chat";
+import { isKamel } from "@/lib/access";
 import {
   montantMenageDu,
   montantCuisineDu,
@@ -56,6 +57,7 @@ export default async function DashboardPage({
   const db = getDb();
   const now = nowInMorocco();
   const unreadChatCount = await getUnreadChatCount();
+  const hiddenHrefs = (await isKamel()) ? [] : ["/agent-ia"];
   const viewAnchor = addDays(now, offsetSemaines * DAYS_AHEAD);
   const rangeStart = startOfDay(viewAnchor);
   const rangeEnd = endOfDay(addDays(viewAnchor, DAYS_AHEAD - 1));
@@ -385,7 +387,7 @@ export default async function DashboardPage({
       {/* Redondant sur desktop (le menu latéral donne déjà accès à tout, en toutes lettres) —
           utile seulement là où ce menu est masqué, donc tablette/smartphone. */}
       <div className="md:hidden">
-        <MenuGrid unreadChatCount={unreadChatCount} />
+        <MenuGrid unreadChatCount={unreadChatCount} hiddenHrefs={hiddenHrefs} />
       </div>
 
       <VillasLibresCard villas={villasLibresKamel} />

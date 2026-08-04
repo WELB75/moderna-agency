@@ -38,6 +38,8 @@ async function notifyTeam(reservationId: string, message: string) {
 
 const ROLE_LABEL: Record<"cuisine" | "menage", string> = { cuisine: "la cuisine", menage: "le ménage" };
 
+type HistoriqueEntry = { at: string; type: "offre" | "reponse"; candidatNom: string; texte: string };
+
 type Job = {
   role: "cuisine" | "menage";
   villaNom: string;
@@ -148,10 +150,16 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     return;
   }
 
-  await db
-    .insert(staffAssignmentRequests)
-    .values({ reservationId, role: job.role, statut: "en_recherche", candidatActuelId: candidate.id, candidatsEssayes: [candidate.id] });
-  await sendWhatsAppText(candidate.telephone!, buildOfferMessage(job));
+  const offre = buildOfferMessage(job);
+  await db.insert(staffAssignmentRequests).values({
+    reservationId,
+    role: job.role,
+    statut: "en_recherche",
+    candidatActuelId: candidate.id,
+    candidatsEssayes: [candidate.id],
+    historique: [{ at: new Date().toISOString(), type: "offre", candidatNom: candidate.nom, texte: offre }],
+  });
+  await sendWhatsAppText(candidate.telephone!, offre);
 }
 
 // Rétro-compatibilité : ancien nom utilisé par l'agent de réservation pour la cuisine.
@@ -191,6 +199,7 @@ export async function findPendingRequestForPhone(phone: string) {
       role: staffAssignmentRequests.role,
       candidatActuelId: staffAssignmentRequests.candidatActuelId,
       candidatsEssayes: staffAssignmentRequests.candidatsEssayes,
+      historique: staffAssignmentRequests.historique,
       candidatNom: personnel.nom,
       villaId: reservations.villaId,
       checkIn: reservations.checkIn,
@@ -245,7 +254,16 @@ export async function handleStaffReply(
   const db = getDb();
   const decision = await interpretReply(text);
 
+  const historiqueAvecReponse: HistoriqueEntry[] = [
+    ...((request.historique as HistoriqueEntry[]) ?? []),
+    { at: new Date().toISOString(), type: "reponse", candidatNom: request.candidatNom, texte: text },
+  ];
+
   if (decision === "incertain") {
+    await db
+      .update(staffAssignmentRequests)
+      .set({ historique: historiqueAvecReponse, updatedAt: new Date() })
+      .where(eq(staffAssignmentRequests.id, request.requestId));
     return `عذرا، لم أفهم. من فضلك أجيبي بـ "نعم" أو "لا".`;
   }
 
@@ -255,7 +273,7 @@ export async function handleStaffReply(
     await db.insert(personnelAffectations).values({ reservationId: request.reservationId, personnelId: request.candidatActuelId! }).onConflictDoNothing();
     await db
       .update(staffAssignmentRequests)
-      .set({ statut: "confirme", personnelConfirmeId: request.candidatActuelId, updatedAt: new Date() })
+      .set({ statut: "confirme", personnelConfirmeId: request.candidatActuelId, historique: historiqueAvecReponse, updatedAt: new Date() })
       .where(eq(staffAssignmentRequests.id, request.requestId));
 
     await notifyTeam(
@@ -273,7 +291,7 @@ export async function handleStaffReply(
   if (!next) {
     await db
       .update(staffAssignmentRequests)
-      .set({ statut: "sans_candidat", candidatsEssayes: excludeIds, updatedAt: new Date() })
+      .set({ statut: "sans_candidat", candidatsEssayes: excludeIds, historique: historiqueAvecReponse, updatedAt: new Date() })
       .where(eq(staffAssignmentRequests.id, request.requestId));
     await notifyTeam(
       request.reservationId,
@@ -282,10 +300,15 @@ export async function handleStaffReply(
     return `لا مشكلة، شكرا على الرد.`;
   }
 
+  const offre = buildOfferMessage(job);
+  const historiqueAvecOffre: HistoriqueEntry[] = [
+    ...historiqueAvecReponse,
+    { at: new Date().toISOString(), type: "offre", candidatNom: next.nom, texte: offre },
+  ];
   await db
     .update(staffAssignmentRequests)
-    .set({ candidatActuelId: next.id, candidatsEssayes: [...excludeIds, next.id], updatedAt: new Date() })
+    .set({ candidatActuelId: next.id, candidatsEssayes: [...excludeIds, next.id], historique: historiqueAvecOffre, updatedAt: new Date() })
     .where(eq(staffAssignmentRequests.id, request.requestId));
-  await sendWhatsAppText(next.telephone!, buildOfferMessage(job));
+  await sendWhatsAppText(next.telephone!, offre);
   return `لا مشكلة، شكرا على الرد.`;
 }
