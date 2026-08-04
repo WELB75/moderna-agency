@@ -695,7 +695,15 @@ export const staffAssignmentRequests = pgTable(
     role: personnelRoleEnum("role").notNull(),
     statut: text("statut").default("en_recherche").notNull(), // en_recherche | confirme | sans_candidat
     candidatsEssayes: jsonb("candidats_essayes").$type<string[]>().default([]).notNull(),
-    candidatActuelId: uuid("candidat_actuel_id").references(() => personnel.id, { onDelete: "set null" }),
+    // Sollicitation groupée (2026-08-04, décidé par Kamel : "au pire on envoie le meme message a
+    // 3 personnes, la premiere qui repond prend le projet") : plusieurs candidates reçoivent
+    // l'offre en même temps plutôt qu'une seule à la fois — remplace l'ancien candidatActuelId
+    // (unique) qui ne pouvait représenter qu'une candidate à la fois. La première à répondre "oui"
+    // gagne (confirmation via UPDATE conditionnel WHERE statut='en_recherche', atomique) ; refusIds
+    // suit les refus explicites du batch en cours pour savoir quand relancer un nouveau batch (tous
+    // ont refusé, ou timeout — voir STALE_TIMEOUT_MS dans staff.ts) sans attendre inutilement.
+    candidatsSollicitesIds: jsonb("candidats_sollicites_ids").$type<string[]>().default([]).notNull(),
+    refusIds: jsonb("refus_ids").$type<string[]>().default([]).notNull(),
     personnelConfirmeId: uuid("personnel_confirme_id").references(() => personnel.id, { onDelete: "set null" }),
     // Journal des échanges WhatsApp (offre envoyée + réponse reçue, pour chaque candidate
     // sollicitée en cascade) — pour que Kamel puisse relire ce qui a réellement été dit, pas

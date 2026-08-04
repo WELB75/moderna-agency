@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, avg, eq, gt, inArray, isNotNull, lt, ne } from "drizzle-orm";
+import { and, avg, eq, gt, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas } from "@/db/schema";
 
@@ -7,10 +7,16 @@ import { personnel, personnelAffectations, staffAssignmentRequests, reservations
 // dessous d'une candidate moyenne) ni avantagée (au-dessus d'une bonne candidate déjà prouvée).
 const NEUTRAL_RATING = 3;
 
-// Délai sans réponse au-delà duquel on considère qu'une candidate ne viendra pas et on passe à
-// la suivante — décidé par Kamel le 2026-08-04, après avoir remarqué que des demandes restaient
-// bloquées des heures/jours en "En recherche" sans qu'aucun "non" explicite ne soit jamais reçu.
+// Délai sans réponse au-delà duquel on considère qu'un batch de candidates ne viendra pas et on
+// relance vers de nouvelles candidates — décidé par Kamel le 2026-08-04, après avoir remarqué que
+// des demandes restaient bloquées des heures/jours en "En recherche" sans qu'aucun "non" explicite
+// ne soit jamais reçu.
 const STALE_TIMEOUT_MS = 60 * 60 * 1000;
+
+// Nombre de candidates sollicitées en même temps (2026-08-04, Kamel : "au pire on envoie le meme
+// message a 3 personnes, la premiere qui repond prend le projet, et apres on les informes que
+// c'est bon c'est réglé") — la première à répondre "oui" gagne, les autres sont prévenues.
+const BATCH_SIZE = 3;
 
 const client = new Anthropic();
 
@@ -72,12 +78,15 @@ function buildOfferMessage(job: Job): string {
   return `السلام عليكم،\n\nهل يمكنك الطبخ في ${job.villaNom} من ${job.dateDebut} إلى ${job.dateFin}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
 }
 
-async function findNextCandidate(
+// Retourne jusqu'à `limit` candidates disponibles (mieux notées en premier), pour une sollicitation
+// groupée plutôt qu'une seule à la fois — voir BATCH_SIZE.
+async function findAvailableCandidates(
   role: "cuisine" | "menage",
   reservationId: string,
   dateDebut: string,
   dateFin: string,
-  excludeIds: string[]
+  excludeIds: string[],
+  limit: number
 ) {
   const db = getDb();
   const candidates = await db
@@ -100,7 +109,9 @@ async function findNextCandidate(
   // (le check-out lui-même) — on compare donc contre [dateDebut, dateFin + 1 jour).
   const finExclusive = role === "menage" ? dayAfter(dateFin) : dateFin;
 
+  const available: typeof candidates = [];
   for (const c of candidates) {
+    if (available.length >= limit) break;
     if (!c.telephone || excludeIds.includes(c.id)) continue;
     // Occupée si déjà affectée (même rôle) à une autre réservation dont les dates chevauchent.
     const conflict = await db
@@ -116,9 +127,9 @@ async function findNextCandidate(
         )
       )
       .limit(1);
-    if (conflict.length === 0) return c;
+    if (conflict.length === 0) available.push(c);
   }
-  return null;
+  return available;
 }
 
 // Point d'entrée générique : cherche la première candidate disponible (ménage ou cuisine) et
@@ -185,9 +196,9 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     }
   }
 
-  const candidate = await findNextCandidate(job.role, reservationId, job.dateDebut, job.dateFin, []);
+  const candidates = await findAvailableCandidates(job.role, reservationId, job.dateDebut, job.dateFin, [], BATCH_SIZE);
 
-  if (!candidate) {
+  if (candidates.length === 0) {
     await db.insert(staffAssignmentRequests).values({ reservationId, role: job.role, statut: "sans_candidat" });
     await notifyTeam(
       reservationId,
@@ -201,11 +212,11 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     reservationId,
     role: job.role,
     statut: "en_recherche",
-    candidatActuelId: candidate.id,
-    candidatsEssayes: [candidate.id],
-    historique: [{ at: new Date().toISOString(), type: "offre", candidatNom: candidate.nom, texte: offre }],
+    candidatsSollicitesIds: candidates.map((c) => c.id),
+    candidatsEssayes: candidates.map((c) => c.id),
+    historique: candidates.map((c) => ({ at: new Date().toISOString(), type: "offre" as const, candidatNom: c.nom, texte: offre })),
   });
-  await sendWhatsAppText(candidate.telephone!, offre);
+  await Promise.all(candidates.map((c) => sendWhatsAppText(c.telephone!, offre)));
 }
 
 // Rétro-compatibilité : ancien nom utilisé par l'agent de réservation pour la cuisine.
@@ -234,37 +245,56 @@ export async function initiateMenageRequest(reservationId: string, villaNom: str
   });
 }
 
-// Cherche une demande en cours dont le candidat actuel est ce numéro — permet au webhook de
-// distinguer une réponse d'employée d'un message client normal.
+// Champs communs à toute demande en cours, indépendants de qui la consulte — le sous-ensemble
+// dont broadcastNewBatch a besoin pour relancer un nouveau batch.
+type StaffRequestContext = {
+  requestId: string;
+  reservationId: string;
+  role: "cuisine" | "menage";
+  candidatsEssayes: unknown;
+  villaId: string | null;
+  checkIn: Date;
+  checkOut: Date;
+  notes: string | null;
+};
+
+// Cherche une demande en cours dont le batch sollicité inclut ce numéro — permet au webhook de
+// distinguer une réponse d'employée d'un message client normal. Le filtrage sur "candidatsSollicitesIds
+// contient cet id" se fait côté JS plutôt qu'avec un opérateur jsonb dédié : le volume de demandes
+// en_recherche simultanées reste faible (une poignée), donc la simplicité prime.
 export async function findPendingRequestForPhone(phone: string) {
   const db = getDb();
-  const [row] = await db
+  const [person] = await db.select({ id: personnel.id, nom: personnel.nom }).from(personnel).where(eq(personnel.telephone, phone)).limit(1);
+  if (!person) return null;
+
+  const pending = await db
     .select({
       requestId: staffAssignmentRequests.id,
       reservationId: staffAssignmentRequests.reservationId,
       role: staffAssignmentRequests.role,
-      candidatActuelId: staffAssignmentRequests.candidatActuelId,
+      candidatsSollicitesIds: staffAssignmentRequests.candidatsSollicitesIds,
       candidatsEssayes: staffAssignmentRequests.candidatsEssayes,
+      refusIds: staffAssignmentRequests.refusIds,
       historique: staffAssignmentRequests.historique,
-      candidatNom: personnel.nom,
       villaId: reservations.villaId,
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       notes: reservations.notes,
     })
     .from(staffAssignmentRequests)
-    .innerJoin(personnel, eq(personnel.id, staffAssignmentRequests.candidatActuelId))
     .innerJoin(reservations, eq(reservations.id, staffAssignmentRequests.reservationId))
-    .where(and(eq(personnel.telephone, phone), eq(staffAssignmentRequests.statut, "en_recherche")))
-    .limit(1);
-  return row ?? null;
+    .where(eq(staffAssignmentRequests.statut, "en_recherche"));
+
+  const match = pending.find((r) => (r.candidatsSollicitesIds as string[]).includes(person.id));
+  if (!match) return null;
+  return { ...match, candidatId: person.id, candidatNom: person.nom };
 }
 
 type StaffRequestRow = NonNullable<Awaited<ReturnType<typeof findPendingRequestForPhone>>>;
 
 // Demandes en cours depuis plus de STALE_TIMEOUT_MS sans qu'aucune réponse n'ait fait avancer
-// leur statut — candidates qui n'ont manifestement pas vu/répondu au message.
-async function findStaleRequests(): Promise<StaffRequestRow[]> {
+// leur statut — le batch entier n'a manifestement pas vu/répondu au message.
+async function findStaleRequests(): Promise<StaffRequestContext[]> {
   const db = getDb();
   const cutoff = new Date(Date.now() - STALE_TIMEOUT_MS);
   return db
@@ -272,17 +302,13 @@ async function findStaleRequests(): Promise<StaffRequestRow[]> {
       requestId: staffAssignmentRequests.id,
       reservationId: staffAssignmentRequests.reservationId,
       role: staffAssignmentRequests.role,
-      candidatActuelId: staffAssignmentRequests.candidatActuelId,
       candidatsEssayes: staffAssignmentRequests.candidatsEssayes,
-      historique: staffAssignmentRequests.historique,
-      candidatNom: personnel.nom,
       villaId: reservations.villaId,
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       notes: reservations.notes,
     })
     .from(staffAssignmentRequests)
-    .innerJoin(personnel, eq(personnel.id, staffAssignmentRequests.candidatActuelId))
     .innerJoin(reservations, eq(reservations.id, staffAssignmentRequests.reservationId))
     .where(and(eq(staffAssignmentRequests.statut, "en_recherche"), lt(staffAssignmentRequests.updatedAt, cutoff)));
 }
@@ -303,7 +329,7 @@ async function interpretReply(text: string): Promise<"oui" | "non" | "incertain"
   return "incertain";
 }
 
-function buildJobFromRequest(request: NonNullable<Awaited<ReturnType<typeof findPendingRequestForPhone>>>, villaNom: string): Job {
+function buildJobFromRequest(request: StaffRequestContext, villaNom: string): Job {
   if (request.role === "menage") {
     const checkOut = new Date(request.checkOut).toISOString().slice(0, 10);
     return { role: "menage", villaNom, dateDebut: checkOut, dateFin: checkOut };
@@ -318,20 +344,26 @@ function buildJobFromRequest(request: NonNullable<Awaited<ReturnType<typeof find
   };
 }
 
-// Passe à la candidate suivante disponible (refus explicite, ou timeout sans réponse) : marque
-// "sans_candidat" si personne d'autre n'est disponible, sinon lui envoie l'offre et déplace le
-// pointeur "candidat actuel". Factorisé pour être utilisé aussi bien par un "non" explicite
-// (handleStaffReply) que par une relance automatique après timeout (cascadeStaleRequests).
-async function cascadeToNextCandidate(request: StaffRequestRow, villaNom: string, historiqueBase: HistoriqueEntry[]): Promise<void> {
+// Relance un nouveau batch de candidates (tout le batch précédent a refusé, ou timeout sans
+// réponse) : marque "sans_candidat" si personne d'autre n'est disponible, sinon envoie l'offre à
+// jusqu'à BATCH_SIZE nouvelles candidates et remplace le batch sollicité. `extraHistoriqueEntries`
+// (ex. le refus qui a vidé le batch, ou la note de relance timeout) est ajouté de façon atomique
+// (concaténation jsonb côté SQL, pas un remplacement de tableau lu en JS) pour ne jamais écraser
+// une entrée écrite entre-temps par une autre réponse arrivée en parallèle sur la même demande.
+async function broadcastNewBatch(request: StaffRequestContext, villaNom: string, extraHistoriqueEntries: HistoriqueEntry[]): Promise<void> {
   const db = getDb();
-  const excludeIds = [...(request.candidatsEssayes as string[]), request.candidatActuelId!];
+  const excludeIds = request.candidatsEssayes as string[];
   const job = buildJobFromRequest(request, villaNom);
-  const next = await findNextCandidate(request.role, request.reservationId, job.dateDebut, job.dateFin, excludeIds);
+  const candidates = await findAvailableCandidates(request.role, request.reservationId, job.dateDebut, job.dateFin, excludeIds, BATCH_SIZE);
 
-  if (!next) {
+  if (candidates.length === 0) {
     await db
       .update(staffAssignmentRequests)
-      .set({ statut: "sans_candidat", candidatsEssayes: excludeIds, historique: historiqueBase, updatedAt: new Date() })
+      .set({
+        statut: "sans_candidat",
+        historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify(extraHistoriqueEntries)}::jsonb`,
+        updatedAt: new Date(),
+      })
       .where(eq(staffAssignmentRequests.id, request.requestId));
     await notifyTeam(
       request.reservationId,
@@ -341,52 +373,68 @@ async function cascadeToNextCandidate(request: StaffRequestRow, villaNom: string
   }
 
   const offre = buildOfferMessage(job);
-  const historiqueAvecOffre: HistoriqueEntry[] = [...historiqueBase, { at: new Date().toISOString(), type: "offre", candidatNom: next.nom, texte: offre }];
+  const offreEntries: HistoriqueEntry[] = candidates.map((c) => ({ at: new Date().toISOString(), type: "offre", candidatNom: c.nom, texte: offre }));
   await db
     .update(staffAssignmentRequests)
-    .set({ candidatActuelId: next.id, candidatsEssayes: [...excludeIds, next.id], historique: historiqueAvecOffre, updatedAt: new Date() })
+    .set({
+      candidatsSollicitesIds: candidates.map((c) => c.id),
+      candidatsEssayes: [...excludeIds, ...candidates.map((c) => c.id)],
+      refusIds: [],
+      historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([...extraHistoriqueEntries, ...offreEntries])}::jsonb`,
+      updatedAt: new Date(),
+    })
     .where(eq(staffAssignmentRequests.id, request.requestId));
-  await sendWhatsAppText(next.telephone!, offre);
+  await Promise.all(candidates.map((c) => sendWhatsAppText(c.telephone!, offre)));
 }
 
-// Relance automatique : une candidate qui ne répond ni "oui" ni "non" dans le délai imparti est
-// considérée indisponible — sinon la demande restait bloquée indéfiniment (avant ce correctif,
+// Relance automatique : un batch entier qui ne répond ni "oui" ni "non" dans le délai imparti est
+// considéré indisponible — sinon la demande restait bloquée indéfiniment (avant ce correctif,
 // seul un refus explicite faisait avancer la cascade). Appelée à chaque message WhatsApp entrant
 // (trafic fréquent en pratique) et par un cron quotidien de secours pour les périodes creuses
 // (voir /api/staff-requests/sweep).
 export async function cascadeStaleRequests(): Promise<void> {
-  const db = getDb();
   const stale = await findStaleRequests();
   for (const request of stale) {
+    const db = getDb();
     const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
-    const historiqueAvecRelance: HistoriqueEntry[] = [
-      ...((request.historique as HistoriqueEntry[]) ?? []),
-      {
-        at: new Date().toISOString(),
-        type: "relance",
-        candidatNom: request.candidatNom,
-        texte: `Pas de réponse sous ${Math.round(STALE_TIMEOUT_MS / (60 * 60 * 1000))}h — passage automatique à la candidate suivante.`,
-      },
-    ];
-    await cascadeToNextCandidate(request, villa?.nom ?? "Villa", historiqueAvecRelance);
+    const relanceEntry: HistoriqueEntry = {
+      at: new Date().toISOString(),
+      type: "relance",
+      candidatNom: "",
+      texte: `Pas de réponse sous ${Math.round(STALE_TIMEOUT_MS / (60 * 60 * 1000))}h — relance vers de nouvelles candidates.`,
+    };
+    await broadcastNewBatch(request, villa?.nom ?? "Villa", [relanceEntry]);
   }
 }
 
-// Traite la réponse d'une candidate en cours de sollicitation : confirme, ou passe à la
-// suivante en cascade si elle refuse. Renvoie le texte à répondre à l'expéditeur (l'employée).
+// Prévient les autres candidates du même batch, une fois l'une d'elles confirmée — pour que
+// personne ne reste sans réponse alors que la mission est déjà attribuée (Kamel, 2026-08-04 :
+// "après on les informes que c'est bon c'est réglé").
+async function notifyOthers(candidatsSollicitesIds: string[], winnerId: string): Promise<void> {
+  const others = candidatsSollicitesIds.filter((id) => id !== winnerId);
+  if (others.length === 0) return;
+  const db = getDb();
+  const rows = await db.select({ telephone: personnel.telephone }).from(personnel).where(inArray(personnel.id, others));
+  await Promise.all(
+    rows.filter((r) => r.telephone).map((r) => sendWhatsAppText(r.telephone!, `شكرا على ردك، تم إسناد المهمة لشخص آخر أسرع. موديرنا أجونسي`))
+  );
+}
+
+// Traite la réponse d'une candidate sollicitée dans le batch en cours. "oui" confirme — via un
+// UPDATE conditionnel (WHERE statut='en_recherche') qui garantit qu'une seule des candidates
+// sollicitées en parallèle peut effectivement gagner, même si plusieurs répondent "oui" à
+// quelques secondes d'écart. "non" retire la candidate du batch ; si c'était la dernière encore
+// en attente, relance immédiatement un nouveau batch sans attendre le timeout. Renvoie le texte à
+// répondre à l'expéditeur (l'employée).
 export async function handleStaffReply(request: StaffRequestRow, text: string): Promise<string> {
   const db = getDb();
   const decision = await interpretReply(text);
-
-  const historiqueAvecReponse: HistoriqueEntry[] = [
-    ...((request.historique as HistoriqueEntry[]) ?? []),
-    { at: new Date().toISOString(), type: "reponse", candidatNom: request.candidatNom, texte: text },
-  ];
+  const reponseEntry: HistoriqueEntry = { at: new Date().toISOString(), type: "reponse", candidatNom: request.candidatNom, texte: text };
 
   if (decision === "incertain") {
     await db
       .update(staffAssignmentRequests)
-      .set({ historique: historiqueAvecReponse, updatedAt: new Date() })
+      .set({ historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([reponseEntry])}::jsonb`, updatedAt: new Date() })
       .where(eq(staffAssignmentRequests.id, request.requestId));
     return `عذرا، لم أفهم. من فضلك أجيبي بـ "نعم" أو "لا".`;
   }
@@ -394,20 +442,48 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
   const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
 
   if (decision === "oui") {
-    await db.insert(personnelAffectations).values({ reservationId: request.reservationId, personnelId: request.candidatActuelId! }).onConflictDoNothing();
-    await db
+    const won = await db
       .update(staffAssignmentRequests)
-      .set({ statut: "confirme", personnelConfirmeId: request.candidatActuelId, historique: historiqueAvecReponse, updatedAt: new Date() })
-      .where(eq(staffAssignmentRequests.id, request.requestId));
+      .set({
+        statut: "confirme",
+        personnelConfirmeId: request.candidatId,
+        historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([reponseEntry])}::jsonb`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(staffAssignmentRequests.id, request.requestId), eq(staffAssignmentRequests.statut, "en_recherche")))
+      .returning({ id: staffAssignmentRequests.id });
 
+    if (won.length === 0) {
+      // Une autre candidate du même batch a déjà été confirmée entre-temps — trace quand même
+      // cette réponse tardive, sans toucher au statut déjà fixé.
+      await db
+        .update(staffAssignmentRequests)
+        .set({ historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([reponseEntry])}::jsonb`, updatedAt: new Date() })
+        .where(eq(staffAssignmentRequests.id, request.requestId));
+      return `شكرا على ردك، لكن المهمة أُسندت لشخص آخر أسرع منك. شكرا جزيلا! موديرنا أجونسي`;
+    }
+
+    await db.insert(personnelAffectations).values({ reservationId: request.reservationId, personnelId: request.candidatId }).onConflictDoNothing();
     await notifyTeam(
       request.reservationId,
       `✅ ${request.candidatNom} confirmée pour ${ROLE_LABEL[request.role]} — ${villa?.nom ?? "villa"}, ${new Date(request.checkIn).toLocaleDateString("fr-FR")} → ${new Date(request.checkOut).toLocaleDateString("fr-FR")}.`
     );
+    await notifyOthers(request.candidatsSollicitesIds as string[], request.candidatId);
     return `شكرا جزيلا! تم تأكيدك. موديرنا أجونسي`;
   }
 
-  // decision === "non" : cascade vers la candidate suivante.
-  await cascadeToNextCandidate(request, villa?.nom ?? "Villa", historiqueAvecReponse);
+  // decision === "non" : retire la candidate du batch. Si c'était la dernière encore en attente
+  // (les autres ont déjà toutes refusé), relance un nouveau batch immédiatement.
+  const newRefusIds = [...(request.refusIds as string[]), request.candidatId];
+  const remaining = (request.candidatsSollicitesIds as string[]).filter((id) => !newRefusIds.includes(id));
+
+  if (remaining.length > 0) {
+    await db
+      .update(staffAssignmentRequests)
+      .set({ refusIds: newRefusIds, historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([reponseEntry])}::jsonb`, updatedAt: new Date() })
+      .where(eq(staffAssignmentRequests.id, request.requestId));
+  } else {
+    await broadcastNewBatch(request, villa?.nom ?? "Villa", [reponseEntry]);
+  }
   return `لا مشكلة، شكرا على الرد.`;
 }

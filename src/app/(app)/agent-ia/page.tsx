@@ -68,7 +68,7 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
       role: staffAssignmentRequests.role,
       statut: staffAssignmentRequests.statut,
       candidatsEssayes: staffAssignmentRequests.candidatsEssayes,
-      candidatActuelId: staffAssignmentRequests.candidatActuelId,
+      candidatsSollicitesIds: staffAssignmentRequests.candidatsSollicitesIds,
       personnelConfirmeId: staffAssignmentRequests.personnelConfirmeId,
       historique: staffAssignmentRequests.historique,
       updatedAt: staffAssignmentRequests.updatedAt,
@@ -156,6 +156,7 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
             staffRequests.map((r) => {
               const statut = STATUT_LABEL[r.statut] ?? { label: r.statut, className: "" };
               const essayees = (r.candidatsEssayes as string[]) ?? [];
+              const sollicites = (r.candidatsSollicitesIds as string[]) ?? [];
               const historique = (r.historique as HistoriqueEntry[]) ?? [];
               return (
                 <details key={r.id} className="group rounded-lg border">
@@ -176,10 +177,12 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
                       <p className="mt-1 text-xs text-muted-foreground">
                         {r.statut === "confirme" && r.personnelConfirmeId
                           ? `Confirmé : ${nomParId.get(r.personnelConfirmeId) ?? "?"}`
-                          : r.statut === "en_recherche" && r.candidatActuelId
-                            ? `En attente de réponse : ${nomParId.get(r.candidatActuelId) ?? "?"}`
+                          : r.statut === "en_recherche" && sollicites.length > 0
+                            ? `En attente de réponse : ${sollicites.map((id) => nomParId.get(id) ?? "?").join(", ")}`
                             : `${essayees.length} candidate(s) sollicitée(s), aucune disponible`}
-                        {essayees.length > 1 ? ` (${essayees.map((id) => nomParId.get(id) ?? "?").join(", ")})` : ""}
+                        {essayees.length > sollicites.length
+                          ? ` — ${essayees.length} au total depuis le début (${essayees.map((id) => nomParId.get(id) ?? "?").join(", ")})`
+                          : ""}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground">
