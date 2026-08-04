@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, gte, ne } from "drizzle-orm";
 import { getDb } from "@/db";
-import { reservations, villas } from "@/db/schema";
+import { reservations } from "@/db/schema";
 
 // Export iCal des réservations Moderna Agency (source "whatsapp-ia" ou "manuel") pour qu'un
 // logement Superhote puisse les importer comme calendrier de blocage — évite les doubles
@@ -11,27 +11,24 @@ import { reservations, villas } from "@/db/schema";
 // réservations source="superhote" (déjà importées depuis Superhote via l'autre sens du sync,
 // villas.icalUrl) — les réexporter créerait un doublon dans leur propre calendrier.
 //
-// Format SUMMARY/DESCRIPTION calqué exactement sur celui de Superhote lui-même (voir
-// src/lib/ical/parse.ts, qui lit LEUR export du même format) — un premier test réel a confirmé
-// que leur import scinde le SUMMARY sur " - " pour en tirer prénom/nom, donc mimer leur
-// convention permet à leur import de remplir les vraies infos client plutôt qu'un blocage vide.
-const MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-function formatSuperhoteDateTime(d: Date, hour: number, minute: number) {
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const month = MONTHS_EN[d.getUTCMonth()];
-  const year = d.getUTCFullYear();
-  const h = String(hour).padStart(2, "0");
-  const mi = String(minute).padStart(2, "0");
-  return `${day} ${month} ${year} ${h}:${mi}`;
-}
-
+// Format confirmé par le support Superhote (2026-08-03) : à l'import, seuls DTSTART/DTEND,
+// l'UID (→ code de confirmation) et le SUMMARY (→ prénom/nom, scindé sur " - ") sont exploités
+// de façon structurée. Le DESCRIPTION, lui, est copié TEL QUEL dans le champ Notes de la
+// réservation (aucune étiquette/convention à respecter) — d'où son usage ici : les demandes
+// spécifiques du client (cuisinière, lit bébé...), pas des champs structurés qui ne seraient de
+// toute façon pas reconnus (email/téléphone/nb voyageurs restent ignorés, nb adultes est même
+// forcé à 0 côté Superhote quoi qu'on envoie).
+//
+// ⚠️ Important, à répercuter à l'équipe : la synchro iCal supprime puis recrée les réservations
+// à chaque passage. Toute note ajoutée à la main dans Superhote sur une réservation issue de cet
+// export sera donc écrasée à la synchro suivante — le DESCRIPTION de ce flux doit rester la seule
+// source de vérité pour ces réservations-là.
 function toIcsDate(d: Date) {
   return d.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
 function escapeIcsText(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;");
+  return value.replace(/\\/g, "\\\\").replace(/,/g, "\\,").replace(/;/g, "\\;").replace(/\n/g, "\\n");
 }
 
 function foldLine(line: string) {
@@ -58,14 +55,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       guestName: reservations.guestName,
-      guestEmail: reservations.guestEmail,
-      guestPhone: reservations.guestPhone,
-      nbAdultes: reservations.nbAdultes,
-      nbEnfants: reservations.nbEnfants,
-      villaNom: villas.nom,
+      notes: reservations.notes,
     })
     .from(reservations)
-    .leftJoin(villas, eq(villas.id, reservations.villaId))
     .where(
       and(
         eq(reservations.villaId, villaId),
@@ -86,18 +78,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
 
   for (const r of rows) {
     const guestName = r.guestName || "Client Moderna Agency";
-    // Chaque valeur est échappée individuellement (antislash/virgule/point-virgule) avant d'être
-    // insérée dans les lignes — le "\n" entre lignes est l'échappement RFC5545 du retour à la
-    // ligne lui-même et ne doit surtout pas être rééchappé après coup (double antislash invalide).
-    const descriptionLines = [
-      `Arriving - ${escapeIcsText(formatSuperhoteDateTime(r.checkIn, 15, 0))}`,
-      `Departing - ${escapeIcsText(formatSuperhoteDateTime(r.checkOut, 11, 0))}`,
-      `Number of Adults - ${r.nbAdultes ?? ""}`,
-      `Number of Children - ${r.nbEnfants ?? 0}`,
-      `Guest Email - ${escapeIcsText(r.guestEmail ?? "")}`,
-      `Guest Phone - ${escapeIcsText(r.guestPhone ?? "")}`,
-      `Rental Name - ${escapeIcsText(r.villaNom ?? "")}`,
-    ].join("\\n");
+    const bookingRef = r.id.slice(0, 8).toUpperCase();
+    const description = r.notes?.trim() || "Réservation via l'agent WhatsApp Moderna Agency — aucune demande spécifique.";
 
     lines.push(
       "BEGIN:VEVENT",
@@ -105,8 +87,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
       `DTSTAMP:${now}`,
       `DTSTART;VALUE=DATE:${toIcsDate(r.checkIn)}`,
       `DTEND;VALUE=DATE:${toIcsDate(r.checkOut)}`,
-      foldLine(`SUMMARY:${escapeIcsText(guestName)} - Direct - ${r.id}`),
-      foldLine(`DESCRIPTION:${descriptionLines}`),
+      foldLine(`SUMMARY:${escapeIcsText(guestName)} - Direct - ${bookingRef}`),
+      foldLine(`DESCRIPTION:${escapeIcsText(description)}`),
       "END:VEVENT"
     );
   }
