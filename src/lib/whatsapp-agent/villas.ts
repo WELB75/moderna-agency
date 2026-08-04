@@ -29,8 +29,8 @@ export const VILLAS: { id: string; nom: string; blurb: string; prixNuit: number;
   { id: "f76ca3e6-d3c1-42b2-bb31-ec095c85b69d", nom: "Mya cosy", blurb: "n°10, Noria — appart 1 chambre, balcon", prixNuit: 80, caution: 250, menage: 20, superhoteId: "propertyKeyTtK0Uzjf5mJR5igFNe5TTdlGC" },
   { id: "87f70e37-67fe-42f7-9601-391b525c17f9", nom: "Nina cosy", blurb: "n°1, Noria — appart 1 chambre, terrasse", prixNuit: 70, caution: 250, menage: 20, superhoteId: "propertyKeyEMGaTbQGELu40NUALdwhFuvVo" },
   { id: "8641e2ed-8711-4a3a-8dc8-4b3bd2a9a71f", nom: "Mila Cosy", blurb: "n°1, Noria", prixNuit: 90, caution: 250, menage: 20, superhoteId: "propertyKeyM8BheSj6auVs0VwJFhQlsYVaZ" },
-  { id: "016306a5-301c-4efa-b4ad-ed709b40303f", nom: "Villa Lila", blurb: "n°14, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, hammam + salle de sport privés, piscine chauffée en option", prixNuit: 650, caution: 1000, menage: 80, superhoteId: "propertyKeybMJXo1lOvdBtZ0JUw4sUr5Zyk" },
+  { id: "016306a5-301c-4efa-b4ad-ed709b40303f", nom: "Villa Lila", blurb: "n°14, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, hammam + salle de sport privés, piscine chauffée", prixNuit: 650, caution: 1000, menage: 80, superhoteId: "propertyKeybMJXo1lOvdBtZ0JUw4sUr5Zyk" },
   { id: "ea6cd59d-287b-41f8-8d4f-aa147b93d083", nom: "Villa Wimiliim", blurb: "n°16, Domaine Moderna II — 4 chambres, piscine (sans vis-à-vis), jardin", prixNuit: 350, caution: 950, menage: 60, superhoteId: "propertyKeyEizrWAA0gVu9W19raPXvMf4xR" },
-  { id: "bf33c8ba-2f65-4a09-bedd-870646fcdd08", nom: "Villa Sofya", blurb: "n°13, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, mobilier Roche Bobois, cuisinière incluse, barbecue, piscine chauffée en option", prixNuit: 650, caution: 1000, menage: 80, superhoteId: "propertyKeyKOO2kUkhcSqDaTiwuRRFOV8Yy" },
+  { id: "bf33c8ba-2f65-4a09-bedd-870646fcdd08", nom: "Villa Sofya", blurb: "n°13, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, mobilier Roche Bobois, cuisinière incluse, barbecue, piscine chauffée", prixNuit: 650, caution: 1000, menage: 80, superhoteId: "propertyKeyKOO2kUkhcSqDaTiwuRRFOV8Yy" },
 ];
 
