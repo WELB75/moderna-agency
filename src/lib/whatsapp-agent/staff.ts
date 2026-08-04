@@ -18,6 +18,13 @@ const STALE_TIMEOUT_MS = 60 * 60 * 1000;
 // c'est bon c'est réglé") — la première à répondre "oui" gagne, les autres sont prévenues.
 const BATCH_SIZE = 3;
 
+// Kamel reçoit une copie de chaque offre envoyée au personnel, pour suivre le fil en temps réel
+// sans être une vraie candidate (il ne répondra jamais) — en plus de l'historique déjà consultable
+// sur /agent-ia. Kamel, 2026-08-04 : "fais comme si je faisais partie du groupe à chaque fois mais
+// je répondrais pas, c'est juste pour suivre le fil." Son numéro n'entre jamais dans
+// candidatsSollicitesIds/refusIds — il n'est jamais un vrai candidat, juste un destinataire en plus.
+const OBSERVER_PHONE = "+33672516297";
+
 const client = new Anthropic();
 
 async function sendWhatsAppText(to: string, body: string) {
@@ -216,7 +223,7 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     candidatsEssayes: candidates.map((c) => c.id),
     historique: candidates.map((c) => ({ at: new Date().toISOString(), type: "offre" as const, candidatNom: c.nom, texte: offre })),
   });
-  await Promise.all(candidates.map((c) => sendWhatsAppText(c.telephone!, offre)));
+  await Promise.all([...candidates.map((c) => sendWhatsAppText(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
 }
 
 // Rétro-compatibilité : ancien nom utilisé par l'agent de réservation pour la cuisine.
@@ -384,7 +391,7 @@ async function broadcastNewBatch(request: StaffRequestContext, villaNom: string,
       updatedAt: new Date(),
     })
     .where(eq(staffAssignmentRequests.id, request.requestId));
-  await Promise.all(candidates.map((c) => sendWhatsAppText(c.telephone!, offre)));
+  await Promise.all([...candidates.map((c) => sendWhatsAppText(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
 }
 
 // Relance automatique : un batch entier qui ne répond ni "oui" ni "non" dans le délai imparti est
