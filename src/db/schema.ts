@@ -703,7 +703,7 @@ export const staffAssignmentRequests = pgTable(
     // avant pour ce fil : ajouté après que Kamel a demandé pourquoi l'onglet "Sollicitations
     // personnel" n'affichait pas de messages.
     historique: jsonb("historique")
-      .$type<{ at: string; type: "offre" | "reponse"; candidatNom: string; texte: string }[]>()
+      .$type<{ at: string; type: "offre" | "reponse" | "relance"; candidatNom: string; texte: string }[]>()
       .default([])
       .notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

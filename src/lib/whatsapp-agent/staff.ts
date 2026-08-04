@@ -7,6 +7,11 @@ import { personnel, personnelAffectations, staffAssignmentRequests, reservations
 // dessous d'une candidate moyenne) ni avantagée (au-dessus d'une bonne candidate déjà prouvée).
 const NEUTRAL_RATING = 3;
 
+// Délai sans réponse au-delà duquel on considère qu'une candidate ne viendra pas et on passe à
+// la suivante — décidé par Kamel le 2026-08-04, après avoir remarqué que des demandes restaient
+// bloquées des heures/jours en "En recherche" sans qu'aucun "non" explicite ne soit jamais reçu.
+const STALE_TIMEOUT_MS = 60 * 60 * 1000;
+
 const client = new Anthropic();
 
 async function sendWhatsAppText(to: string, body: string) {
@@ -38,7 +43,7 @@ async function notifyTeam(reservationId: string, message: string) {
 
 const ROLE_LABEL: Record<"cuisine" | "menage", string> = { cuisine: "la cuisine", menage: "le ménage" };
 
-type HistoriqueEntry = { at: string; type: "offre" | "reponse"; candidatNom: string; texte: string };
+type HistoriqueEntry = { at: string; type: "offre" | "reponse" | "relance"; candidatNom: string; texte: string };
 
 type Job = {
   role: "cuisine" | "menage";
@@ -214,6 +219,33 @@ export async function findPendingRequestForPhone(phone: string) {
   return row ?? null;
 }
 
+type StaffRequestRow = NonNullable<Awaited<ReturnType<typeof findPendingRequestForPhone>>>;
+
+// Demandes en cours depuis plus de STALE_TIMEOUT_MS sans qu'aucune réponse n'ait fait avancer
+// leur statut — candidates qui n'ont manifestement pas vu/répondu au message.
+async function findStaleRequests(): Promise<StaffRequestRow[]> {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - STALE_TIMEOUT_MS);
+  return db
+    .select({
+      requestId: staffAssignmentRequests.id,
+      reservationId: staffAssignmentRequests.reservationId,
+      role: staffAssignmentRequests.role,
+      candidatActuelId: staffAssignmentRequests.candidatActuelId,
+      candidatsEssayes: staffAssignmentRequests.candidatsEssayes,
+      historique: staffAssignmentRequests.historique,
+      candidatNom: personnel.nom,
+      villaId: reservations.villaId,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      notes: reservations.notes,
+    })
+    .from(staffAssignmentRequests)
+    .innerJoin(personnel, eq(personnel.id, staffAssignmentRequests.candidatActuelId))
+    .innerJoin(reservations, eq(reservations.id, staffAssignmentRequests.reservationId))
+    .where(and(eq(staffAssignmentRequests.statut, "en_recherche"), lt(staffAssignmentRequests.updatedAt, cutoff)));
+}
+
 async function interpretReply(text: string): Promise<"oui" | "non" | "incertain"> {
   const response = await client.messages.create({
     model: "claude-sonnet-5",
@@ -245,12 +277,63 @@ function buildJobFromRequest(request: NonNullable<Awaited<ReturnType<typeof find
   };
 }
 
+// Passe à la candidate suivante disponible (refus explicite, ou timeout sans réponse) : marque
+// "sans_candidat" si personne d'autre n'est disponible, sinon lui envoie l'offre et déplace le
+// pointeur "candidat actuel". Factorisé pour être utilisé aussi bien par un "non" explicite
+// (handleStaffReply) que par une relance automatique après timeout (cascadeStaleRequests).
+async function cascadeToNextCandidate(request: StaffRequestRow, villaNom: string, historiqueBase: HistoriqueEntry[]): Promise<void> {
+  const db = getDb();
+  const excludeIds = [...(request.candidatsEssayes as string[]), request.candidatActuelId!];
+  const job = buildJobFromRequest(request, villaNom);
+  const next = await findNextCandidate(request.role, request.reservationId, job.dateDebut, job.dateFin, excludeIds);
+
+  if (!next) {
+    await db
+      .update(staffAssignmentRequests)
+      .set({ statut: "sans_candidat", candidatsEssayes: excludeIds, historique: historiqueBase, updatedAt: new Date() })
+      .where(eq(staffAssignmentRequests.id, request.requestId));
+    await notifyTeam(
+      request.reservationId,
+      `⚠️ Plus aucune candidate disponible pour ${ROLE_LABEL[request.role]} — ${job.villaNom}, ${job.dateDebut} → ${job.dateFin} (toutes sollicitées ou occupées) — à affecter manuellement.`
+    );
+    return;
+  }
+
+  const offre = buildOfferMessage(job);
+  const historiqueAvecOffre: HistoriqueEntry[] = [...historiqueBase, { at: new Date().toISOString(), type: "offre", candidatNom: next.nom, texte: offre }];
+  await db
+    .update(staffAssignmentRequests)
+    .set({ candidatActuelId: next.id, candidatsEssayes: [...excludeIds, next.id], historique: historiqueAvecOffre, updatedAt: new Date() })
+    .where(eq(staffAssignmentRequests.id, request.requestId));
+  await sendWhatsAppText(next.telephone!, offre);
+}
+
+// Relance automatique : une candidate qui ne répond ni "oui" ni "non" dans le délai imparti est
+// considérée indisponible — sinon la demande restait bloquée indéfiniment (avant ce correctif,
+// seul un refus explicite faisait avancer la cascade). Appelée à chaque message WhatsApp entrant
+// (trafic fréquent en pratique) et par un cron quotidien de secours pour les périodes creuses
+// (voir /api/staff-requests/sweep).
+export async function cascadeStaleRequests(): Promise<void> {
+  const db = getDb();
+  const stale = await findStaleRequests();
+  for (const request of stale) {
+    const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
+    const historiqueAvecRelance: HistoriqueEntry[] = [
+      ...((request.historique as HistoriqueEntry[]) ?? []),
+      {
+        at: new Date().toISOString(),
+        type: "relance",
+        candidatNom: request.candidatNom,
+        texte: `Pas de réponse sous ${Math.round(STALE_TIMEOUT_MS / (60 * 60 * 1000))}h — passage automatique à la candidate suivante.`,
+      },
+    ];
+    await cascadeToNextCandidate(request, villa?.nom ?? "Villa", historiqueAvecRelance);
+  }
+}
+
 // Traite la réponse d'une candidate en cours de sollicitation : confirme, ou passe à la
 // suivante en cascade si elle refuse. Renvoie le texte à répondre à l'expéditeur (l'employée).
-export async function handleStaffReply(
-  request: NonNullable<Awaited<ReturnType<typeof findPendingRequestForPhone>>>,
-  text: string
-): Promise<string> {
+export async function handleStaffReply(request: StaffRequestRow, text: string): Promise<string> {
   const db = getDb();
   const decision = await interpretReply(text);
 
@@ -284,31 +367,6 @@ export async function handleStaffReply(
   }
 
   // decision === "non" : cascade vers la candidate suivante.
-  const excludeIds = [...(request.candidatsEssayes as string[]), request.candidatActuelId!];
-  const job = buildJobFromRequest(request, villa?.nom ?? "Villa");
-  const next = await findNextCandidate(request.role, request.reservationId, job.dateDebut, job.dateFin, excludeIds);
-
-  if (!next) {
-    await db
-      .update(staffAssignmentRequests)
-      .set({ statut: "sans_candidat", candidatsEssayes: excludeIds, historique: historiqueAvecReponse, updatedAt: new Date() })
-      .where(eq(staffAssignmentRequests.id, request.requestId));
-    await notifyTeam(
-      request.reservationId,
-      `⚠️ Plus aucune candidate disponible pour ${ROLE_LABEL[request.role]} — ${job.villaNom}, ${job.dateDebut} → ${job.dateFin} (toutes sollicitées ou occupées) — à affecter manuellement.`
-    );
-    return `لا مشكلة، شكرا على الرد.`;
-  }
-
-  const offre = buildOfferMessage(job);
-  const historiqueAvecOffre: HistoriqueEntry[] = [
-    ...historiqueAvecReponse,
-    { at: new Date().toISOString(), type: "offre", candidatNom: next.nom, texte: offre },
-  ];
-  await db
-    .update(staffAssignmentRequests)
-    .set({ candidatActuelId: next.id, candidatsEssayes: [...excludeIds, next.id], historique: historiqueAvecOffre, updatedAt: new Date() })
-    .where(eq(staffAssignmentRequests.id, request.requestId));
-  await sendWhatsAppText(next.telephone!, offre);
+  await cascadeToNextCandidate(request, villa?.nom ?? "Villa", historiqueAvecReponse);
   return `لا مشكلة، شكرا على الرد.`;
 }

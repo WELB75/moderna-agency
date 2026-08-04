@@ -16,7 +16,7 @@ type StoredMessage = { role: "user" | "assistant"; content: string | ContentBloc
 
 type Segment = { kind: "client" | "agent" | "outil"; text: string };
 
-type HistoriqueEntry = { at: string; type: "offre" | "reponse"; candidatNom: string; texte: string };
+type HistoriqueEntry = { at: string; type: "offre" | "reponse" | "relance"; candidatNom: string; texte: string };
 
 // Les conversations sont stockées au format brut de l'API Anthropic (voir whatsapp-agent/agent.ts) :
 // un message "user" texte simple = vrai message du client ; un message "user" avec un tableau de
@@ -190,21 +190,27 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
                     {historique.length === 0 ? (
                       <p className="text-xs text-muted-foreground">Aucun message échangé pour l&apos;instant.</p>
                     ) : (
-                      historique.map((h, i) => (
-                        <div
-                          key={i}
-                          className={cn(
-                            "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                            h.type === "offre" && "ml-auto bg-primary/10",
-                            h.type === "reponse" && "ml-0 bg-muted"
-                          )}
-                        >
-                          <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                            {h.type === "offre" ? `Agent IA → ${h.candidatNom}` : `${h.candidatNom} → Agent IA`}
-                          </p>
-                          <p className="whitespace-pre-wrap">{h.texte}</p>
-                        </div>
-                      ))
+                      historique.map((h, i) =>
+                        h.type === "relance" ? (
+                          <div key={i} className="mx-auto max-w-full bg-transparent text-center font-mono text-xs text-muted-foreground">
+                            ⏱ {h.texte}
+                          </div>
+                        ) : (
+                          <div
+                            key={i}
+                            className={cn(
+                              "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                              h.type === "offre" && "ml-auto bg-primary/10",
+                              h.type === "reponse" && "ml-0 bg-muted"
+                            )}
+                          >
+                            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              {h.type === "offre" ? `Agent IA → ${h.candidatNom}` : `${h.candidatNom} → Agent IA`}
+                            </p>
+                            <p className="whitespace-pre-wrap">{h.texte}</p>
+                          </div>
+                        )
+                      )
                     )}
                   </div>
                 </details>

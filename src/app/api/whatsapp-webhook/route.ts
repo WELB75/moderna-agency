@@ -4,7 +4,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { whatsappConversations } from "@/db/schema";
 import { runAgentTurn, repairMessageHistory } from "@/lib/whatsapp-agent/agent";
-import { findPendingRequestForPhone, handleStaffReply } from "@/lib/whatsapp-agent/staff";
+import { findPendingRequestForPhone, handleStaffReply, cascadeStaleRequests } from "@/lib/whatsapp-agent/staff";
 
 export const maxDuration = 60;
 
@@ -150,6 +150,11 @@ export async function POST(req: NextRequest) {
       await sendWhatsAppText(message.from, staffReply);
       return NextResponse.json({ ok: true });
     }
+
+    // Relance les demandes en cours depuis trop longtemps sans réponse (voir staff.ts) — passée
+    // ici plutôt qu'avant le bloc ci-dessus pour ne jamais risquer de réattribuer la propre
+    // demande de l'expéditeur pile au moment où il y répond.
+    await cascadeStaleRequests();
 
     const { db, existing } = await loadConversation(from);
 
