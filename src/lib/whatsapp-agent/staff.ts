@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, avg, eq, gt, isNotNull, lt, ne } from "drizzle-orm";
+import { and, avg, eq, gt, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas } from "@/db/schema";
 
@@ -143,6 +143,47 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     .where(and(eq(staffAssignmentRequests.reservationId, reservationId), eq(staffAssignmentRequests.role, job.role)))
     .limit(1);
   if (dejaDemande.length > 0) return;
+
+  // Certaines personnes sont fixes sur une villa donnée, payées directement par le propriétaire
+  // (ex. Khaoula à Villa Sofya, Aisha à Villa Wimiliim — voir villas.personnelPayeParProprietaireNoms)
+  // : pas de sens à les "consulter" par une offre WhatsApp comme une candidate parmi d'autres,
+  // elles font ce travail sur cette villa de toute façon. Affectation directe, sans passer par le
+  // cycle offre/réponse. Kamel, 2026-08-04 : "Khaoula est fixe dans la villa sofiya donc l'agent
+  // IA doit pas la consulter en premier".
+  const [resa] = await db.select({ villaId: reservations.villaId }).from(reservations).where(eq(reservations.id, reservationId)).limit(1);
+  if (resa?.villaId) {
+    const [villa] = await db
+      .select({ personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms })
+      .from(villas)
+      .where(eq(villas.id, resa.villaId))
+      .limit(1);
+    const nomsFixes = villa?.personnelPayeParProprietaireNoms ?? [];
+    if (nomsFixes.length > 0) {
+      const [fixe] = await db
+        .select({ id: personnel.id, nom: personnel.nom })
+        .from(personnel)
+        .where(and(eq(personnel.role, job.role), eq(personnel.actif, true), inArray(personnel.nom, nomsFixes)))
+        .limit(1);
+      if (fixe) {
+        await db.insert(personnelAffectations).values({ reservationId, personnelId: fixe.id }).onConflictDoNothing();
+        await db.insert(staffAssignmentRequests).values({
+          reservationId,
+          role: job.role,
+          statut: "confirme",
+          personnelConfirmeId: fixe.id,
+          historique: [
+            {
+              at: new Date().toISOString(),
+              type: "offre",
+              candidatNom: fixe.nom,
+              texte: `Affectation automatique — ${fixe.nom} est fixe sur ${job.villaNom} (payée directement par le propriétaire), pas de sollicitation WhatsApp nécessaire.`,
+            },
+          ],
+        });
+        return;
+      }
+    }
+  }
 
   const candidate = await findNextCandidate(job.role, reservationId, job.dateDebut, job.dateFin, []);
 
