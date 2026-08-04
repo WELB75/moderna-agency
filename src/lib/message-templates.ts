@@ -122,13 +122,14 @@ export function buildCheckoutMessage(guestName: string, villaNom: string, lang: 
   return `Bonjour ${guestName},\n\nNous espérons que votre séjour à ${villaNom} s'est bien passé !\n\nDépart à 11h00 maximum. Avant de partir :\n\n1. Regrouper les ordures dans le sac poubelle de la cuisine\n2. Regrouper les serviettes par chambre sur le lit\n3. Éteindre les lumières et la climatisation\n4. Fermer la porte à clé à 11h00 maximum\n5. Déposer les clés dans la boîte à clé (ou nous contacter)\n6. Sortir votre véhicule du parking\n\nUne question avant de partir ? On est là. Merci et à bientôt !\nL'équipe Moderna Agency`;
 }
 
-// Message envoyé après le départ du client : remercie et souhaite un bon voyage, sans rien
-// demander en retour — contrairement au message d'arrivée, purement une formule de politesse.
+// Message envoyé après le départ du client : remercie, souhaite un bon voyage, et demande une
+// note sur le service ménage/cuisine (1 à 5) — sert à prioriser les meilleures candidates la
+// prochaine fois (voir staff.ts, findNextCandidate).
 export function buildDepartureMessage(guestName: string, lang: MessageLang = "fr"): string {
   if (lang === "en") {
-    return `Hello ${guestName},\n\nThank you very much for your stay with us. We hope you had a wonderful time and a safe trip back.\n\nIt was a pleasure hosting you, and we hope to welcome you again soon!\n\nKamel, Moderna Agency`;
+    return `Hello ${guestName},\n\nThank you very much for your stay with us. We hope you had a wonderful time and a safe trip back.\n\nOne last thing: could you rate the housekeeping/cooking service from 1 to 5? It really helps us assign the best team members going forward.\n\nIt was a pleasure hosting you, and we hope to welcome you again soon!\n\nKamel, Moderna Agency`;
   }
-  return `Bonjour ${guestName},\n\nMerci beaucoup pour votre séjour parmi nous. Nous espérons que vous avez passé un excellent moment et que vous avez fait bon voyage.\n\nCe fut un plaisir de vous accueillir, et nous espérons vous revoir bientôt !\n\nKamel, Moderna Agency`;
+  return `Bonjour ${guestName},\n\nMerci beaucoup pour votre séjour parmi nous. Nous espérons que vous avez passé un excellent moment et que vous avez fait bon voyage.\n\nUne dernière chose : pourriez-vous noter de 1 à 5 le service ménage/cuisine ? Ça nous aide vraiment à affecter les meilleures personnes la prochaine fois.\n\nCe fut un plaisir de vous accueillir, et nous espérons vous revoir bientôt !\n\nKamel, Moderna Agency`;
 }
 
 // Message envoyé au gardien/sécurité du domaine (en arabe, car ils ne lisent pas le français) :

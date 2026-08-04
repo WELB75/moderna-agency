@@ -180,6 +180,20 @@ export async function markAffectationPaidSolo(affectationId: string) {
   revalidatePath("/caisse");
 }
 
+// Note du client (1 à 5) donnée en réponse au message de départ, saisie à la main par l'équipe
+// (ce message part du téléphone personnel de l'équipe, pas du numéro du bot — la réponse du
+// client n'arrive donc pas automatiquement dans le système, sauf s'il écrit directement au
+// numéro de l'agent). Appliquée à toute l'équipe (ménage + cuisine) de ce séjour, comme lorsque
+// l'agent IA la capte lui-même (voir rating.ts, recordStayRating).
+export async function setStayRating(reservationId: string, note: number) {
+  await auth.protect();
+  if (!Number.isInteger(note) || note < 1 || note > 5) throw new Error("Note invalide (doit être entre 1 et 5).");
+  const db = getDb();
+  await db.update(personnelAffectations).set({ note }).where(eq(personnelAffectations.reservationId, reservationId));
+  revalidatePath("/personnel");
+  revalidatePath("/dashboard");
+}
+
 // Marque payées d'un coup toutes les affectations dues et pas encore payées d'une personne —
 // évite de devoir cocher chaque ménage/jour de cuisine un par un après un paiement en liquide.
 // Ajoute aussi la dépense correspondante dans la caisse (payée en liquide) avec le nom de la

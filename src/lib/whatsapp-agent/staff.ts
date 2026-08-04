@@ -1,7 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, eq, gt, lt, ne } from "drizzle-orm";
+import { and, avg, eq, gt, isNotNull, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas } from "@/db/schema";
+
+// Note neutre attribuée à une candidate sans aucune note pour l'instant — ni pénalisée (en
+// dessous d'une candidate moyenne) ni avantagée (au-dessus d'une bonne candidate déjà prouvée).
+const NEUTRAL_RATING = 3;
 
 const client = new Anthropic();
 
@@ -73,6 +77,17 @@ async function findNextCandidate(
     .select({ id: personnel.id, nom: personnel.nom, telephone: personnel.telephone })
     .from(personnel)
     .where(and(eq(personnel.role, role), eq(personnel.actif, true)));
+
+  // Les mieux notées sont sollicitées en premier (moyenne de toutes leurs notes de séjour) — une
+  // candidate jamais notée reçoit une note neutre, ni pénalisée ni avantagée face à une candidate
+  // déjà prouvée bonne ou mauvaise.
+  const ratings = await db
+    .select({ personnelId: personnelAffectations.personnelId, moyenne: avg(personnelAffectations.note) })
+    .from(personnelAffectations)
+    .where(isNotNull(personnelAffectations.note))
+    .groupBy(personnelAffectations.personnelId);
+  const ratingByPersonnelId = new Map(ratings.map((r) => [r.personnelId, Number(r.moyenne)]));
+  candidates.sort((a, b) => (ratingByPersonnelId.get(b.id) ?? NEUTRAL_RATING) - (ratingByPersonnelId.get(a.id) ?? NEUTRAL_RATING));
 
   // Pour un nettoyage d'un seul jour, la fenêtre de conflit doit couvrir cette journée entière
   // (le check-out lui-même) — on compare donc contre [dateDebut, dateFin + 1 jour).

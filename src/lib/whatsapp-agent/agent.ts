@@ -6,6 +6,7 @@ import { reservations } from "@/db/schema";
 import { VILLAS } from "./villas";
 import { buildConfirmationEmailHtml, sendConfirmationEmail } from "./email";
 import { initiateCuisineRequest, initiateMenageRequest, dayAfter } from "./staff";
+import { recordStayRating } from "./rating";
 
 const client = new Anthropic();
 
@@ -46,6 +47,17 @@ const tools: Tool[] = [
         demandesSpecifiques: { type: "string", description: "Toute autre demande particulière du client, texte libre" },
       },
       required: ["villa", "dateArrivee", "dateDepart", "prenom", "nom", "email", "telephone", "pays", "nombreAdultes"],
+    },
+  },
+  {
+    name: "note_sejour",
+    description: "Enregistre la note (1 à 5) donnée par le client pour le service ménage/cuisine de son dernier séjour terminé. Appeler dès que le client donne une note claire à cette occasion, texte ou vocal transcrit (ex. 'très bien', 'note 4/5', 'la cuisinière était moyenne, 3').",
+    input_schema: {
+      type: "object",
+      properties: {
+        note: { type: "number", description: "Note entière de 1 (très mauvais) à 5 (excellent)" },
+      },
+      required: ["note"],
     },
   },
 ];
@@ -286,7 +298,8 @@ Règles :
 - Juste avant de demander la confirmation finale, redemande une dernière fois s'il y a autre chose de spécifique à noter (même si déjà abordé plus tôt dans la conversation) — pour être sûr de ne rien manquer avant de créer la réservation.
 - N'utilise create_booking qu'une fois TOUTES les infos obtenues ET une confirmation explicite du client ("oui", "c'est bon", "je confirme"...).
 - Une fois la réservation créée, confirme au client avec les dates, la villa, le prix total, **et rappelle le montant de la caution et des frais de ménage de cette villa** (indiqués dans la liste des logements ci-dessus) — précise que la caution est remboursable et sera à régler séparément avant l'arrivée. Précise aussi que l'agence le recontactera pour lui envoyer le contrat de location et la fiche de police (sécurité).
-- L'historique de cette conversation peut couvrir plusieurs jours, semaines ou mois — un message annoté "[Reprise après une pause de ...]" signale une reprise après une longue interruption. Dans ce cas, revérifie les informations discutées avant la pause (disponibilité, dates) avant de t'appuyer dessus : la situation a pu changer entre-temps.`;
+- L'historique de cette conversation peut couvrir plusieurs jours, semaines ou mois — un message annoté "[Reprise après une pause de ...]" signale une reprise après une longue interruption. Dans ce cas, revérifie les informations discutées avant la pause (disponibilité, dates) avant de t'appuyer dessus : la situation a pu changer entre-temps.
+- Si le client donne une note ou un avis sur le ménage/la cuisine de son séjour (spontanément, ou en réponse à une question posée par l'équipe), utilise l'outil note_sejour avec une note de 1 à 5 (déduis un chiffre même si le client s'exprime en mots — "parfait"/"excellent" → 5, "correct"/"bien" → 4, "moyen" → 3, "décevant" → 2, "très mauvais" → 1). Remercie-le brièvement après coup, sans en faire trop.`;
 }
 
 // Un historique persisté ne doit jamais se terminer par un tool_use non résolu (Claude rejette
@@ -307,7 +320,7 @@ export function repairMessageHistory(messages: MessageParam[]): MessageParam[] {
   return messages.slice(0, lastValidEnd);
 }
 
-export async function runAgentTurn(messages: MessageParam[], onRoundComplete?: (messages: MessageParam[]) => Promise<void>): Promise<string> {
+export async function runAgentTurn(messages: MessageParam[], phone: string, onRoundComplete?: (messages: MessageParam[]) => Promise<void>): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
   while (true) {
     const response = await client.messages.create({
@@ -340,6 +353,10 @@ export async function runAgentTurn(messages: MessageParam[], onRoundComplete?: (
           result = await checkAvailability(input.villa, input.dateArrivee, input.dateDepart);
         } else if (block.name === "create_booking") {
           result = await createBooking(block.input as Record<string, unknown>);
+        } else if (block.name === "note_sejour") {
+          const input = block.input as { note: number };
+          const stay = await recordStayRating(phone, Math.round(input.note));
+          result = stay ? { ok: true, villa: stay.villaNom } : { ok: false, raison: "Aucun séjour terminé trouvé pour ce numéro — n'insiste pas auprès du client, remercie-le simplement." };
         } else {
           result = { erreur: "Outil inconnu" };
         }

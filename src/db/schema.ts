@@ -531,6 +531,12 @@ export const personnelAffectations = pgTable(
     // de cuisine selon avecDejeuner) — permet de calculer ce qu'il reste à payer sans le compter
     // deux fois.
     payeAt: timestamp("paye_at", { withTimezone: true }),
+    // Note du client (1 à 5) sur le séjour, collectée au message de départ — appliquée à TOUTE
+    // l'équipe (ménage + cuisine) de ce séjour, pas par personne individuellement : impossible de
+    // démêler fiablement "5 pour la cuisinière, 2 pour le ménage" depuis un message WhatsApp en
+    // langage libre. Sert à faire remonter les meilleures candidates en premier dans
+    // findNextCandidate (staff.ts).
+    note: integer("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId)]

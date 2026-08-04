@@ -174,7 +174,7 @@ export async function POST(req: NextRequest) {
         : text;
     messages.push({ role: "user", content: userContent });
 
-    const reply = await runAgentTurn(messages, async (partial) => {
+    const reply = await runAgentTurn(messages, from, async (partial) => {
       await saveConversation(db, from, partial, message.id);
     });
 

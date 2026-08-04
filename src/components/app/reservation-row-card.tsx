@@ -11,6 +11,7 @@ import { LocationMessageButton } from "@/components/app/location-message-button"
 import { SecurityMessageButton } from "@/components/app/security-message-button";
 import { CheckoutMessageButton } from "@/components/app/checkout-message-button";
 import { DepartureMessageButton } from "@/components/app/departure-message-button";
+import { StayRatingButton } from "@/components/app/stay-rating-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { StatusChip } from "@/components/app/status-chip";
@@ -300,6 +301,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             {r.guestPhone && kind === "out" && !isProprietaire ? (
               <DepartureMessageButton phone={r.guestPhone} guestName={r.guestName} />
             ) : null}
+            {kind === "out" && !isProprietaire ? <StayRatingButton reservationId={r.id} /> : null}
           </div>
 
           <EditReservationTimeDialog
