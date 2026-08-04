@@ -96,6 +96,15 @@ function nights(dateArrivee: string, dateDepart: string) {
   return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)));
 }
 
+// Le ménage/la cuisine ne commence jamais le jour d'arrivée du client (il vient tout juste
+// d'arriver) mais le lendemain — donc la cuisinière est sollicitée pour travailler à partir
+// du lendemain du check-in, pas du check-in lui-même.
+function dayAfter(dateStr: string): string {
+  const d = new Date(dateStr);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 // Superhote a renvoyé "The selected country is invalid" pour "France" — les erreurs Laravel de
 // ce type ("selected X invalid") viennent presque toujours d'une validation par liste fermée
 // (codes ISO), pas le nom complet. Mapping minimal, à étendre si besoin.
@@ -208,7 +217,7 @@ async function createBooking(input: Record<string, unknown>) {
       const avecDejeuner = /d[ée]jeuner/.test(cuisiniere.toLowerCase().replace("petit-déjeuner", "").replace("petit déjeuner", ""));
       await initiateCuisineRequest(modernaBookingId, {
         villaNom: villa.nom,
-        dateArrivee: String(input.dateArrivee),
+        dateArrivee: dayAfter(String(input.dateArrivee)),
         dateDepart: String(input.dateDepart),
         avecDejeuner,
       });

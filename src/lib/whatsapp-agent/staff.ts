@@ -39,6 +39,15 @@ type Job = {
   avecDejeuner: boolean;
 };
 
+// Le ménage/la cuisine ne commence jamais le jour d'arrivée du client (il vient tout juste
+// d'arriver) mais le lendemain — donc la cuisinière est sollicitée pour travailler à partir
+// du lendemain du check-in, pas du check-in lui-même.
+function dayAfter(dateStr: string): string {
+  const d = new Date(dateStr);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 function buildOfferMessage(job: Job): string {
   const repas = job.avecDejeuner ? "الفطور والغداء" : "الفطور فقط";
   return `السلام عليكم،\n\nهل يمكنك الطبخ في ${job.villaNom} من ${job.dateArrivee} إلى ${job.dateDepart}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
@@ -172,7 +181,7 @@ export async function handleStaffReply(
   const avecDejeuner = /d[ée]jeuner/.test((request.notes ?? "").toLowerCase().replace("petit-déjeuner", "").replace("petit déjeuner", ""));
   const job: Job = {
     villaNom: villa?.nom ?? "Villa",
-    dateArrivee: new Date(request.checkIn).toISOString().slice(0, 10),
+    dateArrivee: dayAfter(new Date(request.checkIn).toISOString().slice(0, 10)),
     dateDepart: new Date(request.checkOut).toISOString().slice(0, 10),
     avecDejeuner,
   };
