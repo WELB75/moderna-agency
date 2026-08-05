@@ -72,6 +72,7 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       villaNom: villas.nom,
+      villaNumero: villas.numero,
     })
     .from(staffAssignmentRequests)
     .leftJoin(reservations, eq(reservations.id, staffAssignmentRequests.reservationId))
@@ -163,7 +164,10 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
                         <Badge variant="outline" className={statut.className}>
                           {statut.label}
                         </Badge>
-                        <span className="text-sm font-medium">{r.villaNom ?? "Villa"}</span>
+                        <span className="text-sm font-medium">
+                          {r.villaNom ?? "Villa"}
+                          {r.villaNumero ? ` (n°${r.villaNumero})` : ""}
+                        </span>
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {r.guestName ?? "Réservation"} ·{" "}
