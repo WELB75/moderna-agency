@@ -61,16 +61,16 @@ export function GlobalSearchOverlay() {
         </button>
       </DialogPrimitive.Trigger>
       <DialogPortal>
-        <DialogOverlay className="bg-black/60 backdrop-blur-[2px]" />
+        <DialogOverlay className="bg-black/50 backdrop-blur-[2px]" />
         <DialogPrimitive.Content
           onOpenAutoFocus={(e) => {
             e.preventDefault();
             document.getElementById("global-search-input")?.focus();
           }}
-          className="fixed left-1/2 top-[12%] z-50 w-full max-w-xl -translate-x-1/2 border border-border bg-popover text-popover-foreground shadow-lg outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
+          className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/15 bg-background/75 text-popover-foreground shadow-2xl outline-none backdrop-blur-2xl supports-backdrop-filter:bg-background/60 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
         >
           <DialogTitle className="sr-only">Recherche</DialogTitle>
-          <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <div className="flex items-center gap-3 px-4 py-3.5">
             {isPending ? (
               <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
             ) : (
@@ -81,12 +81,12 @@ export function GlobalSearchOverlay() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Rechercher un client, des travaux, une femme de ménage, une cuisinière..."
-              className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="w-full min-w-0 bg-transparent text-[15px] outline-none placeholder:text-muted-foreground"
             />
           </div>
 
           {showResults ? (
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto border-t border-white/10">
               {isPending && results.length === 0 ? (
                 <p className="p-4 text-sm text-muted-foreground">Recherche...</p>
               ) : results.length === 0 ? (
@@ -94,11 +94,11 @@ export function GlobalSearchOverlay() {
               ) : (
                 <ul>
                   {results.map((r) => (
-                    <li key={`${r.type}-${r.id}`} className="border-b border-border last:border-b-0">
+                    <li key={`${r.type}-${r.id}`} className="border-b border-white/10 last:border-b-0">
                       <Link
                         href={r.href}
                         onClick={() => setOpen(false)}
-                        className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted"
+                        className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-foreground/5"
                       >
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium">{r.title}</p>
