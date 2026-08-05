@@ -23,7 +23,7 @@ import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { MenuGrid } from "@/components/app/menu-grid";
-import { GlobalSearchBar } from "@/components/app/global-search-bar";
+import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
 import { CollapsibleSection } from "@/components/app/collapsible-section";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
@@ -361,27 +361,29 @@ export default async function DashboardPage({
 
         {/* Actions de synchro/import : rarement utilisées au quotidien, donc repliées derrière
             un déclencheur discret plutôt que deux boutons pleine largeur en haut de l'accueil. */}
-        <details className="group relative self-start">
-          <summary className="flex cursor-pointer list-none items-center justify-center border border-border p-2 text-muted-foreground marker:content-none hover:text-foreground">
-            <MoreVertical className="h-4 w-4" />
-          </summary>
-          <div className="absolute right-0 top-full z-20 mt-1 w-72 space-y-2 border border-border bg-popover p-3 shadow-lg">
-            <p className="text-xs font-medium text-muted-foreground">Options</p>
-            <div className="flex flex-col gap-1.5">
-              <SyncIcalButton className="w-full" />
-              <SyncBeds24Button className="w-full" />
-              <ImportSuperhoteCsvDialog />
+        <div className="flex items-center gap-2 self-start">
+          <GlobalSearchOverlay />
+          <details className="group relative">
+            <summary className="flex cursor-pointer list-none items-center justify-center border border-border p-2 text-muted-foreground marker:content-none hover:text-foreground">
+              <MoreVertical className="h-4 w-4" />
+            </summary>
+            <div className="absolute right-0 top-full z-20 mt-1 w-72 space-y-2 border border-border bg-popover p-3 shadow-lg">
+              <p className="text-xs font-medium text-muted-foreground">Options</p>
+              <div className="flex flex-col gap-1.5">
+                <SyncIcalButton className="w-full" />
+                <SyncBeds24Button className="w-full" />
+                <ImportSuperhoteCsvDialog />
+              </div>
+              {lastSync?.finishedAt ? (
+                <p className="text-xs text-muted-foreground">
+                  Dernière synchro {lastSync.success === false ? "(échec)" : ""} : {format(lastSync.finishedAt, "d MMM HH:mm", { locale: fr })}
+                </p>
+              ) : null}
             </div>
-            {lastSync?.finishedAt ? (
-              <p className="text-xs text-muted-foreground">
-                Dernière synchro {lastSync.success === false ? "(échec)" : ""} : {format(lastSync.finishedAt, "d MMM HH:mm", { locale: fr })}
-              </p>
-            ) : null}
-          </div>
-        </details>
+          </details>
+        </div>
       </div>
 
-      <GlobalSearchBar />
       {/* Redondant sur desktop (le menu latéral donne déjà accès à tout, en toutes lettres) —
           utile seulement là où ce menu est masqué, donc tablette/smartphone. */}
       <div className="md:hidden">
