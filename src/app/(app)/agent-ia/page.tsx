@@ -1,5 +1,4 @@
 import { desc, eq } from "drizzle-orm";
-import { notFound } from "next/navigation";
 import { getDb } from "@/db";
 import { whatsappConversations, staffAssignmentRequests, reservations, villas, personnel } from "@/db/schema";
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +8,6 @@ import { PhoneLink } from "@/components/app/phone-link";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { isKamel } from "@/lib/access";
 
 type ContentBlock = { type: string; text?: string; name?: string; input?: unknown };
 type StoredMessage = { role: "user" | "assistant"; content: string | ContentBlock[] };
@@ -53,8 +51,6 @@ const STATUT_LABEL: Record<string, { label: string; className: string }> = {
 const ROLE_LABEL: Record<string, string> = { menage: "Ménage", cuisine: "Cuisine" };
 
 export default async function AgentIaPage({ searchParams }: { searchParams: Promise<{ onglet?: string }> }) {
-  if (!(await isKamel())) notFound();
-
   const { onglet } = await searchParams;
   const ongletActif = onglet === "personnel" ? "personnel" : "clients";
 

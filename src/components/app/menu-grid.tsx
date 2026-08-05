@@ -4,8 +4,8 @@ import { navItems } from "@/components/app/nav-items";
 // Grille de raccourcis en haut de l'accueil (inspirée du menu Uber : tuiles nettes, sobres,
 // une par section) — pour atteindre une section en un tap au lieu de passer par le menu latéral,
 // surtout utile au pouce sur téléphone. "Accueil" est exclu, on y est déjà.
-export function MenuGrid({ unreadChatCount = 0, hiddenHrefs = [] }: { unreadChatCount?: number; hiddenHrefs?: string[] }) {
-  const items = navItems.filter((item) => item.href !== "/dashboard" && !hiddenHrefs.includes(item.href));
+export function MenuGrid({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
+  const items = navItems.filter((item) => item.href !== "/dashboard");
 
   return (
     <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
