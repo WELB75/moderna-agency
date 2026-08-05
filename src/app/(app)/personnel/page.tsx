@@ -13,6 +13,8 @@ import {
   startOfWeek,
   endOfWeek,
   subWeeks,
+  addWeeks,
+  addDays,
   differenceInCalendarDays,
   subDays,
   startOfDay,
@@ -35,26 +37,46 @@ import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { MarkPaidButton } from "@/components/app/mark-paid-button";
+import { PlanningRemoveButton } from "@/components/app/planning-remove-button";
 import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
-import { Users, CalendarClock, BarChart3, Wallet, History, LogIn, LogOut, Trophy, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
+import {
+  Users,
+  CalendarClock,
+  CalendarDays,
+  BarChart3,
+  Wallet,
+  History,
+  LogIn,
+  LogOut,
+  Trophy,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  UtensilsCrossed,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ONGLETS_VALIDES = ["equipe", "affectations", "statistiques", "historique", "paiements"];
+const ONGLETS_VALIDES = ["equipe", "affectations", "planning", "statistiques", "historique", "paiements"];
 
 function statsPeriodeHref(date: Date, vue: "mois" | "annee"): string {
   const base = `/personnel?onglet=statistiques&mois=${format(date, "yyyy-MM")}`;
   return vue === "annee" ? `${base}&vue=annee` : base;
 }
 
+function planningHref(date: Date): string {
+  return `/personnel?onglet=planning&semaine=${format(date, "yyyy-MM-dd")}`;
+}
+
 export default async function PersonnelPage({
   searchParams,
 }: {
-  searchParams: Promise<{ onglet?: string; mois?: string; vue?: string }>;
+  searchParams: Promise<{ onglet?: string; mois?: string; vue?: string; semaine?: string }>;
 }) {
-  const { onglet, mois, vue } = await searchParams;
+  const { onglet, mois, vue, semaine } = await searchParams;
   const ongletActif = onglet && ONGLETS_VALIDES.includes(onglet) ? onglet : "equipe";
   const db = getDb();
   const now = nowInMorocco();
@@ -63,6 +85,15 @@ export default async function PersonnelPage({
   // la charge sur une plus longue période que le seul mois en cours.
   const vueStats: "mois" | "annee" = vue === "annee" ? "annee" : "mois";
   const moisAncre = mois && /^\d{4}-\d{2}$/.test(mois) ? new Date(`${mois}-01T00:00:00`) : now;
+
+  // Onglet Planning : semaine par semaine (lundi à dimanche), navigable — le vrai planning
+  // "qui travaille où, quel jour", à partir des affectations confirmées (personnelAffectations),
+  // modifiable directement depuis la grille (bouton retirer) ou depuis la fiche réservation
+  // complète pour affecter un remplaçant. Kamel, 2026-08-05 : "un vrai planning a la semaine qui
+  // sera modulable si elle change d'avis".
+  const semaineAncre = semaine && /^\d{4}-\d{2}-\d{2}$/.test(semaine) ? new Date(`${semaine}T00:00:00`) : now;
+  const debutSemaine = startOfWeek(semaineAncre, { weekStartsOn: 1 });
+  const finSemaine = endOfWeek(debutSemaine, { weekStartsOn: 1 });
 
   const allPersonnel = await db.select().from(personnel).orderBy(asc(personnel.nom));
   const menageRoster = allPersonnel.filter((p) => p.role === "menage");
@@ -448,6 +479,74 @@ export default async function PersonnelPage({
     };
   });
 
+  // Réservations dont le séjour chevauche la semaine affichée (pas seulement le ménage/la cuisine
+  // qui tombe dedans) : la fenêtre de recherche doit couvrir toute la durée du séjour car un jour
+  // de cuisine peut tomber n'importe où entre le lendemain du check-in et le check-out.
+  const planningReservations = (
+    await db
+      .select({
+        id: reservations.id,
+        guestName: reservations.guestName,
+        checkIn: reservations.checkIn,
+        checkOut: reservations.checkOut,
+        villaId: reservations.villaId,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+        personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
+      })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), lte(reservations.checkIn, finSemaine), gte(reservations.checkOut, debutSemaine)))
+      .orderBy(asc(reservations.checkIn))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+  const planningReservationIds = planningReservations.map((r) => r.id);
+  const planningAffectations =
+    planningReservationIds.length > 0
+      ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, planningReservationIds))
+      : [];
+  const planningReservationById = new Map(planningReservations.map((r) => [r.id, r]));
+
+  type PlanningEntry = {
+    affectationId: string;
+    reservationId: string;
+    villaNom: string | null;
+    villaNumero: string | null;
+    guestName: string;
+    role: "menage" | "cuisine";
+    personnelNom: string;
+    avecDejeuner: boolean;
+    montantVisible: boolean;
+  };
+  function planningPourJour(jour: Date): PlanningEntry[] {
+    const jourDebut = startOfDay(jour);
+    const entries: PlanningEntry[] = [];
+    for (const a of planningAffectations) {
+      const r = planningReservationById.get(a.reservationId);
+      const p = personnelById.get(a.personnelId);
+      if (!r || !p) continue;
+      const checkIn = new Date(r.checkIn);
+      const checkOut = new Date(r.checkOut);
+      const concerne =
+        p.role === "menage" ? isSameDay(jourDebut, checkOut) : jourDebut >= startOfDay(addDays(checkIn, 1)) && jourDebut <= startOfDay(checkOut);
+      if (!concerne) continue;
+      entries.push({
+        affectationId: a.id,
+        reservationId: r.id,
+        villaNom: r.villaNom,
+        villaNumero: r.villaNumero,
+        guestName: r.guestName,
+        role: p.role,
+        personnelNom: p.nom,
+        avecDejeuner: a.avecDejeuner,
+        montantVisible: !estPayeParProprietaire(r.personnelPayeParProprietaireNoms ?? [], p.nom),
+      });
+    }
+    return entries.sort((a, b) => (a.villaNom ?? "").localeCompare(b.villaNom ?? ""));
+  }
+  const joursSemaine = Array.from({ length: 7 }, (_, i) => addDays(debutSemaine, i));
+
   return (
     <div className="space-y-6">
       <div>
@@ -464,6 +563,10 @@ export default async function PersonnelPage({
           <TabsTrigger value="affectations" className="shrink-0">
             <CalendarClock className="h-4 w-4" />
             Affectations
+          </TabsTrigger>
+          <TabsTrigger value="planning" className="shrink-0">
+            <CalendarDays className="h-4 w-4" />
+            Planning
           </TabsTrigger>
           <TabsTrigger value="statistiques" className="shrink-0">
             <BarChart3 className="h-4 w-4" />
@@ -527,6 +630,78 @@ export default async function PersonnelPage({
             emptyLabel="Aucune arrivée en attente."
             now={now}
           />
+        </TabsContent>
+
+        <TabsContent value="planning" className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
+              <Link
+                href={planningHref(subWeeks(debutSemaine, 1))}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Semaine précédente"
+                title="Semaine précédente"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+              <p className="min-w-48 px-1.5 text-center text-sm font-medium capitalize">
+                {format(debutSemaine, "d MMM", { locale: fr })} → {format(finSemaine, "d MMM yyyy", { locale: fr })}
+              </p>
+              <Link
+                href={planningHref(addWeeks(debutSemaine, 1))}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Semaine suivante"
+                title="Semaine suivante"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+            {!isSameDay(debutSemaine, startOfWeek(now, { weekStartsOn: 1 })) ? (
+              <Link href="/personnel?onglet=planning" className="text-sm text-primary underline-offset-4 hover:underline">
+                Cette semaine
+              </Link>
+            ) : null}
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-7">
+            {joursSemaine.map((jour) => {
+              const entries = planningPourJour(jour);
+              const estAujourdhui = isSameDay(jour, now);
+              return (
+                <Card key={jour.toISOString()} className={cn(estAujourdhui && "border-foreground/40")}>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium capitalize">
+                      {format(jour, "EEEE d MMM", { locale: fr })}
+                      {estAujourdhui ? <Badge className="ml-1.5">Aujourd&apos;hui</Badge> : null}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {entries.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Rien de prévu.</p>
+                    ) : (
+                      entries.map((e) => (
+                        <div key={e.affectationId} className="space-y-1 rounded-md border p-2 text-xs">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="flex items-center gap-1 font-medium">
+                              {e.role === "menage" ? <Sparkles className="h-3 w-3" /> : <UtensilsCrossed className="h-3 w-3" />}
+                              {e.personnelNom}
+                            </span>
+                            <PlanningRemoveButton affectationId={e.affectationId} nom={e.personnelNom} />
+                          </div>
+                          <Link href={`/reservations/${e.reservationId}`} className="block text-muted-foreground hover:text-foreground hover:underline">
+                            {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
+                          </Link>
+                          {e.role === "cuisine" ? (
+                            <p className="text-muted-foreground">{e.avecDejeuner ? "Petit-déj + déjeuner" : "Petit-déjeuner seul"}</p>
+                          ) : null}
+                          {!e.montantVisible ? <p className="text-muted-foreground">Payé par proprio</p> : null}
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </TabsContent>
 
         <TabsContent value="statistiques" className="space-y-6">

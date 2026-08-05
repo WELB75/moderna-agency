@@ -4,7 +4,13 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { whatsappConversations } from "@/db/schema";
 import { runAgentTurn, repairMessageHistory } from "@/lib/whatsapp-agent/agent";
-import { findPendingRequestForPhone, handleStaffReply, cascadeStaleRequests } from "@/lib/whatsapp-agent/staff";
+import {
+  findPendingRequestForPhone,
+  handleStaffReply,
+  cascadeStaleRequests,
+  findConfirmedAssignmentForPhone,
+  handleCancellationReply,
+} from "@/lib/whatsapp-agent/staff";
 
 export const maxDuration = 60;
 
@@ -149,6 +155,20 @@ export async function POST(req: NextRequest) {
       const staffReply = await handleStaffReply(pendingStaffRequest, text);
       await sendWhatsAppText(message.from, staffReply);
       return NextResponse.json({ ok: true });
+    }
+
+    // Une candidate déjà CONFIRMÉE (pas juste en attente) qui revient écrire peut vouloir annuler
+    // — vérifié seulement si elle n'a pas de demande en attente ailleurs (cas ci-dessus prioritaire :
+    // la même personne peut avoir une mission confirmée sur une villa et une autre en attente sur
+    // une autre). handleCancellationReply renvoie null si ce n'est manifestement pas une annulation,
+    // auquel cas le message continue vers la conversation client normale comme avant.
+    const confirmedAssignment = await findConfirmedAssignmentForPhone(from);
+    if (confirmedAssignment) {
+      const cancelReply = await handleCancellationReply(confirmedAssignment, text);
+      if (cancelReply) {
+        await sendWhatsAppText(message.from, cancelReply);
+        return NextResponse.json({ ok: true });
+      }
     }
 
     // Relance les demandes en cours depuis trop longtemps sans réponse (voir staff.ts) — passée

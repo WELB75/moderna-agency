@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, avg, eq, gt, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
+import { and, avg, eq, gt, gte, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas } from "@/db/schema";
 
@@ -384,6 +384,11 @@ async function broadcastNewBatch(request: StaffRequestContext, villaNom: string,
   await db
     .update(staffAssignmentRequests)
     .set({
+      // Explicite plutôt que déduit de l'état précédent : les deux appelants existants (refus,
+      // timeout) sont déjà "en_recherche"/sans confirmée, mais handleCancellationReply rouvre une
+      // demande qui était "confirme" — ce reset doit s'appliquer dans les deux cas.
+      statut: "en_recherche",
+      personnelConfirmeId: null,
       candidatsSollicitesIds: candidates.map((c) => c.id),
       candidatsEssayes: [...excludeIds, ...candidates.map((c) => c.id)],
       refusIds: [],
@@ -493,4 +498,90 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
     await broadcastNewBatch(request, villa?.nom ?? "Villa", [reponseEntry]);
   }
   return `لا مشكلة، شكرا على الرد.`;
+}
+
+// Cherche une mission CONFIRMÉE (déjà acceptée) rattachée à ce numéro, pas encore passée — permet
+// au webhook de reconnaître qu'une candidate déjà confirmée revient annuler, plutôt que de traiter
+// son message comme une nouvelle conversation client. `checkOut >= aujourd'hui` exclut les
+// missions déjà terminées (rien à annuler une fois le travail fait).
+export async function findConfirmedAssignmentForPhone(phone: string) {
+  const db = getDb();
+  const [person] = await db.select({ id: personnel.id, nom: personnel.nom }).from(personnel).where(eq(personnel.telephone, phone)).limit(1);
+  if (!person) return null;
+
+  const [row] = await db
+    .select({
+      requestId: staffAssignmentRequests.id,
+      reservationId: staffAssignmentRequests.reservationId,
+      role: staffAssignmentRequests.role,
+      candidatsEssayes: staffAssignmentRequests.candidatsEssayes,
+      historique: staffAssignmentRequests.historique,
+      villaId: reservations.villaId,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      notes: reservations.notes,
+    })
+    .from(staffAssignmentRequests)
+    .innerJoin(reservations, eq(reservations.id, staffAssignmentRequests.reservationId))
+    .where(
+      and(
+        eq(staffAssignmentRequests.statut, "confirme"),
+        eq(staffAssignmentRequests.personnelConfirmeId, person.id),
+        gte(reservations.checkOut, new Date())
+      )
+    )
+    .limit(1);
+  if (!row) return null;
+  return { ...row, candidatId: person.id, candidatNom: person.nom };
+}
+
+async function interpretCancellation(text: string): Promise<"annulation" | "autre"> {
+  const response = await client.messages.create({
+    model: "claude-sonnet-5",
+    max_tokens: 10,
+    thinking: { type: "disabled" },
+    output_config: { effort: "low" },
+    system: `Tu interprètes le message d'un(e) employé(e) déjà CONFIRMÉE pour une mission (ménage ou cuisine), en arabe, darija ou français, texte ou vocal transcrit. Réponds UNIQUEMENT par un seul mot : "annulation" si elle dit qu'elle ne peut finalement plus venir, veut annuler, se désiste ; "autre" pour tout le reste (question, remerciement, ou tout message qui n'est pas clairement une annulation).`,
+    messages: [{ role: "user", content: text }],
+  });
+  const block = response.content.find((b) => b.type === "text");
+  const raw = block && block.type === "text" ? block.text.trim().toLowerCase() : "";
+  return raw.includes("annulation") ? "annulation" : "autre";
+}
+
+// Traite le message d'une candidate déjà confirmée. Renvoie null si ce n'est manifestement pas
+// une annulation (le webhook laisse alors le message retomber sur le traitement normal, comme
+// avant cette fonctionnalité) — pour ne jamais intercepter à tort un message qui n'a rien à voir.
+// Si c'est une annulation : retire l'affectation, rouvre la demande et relance immédiatement une
+// recherche de remplaçante (même mécanisme que "tout le batch a refusé"), prévient l'équipe.
+// Kamel, 2026-08-05 : "si elle change d'avis et revienne vers l'agent ia pour annuler, lui il ira
+// chercher quelqu'un d'autres".
+export async function handleCancellationReply(
+  assignment: NonNullable<Awaited<ReturnType<typeof findConfirmedAssignmentForPhone>>>,
+  text: string
+): Promise<string | null> {
+  const decision = await interpretCancellation(text);
+  if (decision === "autre") return null;
+
+  const db = getDb();
+  const villa = assignment.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, assignment.villaId)).limit(1))[0] : null;
+
+  await db
+    .delete(personnelAffectations)
+    .where(and(eq(personnelAffectations.reservationId, assignment.reservationId), eq(personnelAffectations.personnelId, assignment.candidatId)));
+
+  await notifyTeam(
+    assignment.reservationId,
+    `⚠️ ${assignment.candidatNom} a annulé pour ${ROLE_LABEL[assignment.role]} — ${villa?.nom ?? "villa"}, ${new Date(assignment.checkIn).toLocaleDateString("fr-FR")} → ${new Date(assignment.checkOut).toLocaleDateString("fr-FR")} — recherche d'une remplaçante en cours.`
+  );
+
+  const annulationEntry: HistoriqueEntry = {
+    at: new Date().toISOString(),
+    type: "reponse",
+    candidatNom: assignment.candidatNom,
+    texte: `Annulation : ${text}`,
+  };
+  await broadcastNewBatch(assignment, villa?.nom ?? "Villa", [annulationEntry]);
+
+  return `تم إلغاء تأكيدك، شكرا على إخبارنا. سنبحث عن شخص آخر. موديرنا أجونسي`;
 }
