@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq, and, ne, gte, lte, inArray, ilike } from "drizzle-orm";
-import { format, startOfMonth, endOfMonth, differenceInCalendarDays } from "date-fns";
+import { eq, and, ne, inArray, ilike } from "drizzle-orm";
+import { format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowLeft } from "lucide-react";
 import { getDb } from "@/db";
@@ -10,10 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PhoneLink } from "@/components/app/phone-link";
 import { domaineEstActif } from "@/lib/domaines-actifs";
-import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 
-type MonthReservation = {
+type ReservationInfo = {
   id: string;
   guestName: string;
   checkIn: Date;
@@ -30,10 +29,12 @@ type DetailLigne = { villaNom: string | null; villaNumero: string | null; guestN
 // cuisine, chacune enregistrée comme une entrée Personnel séparée (rôle différent) — on les
 // regroupe donc ici par nom pour montrer tout sur une seule page, avec les deux totaux bien
 // distincts plutôt que d'obliger à naviguer entre deux fiches.
+//
+// Historique complet depuis le début (pas juste le mois en cours) — Kamel, 2026-08-05 : "quand
+// je clic sur touria il me faut tout pour tout ce qu'elle a gagné".
 export default async function PersonnelDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = getDb();
-  const now = nowInMorocco();
 
   const [p] = await db.select().from(personnel).where(eq(personnel.id, id)).limit(1);
   if (!p) notFound();
@@ -42,10 +43,7 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
     a.role === "menage" ? -1 : b.role === "menage" ? 1 : 0
   );
 
-  const debutMois = startOfMonth(now);
-  const finMois = endOfMonth(now);
-
-  const moisReservations: MonthReservation[] = (
+  const toutesReservations: ReservationInfo[] = (
     await db
       .select({
         id: reservations.id,
@@ -60,18 +58,18 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, debutMois), lte(reservations.checkOut, finMois)))
+      .where(ne(reservations.status, "annulee"))
   ).filter((r) => domaineEstActif(r.domaineNom));
-  const moisReservationIds = moisReservations.map((r) => r.id);
-  const moisReservationById = new Map(moisReservations.map((r) => [r.id, r]));
+  const toutesReservationIds = toutesReservations.map((r) => r.id);
+  const reservationById = new Map(toutesReservations.map((r) => [r.id, r]));
 
   async function computeStats(personnelId: string, role: "menage" | "cuisine") {
-    const moisAffectations =
-      moisReservationIds.length > 0
+    const affectations =
+      toutesReservationIds.length > 0
         ? await db
             .select()
             .from(personnelAffectations)
-            .where(and(eq(personnelAffectations.personnelId, personnelId), inArray(personnelAffectations.reservationId, moisReservationIds)))
+            .where(and(eq(personnelAffectations.personnelId, personnelId), inArray(personnelAffectations.reservationId, toutesReservationIds)))
         : [];
 
     let totalFait = 0;
@@ -79,8 +77,8 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
     let montantRecu = 0;
     const details: DetailLigne[] = [];
 
-    for (const a of moisAffectations) {
-      const r = moisReservationById.get(a.reservationId);
+    for (const a of affectations) {
+      const r = reservationById.get(a.reservationId);
       if (!r) continue;
       if (role === "menage") {
         if (!a.faitAt) continue;
@@ -136,7 +134,7 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
         {telephone ? <PhoneLink phone={telephone} /> : null}
       </div>
 
-      <p className="text-sm text-muted-foreground capitalize">{format(now, "MMMM yyyy", { locale: fr })}</p>
+      <p className="text-sm text-muted-foreground">Historique complet, depuis le début</p>
 
       {sections.map(({ entry, stats }) => {
         const roleLabel = entry.role === "menage" ? "Ménage" : "Cuisine";
@@ -169,7 +167,7 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
               </div>
 
               {stats.details.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Rien ce mois-ci pour l&apos;instant.</p>
+                <p className="text-sm text-muted-foreground">Rien pour l&apos;instant.</p>
               ) : (
                 <div className="space-y-2 border-t pt-3">
                   {stats.details.map((d, i) => (
