@@ -172,6 +172,7 @@ export default async function PersonnelPage({
       nbJours: number | null;
       avecDejeuner: boolean;
       payeAt: Date | null;
+      commentaire: string | null;
     }[]
   >();
   for (const a of upcomingAffectations) {
@@ -187,6 +188,7 @@ export default async function PersonnelPage({
       nbJours: a.nbJours,
       avecDejeuner: a.avecDejeuner,
       payeAt: a.payeAt,
+      commentaire: a.commentaire,
     });
     affectationsByReservation.set(a.reservationId, list);
   }
@@ -204,6 +206,7 @@ export default async function PersonnelPage({
         nbJours: a.nbJours,
         avecDejeuner: a.avecDejeuner,
         payeAt: a.payeAt,
+        commentaire: a.commentaire,
       }));
   }
 

@@ -86,11 +86,21 @@ export async function addPersonnelAffectation(
 export async function removePersonnelAffectation(affectationId: string) {
   await auth.protect();
   const db = getDb();
+
+  // Si l'affectation était payée via markAffectationPaidSolo, sa dépense de caisse doit partir
+  // avec elle — sinon la suppression laisse une dépense fantôme, sans plus aucune affectation à
+  // laquelle la rattacher. Kamel, 2026-08-06 : "tout modifier depuis ici".
+  const [a] = await db.select({ cashEntryId: personnelAffectations.cashEntryId }).from(personnelAffectations).where(eq(personnelAffectations.id, affectationId)).limit(1);
+
   await db.delete(personnelAffectations).where(eq(personnelAffectations.id, affectationId));
+  if (a?.cashEntryId) {
+    await db.delete(cashEntries).where(eq(cashEntries.id, a.cashEntryId));
+  }
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
   revalidatePath("/dashboard");
+  revalidatePath("/caisse");
 }
 
 // Ménage : confirme (ou annule) que le ménage a réellement été fait, distinct du simple fait
@@ -122,6 +132,21 @@ export async function updateAffectationAvecDejeuner(affectationId: string, avecD
   await auth.protect();
   const db = getDb();
   await db.update(personnelAffectations).set({ avecDejeuner }).where(eq(personnelAffectations.id, affectationId));
+
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+}
+
+// Remarque libre sur une affectation (ex. correction, particularité) — éditable à tout moment,
+// payée ou non. Kamel, 2026-08-06 : "d'ajouter des notes".
+export async function updateAffectationCommentaire(affectationId: string, commentaire: string | null) {
+  await auth.protect();
+  const db = getDb();
+  await db
+    .update(personnelAffectations)
+    .set({ commentaire: commentaire?.trim() || null })
+    .where(eq(personnelAffectations.id, affectationId));
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -170,20 +195,50 @@ export async function markAffectationPaidSolo(affectationId: string): Promise<{ 
   const villa = r.villaId ? (await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, r.villaId)).limit(1))[0] : null;
   const user = await currentUser();
 
-  await db.update(personnelAffectations).set({ payeAt: new Date() }).where(eq(personnelAffectations.id, affectationId));
-
   const roleLabel = p.role === "menage" ? "ménage" : "cuisine";
-  await db.insert(cashEntries).values({
-    villaId: r.villaId,
-    type: "depense",
-    moyenPaiement: "especes",
-    montant: montant.toFixed(2),
-    description: `Paiement ${roleLabel} — ${p.nom}${villa ? ` (${villa.nom} n°${villa.numero})` : ""}`,
-    responsable: p.nom,
-    photoUrls: [],
-    createdByUserId: user?.id ?? "inconnu",
-    createdByName: user?.fullName ?? user?.username ?? "Équipe",
-  });
+  const [entry] = await db
+    .insert(cashEntries)
+    .values({
+      villaId: r.villaId,
+      type: "depense",
+      moyenPaiement: "especes",
+      montant: montant.toFixed(2),
+      description: `Paiement ${roleLabel} — ${p.nom}${villa ? ` (${villa.nom} n°${villa.numero})` : ""}`,
+      responsable: p.nom,
+      photoUrls: [],
+      createdByUserId: user?.id ?? "inconnu",
+      createdByName: user?.fullName ?? user?.username ?? "Équipe",
+    })
+    .returning({ id: cashEntries.id });
+
+  // cashEntryId retenu pour pouvoir annuler proprement cette dépense précise si le statut payée
+  // est réactivé plus tard (voir unmarkAffectationPaid) — sans ça, un aller-retour payée/non payée
+  // laisserait une dépense fantôme dans la caisse.
+  await db.update(personnelAffectations).set({ payeAt: new Date(), cashEntryId: entry.id }).where(eq(personnelAffectations.id, affectationId));
+
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+  revalidatePath("/caisse");
+  return { ok: true };
+}
+
+// Réactive une affectation marquée payée par erreur (ou à corriger) — Kamel, 2026-08-06 :
+// "réactivé tout le bloc, faire un ON OFF". Supprime la dépense de caisse liée pour ne pas
+// laisser une trace fantôme (seulement celle créée par markAffectationPaidSolo — le flux groupé
+// markAffectationsPaid n'est pas concerné, une dépense y couvre plusieurs affectations à la fois).
+export async function unmarkAffectationPaid(affectationId: string): Promise<{ ok: boolean; message?: string }> {
+  await auth.protect();
+  const db = getDb();
+
+  const [a] = await db.select().from(personnelAffectations).where(eq(personnelAffectations.id, affectationId)).limit(1);
+  if (!a) return { ok: false, message: "Affectation introuvable." };
+  if (!a.payeAt) return { ok: true };
+
+  await db.update(personnelAffectations).set({ payeAt: null, cashEntryId: null }).where(eq(personnelAffectations.id, affectationId));
+  if (a.cashEntryId) {
+    await db.delete(cashEntries).where(eq(cashEntries.id, a.cashEntryId));
+  }
 
   revalidatePath("/personnel");
   revalidatePath("/villas");

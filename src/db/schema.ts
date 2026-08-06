@@ -549,6 +549,14 @@ export const personnelAffectations = pgTable(
     // qu'un seul type d'affectation. La clé unique inclut ce champ pour que la MÊME personne
     // puisse être affectée à la fois pour le séjour et pour le départ sur la même réservation.
     moment: personnelAffectationMomentEnum("moment").default("unique").notNull(),
+    // Remarque libre sur cette affectation (ex. "a fait 2 jours au lieu de 3, corrigé le 06/08") —
+    // distinct de `note` (la note client 1-5). Kamel, 2026-08-06 : "d'ajouter des notes".
+    commentaire: text("commentaire"),
+    // Renseigné quand payeAt est posé via markAffectationPaidSolo (paiement par ligne, pas le flux
+    // groupé markAffectationsPaid) — permet d'annuler proprement la dépense de caisse si on
+    // repasse l'affectation en "non payée" (voir unmarkAffectationPaid). Kamel, 2026-08-06 :
+    // "réactivé tout le bloc, faire un ON OFF" — le statut payée doit être réversible, pas figé.
+    cashEntryId: uuid("cash_entry_id").references(() => cashEntries.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId, t.moment)]

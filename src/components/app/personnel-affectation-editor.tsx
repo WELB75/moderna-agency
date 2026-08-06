@@ -13,7 +13,9 @@ import {
   toggleAffectationFait,
   updateAffectationJours,
   updateAffectationAvecDejeuner,
+  updateAffectationCommentaire,
   markAffectationPaidSolo,
+  unmarkAffectationPaid,
 } from "@/lib/actions/personnel";
 import {
   TARIF_MENAGE,
@@ -30,6 +32,7 @@ export type PersonnelAssigne = {
   nbJours: number | null;
   avecDejeuner: boolean;
   payeAt: Date | null;
+  commentaire: string | null;
 };
 
 type OptimisticAction =
@@ -38,7 +41,8 @@ type OptimisticAction =
   | { type: "toggleFait"; affectationId: string; fait: boolean }
   | { type: "setJours"; affectationId: string; nbJours: number | null }
   | { type: "toggleAvecDejeuner"; affectationId: string; avecDejeuner: boolean }
-  | { type: "markPaid"; affectationId: string };
+  | { type: "setPaid"; affectationId: string; paye: boolean }
+  | { type: "setCommentaire"; affectationId: string; commentaire: string | null };
 
 // Plusieurs personnes peuvent être affectées au même séjour (ex. 2-3 femmes de ménage pour
 // une grande villa) : chacune apparaît en badge retirable, et le menu déroulant ne propose que
@@ -86,6 +90,7 @@ export function PersonnelAffectationEditor({
             nbJours: null,
             avecDejeuner: false,
             payeAt: null,
+            commentaire: null,
           },
         ];
       case "remove":
@@ -98,8 +103,10 @@ export function PersonnelAffectationEditor({
         return state.map((a) =>
           a.affectationId === action.affectationId ? { ...a, avecDejeuner: action.avecDejeuner } : a
         );
-      case "markPaid":
-        return state.map((a) => (a.affectationId === action.affectationId ? { ...a, payeAt: new Date() } : a));
+      case "setPaid":
+        return state.map((a) => (a.affectationId === action.affectationId ? { ...a, payeAt: action.paye ? new Date() : null } : a));
+      case "setCommentaire":
+        return state.map((a) => (a.affectationId === action.affectationId ? { ...a, commentaire: action.commentaire } : a));
       default:
         return state;
     }
@@ -165,16 +172,30 @@ export function PersonnelAffectationEditor({
     });
   }
 
-  function handleMarkPaid(affectationId: string) {
+  // Bascule ON/OFF plutôt qu'une action à sens unique : Kamel, 2026-08-06 : "réactivé tout le
+  // bloc, faire un ON OFF quoi, désactiver l'opacité" — repasser en non-payée réactive aussi les
+  // autres champs (jours, déjeuner, retrait), plus verrouillés par le statut payée.
+  function handleTogglePaid(affectationId: string, paye: boolean) {
     startTransition(async () => {
-      applyOptimistic({ type: "markPaid", affectationId });
+      applyOptimistic({ type: "setPaid", affectationId, paye: !paye });
       try {
-        const result = await markAffectationPaidSolo(affectationId);
+        const result = paye ? await unmarkAffectationPaid(affectationId) : await markAffectationPaidSolo(affectationId);
         if (result.ok) {
-          toast.success("Marquée payée et ajoutée à la caisse.");
+          toast.success(paye ? "Paiement annulé, dépense retirée de la caisse." : "Marquée payée et ajoutée à la caisse.");
         } else {
           toast.error(result.message ?? "Erreur.");
         }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
+  function handleSetCommentaire(affectationId: string, commentaire: string | null) {
+    startTransition(async () => {
+      applyOptimistic({ type: "setCommentaire", affectationId, commentaire });
+      try {
+        await updateAffectationCommentaire(affectationId, commentaire);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -194,6 +215,7 @@ export function PersonnelAffectationEditor({
               onToggleFait={handleToggleFait}
               onRemove={handleRemove}
               onSetJours={handleSetJours}
+              onSetCommentaire={handleSetCommentaire}
               montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
             />
           ) : (
@@ -204,7 +226,8 @@ export function PersonnelAffectationEditor({
               onRemove={handleRemove}
               onSetJours={handleSetJours}
               onToggleAvecDejeuner={handleToggleAvecDejeuner}
-              onMarkPaid={handleMarkPaid}
+              onTogglePaid={handleTogglePaid}
+              onSetCommentaire={handleSetCommentaire}
               montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
             />
           )
@@ -245,6 +268,7 @@ function MenageBadge({
   onToggleFait,
   onRemove,
   onSetJours,
+  onSetCommentaire,
   montantVisible,
 }: {
   a: PersonnelAssigne;
@@ -252,16 +276,23 @@ function MenageBadge({
   onToggleFait: (affectationId: string, fait: boolean) => void;
   onRemove: (affectationId: string) => void;
   onSetJours: (affectationId: string, nbJours: number | null) => void;
+  onSetCommentaire: (affectationId: string, commentaire: string | null) => void;
   montantVisible: boolean;
 }) {
   const fait = Boolean(a.faitAt);
-  const paye = Boolean(a.payeAt);
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
+  const [commentaire, setCommentaire] = useState(a.commentaire ?? "");
 
   function handleBlur() {
     const parsed = jours.trim() === "" ? null : Math.max(1, parseInt(jours, 10));
     if (parsed === a.nbJours || (parsed === null && a.nbJours === null)) return;
     onSetJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
+  }
+
+  function handleCommentaireBlur() {
+    const trimmed = commentaire.trim();
+    if (trimmed === (a.commentaire ?? "")) return;
+    onSetCommentaire(a.affectationId, trimmed || null);
   }
 
   const joursApercu = jours.trim() === "" ? 1 : Math.max(1, parseInt(jours, 10) || 1);
@@ -287,7 +318,7 @@ function MenageBadge({
         value={jours}
         onChange={(e) => setJours(e.target.value)}
         onBlur={handleBlur}
-        disabled={disabled || paye}
+        disabled={disabled}
         placeholder="1"
         title="Nombre de jours travaillés (si sollicitée pendant le séjour, pas seulement au départ)"
         className="h-5 w-7 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
@@ -300,6 +331,15 @@ function MenageBadge({
           · Payé par proprio
         </span>
       )}
+      <Input
+        value={commentaire}
+        onChange={(e) => setCommentaire(e.target.value)}
+        onBlur={handleCommentaireBlur}
+        disabled={disabled}
+        placeholder="note"
+        title="Remarque libre sur cette affectation"
+        className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
+      />
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
@@ -320,7 +360,8 @@ function CuisineBadge({
   onRemove,
   onSetJours,
   onToggleAvecDejeuner,
-  onMarkPaid,
+  onTogglePaid,
+  onSetCommentaire,
   montantVisible,
 }: {
   a: PersonnelAssigne;
@@ -328,16 +369,24 @@ function CuisineBadge({
   onRemove: (affectationId: string) => void;
   onSetJours: (affectationId: string, nbJours: number | null) => void;
   onToggleAvecDejeuner: (affectationId: string, avecDejeuner: boolean) => void;
-  onMarkPaid: (affectationId: string) => void;
+  onTogglePaid: (affectationId: string, paye: boolean) => void;
+  onSetCommentaire: (affectationId: string, commentaire: string | null) => void;
   montantVisible: boolean;
 }) {
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
+  const [commentaire, setCommentaire] = useState(a.commentaire ?? "");
   const paye = Boolean(a.payeAt);
 
   function handleBlur() {
     const parsed = jours.trim() === "" ? null : Math.max(1, parseInt(jours, 10));
     if (parsed === a.nbJours || (parsed === null && a.nbJours === null)) return;
     onSetJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
+  }
+
+  function handleCommentaireBlur() {
+    const trimmed = commentaire.trim();
+    if (trimmed === (a.commentaire ?? "")) return;
+    onSetCommentaire(a.affectationId, trimmed || null);
   }
 
   // Aperçu du montant en direct (pas seulement une fois payé) : 1 jour par défaut si le nombre
@@ -357,7 +406,7 @@ function CuisineBadge({
         value={jours}
         onChange={(e) => setJours(e.target.value)}
         onBlur={handleBlur}
-        disabled={disabled || paye}
+        disabled={disabled}
         placeholder="nb"
         title="Nombre de jours si ce n'est pas tout le séjour"
         className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
@@ -366,15 +415,15 @@ function CuisineBadge({
       {montantVisible ? (
         <button
           type="button"
-          onClick={() => onMarkPaid(a.affectationId)}
-          disabled={disabled || paye}
+          onClick={() => onTogglePaid(a.affectationId, paye)}
+          disabled={disabled}
           className={cn(
             "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
             paye
               ? "border-foreground bg-foreground text-background"
               : "border-border bg-transparent text-muted-foreground hover:bg-muted"
           )}
-          title={paye ? "Payée — déjà ajoutée à la caisse" : `Cliquer pour marquer payée (${montantApercu} MAD) — ajouté directement à la caisse`}
+          title={paye ? "Payée — cliquer pour annuler (retire aussi la dépense de la caisse)" : `Cliquer pour marquer payée (${montantApercu} MAD) — ajouté directement à la caisse`}
         >
           {paye ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
           {paye ? "Payée" : `${montantApercu} MAD`}
@@ -390,7 +439,7 @@ function CuisineBadge({
       <button
         type="button"
         onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}
-        disabled={disabled || paye}
+        disabled={disabled}
         className={cn(
           "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
           a.avecDejeuner
@@ -406,13 +455,22 @@ function CuisineBadge({
         {a.avecDejeuner ? <UtensilsCrossed className="h-3 w-3" /> : <Coffee className="h-3 w-3" />}
         {a.avecDejeuner ? "+ Déjeuner" : "PDJ seul"}
       </button>
+      <Input
+        value={commentaire}
+        onChange={(e) => setCommentaire(e.target.value)}
+        onBlur={handleCommentaireBlur}
+        disabled={disabled}
+        placeholder="note"
+        title="Remarque libre sur cette affectation"
+        className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
+      />
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
-        disabled={disabled || paye}
+        disabled={disabled}
         className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         aria-label={`Retirer ${a.nom}`}
-        title={paye ? "Déjà payée — impossible à retirer" : "Retirer"}
+        title="Retirer"
       >
         <X className="h-3.5 w-3.5" />
       </button>

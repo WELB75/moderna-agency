@@ -95,6 +95,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       avecDejeuner: personnelAffectations.avecDejeuner,
       payeAt: personnelAffectations.payeAt,
       moment: personnelAffectations.moment,
+      commentaire: personnelAffectations.commentaire,
     })
     .from(personnelAffectations)
     .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
@@ -103,6 +104,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
   const toAssigne = (a: (typeof affectations)[number]): PersonnelAssigne => ({
     affectationId: a.id,
     personnelId: a.personnelId,
+    commentaire: a.commentaire,
     nom: a.nom,
     faitAt: a.faitAt,
     nbJours: a.nbJours,

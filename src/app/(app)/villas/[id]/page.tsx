@@ -116,10 +116,12 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       affectationId: string;
       personnelId: string;
       role: string;
+      moment: string;
       faitAt: Date | null;
       nbJours: number | null;
       avecDejeuner: boolean;
       payeAt: Date | null;
+      commentaire: string | null;
     }[]
   >();
   for (const a of allAffectations) {
@@ -130,16 +132,20 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       affectationId: a.id,
       personnelId: a.personnelId,
       role: p.role,
+      moment: a.moment,
       faitAt: a.faitAt,
       nbJours: a.nbJours,
       avecDejeuner: a.avecDejeuner,
       payeAt: a.payeAt,
+      commentaire: a.commentaire,
     });
     affectationsByReservation.set(a.reservationId, list);
   }
+  // Ménage ici = ménage de départ (fin de séjour) ; le ménage sollicité pendant le séjour se gère
+  // depuis la carte de check-in du dashboard (voir personnelAffectationMomentEnum, schema.ts).
   function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
     return (affectationsByReservation.get(reservationId) ?? [])
-      .filter((a) => a.role === role)
+      .filter((a) => a.role === role && (role !== "menage" || a.moment === "depart"))
       .map((a) => ({
         affectationId: a.affectationId,
         personnelId: a.personnelId,
@@ -148,6 +154,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         nbJours: a.nbJours,
         avecDejeuner: a.avecDejeuner,
         payeAt: a.payeAt,
+        commentaire: a.commentaire,
       }));
   }
 
@@ -560,6 +567,7 @@ function ReservationListItem({
         <PersonnelAffectationEditor
           reservationId={r.id}
           role="menage"
+          moment="depart"
           label="Ménage"
           assigned={menageAssigned}
           options={personnelMenageOptions}
