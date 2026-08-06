@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
 import { getDb } from "@/db";
 import { reservations, villas, domaines, gendarmerieForms, contratsLocation, personnel, personnelAffectations, clients } from "@/db/schema";
@@ -115,7 +115,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
   const menageDepartAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "menage" && a.moment === "depart").map(toAssigne);
   const cuisineAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "cuisine").map(toAssigne);
 
-  const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true));
+  const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom));
   const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
   const cuisineOptions = activePersonnel.filter((p) => p.role === "cuisine").map((p) => ({ id: p.id, nom: p.nom }));
 

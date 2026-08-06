@@ -202,7 +202,7 @@ export default async function DashboardPage({
     affectationsByReservationForCash.set(a.reservationId, all);
   }
 
-  const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true));
+  const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom));
   const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
   const cuisineOptions = activePersonnel.filter((p) => p.role === "cuisine").map((p) => ({ id: p.id, nom: p.nom }));
 
