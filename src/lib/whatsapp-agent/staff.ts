@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { and, avg, eq, gt, gte, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas } from "@/db/schema";
+import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas, domaines } from "@/db/schema";
+import { domaineEstActif } from "@/lib/domaines-actifs";
 
 // Note neutre attribuée à une candidate sans aucune note pour l'instant — ni pénalisée (en
 // dessous d'une candidate moyenne) ni avantagée (au-dessus d'une bonne candidate déjà prouvée).
@@ -162,13 +163,25 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     .limit(1);
   if (dejaDemande.length > 0) return;
 
+  // On ne gère au quotidien que le Domaine Moderna II (5 villas) pour l'instant — Noria et
+  // Zaraba sont mis de côté (voir domaines-actifs.ts). Kamel, 2026-08-06 : "envoie que des
+  // messages pour le domaine moderna 2 avec les 5 villas qu'on gere ! le reste on fait pas
+  // pour le moment (noria et zaraba)". Aucune sollicitation WhatsApp, aucune ligne créée.
+  const [resa] = await db
+    .select({ villaId: reservations.villaId, domaineNom: domaines.nom })
+    .from(reservations)
+    .leftJoin(villas, eq(villas.id, reservations.villaId))
+    .leftJoin(domaines, eq(domaines.id, villas.domaineId))
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!domaineEstActif(resa?.domaineNom)) return;
+
   // Certaines personnes sont fixes sur une villa donnée, payées directement par le propriétaire
   // (ex. Khaoula à Villa Sofya, Aisha à Villa Wimiliim — voir villas.personnelPayeParProprietaireNoms)
   // : pas de sens à les "consulter" par une offre WhatsApp comme une candidate parmi d'autres,
   // elles font ce travail sur cette villa de toute façon. Affectation directe, sans passer par le
   // cycle offre/réponse. Kamel, 2026-08-04 : "Khaoula est fixe dans la villa sofiya donc l'agent
   // IA doit pas la consulter en premier".
-  const [resa] = await db.select({ villaId: reservations.villaId }).from(reservations).where(eq(reservations.id, reservationId)).limit(1);
   if (resa?.villaId) {
     const [villa] = await db
       .select({ personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms })
