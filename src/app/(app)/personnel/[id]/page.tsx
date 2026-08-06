@@ -9,6 +9,7 @@ import { personnel, personnelAffectations, reservations, villas, domaines } from
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PhoneLink } from "@/components/app/phone-link";
+import { PersonnelEnqueteBadge } from "@/components/app/personnel-enquete-badge";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 
@@ -125,7 +126,10 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{p.nom}</h1>
+          <div className="flex items-center gap-1.5">
+            <h1 className="text-2xl font-semibold tracking-tight">{p.nom}</h1>
+            <PersonnelEnqueteBadge personnelId={p.id} enquete={p.enquete} />
+          </div>
           <p className="text-sm text-muted-foreground">
             {roleLabels.join(" & ")}
             {inactive ? " · Inactif" : ""}

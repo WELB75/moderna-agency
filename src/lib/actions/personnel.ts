@@ -54,6 +54,13 @@ export async function togglePersonnelActif(personnelId: string, actif: boolean) 
   revalidatePath("/personnel");
 }
 
+export async function togglePersonnelEnquete(personnelId: string, enquete: boolean) {
+  await auth.protect();
+  const db = getDb();
+  await db.update(personnel).set({ enquete }).where(eq(personnel.id, personnelId));
+  revalidatePath("/personnel");
+}
+
 export async function deletePersonnel(personnelId: string) {
   await auth.protect();
   const db = getDb();

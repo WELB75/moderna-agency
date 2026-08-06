@@ -33,6 +33,7 @@ import { GlobalSearchBar } from "@/components/app/global-search-bar";
 import { AddPersonnelDialog } from "@/components/app/add-personnel-dialog";
 import { EditPersonnelDialog } from "@/components/app/edit-personnel-dialog";
 import { PersonnelActifToggle } from "@/components/app/personnel-actif-toggle";
+import { PersonnelEnqueteBadge } from "@/components/app/personnel-enquete-badge";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
@@ -958,6 +959,7 @@ function RosterSection({
                       {p.nom}
                     </Link>
                     {!p.actif ? <Badge variant="outline">Inactif</Badge> : null}
+                    <PersonnelEnqueteBadge personnelId={p.id} enquete={p.enquete} />
                   </div>
                   {p.telephone ? <PhoneLink phone={p.telephone} /> : null}
                   {p.notes ? <p className="mt-0.5 text-sm text-muted-foreground">{p.notes}</p> : null}

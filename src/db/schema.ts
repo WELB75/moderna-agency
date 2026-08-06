@@ -511,6 +511,10 @@ export const personnel = pgTable("personnel", {
   telephone: text("telephone"),
   notes: text("notes"),
   actif: boolean("actif").default(true).notNull(),
+  // Simple drapeau discret (pas de texte écrit) pour signaler que Kamel garde un œil sur cette
+  // personne, sans détailler pourquoi nulle part dans l'app — Kamel, 2026-08-06 : "donne pas
+  // d'infos écrite ! juste ENQUETE à côté de son prénom c'est tout en orange".
+  enquete: boolean("enquete").default(false).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
