@@ -167,6 +167,7 @@ export default async function PersonnelPage({
       affectationId: string;
       personnelId: string;
       role: string;
+      moment: string;
       faitAt: Date | null;
       nbJours: number | null;
       avecDejeuner: boolean;
@@ -181,6 +182,7 @@ export default async function PersonnelPage({
       affectationId: a.id,
       personnelId: a.personnelId,
       role: p.role,
+      moment: a.moment,
       faitAt: a.faitAt,
       nbJours: a.nbJours,
       avecDejeuner: a.avecDejeuner,
@@ -188,9 +190,12 @@ export default async function PersonnelPage({
     });
     affectationsByReservation.set(a.reservationId, list);
   }
+  // "Départs" (ménage) sur cet onglet, c'est le ménage de fin de séjour qui prépare l'arrivée
+  // suivante — le ménage sollicité PENDANT le séjour (moment "sejour") ne concerne pas cette vue,
+  // il se gère depuis la carte de check-in du dashboard.
   function assignedFor(reservationId: string, role: "menage" | "cuisine"): PersonnelAssigne[] {
     return (affectationsByReservation.get(reservationId) ?? [])
-      .filter((a) => a.role === role)
+      .filter((a) => a.role === role && (role !== "menage" || a.moment === "depart"))
       .map((a) => ({
         affectationId: a.affectationId,
         personnelId: a.personnelId,
@@ -515,6 +520,7 @@ export default async function PersonnelPage({
     villaNumero: string | null;
     guestName: string;
     role: "menage" | "cuisine";
+    moment: "sejour" | "depart" | "unique";
     personnelNom: string;
     avecDejeuner: boolean;
     montantVisible: boolean;
@@ -528,8 +534,13 @@ export default async function PersonnelPage({
       if (!r || !p) continue;
       const checkIn = new Date(r.checkIn);
       const checkOut = new Date(r.checkOut);
+      // Ménage "sejour" (pendant le séjour, à la demande du client) suit la même logique que la
+      // cuisine (plage de jours) ; ménage "depart" (prépare l'arrivée suivante) reste un seul
+      // jour, le check-out — voir personnelAffectationMomentEnum dans schema.ts.
       const concerne =
-        p.role === "menage" ? isSameDay(jourDebut, checkOut) : jourDebut >= startOfDay(addDays(checkIn, 1)) && jourDebut <= startOfDay(checkOut);
+        p.role === "menage" && a.moment === "depart"
+          ? isSameDay(jourDebut, checkOut)
+          : jourDebut >= startOfDay(addDays(checkIn, 1)) && jourDebut <= startOfDay(checkOut);
       if (!concerne) continue;
       entries.push({
         affectationId: a.id,
@@ -538,6 +549,7 @@ export default async function PersonnelPage({
         villaNumero: r.villaNumero,
         guestName: r.guestName,
         role: p.role,
+        moment: a.moment,
         personnelNom: p.nom,
         avecDejeuner: a.avecDejeuner,
         montantVisible: !estPayeParProprietaire(r.personnelPayeParProprietaireNoms ?? [], p.nom),
@@ -692,7 +704,9 @@ export default async function PersonnelPage({
                           </Link>
                           {e.role === "cuisine" ? (
                             <p className="text-muted-foreground">{e.avecDejeuner ? "Petit-déj + déjeuner" : "Petit-déjeuner seul"}</p>
-                          ) : null}
+                          ) : (
+                            <p className="text-muted-foreground">{e.moment === "sejour" ? "Pendant le séjour" : "Ménage de départ"}</p>
+                          )}
                           {!e.montantVisible ? <p className="text-muted-foreground">Payé par proprio</p> : null}
                         </div>
                       ))
@@ -856,6 +870,7 @@ function AffectationSection<
         <PersonnelAffectationEditor
           reservationId={item.id}
           role={role}
+          moment={role === "menage" ? "depart" : "unique"}
           label={label}
           assigned={assignedFor(item.id, role)}
           options={options}

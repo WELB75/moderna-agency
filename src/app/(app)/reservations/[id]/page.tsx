@@ -94,17 +94,24 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       nbJours: personnelAffectations.nbJours,
       avecDejeuner: personnelAffectations.avecDejeuner,
       payeAt: personnelAffectations.payeAt,
+      moment: personnelAffectations.moment,
     })
     .from(personnelAffectations)
     .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
     .where(eq(personnelAffectations.reservationId, r.id));
 
-  const menageAssignes: PersonnelAssigne[] = affectations
-    .filter((a) => a.role === "menage")
-    .map((a) => ({ affectationId: a.id, personnelId: a.personnelId, nom: a.nom, faitAt: a.faitAt, nbJours: a.nbJours, avecDejeuner: a.avecDejeuner, payeAt: a.payeAt }));
-  const cuisineAssignes: PersonnelAssigne[] = affectations
-    .filter((a) => a.role === "cuisine")
-    .map((a) => ({ affectationId: a.id, personnelId: a.personnelId, nom: a.nom, faitAt: a.faitAt, nbJours: a.nbJours, avecDejeuner: a.avecDejeuner, payeAt: a.payeAt }));
+  const toAssigne = (a: (typeof affectations)[number]): PersonnelAssigne => ({
+    affectationId: a.id,
+    personnelId: a.personnelId,
+    nom: a.nom,
+    faitAt: a.faitAt,
+    nbJours: a.nbJours,
+    avecDejeuner: a.avecDejeuner,
+    payeAt: a.payeAt,
+  });
+  const menageSejourAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "menage" && a.moment === "sejour").map(toAssigne);
+  const menageDepartAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "menage" && a.moment === "depart").map(toAssigne);
+  const cuisineAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "cuisine").map(toAssigne);
 
   const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true));
   const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
@@ -131,7 +138,8 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     ficheStatut,
     ficheId,
     contratStatut,
-    menageAssignes,
+    menageSejourAssignes,
+    menageDepartAssignes,
     cuisineAssignes,
     menageOptions,
     cuisineOptions,

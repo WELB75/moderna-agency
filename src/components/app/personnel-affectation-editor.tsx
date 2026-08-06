@@ -56,6 +56,7 @@ export function PersonnelAffectationEditor({
   assigned,
   options,
   payeParProprietaireNoms = [],
+  moment = "unique",
 }: {
   reservationId: string;
   role: "menage" | "cuisine";
@@ -66,6 +67,10 @@ export function PersonnelAffectationEditor({
   // cette villa : aucun montant ni bouton de paiement ne doit apparaître pour elles côté
   // agence. Les autres personnes affectées à la même réservation restent payées normalement.
   payeParProprietaireNoms?: string[];
+  // Ménage uniquement : "sejour" (pendant le séjour, à la demande du client) vs "depart" (ménage
+  // de fin de séjour, souvent une équipe différente) — la MÊME personne peut être affectée aux
+  // deux pour la même réservation. "unique" (défaut) pour la cuisine, sans objet.
+  moment?: "sejour" | "depart" | "unique";
 }) {
   const [isPending, startTransition] = useTransition();
   const [optimisticAssigned, applyOptimistic] = useOptimistic(assigned, (state, action: OptimisticAction) => {
@@ -109,7 +114,7 @@ export function PersonnelAffectationEditor({
     startTransition(async () => {
       applyOptimistic({ type: "add", personnelId, nom: option.nom });
       try {
-        await addPersonnelAffectation(reservationId, personnelId);
+        await addPersonnelAffectation(reservationId, personnelId, moment);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -164,8 +169,12 @@ export function PersonnelAffectationEditor({
     startTransition(async () => {
       applyOptimistic({ type: "markPaid", affectationId });
       try {
-        await markAffectationPaidSolo(affectationId);
-        toast.success("Marquée payée et ajoutée à la caisse.");
+        const result = await markAffectationPaidSolo(affectationId);
+        if (result.ok) {
+          toast.success("Marquée payée et ajoutée à la caisse.");
+        } else {
+          toast.error(result.message ?? "Erreur.");
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }

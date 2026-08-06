@@ -63,12 +63,19 @@ export async function deletePersonnel(personnelId: string) {
 
 // Plusieurs personnes peuvent être affectées au même séjour (ex. 2-3 femmes de ménage
 // pour une grande villa) — d'où une simple ligne ajoutée/retirée plutôt qu'un champ unique.
-export async function addPersonnelAffectation(reservationId: string, personnelId: string) {
+// `moment` distingue le ménage pendant le séjour du ménage de départ (voir schema.ts,
+// personnelAffectationMomentEnum) — permet à la MÊME personne d'être affectée aux deux pour la
+// même réservation. "unique" pour la cuisine, qui n'a pas cette distinction.
+export async function addPersonnelAffectation(
+  reservationId: string,
+  personnelId: string,
+  moment: "sejour" | "depart" | "unique" = "unique"
+) {
   await auth.protect();
   const db = getDb();
   await db
     .insert(personnelAffectations)
-    .values({ reservationId, personnelId })
+    .values({ reservationId, personnelId, moment })
     .onConflictDoNothing();
 
   revalidatePath("/personnel");
@@ -124,16 +131,20 @@ export async function updateAffectationAvecDejeuner(affectationId: string, avecD
 // Marque payée une seule affectation directement depuis sa carte (cercle cliquable, comme le
 // "fait" du ménage) plutôt que de devoir passer par l'onglet Paiements — le montant réel est
 // recalculé côté serveur (pas celui affiché en aperçu côté client) et ajouté à la caisse.
-export async function markAffectationPaidSolo(affectationId: string) {
+// Retourne un résultat plutôt que de lever une exception pour les cas prévisibles ("rien à payer
+// avant le check-out") : un throw ici plantait toute la page (écran rouge Next.js) au lieu de
+// simplement afficher un toast d'erreur — repéré en prod par Kamel (2026-08-06), le check-out
+// n'ayant pas encore eu lieu pour la réservation concernée.
+export async function markAffectationPaidSolo(affectationId: string): Promise<{ ok: boolean; message?: string }> {
   await auth.protect();
   const db = getDb();
 
   const [a] = await db.select().from(personnelAffectations).where(eq(personnelAffectations.id, affectationId)).limit(1);
-  if (!a) throw new Error("Affectation introuvable.");
-  if (a.payeAt) return;
+  if (!a) return { ok: false, message: "Affectation introuvable." };
+  if (a.payeAt) return { ok: true };
 
   const [p] = await db.select().from(personnel).where(eq(personnel.id, a.personnelId)).limit(1);
-  if (!p) throw new Error("Personne introuvable.");
+  if (!p) return { ok: false, message: "Personne introuvable." };
 
   const [r] = await db
     .select({
@@ -146,14 +157,14 @@ export async function markAffectationPaidSolo(affectationId: string) {
     .from(reservations)
     .where(eq(reservations.id, a.reservationId))
     .limit(1);
-  if (!r) throw new Error("Réservation introuvable.");
+  if (!r) return { ok: false, message: "Réservation introuvable." };
 
   const montant =
     p.role === "menage"
       ? montantMenageDu(a.faitAt, a.nbJours)
       : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
   if (montant <= 0) {
-    throw new Error("Rien à payer pour l'instant (check-out pas encore validé, ou ménage pas confirmé fait).");
+    return { ok: false, message: "Rien à payer pour l'instant (check-out pas encore validé, ou ménage pas confirmé fait)." };
   }
 
   const villa = r.villaId ? (await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, r.villaId)).limit(1))[0] : null;
@@ -178,6 +189,7 @@ export async function markAffectationPaidSolo(affectationId: string) {
   revalidatePath("/villas");
   revalidatePath("/dashboard");
   revalidatePath("/caisse");
+  return { ok: true };
 }
 
 // Note du client (1 à 5) donnée en réponse au message de départ, saisie à la main par l'équipe

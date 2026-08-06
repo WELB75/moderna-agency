@@ -73,7 +73,8 @@ export type ReservationRow = {
   ficheStatut: "complete" | "en_attente" | null;
   ficheId: string | null;
   contratStatut: "signe" | "en_attente" | null;
-  menageAssignes: PersonnelAssigne[];
+  menageSejourAssignes: PersonnelAssigne[];
+  menageDepartAssignes: PersonnelAssigne[];
   cuisineAssignes: PersonnelAssigne[];
   menageOptions: { id: string; nom: string }[];
   cuisineOptions: { id: string; nom: string }[];
@@ -195,8 +196,9 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
           <PersonnelAffectationEditor
             reservationId={r.id}
             role="menage"
-            label="Ménage — cliquer sur le nom pour confirmer fait"
-            assigned={r.menageAssignes}
+            moment="depart"
+            label="Ménage de départ (prépare l'arrivée suivante) — cliquer sur le nom pour confirmer fait"
+            assigned={r.menageDepartAssignes}
             options={r.menageOptions}
             payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
           />
@@ -210,14 +212,17 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               options={r.cuisineOptions}
               payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
             />
-            {/* Certains clients veulent aussi une femme de ménage pendant le séjour (pas
-                seulement le nettoyage de fin de séjour, déjà géré côté check-out) — même donnée
-                que ce nettoyage final, éditable des deux côtés (voir personnel-affectation-editor). */}
+            {/* Distinct du ménage de départ (carte check-out) : ici, une femme de ménage
+                sollicitée PENDANT le séjour à la demande du client — souvent une personne
+                différente de l'équipe de départ. Kamel, 2026-08-06 : "quand le client arrive il
+                veut une femme de ménage donc on la note, et quand il part les femmes de ménage
+                préparent l'arrivée du prochain client, et il se peut que ce soit d'autres femmes." */}
             <PersonnelAffectationEditor
               reservationId={r.id}
               role="menage"
+              moment="sejour"
               label="Femme de ménage (si besoin pendant le séjour)"
-              assigned={r.menageAssignes}
+              assigned={r.menageSejourAssignes}
               options={r.menageOptions}
               payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
             />

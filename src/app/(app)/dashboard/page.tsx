@@ -168,16 +168,22 @@ export default async function DashboardPage({
             nbJours: personnelAffectations.nbJours,
             avecDejeuner: personnelAffectations.avecDejeuner,
             payeAt: personnelAffectations.payeAt,
+            moment: personnelAffectations.moment,
           })
           .from(personnelAffectations)
           .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
           .where(inArray(personnelAffectations.reservationId, reservationIds))
       : [];
-  const menageAssignesByReservation = new Map<string, PersonnelAssigne[]>();
+  // Ménage "sejour" (pendant le séjour, à la demande du client) et "depart" (fin de séjour, pour
+  // préparer l'arrivée suivante) sont deux équipes potentiellement différentes — voir
+  // personnelAffectationMomentEnum dans schema.ts.
+  const menageSejourAssignesByReservation = new Map<string, PersonnelAssigne[]>();
+  const menageDepartAssignesByReservation = new Map<string, PersonnelAssigne[]>();
   const cuisineAssignesByReservation = new Map<string, PersonnelAssigne[]>();
   const affectationsByReservationForCash = new Map<string, typeof relatedAffectations>();
   for (const a of relatedAffectations) {
-    const map = a.role === "menage" ? menageAssignesByReservation : cuisineAssignesByReservation;
+    const map =
+      a.role === "menage" ? (a.moment === "sejour" ? menageSejourAssignesByReservation : menageDepartAssignesByReservation) : cuisineAssignesByReservation;
     const list = map.get(a.reservationId) ?? [];
     list.push({
       affectationId: a.id,
@@ -211,7 +217,8 @@ export default async function DashboardPage({
     const ficheId = ficheIdByReservation.get(r.id) ?? null;
     const dateKey = r.villaId ? `${r.villaId}|${format(new Date(r.checkIn), "yyyy-MM-dd")}` : null;
     const contratStatut = dateKey ? (contratStatutByVillaAndDate.get(dateKey) ?? null) : null;
-    const menageAssignes = menageAssignesByReservation.get(r.id) ?? [];
+    const menageSejourAssignes = menageSejourAssignesByReservation.get(r.id) ?? [];
+    const menageDepartAssignes = menageDepartAssignesByReservation.get(r.id) ?? [];
     const cuisineAssignes = cuisineAssignesByReservation.get(r.id) ?? [];
     // Cash à prévoir pour ce séjour : ménage (200 MAD une fois confirmé fait) + cuisine
     // (100 ou 200 MAD/jour selon petit-déjeuner seul ou avec déjeuner, due au check-out), pas
@@ -232,7 +239,8 @@ export default async function DashboardPage({
       ficheStatut,
       ficheId,
       contratStatut,
-      menageAssignes,
+      menageSejourAssignes,
+      menageDepartAssignes,
       cuisineAssignes,
       menageOptions,
       cuisineOptions,
@@ -666,9 +674,9 @@ function groupTurnoverRows(
 // gardé (pas juste le total) pour l'afficher directement dans le résumé du jour.
 function estimateCashDetailPourDepart(r: ReservationRow): { nom: string; montant: number }[] {
   const detail: { nom: string; montant: number }[] = [];
-  for (const a of r.menageAssignes) {
+  for (const a of r.menageDepartAssignes) {
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) continue;
-    detail.push({ nom: a.nom, montant: TARIF_MENAGE });
+    detail.push({ nom: a.nom, montant: (a.nbJours ?? 1) * TARIF_MENAGE });
   }
   for (const a of r.cuisineAssignes) {
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) continue;

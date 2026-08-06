@@ -493,6 +493,14 @@ export const proprieteContacts = pgTable("propriete_contacts", {
 
 export const personnelRoleEnum = pgEnum("personnel_role", ["menage", "cuisine"]);
 
+// Distingue, pour une affectation de ménage, DEUX moments totalement différents et souvent
+// confiés à des personnes différentes (Kamel, 2026-08-06) : "sejour" = ménage sollicité PENDANT
+// le séjour du client (à sa demande, noté au check-in, payé au jour comme la cuisine) vs "depart"
+// = ménage de fin de séjour pour préparer l'arrivée du client suivant (souvent 2-3 femmes,
+// confirmé fait au check-out, tarif fixe). "unique" est la valeur neutre pour la cuisine (qui n'a
+// pas cette distinction) — sert aussi de valeur par défaut pour ne jamais avoir de moment nul.
+export const personnelAffectationMomentEnum = pgEnum("personnel_affectation_moment", ["sejour", "depart", "unique"]);
+
 // Répertoire du personnel ménage/cuisine, indépendant des villas : une même personne peut
 // tourner sur plusieurs villas, on la retrouve donc toujours sous la même fiche pour compter
 // ses affectations (équité entre le personnel).
@@ -537,9 +545,13 @@ export const personnelAffectations = pgTable(
     // langage libre. Sert à faire remonter les meilleures candidates en premier dans
     // findNextCandidate (staff.ts).
     note: integer("note"),
+    // Ménage uniquement (voir personnelAffectationMomentEnum) — "unique" pour la cuisine, qui n'a
+    // qu'un seul type d'affectation. La clé unique inclut ce champ pour que la MÊME personne
+    // puisse être affectée à la fois pour le séjour et pour le départ sur la même réservation.
+    moment: personnelAffectationMomentEnum("moment").default("unique").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId)]
+  (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId, t.moment)]
 );
 
 // Fiche client : pour se souvenir des habitudes/préférences d'un voyageur qui revient
