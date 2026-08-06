@@ -150,7 +150,7 @@ export async function markAffectationPaidSolo(affectationId: string) {
 
   const montant =
     p.role === "menage"
-      ? montantMenageDu(a.faitAt)
+      ? montantMenageDu(a.faitAt, a.nbJours)
       : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
   if (montant <= 0) {
     throw new Error("Rien à payer pour l'instant (check-out pas encore validé, ou ménage pas confirmé fait).");

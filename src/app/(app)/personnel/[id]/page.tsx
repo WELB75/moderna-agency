@@ -82,8 +82,8 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
       if (!r) continue;
       if (role === "menage") {
         if (!a.faitAt) continue;
-        const montant = montantMenageDu(a.faitAt);
-        totalFait += 1;
+        const montant = montantMenageDu(a.faitAt, a.nbJours);
+        totalFait += a.nbJours ?? 1;
         montantGagne += montant;
         if (a.payeAt) montantRecu += montant;
         details.push({ villaNom: r.villaNom, villaNumero: r.villaNumero, guestName: r.guestName, montant, date: a.faitAt, paye: Boolean(a.payeAt) });
@@ -141,8 +141,8 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
         const uniteLabel =
           entry.role === "menage"
             ? stats.totalFait > 1
-              ? "ménages faits"
-              : "ménage fait"
+              ? "jours de ménage"
+              : "jour de ménage"
             : stats.totalFait > 1
               ? "jours de cuisine"
               : "jour de cuisine";

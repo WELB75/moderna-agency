@@ -114,7 +114,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) return sum;
     const montant =
       a.role === "menage"
-        ? montantMenageDu(a.faitAt)
+        ? montantMenageDu(a.faitAt, a.nbJours)
         : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
     return sum + montant;
   }, 0);

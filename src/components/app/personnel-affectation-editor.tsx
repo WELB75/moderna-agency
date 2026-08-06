@@ -184,6 +184,7 @@ export function PersonnelAffectationEditor({
               disabled={isPending}
               onToggleFait={handleToggleFait}
               onRemove={handleRemove}
+              onSetJours={handleSetJours}
               montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
             />
           ) : (
@@ -225,45 +226,71 @@ export function PersonnelAffectationEditor({
 // Bouton (pas juste un badge à plat) pour que ce soit visuellement clair que c'est cliquable :
 // gris avec cercle vide = pas encore fait, noir plein avec coche = confirmé, comme un
 // interrupteur — même traitement neutre que le reste de l'app, pas de couleur sémantique ici.
+// Le nombre de jours (comme la cuisine) couvre le cas d'une femme de ménage sollicitée PENDANT
+// le séjour (pas seulement le nettoyage de fin de séjour) — vide = 1 jour, comportement d'origine
+// inchangé. Kamel, 2026-08-06 : "certains veulent cuisiniere et femme de menage", même tarif
+// journalier que le ménage de fin de séjour (200 MAD/jour).
 function MenageBadge({
   a,
   disabled,
   onToggleFait,
   onRemove,
+  onSetJours,
   montantVisible,
 }: {
   a: PersonnelAssigne;
   disabled: boolean;
   onToggleFait: (affectationId: string, fait: boolean) => void;
   onRemove: (affectationId: string) => void;
+  onSetJours: (affectationId: string, nbJours: number | null) => void;
   montantVisible: boolean;
 }) {
   const fait = Boolean(a.faitAt);
+  const paye = Boolean(a.payeAt);
+  const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
+
+  function handleBlur() {
+    const parsed = jours.trim() === "" ? null : Math.max(1, parseInt(jours, 10));
+    if (parsed === a.nbJours || (parsed === null && a.nbJours === null)) return;
+    onSetJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
+  }
+
+  const joursApercu = jours.trim() === "" ? 1 : Math.max(1, parseInt(jours, 10) || 1);
+  const montantApercu = joursApercu * TARIF_MENAGE;
+
   return (
-    <div className="inline-flex items-center gap-0.5">
+    <div className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background pl-0.5 pr-2.5 text-[0.8rem] font-medium">
       <Button
         type="button"
         variant={fait ? "default" : "outline"}
         size="sm"
         onClick={() => onToggleFait(a.affectationId, !fait)}
         disabled={disabled}
-        title={fait ? "Ménage confirmé fait au départ — cliquer pour annuler" : "Cliquer pour confirmer que le ménage a été fait"}
+        className="h-6"
+        title={fait ? "Confirmé fait — cliquer pour annuler" : "Cliquer pour confirmer que le travail a été fait"}
       >
         {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
         {a.nom}
-        {montantVisible ? (
-          <span className={cn("font-normal", fait ? "text-primary-foreground/70" : "text-muted-foreground")}>
-            · {TARIF_MENAGE} MAD
-          </span>
-        ) : (
-          <span
-            className={cn("font-normal", fait ? "text-primary-foreground/70" : "text-muted-foreground")}
-            title="Payé directement par le propriétaire, pas par l'agence"
-          >
-            · Payé par proprio
-          </span>
-        )}
       </Button>
+      <Input
+        type="number"
+        min={1}
+        value={jours}
+        onChange={(e) => setJours(e.target.value)}
+        onBlur={handleBlur}
+        disabled={disabled || paye}
+        placeholder="1"
+        title="Nombre de jours travaillés (si sollicitée pendant le séjour, pas seulement au départ)"
+        className="h-5 w-7 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
+      />
+      <span className="text-muted-foreground">{joursApercu > 1 ? "jours" : "jour"}</span>
+      {montantVisible ? (
+        <span className="text-muted-foreground">· {montantApercu} MAD</span>
+      ) : (
+        <span className="text-muted-foreground" title="Payé directement par le propriétaire, pas par l'agence">
+          · Payé par proprio
+        </span>
+      )}
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}

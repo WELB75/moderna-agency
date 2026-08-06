@@ -241,7 +241,7 @@ export default async function PersonnelPage({
         if (!r) return sum;
         const montant =
           role === "menage"
-            ? montantMenageDu(a.faitAt)
+            ? montantMenageDu(a.faitAt, a.nbJours)
             : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
         return sum + montant;
       }, 0);
@@ -298,7 +298,7 @@ export default async function PersonnelPage({
     if (!p || !r) return sum;
     const montant =
       p.role === "menage"
-        ? montantMenageDu(a.faitAt)
+        ? montantMenageDu(a.faitAt, a.nbJours)
         : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
     return sum + montant;
   }, 0);
@@ -346,7 +346,7 @@ export default async function PersonnelPage({
           if (!r || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, p.nom)) continue;
           const m =
             role === "menage"
-              ? montantMenageDu(a.faitAt)
+              ? montantMenageDu(a.faitAt, a.nbJours)
               : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
           if (m > 0) {
             montant += m;
@@ -412,8 +412,8 @@ export default async function PersonnelPage({
       historyEvents.push({
         nom: p.nom,
         role: "menage",
-        montant: montantMenageDu(a.faitAt),
-        jours: null,
+        montant: montantMenageDu(a.faitAt, a.nbJours),
+        jours: a.nbJours ?? 1,
         villaNom: a.villaNom,
         villaNumero: a.villaNumero,
         guestName: a.guestName,
@@ -1139,7 +1139,7 @@ function WeekHistoryCard({
                 <ul className="mt-1 space-y-0.5 text-sm text-muted-foreground">
                   {menageParPersonne.map((p) => (
                     <li key={p.nom}>
-                      {p.nom} — {p.count} × 200 MAD = {p.montant} MAD
+                      {p.nom} — {p.jours} {p.jours > 1 ? "jours" : "jour"} = {p.montant} MAD
                     </li>
                   ))}
                 </ul>

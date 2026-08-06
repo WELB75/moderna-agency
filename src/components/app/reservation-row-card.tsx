@@ -201,14 +201,27 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
           />
         ) : (
-          <PersonnelAffectationEditor
-            reservationId={r.id}
-            role="cuisine"
-            label="Cuisine"
-            assigned={r.cuisineAssignes}
-            options={r.cuisineOptions}
-            payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
-          />
+          <>
+            <PersonnelAffectationEditor
+              reservationId={r.id}
+              role="cuisine"
+              label="Cuisine"
+              assigned={r.cuisineAssignes}
+              options={r.cuisineOptions}
+              payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+            />
+            {/* Certains clients veulent aussi une femme de ménage pendant le séjour (pas
+                seulement le nettoyage de fin de séjour, déjà géré côté check-out) — même donnée
+                que ce nettoyage final, éditable des deux côtés (voir personnel-affectation-editor). */}
+            <PersonnelAffectationEditor
+              reservationId={r.id}
+              role="menage"
+              label="Femme de ménage (si besoin pendant le séjour)"
+              assigned={r.menageAssignes}
+              options={r.menageOptions}
+              payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+            />
+          </>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-2">

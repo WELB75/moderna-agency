@@ -18,9 +18,13 @@ export const TARIF_CUISINE_PETIT_DEJEUNER = 100;
 export const TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER = 200;
 
 // Le ménage est dû dès qu'il est confirmé fait (pas juste affecté) — c'est le moment où,
-// dans la réalité, la villa est propre et prête pour l'arrivée suivante.
-export function montantMenageDu(faitAt: Date | null): number {
-  return faitAt ? TARIF_MENAGE : 0;
+// dans la réalité, la villa est propre et prête pour l'arrivée suivante. `nbJours` permet de
+// couvrir aussi la femme de ménage sollicitée PENDANT le séjour (pas seulement le nettoyage de
+// fin de séjour) : même tarif journalier que le ménage de fin de séjour (200 MAD), Kamel
+// 2026-08-06 — nul (cas le plus courant, un seul passage) revient au comportement d'origine.
+export function montantMenageDu(faitAt: Date | null, nbJours: number | null = null): number {
+  if (!faitAt) return 0;
+  return (nbJours ?? 1) * TARIF_MENAGE;
 }
 
 // La cuisine est due au check-out du client (son séjour, donc son besoin de cuisine, est
