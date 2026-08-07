@@ -705,6 +705,22 @@ export const whatsappConversations = pgTable(
   (t) => [uniqueIndex("whatsapp_conversations_phone_idx").on(t.phone)]
 );
 
+// Assistant personnel de Kamel sur Telegram (distinct des agents WhatsApp ci-dessus, qui parlent
+// aux clients/au personnel) : il note direct dans l'app ce qu'il dicte (ex. dépenses de caisse).
+// Kamel, 2026-08-07 : "je lui dis juste en vocal j'ai donner 2000 MAD a brahim il le note".
+export const telegramConversations = pgTable(
+  "telegram_conversations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    chatId: text("chat_id").notNull(), // id de conversation Telegram (numérique, mais stocké en texte)
+    messages: jsonb("messages").$type<unknown[]>().default([]).notNull(),
+    lastUpdateId: text("last_update_id"), // dédoublonnage, même principe que whatsappConversations
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("telegram_conversations_chat_id_idx").on(t.chatId)]
+);
+
 // Suivi d'une demande de personnel (ménage/cuisine) envoyée par l'agent IA via WhatsApp — une par
 // réservation+rôle. La cascade (essayer la personne suivante si refus/pas de réponse) a besoin de
 // se souvenir qui a déjà été sollicité et qui est en cours de sollicitation, entre deux appels de
