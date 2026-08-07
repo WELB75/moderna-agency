@@ -273,3 +273,24 @@ export async function rotateOccupantPhoto(occupantId: string, degrees: 90 | -90)
   revalidatePath(`/gendarmerie/${occupant.formId}`);
   revalidatePath("/documents");
 }
+
+// Complète a posteriori la photo d'un occupant qui a signé sans en joindre une (le champ est
+// facultatif dans le formulaire invité) — utilisé quand le staff récupère la pièce autrement
+// (WhatsApp, etc.) après coup.
+export async function setOccupantPhoto(occupantId: string, dataUrl: string) {
+  await auth.protect();
+  const db = getDb();
+
+  const [occupant] = await db
+    .select({ formId: gendarmerieOccupants.formId })
+    .from(gendarmerieOccupants)
+    .where(eq(gendarmerieOccupants.id, occupantId))
+    .limit(1);
+  if (!occupant) throw new Error("Occupant introuvable.");
+
+  const photoPieceUrl = await normalizeIdPhotoDataUrl(dataUrl);
+  await db.update(gendarmerieOccupants).set({ photoPieceUrl }).where(eq(gendarmerieOccupants.id, occupantId));
+
+  revalidatePath(`/gendarmerie/${occupant.formId}`);
+  revalidatePath("/documents");
+}

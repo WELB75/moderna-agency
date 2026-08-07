@@ -8,6 +8,7 @@ import { gendarmerieForms, gendarmerieOccupants, villas, reservations } from "@/
 import { Logo } from "@/components/app/logo";
 import { PrintButton } from "@/components/app/print-button";
 import { OccupantPhotoCard } from "@/components/app/occupant-photo-card";
+import { OccupantPhotoUpload } from "@/components/app/occupant-photo-upload";
 import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS, type GendarmerieLang } from "@/lib/gendarmerie-i18n";
 import { formatDateFr } from "@/lib/format-date";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
@@ -120,7 +121,11 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
                     photoPieceUrl={o.photoPieceUrl}
                     downloadName={`piece-identite-${[o.prenom, o.nom].filter(Boolean).join("-") || o.id}.jpg`}
                   />
-                ) : null}
+                ) : (
+                  <div className="print:hidden">
+                    <OccupantPhotoUpload occupantId={o.id} />
+                  </div>
+                )}
                 {o.signatureImage ? (
                   <div className="rounded-md border bg-white p-2">
                     <p className="mb-1 text-xs text-muted-foreground">Signature</p>
