@@ -55,8 +55,6 @@ import {
   Trophy,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
-  UtensilsCrossed,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -678,40 +676,61 @@ export default async function PersonnelPage({
             ) : null}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-7">
+          {/* Légende texte, pas juste des icônes — Kamel, 2026-08-07 : "mets une couleur pour les
+              cuisinière et une couleur pour les femmes de ménage avec une légende qu'on sache pas
+              seulement des petits icônes". */}
+          <div className="flex flex-wrap items-center gap-4 text-sm">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
+              Femme de ménage
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" />
+              Cuisinière
+            </span>
+          </div>
+
+          <div className="grid gap-2.5 md:grid-cols-7">
             {joursSemaine.map((jour) => {
               const entries = planningPourJour(jour);
               const estAujourdhui = isSameDay(jour, now);
               return (
                 <Card key={jour.toISOString()} className={cn(estAujourdhui && "border-foreground/40")}>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-1.5">
                     <CardTitle className="text-sm font-medium capitalize">
-                      {format(jour, "EEEE d MMM", { locale: fr })}
+                      {format(jour, "EEE d MMM", { locale: fr })}
                       {estAujourdhui ? <Badge className="ml-1.5">Aujourd&apos;hui</Badge> : null}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-2">
+                  <CardContent className="space-y-1.5">
                     {entries.length === 0 ? (
                       <p className="text-xs text-muted-foreground">Rien de prévu.</p>
                     ) : (
                       entries.map((e) => (
-                        <div key={e.affectationId} className="space-y-1 rounded-md border p-2 text-xs">
+                        <div
+                          key={e.affectationId}
+                          className={cn(
+                            "space-y-0.5 rounded-md border-l-4 bg-muted/40 py-1 pl-2 pr-1.5 text-xs",
+                            e.role === "menage" ? "border-l-blue-500" : "border-l-violet-500"
+                          )}
+                        >
                           <div className="flex items-center justify-between gap-1">
-                            <span className="flex items-center gap-1 font-medium">
-                              {e.role === "menage" ? <Sparkles className="h-3 w-3" /> : <UtensilsCrossed className="h-3 w-3" />}
-                              {e.personnelNom}
-                            </span>
+                            <span className="font-medium">{e.personnelNom}</span>
                             <PlanningRemoveButton affectationId={e.affectationId} nom={e.personnelNom} />
                           </div>
-                          <Link href={`/reservations/${e.reservationId}`} className="block text-muted-foreground hover:text-foreground hover:underline">
+                          <Link href={`/reservations/${e.reservationId}`} className="block truncate text-muted-foreground hover:text-foreground hover:underline">
                             {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
                           </Link>
-                          {e.role === "cuisine" ? (
-                            <p className="text-muted-foreground">{e.avecDejeuner ? "Petit-déj + déjeuner" : "Petit-déjeuner seul"}</p>
-                          ) : (
-                            <p className="text-muted-foreground">{e.moment === "sejour" ? "Pendant le séjour" : "Ménage de départ"}</p>
-                          )}
-                          {!e.montantVisible ? <p className="text-muted-foreground">Payé par proprio</p> : null}
+                          <p className="text-muted-foreground">
+                            {e.role === "cuisine"
+                              ? e.avecDejeuner
+                                ? "Petit-déj + déj"
+                                : "Petit-déj seul"
+                              : e.moment === "sejour"
+                                ? "Pendant le séjour"
+                                : "Ménage de départ"}
+                            {!e.montantVisible ? " · Payé par proprio" : ""}
+                          </p>
                         </div>
                       ))
                     )}
