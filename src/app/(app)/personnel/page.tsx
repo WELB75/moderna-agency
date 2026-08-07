@@ -38,7 +38,7 @@ import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { MarkPaidButton } from "@/components/app/mark-paid-button";
-import { PlanningRemoveButton } from "@/components/app/planning-remove-button";
+import { PersonnelPlanningGrid } from "@/components/app/personnel-planning-grid";
 import { deletePersonnel } from "@/lib/actions/personnel";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
@@ -676,69 +676,7 @@ export default async function PersonnelPage({
             ) : null}
           </div>
 
-          {/* Légende texte, pas juste des icônes — Kamel, 2026-08-07 : "mets une couleur pour les
-              cuisinière et une couleur pour les femmes de ménage avec une légende qu'on sache pas
-              seulement des petits icônes". */}
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
-              Femme de ménage
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" />
-              Cuisinière
-            </span>
-          </div>
-
-          <div className="grid gap-2.5 md:grid-cols-7">
-            {joursSemaine.map((jour) => {
-              const entries = planningPourJour(jour);
-              const estAujourdhui = isSameDay(jour, now);
-              return (
-                <Card key={jour.toISOString()} className={cn(estAujourdhui && "border-foreground/40")}>
-                  <CardHeader className="pb-1.5">
-                    <CardTitle className="text-sm font-medium capitalize">
-                      {format(jour, "EEE d MMM", { locale: fr })}
-                      {estAujourdhui ? <Badge className="ml-1.5">Aujourd&apos;hui</Badge> : null}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-1.5">
-                    {entries.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">Rien de prévu.</p>
-                    ) : (
-                      entries.map((e) => (
-                        <div
-                          key={e.affectationId}
-                          className={cn(
-                            "space-y-0.5 rounded-md border-l-4 bg-muted/40 py-1 pl-2 pr-1.5 text-xs",
-                            e.role === "menage" ? "border-l-blue-500" : "border-l-violet-500"
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="font-medium">{e.personnelNom}</span>
-                            <PlanningRemoveButton affectationId={e.affectationId} nom={e.personnelNom} />
-                          </div>
-                          <Link href={`/reservations/${e.reservationId}`} className="block truncate text-muted-foreground hover:text-foreground hover:underline">
-                            {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
-                          </Link>
-                          <p className="text-muted-foreground">
-                            {e.role === "cuisine"
-                              ? e.avecDejeuner
-                                ? "Petit-déj + déj"
-                                : "Petit-déj seul"
-                              : e.moment === "sejour"
-                                ? "Pendant le séjour"
-                                : "Ménage de départ"}
-                            {!e.montantVisible ? " · Payé par proprio" : ""}
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+          <PersonnelPlanningGrid jours={joursSemaine.map((date) => ({ date, entries: planningPourJour(date) }))} now={now} />
         </TabsContent>
 
         <TabsContent value="statistiques" className="space-y-6">
