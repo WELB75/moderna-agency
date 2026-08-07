@@ -1,8 +1,19 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { desc, eq, ilike, ne, and, inArray } from "drizzle-orm";
+import { desc, eq, ilike, ne, and, inArray, gte, lte } from "drizzle-orm";
+import { startOfDay, endOfDay } from "date-fns";
 import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
-import { cashEntries, villas, domaines, reservations, personnel, personnelAffectations, chatMessages, chatCategorieEnum } from "@/db/schema";
+import {
+  cashEntries,
+  villas,
+  domaines,
+  reservations,
+  personnel,
+  personnelAffectations,
+  chatMessages,
+  chatCategorieEnum,
+  maintenanceRecords,
+} from "@/db/schema";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 
@@ -113,6 +124,22 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "get_agenda",
+    description:
+      "Donne le programme d'une journée précise : arrivées, départs, ménage de départ à faire, cuisine active, maintenance prévue. Utiliser pour toute question du type \"qu'est-ce que je dois faire demain/aujourd'hui/le [date]\", \"c'est quoi le programme de...\".",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: {
+          type: "string",
+          description:
+            "Date au format YYYY-MM-DD. Résous toi-même les dates relatives (\"demain\", \"après-demain\"...) à partir de la date d'aujourd'hui donnée plus haut, plutôt que de la demander à Kamel.",
+        },
+      },
+      required: ["date"],
+    },
+  },
+  {
     name: "post_team_note",
     description:
       "Poste une note courte dans les Messages internes de l'app (visibles par toute l'équipe), pour signaler quelque chose sans détail sensible écrit. Utiliser seulement si Kamel demande explicitement de noter/signaler quelque chose à l'équipe.",
@@ -136,7 +163,7 @@ Date d'aujourd'hui : ${today}.
 Villas connues (utilise le nom exact si Kamel en mentionne une, corrige les fautes/surnoms) :
 - ${villasPromptList}
 
-Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe.
+Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, donner le programme d'une journée (arrivées, départs, ménage, cuisine, maintenance), confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe.
 Ce que tu NE fais PAS : fiches de police, création de réservations, modification du code de l'application — dis-le simplement si Kamel demande ça, sans essayer.
 
 Règles :
@@ -428,6 +455,117 @@ async function getPersonnelSummary(personnelNom: string) {
   return { trouve: true, resultats: results };
 }
 
+// Le programme d'une journée : arrivées/départs (bornés à ce jour-là), ménage de départ à faire
+// (rattaché aux réservations qui partent ce jour), cuisine active (réservations dont le séjour
+// couvre ce jour), et maintenance prévue (maintenanceRecords.prochaineDatePrevue). Le ménage en
+// cours de séjour ("sejour") n'a pas de date précise en base (juste "à faire pendant le
+// séjour") — impossible de dire fiablement s'il tombe "demain" précisément, donc pas inclus ici.
+async function getAgenda(dateStr: string) {
+  const db = getDb();
+  const day = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(day.getTime())) return { erreur: "Date invalide." };
+  const dayStart = startOfDay(day);
+  const dayEnd = endOfDay(day);
+
+  const villaInfo = { villaNom: villas.nom, villaNumero: villas.numero, domaineNom: domaines.nom };
+
+  const arrivals = (
+    await db
+      .select({ id: reservations.id, guestName: reservations.guestName, checkIn: reservations.checkIn, ...villaInfo })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkIn, dayStart), lte(reservations.checkIn, dayEnd)))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+
+  const departures = (
+    await db
+      .select({ id: reservations.id, guestName: reservations.guestName, checkOut: reservations.checkOut, ...villaInfo })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, dayStart), lte(reservations.checkOut, dayEnd)))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+
+  const departureIds = departures.map((d) => d.id);
+  const menageDepart =
+    departureIds.length > 0
+      ? await db
+          .select({ reservationId: personnelAffectations.reservationId, personnelNom: personnel.nom, faitAt: personnelAffectations.faitAt })
+          .from(personnelAffectations)
+          .innerJoin(personnel, eq(personnel.id, personnelAffectations.personnelId))
+          .where(
+            and(
+              inArray(personnelAffectations.reservationId, departureIds),
+              eq(personnel.role, "menage"),
+              eq(personnelAffectations.moment, "depart")
+            )
+          )
+      : [];
+
+  const activeStays = (
+    await db
+      .select({ id: reservations.id, guestName: reservations.guestName, ...villaInfo })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), lte(reservations.checkIn, dayEnd), gte(reservations.checkOut, dayStart)))
+  ).filter((r) => domaineEstActif(r.domaineNom));
+
+  const activeStayIds = activeStays.map((s) => s.id);
+  const cuisine =
+    activeStayIds.length > 0
+      ? await db
+          .select({ reservationId: personnelAffectations.reservationId, personnelNom: personnel.nom })
+          .from(personnelAffectations)
+          .innerJoin(personnel, eq(personnel.id, personnelAffectations.personnelId))
+          .where(and(inArray(personnelAffectations.reservationId, activeStayIds), eq(personnel.role, "cuisine")))
+      : [];
+
+  const maintenance = (
+    await db
+      .select({
+        categorie: maintenanceRecords.categorie,
+        equipement: maintenanceRecords.equipement,
+        prestataire: maintenanceRecords.prestataire,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+      })
+      .from(maintenanceRecords)
+      .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(gte(maintenanceRecords.prochaineDatePrevue, dayStart), lte(maintenanceRecords.prochaineDatePrevue, dayEnd)))
+  ).filter((m) => domaineEstActif(m.domaineNom));
+
+  const villaLabel = (v: { villaNom: string | null; villaNumero: string | null }) =>
+    v.villaNom ? `${v.villaNom} (n°${v.villaNumero})` : "villa inconnue";
+
+  return {
+    date: dateStr,
+    arrivees: arrivals.map((r) => ({ guestName: r.guestName, villa: villaLabel(r) })),
+    departs: departures.map((r) => ({
+      guestName: r.guestName,
+      villa: villaLabel(r),
+      menage: menageDepart
+        .filter((m) => m.reservationId === r.id)
+        .map((m) => ({ personnelNom: m.personnelNom, fait: Boolean(m.faitAt) })),
+    })),
+    cuisineActive: activeStays
+      .map((r) => ({
+        guestName: r.guestName,
+        villa: villaLabel(r),
+        personnel: cuisine.filter((c) => c.reservationId === r.id).map((c) => c.personnelNom),
+      }))
+      .filter((r) => r.personnel.length > 0),
+    maintenance: maintenance.map((m) => ({
+      objet: `${m.categorie} — ${m.equipement}`,
+      villa: villaLabel(m),
+      prestataire: m.prestataire,
+    })),
+  };
+}
+
 async function updateVillaCode(input: Record<string, unknown>) {
   const villa = await findVilla(input.villaNom as string);
   if (!villa) return { ok: false, erreur: "Villa introuvable." };
@@ -508,6 +646,9 @@ export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
             break;
           case "update_villa_code":
             result = await updateVillaCode(input);
+            break;
+          case "get_agenda":
+            result = await getAgenda(String(input.date));
             break;
           case "post_team_note":
             result = await postTeamNote(input);
