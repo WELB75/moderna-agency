@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LieuVillaSelect, type LieuDomaine, type LieuVilla } from "@/components/app/lieu-villa-select";
 import { analyzePassportImage, saveImportedGendarmerieForm } from "@/lib/actions/gendarmerie-import";
 import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS } from "@/lib/gendarmerie-i18n";
+import { rotateDataUrl } from "@/lib/rotate-data-url";
 import type { OccupantInput } from "@/lib/actions/gendarmerie";
 
 const DISPLAY_FIELD_KEYS = FIELD_KEYS.filter((k) => k !== "signatureNom" && k !== "allantA");
@@ -27,25 +28,6 @@ type Row = {
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
-}
-
-function rotateDataUrl(dataUrl: string, degrees: 90 | -90): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = img.height;
-      canvas.height = img.width;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject(new Error("Canvas indisponible."));
-      ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate((degrees * Math.PI) / 180);
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
-    };
-    img.onerror = () => reject(new Error("Image illisible."));
-    img.src = dataUrl;
-  });
 }
 
 export function PassportDropZone({ domaines, villas }: { domaines: LieuDomaine[]; villas: LieuVilla[] }) {

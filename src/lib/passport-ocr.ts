@@ -1,7 +1,9 @@
 import sharp from "sharp";
-import { createWorker, PSM } from "tesseract.js";
+import { PSM } from "tesseract.js";
 import { parse as parseMrz } from "mrz";
 import { nationaliteFromCode } from "@/lib/nationalites";
+import { normalizeIdPhotoBuffer } from "@/lib/id-photo-normalize";
+import { getOcrWorker } from "@/lib/ocr-worker";
 
 // Lecture de passeport 100% locale (pas d'API IA payante) : on ne tente pas de lire les champs
 // imprimés (mise en page différente dans chaque pays, peu fiable en OCR générique) mais
@@ -13,17 +15,6 @@ import { nationaliteFromCode } from "@/lib/nationalites";
 // naissance, la profession et le lieu de délivrance ne sont pas dans la MRZ et restent à
 // compléter à la main dans l'écran de relecture.
 
-let ocrWorkerPromise: Promise<Awaited<ReturnType<typeof createWorker>>> | null = null;
-
-function getOcrWorker() {
-  // cachePath par défaut = dossier courant, en lecture seule sur Vercel — /tmp est le seul
-  // dossier inscriptible en prod, et permet de vraiment mettre en cache les traineddata entre
-  // deux invocations d'une même fonction "chaude" plutôt que de les re-télécharger à chaque fois.
-  if (!ocrWorkerPromise) ocrWorkerPromise = createWorker("eng", undefined, { cachePath: "/tmp" });
-  return ocrWorkerPromise;
-}
-
-const MAX_STORED_DIMENSION = 1400; // même convention que IdPhotoCapture (upload manuel côté client)
 const MRZ_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<";
 const ROTATIONS = [0, 90, 180, 270] as const;
 
@@ -77,7 +68,7 @@ function scoreMrzAttempt(lines: [string, string]): { score: number; result: Retu
   }
 }
 
-async function ocrMrzStrip(worker: Awaited<ReturnType<typeof createWorker>>, rotatedBuffer: Buffer): Promise<[string, string] | null> {
+async function ocrMrzStrip(worker: Awaited<ReturnType<typeof getOcrWorker>>, rotatedBuffer: Buffer): Promise<[string, string] | null> {
   const meta = await sharp(rotatedBuffer).metadata();
   if (!meta.width || !meta.height) return null;
   // La MRZ est toujours tout en bas de la page bio ; on prend une bande large (30%) pour
@@ -148,10 +139,7 @@ export async function extractPassport(inputBuffer: Buffer): Promise<PassportExtr
     warnings.push("Zone MRZ (bas de la page passeport) non lue avec certitude — remplis les champs à la main.");
   }
 
-  const outputBuffer = await sharp(correctedBuffer)
-    .resize({ width: MAX_STORED_DIMENSION, height: MAX_STORED_DIMENSION, fit: "inside", withoutEnlargement: true })
-    .jpeg({ quality: 82 })
-    .toBuffer();
+  const outputBuffer = await normalizeIdPhotoBuffer(correctedBuffer);
 
   return {
     fields,

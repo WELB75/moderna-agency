@@ -7,10 +7,10 @@ import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants, villas, reservations } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { PrintButton } from "@/components/app/print-button";
+import { OccupantPhotoCard } from "@/components/app/occupant-photo-card";
 import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS, type GendarmerieLang } from "@/lib/gendarmerie-i18n";
 import { formatDateFr } from "@/lib/format-date";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
-import { Download } from "lucide-react";
 
 export default async function GendarmerieDocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -115,27 +115,11 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
               </div>
               <div className="mt-3 flex flex-wrap gap-3">
                 {o.photoPieceUrl ? (
-                  <div className="rounded-md border bg-white p-2">
-                    <div className="mb-1 flex items-center justify-between gap-2 print:block">
-                      <p className="text-xs text-muted-foreground">Pièce d&apos;identité</p>
-                      <a
-                        href={o.photoPieceUrl}
-                        download={`piece-identite-${[o.prenom, o.nom].filter(Boolean).join("-") || o.id}.jpg`}
-                        className="flex items-center gap-1 text-xs font-medium text-primary hover:underline print:hidden"
-                      >
-                        <Download className="h-3 w-3" />
-                        Télécharger
-                      </a>
-                    </div>
-                    <Image
-                      src={o.photoPieceUrl}
-                      alt="Pièce d'identité"
-                      width={300}
-                      height={200}
-                      unoptimized
-                      className="h-40 w-auto object-contain"
-                    />
-                  </div>
+                  <OccupantPhotoCard
+                    occupantId={o.id}
+                    photoPieceUrl={o.photoPieceUrl}
+                    downloadName={`piece-identite-${[o.prenom, o.nom].filter(Boolean).join("-") || o.id}.jpg`}
+                  />
                 ) : null}
                 {o.signatureImage ? (
                   <div className="rounded-md border bg-white p-2">

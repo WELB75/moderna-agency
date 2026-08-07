@@ -2,8 +2,9 @@
 
 import { useRef, useState } from "react";
 import Image from "next/image";
-import { Camera, ImagePlus, X } from "lucide-react";
+import { Camera, ImagePlus, RotateCcw, RotateCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { rotateDataUrl } from "@/lib/rotate-data-url";
 
 const MAX_DIMENSION = 1400;
 
@@ -56,28 +57,47 @@ export function IdPhotoCapture({
     }
   }
 
+  async function handleRotate(degrees: 90 | -90) {
+    if (!value) return;
+    try {
+      onChange(await rotateDataUrl(value, degrees));
+    } catch {
+      // photo illisible pour la rotation : on laisse telle quelle plutôt que de bloquer l'envoi
+    }
+  }
+
   return (
     <div className="space-y-1.5">
       <p className="text-sm font-medium">{label}</p>
       {value ? (
-        <div className="relative w-fit">
-          <Image
-            src={value}
-            alt="Pièce d'identité"
-            width={220}
-            height={140}
-            unoptimized
-            className="h-32 w-auto rounded-md border object-cover"
-          />
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            className="absolute -right-2 -top-2 h-6 w-6"
-            onClick={() => onChange("")}
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
+        <div className="flex items-start gap-2">
+          <div className="relative w-fit">
+            <Image
+              src={value}
+              alt="Pièce d'identité"
+              width={220}
+              height={140}
+              unoptimized
+              className="h-32 w-auto rounded-md border object-cover"
+            />
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              className="absolute -right-2 -top-2 h-6 w-6"
+              onClick={() => onChange("")}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="flex flex-col gap-1">
+            <Button type="button" variant="outline" size="icon" onClick={() => handleRotate(-90)}>
+              <RotateCcw className="h-3.5 w-3.5" />
+            </Button>
+            <Button type="button" variant="outline" size="icon" onClick={() => handleRotate(90)}>
+              <RotateCw className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">

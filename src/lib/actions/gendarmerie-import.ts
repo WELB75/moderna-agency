@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants } from "@/db/schema";
 import { extractPassport } from "@/lib/passport-ocr";
+import { normalizeIdPhotoDataUrl } from "@/lib/id-photo-normalize";
 import { emptyOccupant } from "@/lib/gendarmerie-i18n";
 import type { OccupantInput } from "@/lib/actions/gendarmerie";
 
@@ -50,6 +51,16 @@ export async function saveImportedGendarmerieForm(villaId: string, occupants: Oc
   const validOccupants = occupants.filter((o) => o.nom.trim() || o.prenom.trim());
   if (validOccupants.length === 0) throw new Error("Ajoute au moins un occupant.");
 
+  // Re-normalise ici même si extractPassport() l'a déjà fait : le staff a pu recadrer/tourner
+  // la photo manuellement dans l'écran de relecture avant d'enregistrer (rotateRow dans
+  // PassportDropZone), ce qui contourne le recadrage automatique.
+  const normalizedOccupants = await Promise.all(
+    validOccupants.map(async (o) => ({
+      ...o,
+      photoPieceUrl: o.photoPieceUrl ? await normalizeIdPhotoDataUrl(o.photoPieceUrl) : o.photoPieceUrl,
+    }))
+  );
+
   const db = getDb();
   const [form] = await db
     .insert(gendarmerieForms)
@@ -65,7 +76,7 @@ export async function saveImportedGendarmerieForm(villaId: string, occupants: Oc
     .returning();
 
   await db.insert(gendarmerieOccupants).values(
-    validOccupants.map((o) => ({
+    normalizedOccupants.map((o) => ({
       formId: form.id,
       nom: o.nom.trim() || null,
       prenom: o.prenom.trim() || null,

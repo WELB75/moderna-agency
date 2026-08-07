@@ -3,8 +3,10 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
+import sharp from "sharp";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants } from "@/db/schema";
+import { normalizeIdPhotoBuffer, normalizeIdPhotoDataUrl, loadImageBuffer } from "@/lib/id-photo-normalize";
 
 export type OccupantInput = {
   nom: string;
@@ -112,8 +114,18 @@ export async function submitGendarmerieOccupants(
   const validOccupants = occupants.filter((o) => o.nom.trim() || o.prenom.trim());
   if (validOccupants.length === 0) throw new Error("Ajoute au moins un occupant.");
 
+  const [normalizedOccupants, normalizedEnfantsPassportUrls] = await Promise.all([
+    Promise.all(
+      validOccupants.map(async (o) => ({
+        ...o,
+        photoPieceUrl: o.photoPieceUrl ? await normalizeIdPhotoDataUrl(o.photoPieceUrl) : o.photoPieceUrl,
+      }))
+    ),
+    Promise.all(enfantsPassportUrls.map((url) => normalizeIdPhotoDataUrl(url))),
+  ]);
+
   await db.insert(gendarmerieOccupants).values(
-    validOccupants.map((o) => ({
+    normalizedOccupants.map((o) => ({
       formId,
       nom: o.nom.trim() || null,
       prenom: o.prenom.trim() || null,
@@ -137,7 +149,7 @@ export async function submitGendarmerieOccupants(
 
   await db
     .update(gendarmerieForms)
-    .set({ statut: "complete", langue, enfantsPassportUrls, completedAt: new Date() })
+    .set({ statut: "complete", langue, enfantsPassportUrls: normalizedEnfantsPassportUrls, completedAt: new Date() })
     .where(eq(gendarmerieForms.id, formId));
 
   revalidatePath("/villas");
@@ -162,8 +174,15 @@ export async function prefillGendarmerieOccupants(
   const validOccupants = occupants.filter((o) => o.nom.trim() || o.prenom.trim());
   if (validOccupants.length === 0) throw new Error("Ajoute au moins un occupant.");
 
+  const normalizedOccupants = await Promise.all(
+    validOccupants.map(async (o) => ({
+      ...o,
+      photoPieceUrl: o.photoPieceUrl ? await normalizeIdPhotoDataUrl(o.photoPieceUrl) : o.photoPieceUrl,
+    }))
+  );
+
   await db.insert(gendarmerieOccupants).values(
-    validOccupants.map((o) => ({
+    normalizedOccupants.map((o) => ({
       formId,
       nom: o.nom.trim() || null,
       prenom: o.prenom.trim() || null,
@@ -226,4 +245,31 @@ export async function deleteGendarmerieForm(formId: string) {
   const db = getDb();
   await db.delete(gendarmerieForms).where(eq(gendarmerieForms.id, formId));
   revalidatePath("/villas");
+}
+
+// Correction manuelle de l'orientation d'une photo déjà enregistrée : la détection automatique
+// du sens de rotation s'est révélée peu fiable (voir id-photo-normalize.ts) — c'est donc au
+// staff de tourner à la main une photo repérée de travers sur la fiche.
+export async function rotateOccupantPhoto(occupantId: string, degrees: 90 | -90) {
+  await auth.protect();
+  const db = getDb();
+
+  const [occupant] = await db
+    .select({ photoPieceUrl: gendarmerieOccupants.photoPieceUrl, formId: gendarmerieOccupants.formId })
+    .from(gendarmerieOccupants)
+    .where(eq(gendarmerieOccupants.id, occupantId))
+    .limit(1);
+  if (!occupant?.photoPieceUrl) throw new Error("Aucune photo à tourner.");
+
+  const buffer = await loadImageBuffer(occupant.photoPieceUrl);
+  if (!buffer) throw new Error("Photo introuvable ou inaccessible.");
+
+  const rotatedBuffer = await sharp(buffer).rotate(degrees).toBuffer();
+  const normalizedBuffer = await normalizeIdPhotoBuffer(rotatedBuffer);
+  const photoPieceUrl = `data:image/jpeg;base64,${normalizedBuffer.toString("base64")}`;
+
+  await db.update(gendarmerieOccupants).set({ photoPieceUrl }).where(eq(gendarmerieOccupants.id, occupantId));
+
+  revalidatePath(`/gendarmerie/${occupant.formId}`);
+  revalidatePath("/documents");
 }
