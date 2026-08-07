@@ -35,18 +35,28 @@ const MOYEN_LABELS: Record<string, string> = {
 
 export function AddCashEntryDialog({
   villas,
+  reservations,
   moyenPaiement = "especes",
 }: {
   villas: { id: string; nom: string; numero: string }[];
+  reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
   moyenPaiement?: "especes" | "virement" | "carte";
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("remise");
   const [devise, setDevise] = useState("MAD");
+  const [villaId, setVillaId] = useState("");
+  const [reservationId, setReservationId] = useState("");
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function handleReservationChange(id: string) {
+    setReservationId(id);
+    const resa = reservations.find((r) => r.id === id);
+    if (resa?.villaId) setVillaId(resa.villaId);
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -81,6 +91,8 @@ export function AddCashEntryDialog({
         toast.success("Mouvement enregistré.");
         setOpen(false);
         setPhotoUrls([]);
+        setVillaId("");
+        setReservationId("");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -137,8 +149,24 @@ export function AddCashEntryDialog({
             </div>
           </div>
           <div className="space-y-1.5">
+            <Label htmlFor="reservationId">Client / réservation concernée</Label>
+            <Select name="reservationId" value={reservationId} onValueChange={handleReservationChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Optionnel — pas de client précis" />
+              </SelectTrigger>
+              <SelectContent>
+                {reservations.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.guestName}
+                    {r.villaNom ? ` — ${r.villaNom} (n°${r.villaNumero})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
             <Label htmlFor="villaId">Villa concernée</Label>
-            <Select name="villaId">
+            <Select name="villaId" value={villaId} onValueChange={setVillaId}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Optionnel" />
               </SelectTrigger>

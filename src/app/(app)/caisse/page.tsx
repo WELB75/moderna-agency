@@ -1,9 +1,9 @@
 import Image from "next/image";
-import { desc, eq } from "drizzle-orm";
-import { format } from "date-fns";
+import { desc, eq, ne, gte, and } from "drizzle-orm";
+import { format, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { cashEntries, villas, domaines } from "@/db/schema";
+import { cashEntries, villas, domaines, reservations } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -36,6 +36,7 @@ type Entry = {
   villaNumero: string | null;
   domaineNom: string | null;
   photoUrls: string[] | null;
+  guestName: string | null;
 };
 
 export default async function CaissePage() {
@@ -57,10 +58,12 @@ export default async function CaissePage() {
         villaNom: villas.nom,
         villaNumero: villas.numero,
         domaineNom: domaines.nom,
+        guestName: reservations.guestName,
       })
       .from(cashEntries)
       .leftJoin(villas, eq(cashEntries.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .leftJoin(reservations, eq(cashEntries.reservationId, reservations.id))
       .orderBy(desc(cashEntries.createdAt))
   ).filter((e) => domaineEstActif(e.domaineNom));
 
@@ -70,6 +73,26 @@ export default async function CaissePage() {
       .from(villas)
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
   ).filter((v) => domaineEstActif(v.domaineNom));
+
+  // Pour le sélecteur "Client" du formulaire manuel : les séjours récents/en cours suffisent,
+  // pas besoin de remonter tout l'historique.
+  const recentReservations = (
+    await db
+      .select({
+        id: reservations.id,
+        guestName: reservations.guestName,
+        villaId: reservations.villaId,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+        checkIn: reservations.checkIn,
+      })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, subDays(new Date(), 30))))
+      .orderBy(desc(reservations.checkIn))
+  ).filter((r) => domaineEstActif(r.domaineNom));
 
   const especes = entries.filter((e) => e.moyenPaiement === "especes");
   const virement = entries.filter((e) => e.moyenPaiement === "virement");
@@ -90,13 +113,13 @@ export default async function CaissePage() {
           <TabsTrigger value="stats" className="shrink-0">Statistiques</TabsTrigger>
         </TabsList>
         <TabsContent value="especes" className="pt-2">
-          <CaissePanel entries={especes} villas={allVillas} moyenPaiement="especes" />
+          <CaissePanel entries={especes} villas={allVillas} reservations={recentReservations} moyenPaiement="especes" />
         </TabsContent>
         <TabsContent value="virement" className="pt-2">
-          <CaissePanel entries={virement} villas={allVillas} moyenPaiement="virement" />
+          <CaissePanel entries={virement} villas={allVillas} reservations={recentReservations} moyenPaiement="virement" />
         </TabsContent>
         <TabsContent value="carte" className="pt-2">
-          <CaissePanel entries={carte} villas={allVillas} moyenPaiement="carte" />
+          <CaissePanel entries={carte} villas={allVillas} reservations={recentReservations} moyenPaiement="carte" />
         </TabsContent>
         <TabsContent value="stats" className="pt-2">
           <CaisseStats entries={entries} />
@@ -109,10 +132,12 @@ export default async function CaissePage() {
 function CaissePanel({
   entries,
   villas,
+  reservations,
   moyenPaiement,
 }: {
   entries: Entry[];
   villas: { id: string; nom: string; numero: string }[];
+  reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
   moyenPaiement: "especes" | "virement" | "carte";
 }) {
   // Des montants dans des devises différentes ne doivent jamais être additionnés ensemble
@@ -122,7 +147,7 @@ function CaissePanel({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
-        <AddCashEntryDialog villas={villas} moyenPaiement={moyenPaiement} />
+        <AddCashEntryDialog villas={villas} reservations={reservations} moyenPaiement={moyenPaiement} />
       </div>
 
       {devises.map((devise) => {
@@ -204,6 +229,11 @@ function CaissePanel({
                     ) : null}
                     {e.responsable ? (
                       <span className="text-xs text-muted-foreground">· {e.responsable}</span>
+                    ) : null}
+                    {e.guestName ? (
+                      <span className="text-xs font-medium text-foreground">· Client : {e.guestName}</span>
+                    ) : e.type !== "remise" ? (
+                      <span className="text-xs text-amber-600 dark:text-amber-400">· Client non lié</span>
                     ) : null}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">

@@ -210,6 +210,7 @@ export async function markAffectationPaidSolo(affectationId: string): Promise<{ 
       type: "depense",
       moyenPaiement: "especes",
       montant: montant.toFixed(2),
+      reservationId: a.reservationId,
       description: `Paiement ${roleLabel} — ${p.nom}${villa ? ` (${villa.nom} n°${villa.numero})` : ""}`,
       responsable: p.nom,
       photoUrls: [],
@@ -287,21 +288,33 @@ export async function markAffectationsPaid(
     .set({ payeAt: new Date() })
     .where(inArray(personnelAffectations.id, affectationIds));
 
-  // Une dépense de caisse est rattachée à une seule villa : on regroupe donc le montant par
-  // villa (le cas courant reste une seule villa par paiement).
-  const parVilla = new Map<string, { villaId: string | null; villaNom: string | null; villaNumero: string | null; montant: number }>();
-  for (const d of details) {
-    const cle = d.villaId ?? "aucune";
-    const existante = parVilla.get(cle);
+  // Une dépense de caisse est rattachée à une seule réservation (donc un seul client) : on
+  // regroupe par réservation plutôt que par villa, sinon deux séjours différents dans la même
+  // villa se retrouveraient fusionnés sous une seule dépense sans client identifiable.
+  const affectationRows = await db
+    .select({ id: personnelAffectations.id, reservationId: personnelAffectations.reservationId })
+    .from(personnelAffectations)
+    .where(inArray(personnelAffectations.id, affectationIds));
+  const reservationIdByAffectationId = new Map(affectationRows.map((a) => [a.id, a.reservationId]));
+
+  const parReservation = new Map<
+    string,
+    { reservationId: string; villaId: string | null; villaNom: string | null; villaNumero: string | null; montant: number }
+  >();
+  details.forEach((d, i) => {
+    const reservationId = reservationIdByAffectationId.get(affectationIds[i]);
+    if (!reservationId) return;
+    const existante = parReservation.get(reservationId);
     if (existante) existante.montant += d.montant;
-    else parVilla.set(cle, { ...d });
-  }
+    else parReservation.set(reservationId, { reservationId, villaId: d.villaId, villaNom: d.villaNom, villaNumero: d.villaNumero, montant: d.montant });
+  });
 
   const roleLabel = role === "menage" ? "ménage" : "cuisine";
-  for (const { villaId, villaNom, villaNumero, montant } of parVilla.values()) {
+  for (const { reservationId, villaId, villaNom, villaNumero, montant } of parReservation.values()) {
     if (montant <= 0) continue;
     await db.insert(cashEntries).values({
       villaId,
+      reservationId,
       type: "depense",
       moyenPaiement: "especes",
       montant: montant.toFixed(2),

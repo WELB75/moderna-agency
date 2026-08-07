@@ -11,6 +11,7 @@ export async function createCashEntry(formData: FormData) {
   const user = await currentUser();
 
   const villaId = String(formData.get("villaId") ?? "").trim() || null;
+  const reservationId = String(formData.get("reservationId") ?? "").trim() || null;
   const type = String(formData.get("type") ?? "");
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "especes");
   const montant = String(formData.get("montant") ?? "").trim();
@@ -34,6 +35,7 @@ export async function createCashEntry(formData: FormData) {
   const db = getDb();
   await db.insert(cashEntries).values({
     villaId,
+    reservationId,
     type: type as "remise" | "loyer" | "extra" | "depense" | "restitution",
     moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",
     montant: montantNum.toFixed(2),
