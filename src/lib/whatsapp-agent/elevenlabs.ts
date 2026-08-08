@@ -18,7 +18,11 @@ export async function textToSpeech(text: string): Promise<Buffer | null> {
     },
     body: JSON.stringify({
       text,
-      model_id: "eleven_multilingual_v2",
+      // v3 (pas v2) — modèle le plus récent d'ElevenLabs, plus naturel sur les langues/dialectes
+      // peu standardisés comme la darija. Kamel, 2026-08-08 : "met le en condition... car la voix
+      // d'elevenlabs est prevu pour ça" — c'est aussi le modèle qu'il a validé à l'oreille dans
+      // leur interface avec cette même voix avant de nous donner sa clé API.
+      model_id: "eleven_v3",
       voice_settings: { stability: 0.5, similarity_boost: 0.75 },
     }),
   });

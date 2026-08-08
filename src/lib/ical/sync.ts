@@ -16,12 +16,12 @@ export async function runIcalSync(): Promise<
   const db = getDb();
 
   const rows = await db
-    .select({ id: villas.id, nom: villas.nom, icalUrl: villas.icalUrl })
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, icalUrl: villas.icalUrl })
     .from(villas)
     .where(isNotNull(villas.icalUrl));
 
   const targets = rows.filter(
-    (v): v is { id: string; nom: string; icalUrl: string } => Boolean(v.icalUrl)
+    (v): v is { id: string; nom: string; numero: string; icalUrl: string } => Boolean(v.icalUrl)
   );
 
   if (targets.length === 0) {
@@ -126,7 +126,7 @@ export async function runIcalSync(): Promise<
           // Sollicitation automatique d'une femme de ménage pour le nettoyage de fin de séjour
           // — ne doit jamais faire échouer la synchro elle-même si ça plante.
           try {
-            await initiateMenageRequest(inserted.id, villa.nom, event.end.toISOString().slice(0, 10));
+            await initiateMenageRequest(inserted.id, villa.nom, villa.numero, event.end.toISOString().slice(0, 10));
           } catch (err) {
             console.error("Échec initiation demande ménage (sync iCal):", err);
           }

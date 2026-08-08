@@ -78,12 +78,21 @@ type HistoriqueEntry = { at: string; type: "offre" | "reponse" | "relance"; cand
 type Job = {
   role: "cuisine" | "menage";
   villaNom: string;
+  // Le numéro de villa est très important pour le personnel — plusieurs villas ont des noms
+  // proches ou qu'elles ne connaissent pas par cœur, le numéro lève l'ambiguïté. Kamel,
+  // 2026-08-08 : "tu met le nom de la villa mais surtout le numéro ! tres tres important pour
+  // elles". Toujours inclus dans le message envoyé (voir villaLabel/buildOfferMessage).
+  villaNumero: string | null;
   // Cuisine : jour de début du service (lendemain du check-in) → jour de fin (check-out).
   // Ménage : nettoyage de fin de séjour, un seul jour — dateDebut === dateFin (le check-out).
   dateDebut: string; // YYYY-MM-DD
   dateFin: string;
   avecDejeuner?: boolean; // cuisine uniquement
 };
+
+function villaLabel(nom: string, numero: string | null): string {
+  return numero ? `${nom} (n°${numero})` : nom;
+}
 
 // Le ménage/la cuisine ne commence jamais le jour d'arrivée du client (il vient tout juste
 // d'arriver) mais le lendemain — donc la cuisinière est sollicitée pour travailler à partir
@@ -157,11 +166,12 @@ function formatDateDarija(dateStr: string): string {
 }
 
 function buildOfferMessage(job: Job): string {
+  const villa = villaLabel(job.villaNom, job.villaNumero);
   if (job.role === "menage") {
-    return `السلام عليكم،\n\nهل يمكنك تنظيف ${job.villaNom} ${formatDateDarija(job.dateDebut)} (مغادرة الضيوف)؟\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+    return `السلام عليكم،\n\nهل يمكنك تنظيف ${villa} ${formatDateDarija(job.dateDebut)} (مغادرة الضيوف)؟\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
   }
   const repas = job.avecDejeuner ? "الفطور والغداء" : "الفطور فقط";
-  return `السلام عليكم،\n\nهل يمكنك الطبخ في ${job.villaNom} من ${formatDateDarija(job.dateDebut)} إلى ${formatDateDarija(job.dateFin)}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+  return `السلام عليكم،\n\nهل يمكنك الطبخ في ${villa} من ${formatDateDarija(job.dateDebut)} إلى ${formatDateDarija(job.dateFin)}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
 }
 
 // Retourne jusqu'à `limit` candidates disponibles (mieux notées en premier), pour une sollicitation
@@ -253,6 +263,7 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     .where(eq(reservations.id, reservationId))
     .limit(1);
   if (!domaineEstActif(resa?.domaineNom)) return;
+  const villaText = villaLabel(job.villaNom, job.villaNumero);
 
   // Certaines personnes sont fixes sur une villa donnée, payées directement par le propriétaire
   // (ex. Khaoula à Villa Sofya, Aisha à Villa Wimiliim — voir villas.personnelPayeParProprietaireNoms)
@@ -292,7 +303,7 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
               at: new Date().toISOString(),
               type: "offre",
               candidatNom: fixe.nom,
-              texte: `Affectation automatique — ${fixe.nom} est fixe sur ${job.villaNom} (payée directement par le propriétaire), pas de sollicitation WhatsApp nécessaire.`,
+              texte: `Affectation automatique — ${fixe.nom} est fixe sur ${villaText} (payée directement par le propriétaire), pas de sollicitation WhatsApp nécessaire.`,
             },
           ],
         });
@@ -307,7 +318,7 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     await db.insert(staffAssignmentRequests).values({ reservationId, role: job.role, statut: "sans_candidat" });
     await notifyTeam(
       reservationId,
-      `⚠️ Aucune candidate disponible (avec téléphone, pas déjà prise) pour ${ROLE_LABEL[job.role]} — ${job.villaNom}, ${job.dateDebut} → ${job.dateFin} — à affecter manuellement.`
+      `⚠️ Aucune candidate disponible (avec téléphone, pas déjà prise) pour ${ROLE_LABEL[job.role]} — ${villaText}, ${job.dateDebut} → ${job.dateFin} — à affecter manuellement.`
     );
     return;
   }
@@ -327,11 +338,12 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
 // Rétro-compatibilité : ancien nom utilisé par l'agent de réservation pour la cuisine.
 export async function initiateCuisineRequest(
   reservationId: string,
-  job: { villaNom: string; dateArrivee: string; dateDepart: string; avecDejeuner: boolean }
+  job: { villaNom: string; villaNumero: string | null; dateArrivee: string; dateDepart: string; avecDejeuner: boolean }
 ) {
   await initiateStaffRequest(reservationId, {
     role: "cuisine",
     villaNom: job.villaNom,
+    villaNumero: job.villaNumero,
     dateDebut: job.dateArrivee,
     dateFin: job.dateDepart,
     avecDejeuner: job.avecDejeuner,
@@ -341,10 +353,16 @@ export async function initiateCuisineRequest(
 // Sollicite automatiquement une femme de ménage pour le nettoyage de fin de séjour (le jour du
 // check-out) — appelé pour TOUTE réservation, quelle que soit sa source (Superhote/iCal, saisie
 // manuelle, agent WhatsApp), pas seulement celles créées par le bot.
-export async function initiateMenageRequest(reservationId: string, villaNom: string, checkOut: string) {
+export async function initiateMenageRequest(
+  reservationId: string,
+  villaNom: string,
+  villaNumero: string | null,
+  checkOut: string
+) {
   await initiateStaffRequest(reservationId, {
     role: "menage",
     villaNom,
+    villaNumero,
     dateDebut: checkOut,
     dateFin: checkOut,
   });
@@ -434,15 +452,16 @@ async function interpretReply(text: string): Promise<"oui" | "non" | "incertain"
   return "incertain";
 }
 
-function buildJobFromRequest(request: StaffRequestContext, villaNom: string): Job {
+function buildJobFromRequest(request: StaffRequestContext, villaNom: string, villaNumero: string | null): Job {
   if (request.role === "menage") {
     const checkOut = new Date(request.checkOut).toISOString().slice(0, 10);
-    return { role: "menage", villaNom, dateDebut: checkOut, dateFin: checkOut };
+    return { role: "menage", villaNom, villaNumero, dateDebut: checkOut, dateFin: checkOut };
   }
   const avecDejeuner = /d[ée]jeuner/.test((request.notes ?? "").toLowerCase().replace("petit-déjeuner", "").replace("petit déjeuner", ""));
   return {
     role: "cuisine",
     villaNom,
+    villaNumero,
     dateDebut: dayAfter(new Date(request.checkIn).toISOString().slice(0, 10)),
     dateFin: new Date(request.checkOut).toISOString().slice(0, 10),
     avecDejeuner,
@@ -455,11 +474,17 @@ function buildJobFromRequest(request: StaffRequestContext, villaNom: string): Jo
 // (ex. le refus qui a vidé le batch, ou la note de relance timeout) est ajouté de façon atomique
 // (concaténation jsonb côté SQL, pas un remplacement de tableau lu en JS) pour ne jamais écraser
 // une entrée écrite entre-temps par une autre réponse arrivée en parallèle sur la même demande.
-async function broadcastNewBatch(request: StaffRequestContext, villaNom: string, extraHistoriqueEntries: HistoriqueEntry[]): Promise<void> {
+async function broadcastNewBatch(
+  request: StaffRequestContext,
+  villaNom: string,
+  villaNumero: string | null,
+  extraHistoriqueEntries: HistoriqueEntry[]
+): Promise<void> {
   const db = getDb();
   const excludeIds = request.candidatsEssayes as string[];
-  const job = buildJobFromRequest(request, villaNom);
+  const job = buildJobFromRequest(request, villaNom, villaNumero);
   const candidates = await findAvailableCandidates(request.role, request.reservationId, job.dateDebut, job.dateFin, excludeIds, BATCH_SIZE);
+  const villaText = villaLabel(villaNom, villaNumero);
 
   if (candidates.length === 0) {
     await db
@@ -472,7 +497,7 @@ async function broadcastNewBatch(request: StaffRequestContext, villaNom: string,
       .where(eq(staffAssignmentRequests.id, request.requestId));
     await notifyTeam(
       request.reservationId,
-      `⚠️ Plus aucune candidate disponible pour ${ROLE_LABEL[request.role]} — ${job.villaNom}, ${job.dateDebut} → ${job.dateFin} (toutes sollicitées ou occupées) — à affecter manuellement.`
+      `⚠️ Plus aucune candidate disponible pour ${ROLE_LABEL[request.role]} — ${villaText}, ${job.dateDebut} → ${job.dateFin} (toutes sollicitées ou occupées) — à affecter manuellement.`
     );
     return;
   }
@@ -506,14 +531,14 @@ export async function cascadeStaleRequests(): Promise<void> {
   const stale = await findStaleRequests();
   for (const request of stale) {
     const db = getDb();
-    const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
+    const villa = request.villaId ? (await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
     const relanceEntry: HistoriqueEntry = {
       at: new Date().toISOString(),
       type: "relance",
       candidatNom: "",
       texte: `Pas de réponse sous ${Math.round(STALE_TIMEOUT_MS / (60 * 60 * 1000))}h — relance vers de nouvelles candidates.`,
     };
-    await broadcastNewBatch(request, villa?.nom ?? "Villa", [relanceEntry]);
+    await broadcastNewBatch(request, villa?.nom ?? "Villa", villa?.numero ?? null, [relanceEntry]);
   }
 }
 
@@ -549,7 +574,7 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
     return `عذرا، لم أفهم. من فضلك أجيبي بـ "نعم" أو "لا".`;
   }
 
-  const villa = request.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
+  const villa = request.villaId ? (await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
 
   if (decision === "oui") {
     const won = await db
@@ -598,7 +623,7 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
       .set({ refusIds: newRefusIds, historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([reponseEntry])}::jsonb`, updatedAt: new Date() })
       .where(eq(staffAssignmentRequests.id, request.requestId));
   } else {
-    await broadcastNewBatch(request, villa?.nom ?? "Villa", [reponseEntry]);
+    await broadcastNewBatch(request, villa?.nom ?? "Villa", villa?.numero ?? null, [reponseEntry]);
   }
   return `لا مشكلة، شكرا على الرد.`;
 }
@@ -667,7 +692,7 @@ export async function handleCancellationReply(
   if (decision === "autre") return null;
 
   const db = getDb();
-  const villa = assignment.villaId ? (await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, assignment.villaId)).limit(1))[0] : null;
+  const villa = assignment.villaId ? (await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, assignment.villaId)).limit(1))[0] : null;
 
   await db
     .delete(personnelAffectations)
@@ -684,7 +709,7 @@ export async function handleCancellationReply(
     candidatNom: assignment.candidatNom,
     texte: `Annulation : ${text}`,
   };
-  await broadcastNewBatch(assignment, villa?.nom ?? "Villa", [annulationEntry]);
+  await broadcastNewBatch(assignment, villa?.nom ?? "Villa", villa?.numero ?? null, [annulationEntry]);
 
   return `تم إلغاء تأكيدك، شكرا على إخبارنا. سنبحث عن شخص آخر. موديرنا أجونسي`;
 }

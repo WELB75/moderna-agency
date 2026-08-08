@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { and, eq, gt, lt, ne } from "drizzle-orm";
 import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
-import { reservations } from "@/db/schema";
+import { reservations, villas } from "@/db/schema";
 import { VILLAS } from "./villas";
 import { buildConfirmationEmailHtml, sendConfirmationEmail } from "./email";
 import { initiateCuisineRequest, initiateMenageRequest, dayAfter } from "./staff";
@@ -212,6 +212,11 @@ async function createBooking(input: Record<string, unknown>) {
     return { erreur: "Un souci technique est survenu, la réservation n'a pas pu être enregistrée." };
   }
 
+  // Numéro de villa — pas dans le tableau hardcodé VILLAS (juste dans le blurb, texte libre),
+  // récupéré depuis la vraie table pour l'inclure dans les messages au personnel (très important
+  // pour elles, plusieurs villas ont des noms proches — Kamel, 2026-08-08).
+  const villaNumero = (await getDb().select({ numero: villas.numero }).from(villas).where(eq(villas.id, villa.id)).limit(1))[0]?.numero ?? null;
+
   // 1bis) Si une cuisinière est demandée, déclenche la recherche automatique d'une candidate
   // disponible (agent séparé, en arabe) — indépendant de l'email/Superhote ci-dessous, ne doit
   // jamais faire échouer la réservation elle-même si ça plante. Garde-fou : la cuisinière n'est
@@ -221,6 +226,7 @@ async function createBooking(input: Record<string, unknown>) {
       const avecDejeuner = /d[ée]jeuner/.test(cuisiniere.toLowerCase().replace("petit-déjeuner", "").replace("petit déjeuner", ""));
       await initiateCuisineRequest(modernaBookingId, {
         villaNom: villa.nom,
+        villaNumero,
         dateArrivee: dayAfter(String(input.dateArrivee)),
         dateDepart: String(input.dateDepart),
         avecDejeuner,
@@ -234,7 +240,7 @@ async function createBooking(input: Record<string, unknown>) {
   // optionnelle) — déclenché systématiquement, jamais bloquant pour la réservation elle-même.
   if (modernaBookingId) {
     try {
-      await initiateMenageRequest(modernaBookingId, villa.nom, String(input.dateDepart));
+      await initiateMenageRequest(modernaBookingId, villa.nom, villaNumero, String(input.dateDepart));
     } catch (err) {
       console.error("Échec initiation demande ménage:", err);
     }

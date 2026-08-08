@@ -49,8 +49,8 @@ export async function createReservation(formData: FormData) {
   // Sollicitation automatique d'une femme de ménage pour le nettoyage de fin de séjour — ne
   // doit jamais faire échouer la création de la réservation elle-même si ça plante.
   try {
-    const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
-    if (villa) await initiateMenageRequest(reservation.id, villa.nom, checkOut.slice(0, 10));
+    const [villa] = await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, villaId)).limit(1);
+    if (villa) await initiateMenageRequest(reservation.id, villa.nom, villa.numero, checkOut.slice(0, 10));
   } catch (err) {
     console.error("Échec initiation demande ménage:", err);
   }
