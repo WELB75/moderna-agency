@@ -1,6 +1,6 @@
+import { MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PhoneLink } from "@/components/app/phone-link";
+import { toWhatsAppUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 export type StaffAvailability = {
@@ -36,31 +36,39 @@ function StaffColumn({ title, dotColor, people }: { title: string; dotColor: str
           {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-1.5">
+      <CardContent>
         {people.length === 0 ? (
           <p className="text-xs text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
         ) : (
-          people.map((p) => (
-            <div
-              key={p.id}
-              className="flex min-w-0 flex-col gap-1 rounded-md border bg-muted/30 px-2.5 py-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
-            >
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-sm font-medium">{p.nom}</span>
-                <Badge
-                  className={cn(
-                    "shrink-0 border text-[10px]",
-                    p.occupeAujourdhui
-                      ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400"
-                      : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
-                  )}
-                >
-                  {p.occupeAujourdhui ? "Occupée aujourd'hui" : "Libre"}
-                </Badge>
+          <div className="flex flex-wrap gap-1.5">
+            {people.map((p) => (
+              <div
+                key={p.id}
+                className="flex shrink-0 items-center gap-1.5 rounded-full border bg-muted/30 py-1 pl-2.5 pr-1 text-xs"
+              >
+                <span
+                  className={cn("h-1.5 w-1.5 shrink-0 rounded-full", p.occupeAujourdhui ? "bg-red-500" : "bg-green-500")}
+                  aria-hidden
+                />
+                <span className="font-medium">{p.nom}</span>
+                <span className={cn("text-[10px]", p.occupeAujourdhui ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400")}>
+                  {p.occupeAujourdhui ? "Occupée" : "Libre"}
+                </span>
+                {p.telephone ? (
+                  <a
+                    href={toWhatsAppUrl(p.telephone)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title={p.telephone}
+                    aria-label={`WhatsApp ${p.nom}`}
+                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
+                  >
+                    <MessageCircle className="h-3 w-3" />
+                  </a>
+                ) : null}
               </div>
-              {p.telephone ? <PhoneLink phone={p.telephone} className="w-fit shrink-0" /> : null}
-            </div>
-          ))
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>

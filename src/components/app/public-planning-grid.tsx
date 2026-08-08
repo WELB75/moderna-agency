@@ -4,9 +4,11 @@ import { useState, useTransition } from "react";
 import { format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
-import { Search, X, Loader2 } from "lucide-react";
+import { Select as SelectPrimitive } from "radix-ui";
+import { Search, X, Loader2, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SelectContent, SelectItem } from "@/components/ui/select";
 import { reassignPlanningAffectation } from "@/lib/actions/planning-public";
 import { AddPlanningEntryDialog, type ReservationOption } from "@/components/app/add-planning-entry-dialog";
 import { cn } from "@/lib/utils";
@@ -239,20 +241,27 @@ function EntryCard({ entry: e, token, options }: { entry: PublicPlanningEntry; t
     >
       <div className="flex min-w-0 items-center gap-1">
         {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
-        <select
-          value={e.personnelId}
-          disabled={isPending}
-          onChange={(ev) => handleChange(ev.target.value)}
-          className="w-full min-w-0 cursor-pointer truncate border-none bg-transparent p-0 text-sm font-medium outline-none disabled:opacity-60 sm:text-xs"
-        >
-          {options.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.nom}
-            </option>
-          ))}
-        </select>
+        <SelectPrimitive.Root value={e.personnelId} disabled={isPending} onValueChange={handleChange}>
+          <SelectPrimitive.Trigger
+            className={cn(
+              "flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 rounded-md border border-border/60 bg-background/70 py-0.5 pl-1.5 pr-1 text-left text-sm font-medium outline-none transition-colors hover:border-foreground/30 hover:bg-background focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60 sm:text-xs"
+            )}
+          >
+            <SelectPrimitive.Value className="min-w-0 break-words whitespace-normal" />
+            <SelectPrimitive.Icon asChild>
+              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+            </SelectPrimitive.Icon>
+          </SelectPrimitive.Trigger>
+          <SelectContent>
+            {options.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.nom}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </SelectPrimitive.Root>
       </div>
-      <p className="truncate text-muted-foreground" title={e.domaineNom ?? undefined}>
+      <p className="text-muted-foreground" title={e.domaineNom ?? undefined}>
         {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
       </p>
       <p className="text-muted-foreground">
