@@ -53,13 +53,18 @@ async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: ArrayBu
 }
 
 // Transcription via l'API Whisper de Groq (rapide, peu coûteuse, compatible format OpenAI).
-async function transcribeAudio(buffer: ArrayBuffer, mimeType: string): Promise<string | null> {
+// `language` force la langue plutôt que de laisser Whisper la deviner — nécessaire pour le
+// personnel (darija/arabe) : sans ça, un "نعم" bref et net peut être mal détecté comme une autre
+// langue (ex. transcrit en coréen "네." — repéré par Kamel, 2026-08-08). Laissé indéterminé pour
+// l'agent client, qui doit rester multilingue (français/anglais/arabe).
+async function transcribeAudio(buffer: ArrayBuffer, mimeType: string, language?: string): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" : "bin";
   const form = new FormData();
   form.append("file", new Blob([buffer], { type: mimeType }), `audio.${ext}`);
   form.append("model", "whisper-large-v3-turbo");
+  if (language) form.append("language", language);
   const res = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -124,7 +129,7 @@ export async function POST(req: NextRequest) {
 
     if (!text && message.type === "audio" && message.audio?.id) {
       const media = await downloadWhatsAppMedia(message.audio.id);
-      if (media) text = await transcribeAudio(media.buffer, media.mimeType);
+      if (media) text = await transcribeAudio(media.buffer, media.mimeType, isStaff ? "ar" : undefined);
       if (!text) {
         await sendReply(message.from, "Désolé, je n'ai pas réussi à comprendre ce message vocal — pouvez-vous réessayer ou l'écrire par texte ?");
         return NextResponse.json({ ok: true });
