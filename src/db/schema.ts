@@ -759,3 +759,46 @@ export const staffAssignmentRequests = pgTable(
   },
   (t) => [uniqueIndex("staff_assignment_requests_reservation_role_idx").on(t.reservationId, t.role)]
 );
+
+// Session de paiement par carte pour une réservation Superhote — pont entre notre app et le
+// tunnel Stripe géré par Superhote (voir mémoire projet : create-booking exige un card_token
+// Stripe tok_..., généré avec la clé publique du compte Stripe du LOGEMENT, récupérée via leur
+// endpoint get-user-stripe-key). Le prix (price/cleaning/cityTaxes) est figé à la création de la
+// session plutôt que recalculé depuis l'URL à chaque visite — empêche toute manipulation du
+// montant via le lien public, et donne un total stable à afficher au client pendant qu'il paie.
+export const superhotePaymentStatutEnum = pgEnum("superhote_payment_statut", [
+  "en_attente", // lien créé, client n'a pas encore payé
+  "requires_3ds", // banque a demandé une authentification, résultat pas encore connu
+  "paye",
+  "echoue",
+]);
+
+export const superhotePaymentSessions = pgTable("superhote_payment_sessions", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
+  propertyKey: text("property_key").notNull(), // snapshot du superhoteId de la villa au moment de la création
+  guestPrenom: text("guest_prenom").notNull(),
+  guestNom: text("guest_nom").notNull(),
+  guestEmail: text("guest_email").notNull(),
+  guestTelephone: text("guest_telephone").notNull(),
+  guestPays: text("guest_pays").notNull(), // code ISO alpha-2, ex "FR"
+  dateArrivee: text("date_arrivee").notNull(), // YYYY-MM-DD
+  dateDepart: text("date_depart").notNull(),
+  nbAdultes: integer("nb_adultes").notNull(),
+  nbEnfants: integer("nb_enfants").default(0).notNull(),
+  // Ventilation renvoyée par get-availabilities (include_taxes=0) au moment de la création —
+  // exactement ce que create-booking va comparer, donc ce qu'on doit afficher et renvoyer tel quel.
+  price: numeric("price", { precision: 10, scale: 2 }).notNull(),
+  cleaning: numeric("cleaning", { precision: 10, scale: 2 }).default("0").notNull(),
+  cityTaxes: numeric("city_taxes", { precision: 10, scale: 2 }).default("0").notNull(),
+  devise: text("devise").default("MAD").notNull(),
+  statut: superhotePaymentStatutEnum("statut").default("en_attente").notNull(),
+  // Renseignés une fois le paiement tenté/confirmé.
+  superhoteBookingId: text("superhote_booking_id"),
+  stripeIntentId: text("stripe_intent_id"), // utile pour le suivi manuel si 3DS reste en attente
+  erreur: text("erreur"),
+  createdByUserId: text("created_by_user_id"),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
