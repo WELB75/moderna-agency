@@ -59,16 +59,36 @@ export async function isKnownStaffPhone(phone: string): Promise<boolean> {
 
 // Filet de sécurité pour un message de personnel qui ne correspond à aucun cas géré (pas de
 // demande en attente, pas d'annulation claire d'une mission confirmée) — plutôt que de laisser le
-// webhook tomber sur l'agent client, on accuse réception en darija (+ voix) et on prévient
-// l'équipe pour un suivi humain si besoin.
+// webhook tomber sur l'agent client, ou renvoyer un message figé qui ignore ce qu'elle a
+// réellement écrit, on génère une vraie réponse chaleureuse en darija (+ voix) et on prévient
+// l'équipe pour un suivi humain sur le fond. Kamel, 2026-08-08 : "fais que l'agent ia soit
+// vraiment aimable dans ses paroles si on lui demande si elle va bien elle peux répondre que ça
+// va etc".
 export async function handleGenericStaffMessage(phone: string, text: string): Promise<string> {
   const db = getDb();
   const [person] = await db.select({ nom: personnel.nom }).from(personnel).where(eq(personnel.telephone, phone)).limit(1);
+
   await notifyTeam(
     null,
     `💬 Message de ${person?.nom ?? phone} (personnel), sans mission en cours associée : "${text}" — à traiter manuellement si besoin.`
   );
-  return `سلام، توصلت برسالتك. غادي يتواصل معاك الفريق قريب. شكرا.`;
+
+  const FALLBACK = `سلام، توصلت برسالتك. غادي يتواصل معاك الفريق قريب. شكرا.`;
+  try {
+    const response = await client.messages.create({
+      model: "claude-sonnet-5",
+      max_tokens: 150,
+      thinking: { type: "disabled" },
+      output_config: { effort: "low" },
+      system: `Tu es l'assistante WhatsApp de Moderna Agency (conciergerie de villas à Marrakech), tu discutes avec ${person?.nom ?? "une employée"} du ménage/cuisine. Réponds TOUJOURS en darija marocaine authentique (jamais en arabe littéraire/MSA) avec un ton chaleureux et amical — si elle demande comment tu vas, réponds naturellement (ex. "لاباس، الحمد لله، وانتي؟"), si elle te remercie ou te salue, réponds avec la même chaleur. Reste brève (1-2 phrases, style message WhatsApp, pas un pavé). Si elle pose une question opérationnelle précise (mission, paiement, planning, date) que tu ne peux pas traiter ici, ne réponds jamais à sa place sur ces sujets — dis-lui simplement que l'équipe va la recontacter.`,
+      messages: [{ role: "user", content: text }],
+    });
+    const block = response.content.find((b) => b.type === "text");
+    const reply = block && block.type === "text" ? block.text.trim() : "";
+    return reply || FALLBACK;
+  } catch {
+    return FALLBACK;
+  }
 }
 
 const ROLE_LABEL: Record<"cuisine" | "menage", string> = { cuisine: "la cuisine", menage: "le ménage" };
