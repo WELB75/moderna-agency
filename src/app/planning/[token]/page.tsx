@@ -111,7 +111,7 @@ export default async function PublicPlanningPage({
   }));
 
   return (
-    <div className="mx-auto min-h-screen max-w-5xl space-y-6 p-4 sm:p-8">
+    <div className="mx-auto min-h-screen w-full min-w-0 max-w-5xl space-y-6 overflow-x-hidden p-4 sm:p-8">
       <div className="flex flex-col items-center gap-2 pb-2 text-center">
         <Logo size={48} />
         <h1 className="text-lg font-semibold tracking-tight">Planning équipe — Ménage &amp; cuisine</h1>

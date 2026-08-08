@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PhoneLink } from "@/components/app/phone-link";
+import { cn } from "@/lib/utils";
 
 export type StaffAvailability = {
   id: string;
@@ -40,10 +41,17 @@ function StaffColumn({ title, dotColor, people }: { title: string; dotColor: str
           <p className="text-xs text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
         ) : (
           people.map((p) => (
-            <div key={p.id} className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5">
+            <div key={p.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5">
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-sm font-medium">{p.nom}</span>
-                <Badge variant={p.occupeAujourdhui ? "outline" : "secondary"} className="shrink-0 text-[10px]">
+                <Badge
+                  className={cn(
+                    "shrink-0 border text-[10px]",
+                    p.occupeAujourdhui
+                      ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400"
+                      : "border-green-500/30 bg-green-500/10 text-green-700 dark:text-green-400"
+                  )}
+                >
                   {p.occupeAujourdhui ? "Occupée aujourd'hui" : "Libre"}
                 </Badge>
               </div>
