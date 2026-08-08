@@ -10,6 +10,8 @@ import {
   cascadeStaleRequests,
   findConfirmedAssignmentForPhone,
   handleCancellationReply,
+  isKnownStaffPhone,
+  handleGenericStaffMessage,
 } from "@/lib/whatsapp-agent/staff";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 
@@ -108,19 +110,29 @@ export async function POST(req: NextRequest) {
     // Texte et messages vocaux sont gérés ; les autres types (image, localisation...) reçoivent
     // une réponse de repli plutôt que d'être ignorés silencieusement côté client.
     const from = `+${message.from}`;
+
+    // Un numéro déjà connu comme personnel (ménage/cuisine) ne doit JAMAIS retomber sur l'agent
+    // client, quel que soit le message — mauvais registre (agent client parle "hôtel" en
+    // français), et surtout aucune voix (l'agent client répond en texte seul). Calculé une seule
+    // fois ici, réutilisé pour choisir texte-seul vs texte+voix même sur les messages d'erreur de
+    // transcription ci-dessous. Kamel, 2026-08-08 : "il faut pas qu'il bascule après en agent de
+    // réservation" + "quand la personne elle répond en vocal, il faut que tu répondes en vocal".
+    const isStaff = await isKnownStaffPhone(from);
+    const sendReply = isStaff ? sendWhatsAppTextAndVoice : sendWhatsAppText;
+
     let text = message.type === "text" ? message.text?.body?.trim() : null;
 
     if (!text && message.type === "audio" && message.audio?.id) {
       const media = await downloadWhatsAppMedia(message.audio.id);
       if (media) text = await transcribeAudio(media.buffer, media.mimeType);
       if (!text) {
-        await sendWhatsAppText(message.from, "Désolé, je n'ai pas réussi à comprendre ce message vocal — pouvez-vous réessayer ou l'écrire par texte ?");
+        await sendReply(message.from, "Désolé, je n'ai pas réussi à comprendre ce message vocal — pouvez-vous réessayer ou l'écrire par texte ?");
         return NextResponse.json({ ok: true });
       }
     }
 
     if (!text) {
-      await sendWhatsAppText(message.from, "Je ne peux lire que du texte ou des messages vocaux pour l'instant — pouvez-vous décrire votre demande de cette façon ?");
+      await sendReply(message.from, "Je ne peux lire que du texte ou des messages vocaux pour l'instant — pouvez-vous décrire votre demande de cette façon ?");
       return NextResponse.json({ ok: true });
     }
 
@@ -135,18 +147,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Une candidate déjà CONFIRMÉE (pas juste en attente) qui revient écrire peut vouloir annuler
-    // — vérifié seulement si elle n'a pas de demande en attente ailleurs (cas ci-dessus prioritaire :
-    // la même personne peut avoir une mission confirmée sur une villa et une autre en attente sur
-    // une autre). handleCancellationReply renvoie null si ce n'est manifestement pas une annulation,
-    // auquel cas le message continue vers la conversation client normale comme avant.
+    // Une candidate déjà CONFIRMÉE (pas juste en attente) qui revient écrire peut vouloir annuler.
+    // handleCancellationReply renvoie null si ce n'est manifestement pas une annulation — dans ce
+    // cas on répond quand même ici (accusé de réception, voir handleGenericStaffMessage) plutôt
+    // que de laisser le message continuer vers l'agent client : elle reste une employée pour
+    // nous, jamais une cliente.
     const confirmedAssignment = await findConfirmedAssignmentForPhone(from);
     if (confirmedAssignment) {
       const cancelReply = await handleCancellationReply(confirmedAssignment, text);
-      if (cancelReply) {
-        await sendWhatsAppTextAndVoice(message.from, cancelReply);
-        return NextResponse.json({ ok: true });
-      }
+      const reply = cancelReply ?? (await handleGenericStaffMessage(from, text));
+      await sendWhatsAppTextAndVoice(message.from, reply);
+      return NextResponse.json({ ok: true });
+    }
+
+    // Un numéro de personnel sans demande en attente ni mission confirmée en ce moment (ex. elle
+    // écrit "spontanément", des jours après sa dernière mission) — même logique : jamais l'agent
+    // client pour ce numéro.
+    if (isStaff) {
+      const reply = await handleGenericStaffMessage(from, text);
+      await sendWhatsAppTextAndVoice(message.from, reply);
+      return NextResponse.json({ ok: true });
     }
 
     // Relance les demandes en cours depuis trop longtemps sans réponse (voir staff.ts) — passée

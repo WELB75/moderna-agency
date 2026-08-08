@@ -31,17 +31,44 @@ const client = new Anthropic();
 
 // Note système postée dans le chat interne (catégorie "menage_cuisine", déjà utilisée par
 // l'équipe) pour que l'humain voie ce que l'agent a fait, sans dépendre d'un template WhatsApp
-// Meta approuvé (notifyStaffWhatsApp exige ça, pas encore configuré).
-async function notifyTeam(reservationId: string, message: string) {
+// Meta approuvé (notifyStaffWhatsApp exige ça, pas encore configuré). reservationId est optionnel
+// (null pour un message générique du personnel sans mission en cours associée).
+async function notifyTeam(reservationId: string | null, message: string) {
   const db = getDb();
-  const [r] = await db.select({ villaId: reservations.villaId }).from(reservations).where(eq(reservations.id, reservationId)).limit(1);
+  const villaId = reservationId
+    ? ((await db.select({ villaId: reservations.villaId }).from(reservations).where(eq(reservations.id, reservationId)).limit(1))[0]?.villaId ?? null)
+    : null;
   await db.insert(chatMessages).values({
     categorie: "menage_cuisine",
-    villaId: r?.villaId ?? null,
+    villaId,
     message,
     createdByUserId: "agent-ia",
     createdByName: "Agent IA (WhatsApp)",
   });
+}
+
+// Un numéro déjà présent dans le répertoire personnel (ménage/cuisine) ne doit JAMAIS retomber
+// sur l'agent client (mauvais contexte, mauvais registre, et surtout aucune voix — voir
+// handleGenericStaffMessage) — utilisé par le webhook pour trancher avant même de router le
+// message. Kamel, 2026-08-08 : "il faut pas qu'il bascule après en agent de réservation".
+export async function isKnownStaffPhone(phone: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db.select({ id: personnel.id }).from(personnel).where(eq(personnel.telephone, phone)).limit(1);
+  return Boolean(row);
+}
+
+// Filet de sécurité pour un message de personnel qui ne correspond à aucun cas géré (pas de
+// demande en attente, pas d'annulation claire d'une mission confirmée) — plutôt que de laisser le
+// webhook tomber sur l'agent client, on accuse réception en darija (+ voix) et on prévient
+// l'équipe pour un suivi humain si besoin.
+export async function handleGenericStaffMessage(phone: string, text: string): Promise<string> {
+  const db = getDb();
+  const [person] = await db.select({ nom: personnel.nom }).from(personnel).where(eq(personnel.telephone, phone)).limit(1);
+  await notifyTeam(
+    null,
+    `💬 Message de ${person?.nom ?? phone} (personnel), sans mission en cours associée : "${text}" — à traiter manuellement si besoin.`
+  );
+  return `سلام، توصلت برسالتك. غادي يتواصل معاك الفريق قريب. شكرا.`;
 }
 
 const ROLE_LABEL: Record<"cuisine" | "menage", string> = { cuisine: "la cuisine", menage: "le ménage" };
@@ -67,12 +94,74 @@ export function dayAfter(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+// "2026-08-15" lu tel quel par la synthèse vocale sonne mal (lecture chiffre par chiffre, ou en
+// anglais) — Kamel, 2026-08-08 : "les dates tu leur dis le jour, en darija marocain et tu leur
+// dis la date". On reformule en darija parlée (jour de la semaine + quantième en toutes lettres
+// + mois, à la marocaine) pour un rendu naturel aussi bien à l'écrit qu'à l'oral, vu que texte et
+// voix partagent le même message (voir sendWhatsAppTextAndVoice).
+const DARIJA_JOURS_SEMAINE = ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]; // index = Date#getUTCDay()
+const DARIJA_MOIS = [
+  "يناير",
+  "فبراير",
+  "مارس",
+  "أبريل",
+  "ماي",
+  "يونيو",
+  "يوليوز",
+  "غشت",
+  "شتنبر",
+  "أكتوبر",
+  "نونبر",
+  "دجنبر",
+]; // index = Date#getUTCMonth(), noms marocains (empruntés au français), pas les noms MSA
+const DARIJA_QUANTIEMES: Record<number, string> = {
+  1: "واحد",
+  2: "جوج",
+  3: "تلاتة",
+  4: "ربعة",
+  5: "خمسة",
+  6: "ستة",
+  7: "سبعة",
+  8: "تمنية",
+  9: "تسعة",
+  10: "عشرة",
+  11: "حداش",
+  12: "طناش",
+  13: "تلطاش",
+  14: "ربعطاش",
+  15: "خمسطاش",
+  16: "سطاش",
+  17: "سبعطاش",
+  18: "تمنطاش",
+  19: "تسعطاش",
+  20: "عشرين",
+  21: "واحد وعشرين",
+  22: "تنين وعشرين",
+  23: "تلاتة وعشرين",
+  24: "ربعة وعشرين",
+  25: "خمسة وعشرين",
+  26: "ستة وعشرين",
+  27: "سبعة وعشرين",
+  28: "تمنية وعشرين",
+  29: "تسعة وعشرين",
+  30: "تلاتين",
+  31: "واحد وتلاتين",
+};
+
+function formatDateDarija(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const jour = DARIJA_JOURS_SEMAINE[d.getUTCDay()];
+  const quantieme = DARIJA_QUANTIEMES[d.getUTCDate()] ?? String(d.getUTCDate());
+  const mois = DARIJA_MOIS[d.getUTCMonth()];
+  return `نهار ${jour} ${quantieme} ${mois}`;
+}
+
 function buildOfferMessage(job: Job): string {
   if (job.role === "menage") {
-    return `السلام عليكم،\n\nهل يمكنك تنظيف ${job.villaNom} يوم ${job.dateDebut} (مغادرة الضيوف)؟\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+    return `السلام عليكم،\n\nهل يمكنك تنظيف ${job.villaNom} ${formatDateDarija(job.dateDebut)} (مغادرة الضيوف)؟\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
   }
   const repas = job.avecDejeuner ? "الفطور والغداء" : "الفطور فقط";
-  return `السلام عليكم،\n\nهل يمكنك الطبخ في ${job.villaNom} من ${job.dateDebut} إلى ${job.dateFin}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+  return `السلام عليكم،\n\nهل يمكنك الطبخ في ${job.villaNom} من ${formatDateDarija(job.dateDebut)} إلى ${formatDateDarija(job.dateFin)}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
 }
 
 // Retourne jusqu'à `limit` candidates disponibles (mieux notées en premier), pour une sollicitation
