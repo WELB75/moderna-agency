@@ -22,6 +22,10 @@ export async function createPaymentSession(input: {
   paysIso: string;
   nbAdultes: number;
   nbEnfants: number;
+  // Superhote ne renvoie aucun champ devise dans get-availabilities — les montants pour Villa
+  // Sofya correspondent au tarif EUR déjà documenté (whatsapp-agent/villas.ts), donc EUR par
+  // défaut. Kamel, 2026-08-08 : possibilité d'afficher en euros plutôt que dirhams.
+  devise?: "EUR" | "MAD";
 }) {
   await auth.protect();
   const user = await currentUser();
@@ -50,7 +54,7 @@ export async function createPaymentSession(input: {
       price: breakdown.price.toFixed(2),
       cleaning: breakdown.cleaning.toFixed(2),
       cityTaxes: breakdown.cityTaxes.toFixed(2),
-      devise: "MAD",
+      devise: input.devise ?? "EUR",
       createdByUserId: user?.id ?? null,
       createdByName: user?.fullName ?? user?.username ?? "Équipe",
     })

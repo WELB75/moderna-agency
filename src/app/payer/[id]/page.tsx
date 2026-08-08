@@ -11,6 +11,7 @@ export default async function PublicPaymentPage({ params }: { params: Promise<{ 
   if (!session) notFound();
 
   const total = Number(session.price) + Number(session.cleaning) + Number(session.cityTaxes);
+  const fmt = (n: number) => (session.devise === "EUR" ? `${n.toLocaleString("fr-FR")} €` : `${n.toLocaleString("fr-FR")} MAD`);
 
   return (
     <div className="min-h-screen bg-[#f6f6f7] px-4 py-10 dark:bg-[#0b0b0c]">
@@ -27,14 +28,12 @@ export default async function PublicPaymentPage({ params }: { params: Promise<{ 
           <Row label="Arrivée" value={`${format(new Date(session.dateArrivee), "d MMMM yyyy", { locale: fr })}, 15h00`} />
           <Row label="Départ" value={`${format(new Date(session.dateDepart), "d MMMM yyyy", { locale: fr })}, 11h00`} />
           <Row label="Voyageurs" value={String(session.nbAdultes + session.nbEnfants)} />
-          <Row label="Séjour" value={`${Number(session.price).toLocaleString("fr-FR")} ${session.devise}`} />
-          {Number(session.cleaning) > 0 ? <Row label="Ménage" value={`${Number(session.cleaning).toLocaleString("fr-FR")} ${session.devise}`} /> : null}
-          {Number(session.cityTaxes) > 0 ? <Row label="Taxe de séjour" value={`${Number(session.cityTaxes).toLocaleString("fr-FR")} ${session.devise}`} /> : null}
+          <Row label="Séjour" value={fmt(Number(session.price))} />
+          {Number(session.cleaning) > 0 ? <Row label="Ménage" value={fmt(Number(session.cleaning))} /> : null}
+          {Number(session.cityTaxes) > 0 ? <Row label="Taxe de séjour" value={fmt(Number(session.cityTaxes))} /> : null}
           <div className="flex items-center justify-between border-t border-[#ececec] pt-3 dark:border-[#2a2a2d]">
             <span className="text-sm font-semibold text-[#18181b] dark:text-[#f4f4f5]">Total</span>
-            <span className="text-sm font-semibold text-[#18181b] dark:text-[#f4f4f5]">
-              {total.toLocaleString("fr-FR")} {session.devise}
-            </span>
+            <span className="text-sm font-semibold text-[#18181b] dark:text-[#f4f4f5]">{fmt(total)}</span>
           </div>
         </div>
 
