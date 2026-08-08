@@ -274,7 +274,14 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
         .where(and(eq(personnel.role, job.role), eq(personnel.actif, true), inArray(personnel.nom, nomsFixes)))
         .limit(1);
       if (fixe) {
-        await db.insert(personnelAffectations).values({ reservationId, personnelId: fixe.id }).onConflictDoNothing();
+        // "depart" pour le ménage : ce module ne sollicite jamais que le nettoyage de fin de
+        // séjour (voir initiateMenageRequest) — sans ça, l'affectation retombe sur "unique" (la
+        // valeur par défaut, pensée pour la cuisine) et s'étale sur tout le séjour dans le
+        // planning au lieu d'être fixée sur le jour de départ. Bug repéré par Kamel, 2026-08-08.
+        await db
+          .insert(personnelAffectations)
+          .values({ reservationId, personnelId: fixe.id, moment: job.role === "menage" ? "depart" : "unique" })
+          .onConflictDoNothing();
         await db.insert(staffAssignmentRequests).values({
           reservationId,
           role: job.role,
@@ -566,7 +573,12 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
       return `شكرا على ردك، لكن المهمة أُسندت لشخص آخر أسرع منك. شكرا جزيلا! موديرنا أجونسي`;
     }
 
-    await db.insert(personnelAffectations).values({ reservationId: request.reservationId, personnelId: request.candidatId }).onConflictDoNothing();
+    // "depart" pour le ménage — voir le commentaire équivalent plus haut (affectation directe du
+    // personnel fixe) : ce module ne sollicite jamais que le nettoyage de fin de séjour.
+    await db
+      .insert(personnelAffectations)
+      .values({ reservationId: request.reservationId, personnelId: request.candidatId, moment: request.role === "menage" ? "depart" : "unique" })
+      .onConflictDoNothing();
     await notifyTeam(
       request.reservationId,
       `✅ ${request.candidatNom} confirmée pour ${ROLE_LABEL[request.role]} — ${villa?.nom ?? "villa"}, ${new Date(request.checkIn).toLocaleDateString("fr-FR")} → ${new Date(request.checkOut).toLocaleDateString("fr-FR")}.`
