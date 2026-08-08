@@ -165,13 +165,18 @@ function formatDateDarija(dateStr: string): string {
   return `نهار ${jour} ${quantieme} ${mois}`;
 }
 
+// En darija réel (pas juste de l'arabe littéraire avec des mots darija en plus) — grammaire et
+// tournures marocaines de bout en bout ("واش تقدري"، "عافاك"، "واخا"...), pas seulement le
+// vocabulaire des dates/chiffres. Kamel, 2026-08-08 : "meme dans la transcription écrite faut que
+// ce soit en darija en realité" — la voix ne peut pas sonner marocain si le texte lu, lui, est en
+// arabe classique.
 function buildOfferMessage(job: Job): string {
   const villa = villaLabel(job.villaNom, job.villaNumero);
   if (job.role === "menage") {
-    return `السلام عليكم،\n\nهل يمكنك تنظيف ${villa} ${formatDateDarija(job.dateDebut)} (مغادرة الضيوف)؟\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+    return `السلام عليكم،\n\nواش تقدري تنظفي ${villa} ${formatDateDarija(job.dateDebut)} (نهار خروج الضيوف)؟\n\nجاوبيني بـ "واخا" ولا "لا" عافاك.\n\nموديرنا أجونسي`;
   }
-  const repas = job.avecDejeuner ? "الفطور والغداء" : "الفطور فقط";
-  return `السلام عليكم،\n\nهل يمكنك الطبخ في ${villa} من ${formatDateDarija(job.dateDebut)} إلى ${formatDateDarija(job.dateFin)}؟ (${repas})\n\nأجيبي بـ "نعم" أو "لا" من فضلك.\n\nموديرنا أجونسي`;
+  const repas = job.avecDejeuner ? "الفطور والغدا" : "الفطور غير";
+  return `السلام عليكم،\n\nواش تقدري تطيبي ف${villa} من ${formatDateDarija(job.dateDebut)} حتى ${formatDateDarija(job.dateFin)}؟ (${repas})\n\nجاوبيني بـ "واخا" ولا "لا" عافاك.\n\nموديرنا أجونسي`;
 }
 
 // Retourne jusqu'à `limit` candidates disponibles (mieux notées en premier), pour une sollicitation
@@ -551,7 +556,7 @@ async function notifyOthers(candidatsSollicitesIds: string[], winnerId: string):
   const db = getDb();
   const rows = await db.select({ telephone: personnel.telephone }).from(personnel).where(inArray(personnel.id, others));
   await Promise.all(
-    rows.filter((r) => r.telephone).map((r) => sendWhatsAppTextAndVoice(r.telephone!, `شكرا على ردك، تم إسناد المهمة لشخص آخر أسرع. موديرنا أجونسي`))
+    rows.filter((r) => r.telephone).map((r) => sendWhatsAppTextAndVoice(r.telephone!, `شكرا على الجواب ديالك، المهمة تعطات لشي واحدة أخرى قبلك. موديرنا أجونسي`))
   );
 }
 
@@ -571,7 +576,7 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
       .update(staffAssignmentRequests)
       .set({ historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([reponseEntry])}::jsonb`, updatedAt: new Date() })
       .where(eq(staffAssignmentRequests.id, request.requestId));
-    return `عذرا، لم أفهم. من فضلك أجيبي بـ "نعم" أو "لا".`;
+    return `سمحيلي، ما فهمتش. عافاك جاوبيني بـ "واخا" ولا "لا".`;
   }
 
   const villa = request.villaId ? (await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, request.villaId)).limit(1))[0] : null;
@@ -595,7 +600,7 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
         .update(staffAssignmentRequests)
         .set({ historique: sql`${staffAssignmentRequests.historique} || ${JSON.stringify([reponseEntry])}::jsonb`, updatedAt: new Date() })
         .where(eq(staffAssignmentRequests.id, request.requestId));
-      return `شكرا على ردك، لكن المهمة أُسندت لشخص آخر أسرع منك. شكرا جزيلا! موديرنا أجونسي`;
+      return `شكرا على الجواب ديالك، ولكن المهمة تعطات لشي واحدة أخرى قبلك. شكرا بزاف! موديرنا أجونسي`;
     }
 
     // "depart" pour le ménage — voir le commentaire équivalent plus haut (affectation directe du
@@ -609,7 +614,7 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
       `✅ ${request.candidatNom} confirmée pour ${ROLE_LABEL[request.role]} — ${villa?.nom ?? "villa"}, ${new Date(request.checkIn).toLocaleDateString("fr-FR")} → ${new Date(request.checkOut).toLocaleDateString("fr-FR")}.`
     );
     await notifyOthers(request.candidatsSollicitesIds as string[], request.candidatId);
-    return `شكرا جزيلا! تم تأكيدك. موديرنا أجونسي`;
+    return `شكرا بزاف! تأكد الموعد ديالك. موديرنا أجونسي`;
   }
 
   // decision === "non" : retire la candidate du batch. Si c'était la dernière encore en attente
@@ -625,7 +630,7 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
   } else {
     await broadcastNewBatch(request, villa?.nom ?? "Villa", villa?.numero ?? null, [reponseEntry]);
   }
-  return `لا مشكلة، شكرا على الرد.`;
+  return `ماشي مشكل، شكرا على الجواب.`;
 }
 
 // Cherche une mission CONFIRMÉE (déjà acceptée) rattachée à ce numéro, pas encore passée — permet
@@ -711,5 +716,5 @@ export async function handleCancellationReply(
   };
   await broadcastNewBatch(assignment, villa?.nom ?? "Villa", villa?.numero ?? null, [annulationEntry]);
 
-  return `تم إلغاء تأكيدك، شكرا على إخبارنا. سنبحث عن شخص آخر. موديرنا أجونسي`;
+  return `تلغى الموعد ديالك، شكرا لي خبرتينا. غادي نقلبو لشي واحدة أخرى. موديرنا أجونسي`;
 }

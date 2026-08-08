@@ -18,10 +18,11 @@ export async function textToSpeech(text: string): Promise<Buffer | null> {
     },
     body: JSON.stringify({
       text,
-      // v3 (pas v2) — modèle le plus récent d'ElevenLabs, plus naturel sur les langues/dialectes
-      // peu standardisés comme la darija. Kamel, 2026-08-08 : "met le en condition... car la voix
-      // d'elevenlabs est prevu pour ça" — c'est aussi le modèle qu'il a validé à l'oreille dans
-      // leur interface avec cette même voix avant de nous donner sa clé API.
+      // v3, sur demande explicite de Kamel (2026-08-08) même après un premier test jugé "encore
+      // pire" que v2 — le vrai problème n'était pas le modèle mais le TEXTE lu, écrit en arabe
+      // littéraire avec seulement quelques mots darija en plus (voir buildOfferMessage plus haut,
+      // maintenant réécrit en darija de bout en bout). À rejuger avec ce texte corrigé avant de
+      // remettre en cause le modèle une deuxième fois.
       model_id: "eleven_v3",
       voice_settings: { stability: 0.5, similarity_boost: 0.75 },
     }),
