@@ -11,6 +11,7 @@ import {
   findConfirmedAssignmentForPhone,
   handleCancellationReply,
 } from "@/lib/whatsapp-agent/staff";
+import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 
 export const maxDuration = 60;
 
@@ -25,29 +26,6 @@ export async function GET(req: NextRequest) {
     return new NextResponse(challenge, { status: 200 });
   }
   return new NextResponse("Forbidden", { status: 403 });
-}
-
-async function sendWhatsAppText(to: string, body: string) {
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!accessToken || !phoneNumberId) return;
-
-  const res = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to,
-      type: "text",
-      text: { body },
-    }),
-  });
-  if (!res.ok) {
-    console.error("Échec envoi réponse WhatsApp:", res.status, await res.text());
-  }
 }
 
 // Les messages vocaux WhatsApp arrivent comme un id de média, pas un fichier directement — il
@@ -153,7 +131,7 @@ export async function POST(req: NextRequest) {
     const pendingStaffRequest = await findPendingRequestForPhone(from);
     if (pendingStaffRequest) {
       const staffReply = await handleStaffReply(pendingStaffRequest, text);
-      await sendWhatsAppText(message.from, staffReply);
+      await sendWhatsAppTextAndVoice(message.from, staffReply);
       return NextResponse.json({ ok: true });
     }
 
@@ -166,7 +144,7 @@ export async function POST(req: NextRequest) {
     if (confirmedAssignment) {
       const cancelReply = await handleCancellationReply(confirmedAssignment, text);
       if (cancelReply) {
-        await sendWhatsAppText(message.from, cancelReply);
+        await sendWhatsAppTextAndVoice(message.from, cancelReply);
         return NextResponse.json({ ok: true });
       }
     }

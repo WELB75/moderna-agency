@@ -3,6 +3,7 @@ import { and, avg, eq, gt, gte, inArray, isNotNull, lt, ne, sql } from "drizzle-
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas, domaines } from "@/db/schema";
 import { domaineEstActif } from "@/lib/domaines-actifs";
+import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 
 // Note neutre attribuée à une candidate sans aucune note pour l'instant — ni pénalisée (en
 // dessous d'une candidate moyenne) ni avantagée (au-dessus d'une bonne candidate déjà prouvée).
@@ -27,18 +28,6 @@ const BATCH_SIZE = 3;
 const OBSERVER_PHONE = "+33672516297";
 
 const client = new Anthropic();
-
-async function sendWhatsAppText(to: string, body: string) {
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!accessToken || !phoneNumberId) return;
-  const res = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", to: to.replace("+", ""), type: "text", text: { body } }),
-  });
-  if (!res.ok) console.error("Échec envoi WhatsApp (staff):", res.status, await res.text());
-}
 
 // Note système postée dans le chat interne (catégorie "menage_cuisine", déjà utilisée par
 // l'équipe) pour que l'humain voie ce que l'agent a fait, sans dépendre d'un template WhatsApp
@@ -236,7 +225,7 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     candidatsEssayes: candidates.map((c) => c.id),
     historique: candidates.map((c) => ({ at: new Date().toISOString(), type: "offre" as const, candidatNom: c.nom, texte: offre })),
   });
-  await Promise.all([...candidates.map((c) => sendWhatsAppText(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
+  await Promise.all([...candidates.map((c) => sendWhatsAppTextAndVoice(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
 }
 
 // Rétro-compatibilité : ancien nom utilisé par l'agent de réservation pour la cuisine.
@@ -409,7 +398,7 @@ async function broadcastNewBatch(request: StaffRequestContext, villaNom: string,
       updatedAt: new Date(),
     })
     .where(eq(staffAssignmentRequests.id, request.requestId));
-  await Promise.all([...candidates.map((c) => sendWhatsAppText(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
+  await Promise.all([...candidates.map((c) => sendWhatsAppTextAndVoice(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
 }
 
 // Relance automatique : un batch entier qui ne répond ni "oui" ni "non" dans le délai imparti est
@@ -441,7 +430,7 @@ async function notifyOthers(candidatsSollicitesIds: string[], winnerId: string):
   const db = getDb();
   const rows = await db.select({ telephone: personnel.telephone }).from(personnel).where(inArray(personnel.id, others));
   await Promise.all(
-    rows.filter((r) => r.telephone).map((r) => sendWhatsAppText(r.telephone!, `شكرا على ردك، تم إسناد المهمة لشخص آخر أسرع. موديرنا أجونسي`))
+    rows.filter((r) => r.telephone).map((r) => sendWhatsAppTextAndVoice(r.telephone!, `شكرا على ردك، تم إسناد المهمة لشخص آخر أسرع. موديرنا أجونسي`))
   );
 }
 
