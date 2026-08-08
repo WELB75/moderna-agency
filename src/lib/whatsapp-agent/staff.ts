@@ -614,7 +614,11 @@ export async function handleStaffReply(request: StaffRequestRow, text: string): 
       `✅ ${request.candidatNom} confirmée pour ${ROLE_LABEL[request.role]} — ${villa?.nom ?? "villa"}, ${new Date(request.checkIn).toLocaleDateString("fr-FR")} → ${new Date(request.checkOut).toLocaleDateString("fr-FR")}.`
     );
     await notifyOthers(request.candidatsSollicitesIds as string[], request.candidatId);
-    return `شكرا بزاف! تأكد الموعد ديالك. موديرنا أجونسي`;
+    // Kamel, 2026-08-08 : rappel systématique du délai de prévenance (24h) sur toute confirmation
+    // — pour qu'on ait le temps de chercher une remplaçante plutôt qu'un désistement de dernière
+    // minute (elle sait déjà qu'elle peut annuler via handleCancellationReply, mais encore faut-il
+    // qu'elle sache qu'il faut le faire à l'avance).
+    return `شكرا بزاف! تأكد الموعد ديالك. إلا صادفك شي حاجة وما قدرتيش تجي، عافاك خبرينا 24 ساعة قبل باش نلقاو ليك بديلة. موديرنا أجونسي`;
   }
 
   // decision === "non" : retire la candidate du batch. Si c'était la dernière encore en attente
