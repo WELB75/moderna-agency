@@ -41,7 +41,10 @@ function StaffColumn({ title, dotColor, people }: { title: string; dotColor: str
           <p className="text-xs text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
         ) : (
           people.map((p) => (
-            <div key={p.id} className="flex min-w-0 items-center justify-between gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5">
+            <div
+              key={p.id}
+              className="flex min-w-0 flex-col gap-1 rounded-md border bg-muted/30 px-2.5 py-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
+            >
               <div className="flex min-w-0 items-center gap-2">
                 <span className="truncate text-sm font-medium">{p.nom}</span>
                 <Badge
@@ -55,7 +58,7 @@ function StaffColumn({ title, dotColor, people }: { title: string; dotColor: str
                   {p.occupeAujourdhui ? "Occupée aujourd'hui" : "Libre"}
                 </Badge>
               </div>
-              {p.telephone ? <PhoneLink phone={p.telephone} className="shrink-0" /> : null}
+              {p.telephone ? <PhoneLink phone={p.telephone} className="w-fit shrink-0" /> : null}
             </div>
           ))
         )}

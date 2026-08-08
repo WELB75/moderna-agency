@@ -61,6 +61,12 @@ export default async function PublicPlanningPage({
     .orderBy(asc(reservations.checkIn));
   const planningReservationById = new Map(planningReservations.map((r) => [r.id, r]));
   const reservationIds = planningReservations.map((r) => r.id);
+  const reservationOptions = planningReservations.map((r) => ({
+    id: r.id,
+    villaNom: r.villaNom,
+    villaNumero: r.villaNumero,
+    guestName: r.guestName,
+  }));
 
   const planningAffectations =
     reservationIds.length > 0
@@ -151,6 +157,7 @@ export default async function PublicPlanningPage({
         token={token}
         menageOptions={menageOptions}
         cuisineOptions={cuisineOptions}
+        reservationOptions={reservationOptions}
       />
 
       <div className="space-y-2">

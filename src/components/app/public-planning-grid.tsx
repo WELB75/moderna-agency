@@ -8,6 +8,7 @@ import { Search, X, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { reassignPlanningAffectation } from "@/lib/actions/planning-public";
+import { AddPlanningEntryDialog, type ReservationOption } from "@/components/app/add-planning-entry-dialog";
 import { cn } from "@/lib/utils";
 
 export type PublicPlanningEntry = {
@@ -37,14 +38,17 @@ export function PublicPlanningGrid({
   token,
   menageOptions,
   cuisineOptions,
+  reservationOptions,
 }: {
   jours: JourPlanning[];
   now: Date;
   token: string;
   menageOptions: Option[];
   cuisineOptions: Option[];
+  reservationOptions: ReservationOption[];
 }) {
   const [recherche, setRecherche] = useState("");
+  const [rechercheOuverte, setRechercheOuverte] = useState(false);
   const indexAujourdhui = Math.max(
     0,
     jours.findIndex((j) => isSameDay(j.date, now))
@@ -68,24 +72,74 @@ export function PublicPlanningGrid({
           </span>
         </div>
 
-        <div className="relative w-full max-w-56 min-w-0 flex-1 sm:flex-none">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-            placeholder="Chercher un prénom..."
-            className="w-full min-w-0 border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+        <div className="flex items-center gap-2">
+          {/* Desktop : champ toujours visible */}
+          <div className="relative hidden w-full max-w-56 min-w-0 sm:block">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={recherche}
+              onChange={(e) => setRecherche(e.target.value)}
+              placeholder="Chercher un prénom..."
+              className="w-full min-w-0 border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+            />
+            {recherche ? (
+              <button
+                type="button"
+                onClick={() => setRecherche("")}
+                aria-label="Effacer"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
+          </div>
+
+          {/* Mobile : juste la loupe, qui déplie le champ au clic — Kamel, 2026-08-08 :
+              "juste une loupe s'il te plaît" */}
+          <div className="sm:hidden">
+            {rechercheOuverte ? (
+              <div className="relative w-36 min-w-0">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  autoFocus
+                  value={recherche}
+                  onChange={(e) => setRecherche(e.target.value)}
+                  onBlur={() => {
+                    if (!recherche) setRechercheOuverte(false);
+                  }}
+                  placeholder="Prénom..."
+                  className="w-full min-w-0 border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRecherche("");
+                    setRechercheOuverte(false);
+                  }}
+                  aria-label="Fermer la recherche"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setRechercheOuverte(true)}
+                aria-label="Chercher un prénom"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <AddPlanningEntryDialog
+            token={token}
+            reservations={reservationOptions}
+            menageOptions={menageOptions}
+            cuisineOptions={cuisineOptions}
           />
-          {recherche ? (
-            <button
-              type="button"
-              onClick={() => setRecherche("")}
-              aria-label="Effacer"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          ) : null}
         </div>
       </div>
 

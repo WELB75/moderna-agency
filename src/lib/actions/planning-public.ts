@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations } from "@/db/schema";
+import { personnel, personnelAffectations, reservations } from "@/db/schema";
 import { isValidPlanningToken } from "@/lib/planning-token";
 
 // Réaffecte une mission (ménage ou cuisine) à quelqu'un d'autre, directement depuis le lien
@@ -28,6 +28,46 @@ export async function reassignPlanningAffectation(token: string, affectationId: 
 
   try {
     await db.update(personnelAffectations).set({ personnelId: newPersonnelId }).where(eq(personnelAffectations.id, affectationId));
+  } catch {
+    throw new Error("Cette personne est déjà affectée sur cette mission.");
+  }
+
+  revalidatePath(`/planning/${token}`);
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+}
+
+// Ajoute une nouvelle affectation (pas une réaffectation) depuis le lien public — Kamel,
+// 2026-08-08 : "la possibilité de les ajouter [...] on met le nom, on met le lieu [...] et si
+// c'est ménage de départ si c'est pendant le séjour si c'est petit déjeuner déjeuner etc." Le
+// moment cuisine est toujours forcé à "unique" côté serveur, même si l'appelant envoie autre
+// chose, pour rester cohérent avec le reste de l'app (staff.ts fait pareil).
+export async function addPlanningAffectation(
+  token: string,
+  reservationId: string,
+  personnelId: string,
+  moment: "sejour" | "depart" | "unique",
+  avecDejeuner: boolean
+) {
+  if (!isValidPlanningToken(token)) throw new Error("Lien invalide.");
+
+  const db = getDb();
+  const [resa] = await db.select({ id: reservations.id }).from(reservations).where(eq(reservations.id, reservationId)).limit(1);
+  if (!resa) throw new Error("Réservation introuvable.");
+
+  const [pers] = await db.select({ role: personnel.role }).from(personnel).where(eq(personnel.id, personnelId)).limit(1);
+  if (!pers) throw new Error("Personne introuvable.");
+
+  const momentValide = pers.role === "cuisine" ? "unique" : moment === "unique" ? "depart" : moment;
+
+  try {
+    await db.insert(personnelAffectations).values({
+      reservationId,
+      personnelId,
+      moment: momentValide,
+      avecDejeuner: pers.role === "cuisine" ? avecDejeuner : false,
+    });
   } catch {
     throw new Error("Cette personne est déjà affectée sur cette mission.");
   }
