@@ -10,7 +10,24 @@ import { recordStayRating } from "./rating";
 
 const client = new Anthropic();
 
-const villasPromptList = VILLAS.map((v) => `${v.nom} (${v.blurb}) — caution ${v.caution}€, frais de ménage ${v.menage}€`).join("\n- ");
+// Construite à chaque tour (pas au chargement du module comme avant) pour inclure la description
+// complète et la photo de couverture — vivent dans la vraie table `villas` (contrairement à
+// blurb/prixNuit/caution/menage, volontairement maintenus à part dans VILLAS, voir villas.ts),
+// donc toujours à jour si Kamel modifie une fiche villa dans l'appli, sans redéploiement. Kamel,
+// 2026-08-09 : un client bloqué à l'idée de réserver "sans avoir vu des photos et une présentation
+// claire avec les équipements" — l'agent doit pouvoir répondre directement au lieu de dire qu'il
+// transmet à l'équipe.
+async function buildVillasPromptList(): Promise<string> {
+  const db = getDb();
+  const rows = await db.select({ id: villas.id, description: villas.description, photoUrl: villas.photoUrl }).from(villas);
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return VILLAS.map((v) => {
+    const extra = byId.get(v.id);
+    const description = extra?.description ? `\n  Description complète : ${extra.description.replace(/\s+/g, " ").trim()}` : "";
+    const photo = extra?.photoUrl ? `\n  Photo : ${extra.photoUrl}` : "";
+    return `${v.nom} (${v.blurb}) — caution ${v.caution}€, frais de ménage ${v.menage}€${description}${photo}`;
+  }).join("\n- ");
+}
 
 const tools: Tool[] = [
   {
@@ -277,12 +294,12 @@ async function createBooking(input: Record<string, unknown>) {
   return { success: true, modernaBookingId, bookingRef, totalPrice: total, nights: n };
 }
 
-function buildSystemPrompt(today: string) {
+function buildSystemPrompt(today: string, villasPromptList: string) {
   return `Tu es l'agent WhatsApp de Moderna Agency, une conciergerie de villas à Marrakech. Tu réponds directement aux clients qui contactent l'agence pour réserver, sur un ton chaleureux mais bref (style WhatsApp, pas de pavés).
 
 La date d'aujourd'hui est ${today}.
 
-Logements gérés par l'agence (villas, et appartements — ceux dont le nom finit par "cosy") :
+Logements gérés par l'agence (villas, et appartements — ceux dont le nom finit par "cosy") — description complète et photo de couverture incluses pour chacun :
 - ${villasPromptList}
 
 Règles :
@@ -296,6 +313,9 @@ Règles :
 - La cuisinière n'est un service disponible QUE sur les vraies villas (Gaspard, Azur, Elysée, Tania, Eline, Lila, Wimiliim, Sofya) — jamais sur les appartements "cosy" du domaine Noria. Si un client d'un appartement "cosy" demande une cuisinière, dis-lui poliment que ce service n'est proposé que sur les villas, sans lui en proposer une.
 - Tarifs cuisinière (à communiquer au client s'il en demande une, villa uniquement) : 200 MAD/jour pour le petit-déjeuner seul, 300 MAD/jour pour petit-déjeuner + déjeuner. C'est un coût en plus du loyer de la villa, en dirhams (pas en euros) — précise-le clairement au client pour qu'il sache à quoi s'attendre avant de confirmer.
 - Villa Sofya uniquement : une femme de ménage est incluse dans le prix de la villa (contrairement aux autres logements où le ménage de fin de séjour est facturé à part) — la cuisinière, elle, reste en supplément comme partout ailleurs, aux mêmes tarifs.
+- Si un client demande la description détaillée d'un logement (présentation, équipements) ou des photos, tu as la description complète et une photo de couverture pour chaque logement dans la liste ci-dessus — partage-les directement dans ta réponse (le lien photo est public, envoie-le tel quel). Ne dis jamais que tu ne peux pas transmettre ces informations ou que tu dois passer par l'équipe pour ça.
+- Femme de ménage privée pendant le séjour (en plus du ménage de fin de séjour, déjà inclus dans les frais de ménage indiqués ci-dessus) : possible en supplément, sur simple demande, pour 300 MAD/jour. Annonce ce tarif directement au client dès qu'il pose la question, ne dis pas que tu dois transmettre la demande à l'équipe pour connaître le prix.
+- Si un client demande le numéro de téléphone de Moderna Agency, ou veut parler directement à un responsable, tu peux lui communiquer ce numéro : +212 6 68 73 09 09.
 - Le téléphone doit TOUJOURS inclure l'indicatif pays (+33, +212, +44...), même si le client donne un numéro différent de celui utilisé sur WhatsApp. Demande-le explicitement sous cette forme ("votre numéro avec l'indicatif du pays, ex. +33 6 51 21 12 76") ; si le client répond sans indicatif, redemande-le au lieu de deviner.
 - Les dates données par le client doivent être cohérentes avec aujourd'hui (${today}) : si une date semble déjà passée (ex. un mois/année manifestement révolu), ne suppose jamais qu'il s'agit d'une erreur d'année à corriger toi-même — demande au client de confirmer la date exacte souhaitée.
 - Ne jamais demander le prix au client ni en parler avant la confirmation finale — le prix est calculé automatiquement par l'agence à partir du tarif de la villa. Une fois la réservation créée, tu peux annoncer le prix total au client (donné par l'outil).
@@ -328,13 +348,14 @@ export function repairMessageHistory(messages: MessageParam[]): MessageParam[] {
 
 export async function runAgentTurn(messages: MessageParam[], phone: string, onRoundComplete?: (messages: MessageParam[]) => Promise<void>): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
+  const villasPromptList = await buildVillasPromptList();
   while (true) {
     const response = await client.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 1024,
       thinking: { type: "disabled" },
       output_config: { effort: "low" },
-      system: [{ type: "text", text: buildSystemPrompt(today), cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: buildSystemPrompt(today, villasPromptList), cache_control: { type: "ephemeral" } }],
       tools,
       messages,
     });
