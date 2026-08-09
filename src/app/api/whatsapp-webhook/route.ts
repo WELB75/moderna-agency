@@ -125,6 +125,12 @@ export async function POST(req: NextRequest) {
     const isStaff = await isKnownStaffPhone(from);
     const sendReply = isStaff ? sendWhatsAppTextAndVoice : sendWhatsAppText;
 
+    // Kamel, 2026-08-08 : "quand la personne elle répond en vocal, il faut que tu répondes en
+    // vocal" — appliqué au personnel via `sendReply`/`sendWhatsAppTextAndVoice` ci-dessous, mais
+    // oublié sur le chemin de l'agent client générique en bas de cette fonction, qui envoyait du
+    // texte seul même quand le message entrant était vocal (repéré par Kamel le 2026-08-09).
+    const wasVoice = message.type === "audio";
+
     let text = message.type === "text" ? message.text?.body?.trim() : null;
 
     if (!text && message.type === "audio" && message.audio?.id) {
@@ -207,7 +213,7 @@ export async function POST(req: NextRequest) {
     });
 
     await saveConversation(db, from, messages, message.id);
-    await sendWhatsAppText(message.from, reply);
+    await (wasVoice ? sendWhatsAppTextAndVoice : sendWhatsAppText)(message.from, reply);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
