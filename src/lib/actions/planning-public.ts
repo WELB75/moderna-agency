@@ -38,6 +38,59 @@ export async function reassignPlanningAffectation(token: string, affectationId: 
   revalidatePath("/dashboard");
 }
 
+// Change le moment d'une mission de ménage (départ ⇄ pendant le séjour) depuis le lien public —
+// Kamel, 2026-08-09 : "je puisse changer en déjeuner seul [...] que ça communique avec la base de
+// données". Réservé au ménage : la cuisine n'a qu'un seul moment ("unique"), voir
+// addPlanningAffectation.
+export async function updatePlanningAffectationMoment(token: string, affectationId: string, moment: "sejour" | "depart") {
+  if (!isValidPlanningToken(token)) throw new Error("Lien invalide.");
+
+  const db = getDb();
+  const [current] = await db
+    .select({ role: personnel.role })
+    .from(personnelAffectations)
+    .innerJoin(personnel, eq(personnel.id, personnelAffectations.personnelId))
+    .where(eq(personnelAffectations.id, affectationId))
+    .limit(1);
+  if (!current) throw new Error("Affectation introuvable.");
+  if (current.role !== "menage") throw new Error("Cette mission n'est pas une mission de ménage.");
+
+  try {
+    await db.update(personnelAffectations).set({ moment }).where(eq(personnelAffectations.id, affectationId));
+  } catch {
+    throw new Error("Cette personne a déjà une mission à ce moment sur ce séjour.");
+  }
+
+  revalidatePath(`/planning/${token}`);
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+}
+
+// Change la formule cuisine (petit-déj seul ⇄ petit-déj + déjeuner) depuis le lien public —
+// affecte aussi le calcul du montant dû (100 vs 200 MAD/jour, voir personnelAffectations dans
+// db/schema.ts). Réservé à la cuisine, symétrique de updatePlanningAffectationMoment.
+export async function updatePlanningAffectationRepas(token: string, affectationId: string, avecDejeuner: boolean) {
+  if (!isValidPlanningToken(token)) throw new Error("Lien invalide.");
+
+  const db = getDb();
+  const [current] = await db
+    .select({ role: personnel.role })
+    .from(personnelAffectations)
+    .innerJoin(personnel, eq(personnel.id, personnelAffectations.personnelId))
+    .where(eq(personnelAffectations.id, affectationId))
+    .limit(1);
+  if (!current) throw new Error("Affectation introuvable.");
+  if (current.role !== "cuisine") throw new Error("Cette mission n'est pas une mission de cuisine.");
+
+  await db.update(personnelAffectations).set({ avecDejeuner }).where(eq(personnelAffectations.id, affectationId));
+
+  revalidatePath(`/planning/${token}`);
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+}
+
 // Ajoute une nouvelle affectation (pas une réaffectation) depuis le lien public — Kamel,
 // 2026-08-08 : "la possibilité de les ajouter [...] on met le nom, on met le lieu [...] et si
 // c'est ménage de départ si c'est pendant le séjour si c'est petit déjeuner déjeuner etc." Le

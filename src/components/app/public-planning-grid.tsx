@@ -9,14 +9,21 @@ import { Search, X, Loader2, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SelectContent, SelectItem } from "@/components/ui/select";
-import { reassignPlanningAffectation } from "@/lib/actions/planning-public";
+import {
+  reassignPlanningAffectation,
+  updatePlanningAffectationMoment,
+  updatePlanningAffectationRepas,
+} from "@/lib/actions/planning-public";
 import { AddPlanningEntryDialog, type ReservationOption } from "@/components/app/add-planning-entry-dialog";
+import { PublicStaffAvailability, type StaffAvailability } from "@/components/app/public-staff-availability";
+import { matchesSearch } from "@/lib/text-match";
 import { cn } from "@/lib/utils";
 
 export type PublicPlanningEntry = {
   affectationId: string;
   villaNom: string | null;
   villaNumero: string | null;
+  villaType: "villa" | "appartement" | null;
   domaineNom: string | null;
   guestName: string;
   role: "menage" | "cuisine";
@@ -34,6 +41,11 @@ type Option = { id: string; nom: string };
 // forçait à scroller sans fin ; remplacé par un sélecteur de jour (pastilles horizontales) qui
 // n'affiche qu'un seul jour à la fois. Le tableau 7 colonnes reste tel quel à partir de sm (assez
 // de place). Les deux vues partagent les mêmes données, juste deux rendus différents.
+//
+// Kamel, 2026-08-09 : "je veux qu'on puisse trouver aussi les villa, les femmes de ménages [...]
+// même les apparts" — la recherche filtre maintenant sur le nom du personnel, la villa/l'appart
+// (nom, numéro, "villa"/"appartement") et le client, à la fois dans la grille et dans le panneau
+// Personnel disponible (déplacé ici pour partager le même champ de recherche).
 export function PublicPlanningGrid({
   jours,
   now,
@@ -41,6 +53,7 @@ export function PublicPlanningGrid({
   menageOptions,
   cuisineOptions,
   reservationOptions,
+  staff,
 }: {
   jours: JourPlanning[];
   now: Date;
@@ -48,6 +61,7 @@ export function PublicPlanningGrid({
   menageOptions: Option[];
   cuisineOptions: Option[];
   reservationOptions: ReservationOption[];
+  staff: StaffAvailability[];
 }) {
   const [recherche, setRecherche] = useState("");
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
@@ -56,7 +70,7 @@ export function PublicPlanningGrid({
     jours.findIndex((j) => isSameDay(j.date, now))
   );
   const [jourActif, setJourActif] = useState(indexAujourdhui);
-  const q = recherche.trim().toLowerCase();
+  const q = recherche.trim();
 
   const optionsPour = (role: "menage" | "cuisine") => (role === "menage" ? menageOptions : cuisineOptions);
 
@@ -81,7 +95,7 @@ export function PublicPlanningGrid({
             <input
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Chercher un prénom..."
+              placeholder="Chercher (nom, villa, appart...)"
               className="w-full min-w-0 border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
             />
             {recherche ? (
@@ -109,7 +123,7 @@ export function PublicPlanningGrid({
                   onBlur={() => {
                     if (!recherche) setRechercheOuverte(false);
                   }}
-                  placeholder="Prénom..."
+                  placeholder="Nom, villa..."
                   className="w-full min-w-0 border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
                 />
                 <button
@@ -128,7 +142,7 @@ export function PublicPlanningGrid({
               <button
                 type="button"
                 onClick={() => setRechercheOuverte(true)}
-                aria-label="Chercher un prénom"
+                aria-label="Chercher"
                 className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground"
               >
                 <Search className="h-4 w-4" />
@@ -177,8 +191,25 @@ export function PublicPlanningGrid({
           <JourCard key={j.date.toISOString()} jour={j} now={now} q={q} token={token} optionsPour={optionsPour} />
         ))}
       </div>
+
+      <div className="space-y-2">
+        <h2 className="text-sm font-semibold">Personnel disponible</h2>
+        <PublicStaffAvailability staff={staff} query={q} />
+      </div>
     </div>
   );
+}
+
+function entreeCorrespond(e: PublicPlanningEntry, q: string): boolean {
+  const haystack = [
+    e.personnelNom,
+    e.villaNom ?? "",
+    e.villaNumero ?? "",
+    e.villaType ?? "",
+    e.guestName,
+    e.domaineNom ?? "",
+  ].join(" ");
+  return matchesSearch(haystack, q);
 }
 
 function JourCard({
@@ -197,7 +228,7 @@ function JourCard({
   pleineLargeur?: boolean;
 }) {
   const estAujourdhui = isSameDay(date, now);
-  const filtrees = q ? entries.filter((e) => e.personnelNom.toLowerCase().includes(q)) : entries;
+  const filtrees = q ? entries.filter((e) => entreeCorrespond(e, q)) : entries;
   return (
     <Card className={cn("min-w-0", estAujourdhui && !pleineLargeur && "border-foreground/40")}>
       <CardHeader className="pb-1.5">
@@ -217,15 +248,90 @@ function JourCard({
   );
 }
 
+// Trigger de select compact réutilisé pour les 3 champs modifiables inline d'une mission
+// (personne, moment du ménage, formule cuisine) — pas de troncature du texte (contrairement au
+// <select> natif qu'il remplace) pour qu'on distingue toujours "Khadija MASLIK" de "Khadija
+// KEJJAJI" sans avoir à ouvrir le menu.
+function InlineSelect<T extends string>({
+  value,
+  options,
+  onChange,
+  disabled,
+  className,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <SelectPrimitive.Root value={value} disabled={disabled} onValueChange={(v) => onChange(v as T)}>
+      <SelectPrimitive.Trigger
+        className={cn(
+          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 rounded-md border border-border/60 bg-background/70 py-0.5 pl-1.5 pr-1 text-left font-medium outline-none transition-colors hover:border-foreground/30 hover:bg-background focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60",
+          className
+        )}
+      >
+        <SelectPrimitive.Value className="min-w-0 break-words whitespace-normal" />
+        <SelectPrimitive.Icon asChild>
+          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+        </SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+      <SelectContent>
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value}>
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </SelectPrimitive.Root>
+  );
+}
+
+const OPTIONS_MOMENT: { value: "depart" | "sejour"; label: string }[] = [
+  { value: "depart", label: "Ménage de départ" },
+  { value: "sejour", label: "Pendant le séjour" },
+];
+const OPTIONS_REPAS: { value: "non" | "oui"; label: string }[] = [
+  { value: "non", label: "Petit-déj seul" },
+  { value: "oui", label: "Petit-déj + déj" },
+];
+
 function EntryCard({ entry: e, token, options }: { entry: PublicPlanningEntry; token: string; options: Option[] }) {
   const [isPending, startTransition] = useTransition();
 
-  function handleChange(newPersonnelId: string) {
+  function handlePersonnelChange(newPersonnelId: string) {
     if (newPersonnelId === e.personnelId) return;
     startTransition(async () => {
       try {
         await reassignPlanningAffectation(token, e.affectationId, newPersonnelId);
         toast.success("Réaffecté.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
+  function handleMomentChange(newMoment: "depart" | "sejour") {
+    if (newMoment === e.moment) return;
+    startTransition(async () => {
+      try {
+        await updatePlanningAffectationMoment(token, e.affectationId, newMoment);
+        toast.success("Mis à jour.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
+  function handleRepasChange(value: "non" | "oui") {
+    const avecDejeuner = value === "oui";
+    if (avecDejeuner === e.avecDejeuner) return;
+    startTransition(async () => {
+      try {
+        await updatePlanningAffectationRepas(token, e.affectationId, avecDejeuner);
+        toast.success("Mis à jour.");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -241,38 +347,34 @@ function EntryCard({ entry: e, token, options }: { entry: PublicPlanningEntry; t
     >
       <div className="flex min-w-0 items-center gap-1">
         {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
-        <SelectPrimitive.Root value={e.personnelId} disabled={isPending} onValueChange={handleChange}>
-          <SelectPrimitive.Trigger
-            className={cn(
-              "flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 rounded-md border border-border/60 bg-background/70 py-0.5 pl-1.5 pr-1 text-left text-sm font-medium outline-none transition-colors hover:border-foreground/30 hover:bg-background focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60 sm:text-xs"
-            )}
-          >
-            <SelectPrimitive.Value className="min-w-0 break-words whitespace-normal" />
-            <SelectPrimitive.Icon asChild>
-              <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-            </SelectPrimitive.Icon>
-          </SelectPrimitive.Trigger>
-          <SelectContent>
-            {options.map((o) => (
-              <SelectItem key={o.id} value={o.id}>
-                {o.nom}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </SelectPrimitive.Root>
+        <InlineSelect
+          value={e.personnelId}
+          options={options.map((o) => ({ value: o.id, label: o.nom }))}
+          onChange={handlePersonnelChange}
+          disabled={isPending}
+          className="text-sm sm:text-xs"
+        />
       </div>
       <p className="text-muted-foreground" title={e.domaineNom ?? undefined}>
         {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
       </p>
-      <p className="text-muted-foreground">
-        {e.role === "cuisine"
-          ? e.avecDejeuner
-            ? "Petit-déj + déj"
-            : "Petit-déj seul"
-          : e.moment === "sejour"
-            ? "Pendant le séjour"
-            : "Ménage de départ"}
-      </p>
+      {e.role === "cuisine" ? (
+        <InlineSelect
+          value={e.avecDejeuner ? "oui" : "non"}
+          options={OPTIONS_REPAS}
+          onChange={handleRepasChange}
+          disabled={isPending}
+          className="text-[11px] text-muted-foreground"
+        />
+      ) : (
+        <InlineSelect
+          value={e.moment === "sejour" ? "sejour" : "depart"}
+          options={OPTIONS_MOMENT}
+          onChange={handleMomentChange}
+          disabled={isPending}
+          className="text-[11px] text-muted-foreground"
+        />
+      )}
     </div>
   );
 }

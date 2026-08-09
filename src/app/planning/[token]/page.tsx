@@ -8,7 +8,7 @@ import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { PublicPlanningGrid, type PublicPlanningEntry } from "@/components/app/public-planning-grid";
-import { PublicStaffAvailability, type StaffAvailability } from "@/components/app/public-staff-availability";
+import { type StaffAvailability } from "@/components/app/public-staff-availability";
 import { isValidPlanningToken } from "@/lib/planning-token";
 import { nowInMorocco } from "@/lib/now";
 
@@ -52,6 +52,7 @@ export default async function PublicPlanningPage({
       checkOut: reservations.checkOut,
       villaNom: villas.nom,
       villaNumero: villas.numero,
+      villaType: villas.type,
       domaineNom: domaines.nom,
     })
     .from(reservations)
@@ -92,6 +93,7 @@ export default async function PublicPlanningPage({
         affectationId: a.id,
         villaNom: r.villaNom,
         villaNumero: r.villaNumero,
+        villaType: r.villaType,
         domaineNom: r.domaineNom,
         guestName: r.guestName,
         role,
@@ -158,12 +160,8 @@ export default async function PublicPlanningPage({
         menageOptions={menageOptions}
         cuisineOptions={cuisineOptions}
         reservationOptions={reservationOptions}
+        staff={staffAvailability}
       />
-
-      <div className="space-y-2">
-        <h2 className="text-sm font-semibold">Personnel disponible</h2>
-        <PublicStaffAvailability staff={staffAvailability} />
-      </div>
 
       <p className="pt-4 text-center text-xs text-muted-foreground">Lien de planning Moderna Agency — à ne partager qu&apos;en interne.</p>
     </div>

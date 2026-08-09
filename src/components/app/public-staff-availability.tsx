@@ -1,6 +1,7 @@
 import { MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toWhatsAppUrl } from "@/lib/phone";
+import { matchesSearch } from "@/lib/text-match";
 import { cn } from "@/lib/utils";
 
 export type StaffAvailability = {
@@ -15,19 +16,34 @@ export type StaffAvailability = {
 // 2026-08-08 : "en un seul clic qu'on a le WhatsApp on peut la contacter". Le badge
 // libre/occupée reflète uniquement aujourd'hui — quelqu'un d'occupé aujourd'hui reste contactable
 // pour une mission plus tard dans la semaine.
-export function PublicStaffAvailability({ staff }: { staff: StaffAvailability[] }) {
+//
+// Kamel, 2026-08-09 : partage le même champ de recherche que la grille du planning (voir
+// PublicPlanningGrid) pour retrouver une femme de ménage/cuisinière par son prénom sans avoir à
+// scroller toute la liste.
+export function PublicStaffAvailability({ staff, query = "" }: { staff: StaffAvailability[]; query?: string }) {
   const menage = staff.filter((s) => s.role === "menage");
   const cuisine = staff.filter((s) => s.role === "cuisine");
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <StaffColumn title="Femmes de ménage" dotColor="bg-orange-500" people={menage} />
-      <StaffColumn title="Cuisinières" dotColor="bg-violet-500" people={cuisine} />
+      <StaffColumn title="Femmes de ménage" dotColor="bg-orange-500" people={menage} query={query} />
+      <StaffColumn title="Cuisinières" dotColor="bg-violet-500" people={cuisine} query={query} />
     </div>
   );
 }
 
-function StaffColumn({ title, dotColor, people }: { title: string; dotColor: string; people: StaffAvailability[] }) {
+function StaffColumn({
+  title,
+  dotColor,
+  people,
+  query,
+}: {
+  title: string;
+  dotColor: string;
+  people: StaffAvailability[];
+  query: string;
+}) {
+  const filtrees = query ? people.filter((p) => matchesSearch(p.nom, query)) : people;
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -37,11 +53,13 @@ function StaffColumn({ title, dotColor, people }: { title: string; dotColor: str
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {people.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
+        {filtrees.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {query ? "Aucun résultat." : "Personne d'actif pour l'instant."}
+          </p>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            {people.map((p) => (
+            {filtrees.map((p) => (
               <div
                 key={p.id}
                 className="flex shrink-0 items-center gap-1.5 rounded-full border bg-muted/30 py-1 pl-2.5 pr-1 text-xs"
