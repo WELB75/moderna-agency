@@ -104,7 +104,15 @@ export default async function PublicPlanningPage({
         checkOut,
       });
     }
-    return entries.sort((a, b) => (a.villaNom ?? "").localeCompare(b.villaNom ?? ""));
+    // Ménage toujours en haut, cuisine toujours en bas — Kamel, 2026-08-10 : "plannifie les
+    // cuisiniere toujours en bas et les femmes de menage toujours en haut que ce soit homogene
+    // les couleurs" : avant, le tri par villa mélangeait les deux couleurs (orange/violet) sans
+    // ordre stable d'une colonne à l'autre. Le nom de villa reste le tri secondaire, pour garder
+    // un ordre lisible à l'intérieur de chaque groupe.
+    return entries.sort((a, b) => {
+      if (a.role !== b.role) return a.role === "menage" ? -1 : 1;
+      return (a.villaNom ?? "").localeCompare(b.villaNom ?? "");
+    });
   }
 
   const joursSemaine = Array.from({ length: 7 }, (_, i) => addDays(debutSemaine, i));

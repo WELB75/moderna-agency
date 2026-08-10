@@ -583,7 +583,12 @@ export default async function PersonnelPage({
         montantVisible: !estPayeParProprietaire(r.personnelPayeParProprietaireNoms ?? [], p.nom),
       });
     }
-    return entries.sort((a, b) => (a.villaNom ?? "").localeCompare(b.villaNom ?? ""));
+    // Ménage toujours en haut, cuisine toujours en bas, homogène d'une colonne à l'autre (voir le
+    // même choix sur le lien public de planning, planning/[token]/page.tsx).
+    return entries.sort((a, b) => {
+      if (a.role !== b.role) return a.role === "menage" ? -1 : 1;
+      return (a.villaNom ?? "").localeCompare(b.villaNom ?? "");
+    });
   }
   const joursSemaine = Array.from({ length: 7 }, (_, i) => addDays(debutSemaine, i));
 
