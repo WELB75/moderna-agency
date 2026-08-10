@@ -6,7 +6,6 @@ import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { Select as SelectPrimitive } from "radix-ui";
 import { Search, X, Loader2, ChevronDown } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { SelectContent, SelectItem } from "@/components/ui/select";
 import {
   reassignPlanningAffectation,
@@ -41,16 +40,19 @@ export type PublicPlanningEntry = {
 type JourPlanning = { date: Date; entries: PublicPlanningEntry[] };
 type Option = { id: string; nom: string };
 
-// Grille éditable du lien public /planning/[token]. Kamel, 2026-08-08 : "le design est pas top,
-// surtout sur mobile c pas adapté" — sur petit écran, empiler les 7 jours en pleine longueur
-// forçait à scroller sans fin ; remplacé par un sélecteur de jour (pastilles horizontales) qui
-// n'affiche qu'un seul jour à la fois. Le tableau 7 colonnes reste tel quel à partir de sm (assez
-// de place). Les deux vues partagent les mêmes données, juste deux rendus différents.
+// Grille éditable du lien public /planning/[token]. Kamel, 2026-08-10 : "je veux tout sur une
+// ligne chaque jour [...] Lundi : ligne de femme de ménage et en dessous ligne de cuisinière
+// [...] on a même pas à descendre on a déjà toutes les infos de la journée" — remplace l'ancien
+// découpage mobile (un jour à la fois, pastilles de navigation) / desktop (7 colonnes, une carte
+// empilée par mission) par UNE seule mise en page : chaque jour est un bloc compact de 2 lignes
+// (ménage, cuisine) où les missions sont des pastilles qui s'enchaînent et passent à la ligne
+// seulement si besoin — toute la semaine tient sans avoir à cliquer/scroller jour par jour, sur
+// mobile comme sur desktop.
 //
 // Kamel, 2026-08-09 : "je veux qu'on puisse trouver aussi les villa, les femmes de ménages [...]
-// même les apparts" — la recherche filtre maintenant sur le nom du personnel, la villa/l'appart
-// (nom, numéro, "villa"/"appartement") et le client, à la fois dans la grille et dans le panneau
-// Personnel disponible (déplacé ici pour partager le même champ de recherche).
+// même les apparts" — la recherche filtre sur le nom du personnel, la villa/l'appart (nom,
+// numéro, "villa"/"appartement") et le client, à la fois dans la grille et dans le panneau
+// Personnel disponible (qui partage le même champ de recherche).
 export function PublicPlanningGrid({
   jours,
   now,
@@ -164,41 +166,13 @@ export function PublicPlanningGrid({
         </div>
       </div>
 
-      {/* Résumé en phrases du jour actuellement sélectionné (aujourd'hui par défaut, ou le jour
-          cliqué dans la grille ci-dessous — pastilles mobile ou en-tête de colonne desktop).
-          Kamel, 2026-08-10 : "si je clic sur mardi je veux aussi les infos de mardi". */}
+      {/* Résumé en phrases du jour sélectionné (cliquer une date dans la grille ci-dessous en
+          change) — Kamel, 2026-08-10 : "si je clic sur mardi je veux aussi les infos de mardi". */}
       <PlanningInfoDuJour entries={jours[jourActif].entries} jour={jours[jourActif].date} now={now} />
 
-      {/* ---------- Mobile : un jour à la fois ---------- */}
-      <div className="min-w-0 space-y-3 sm:hidden">
-        <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1">
-          {jours.map((j, i) => {
-            const estAujourdhui = isSameDay(j.date, now);
-            return (
-              <button
-                key={j.date.toISOString()}
-                type="button"
-                onClick={() => setJourActif(i)}
-                className={cn(
-                  "flex shrink-0 flex-col items-center rounded-lg border px-3 py-1.5 text-xs capitalize",
-                  i === jourActif ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground",
-                  estAujourdhui && i !== jourActif && "border-foreground/50 text-foreground"
-                )}
-              >
-                <span>{format(j.date, "EEE", { locale: fr })}</span>
-                <span className="font-semibold">{format(j.date, "d")}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <JourCard jour={jours[jourActif]} now={now} q={q} token={token} optionsPour={optionsPour} pleineLargeur />
-      </div>
-
-      {/* ---------- Desktop : semaine entière ---------- */}
-      <div className="hidden gap-2.5 sm:grid sm:grid-cols-7">
+      <div className="space-y-2">
         {jours.map((j, i) => (
-          <JourCard
+          <JourRow
             key={j.date.toISOString()}
             jour={j}
             now={now}
@@ -231,13 +205,12 @@ function entreeCorrespond(e: PublicPlanningEntry, q: string): boolean {
   return matchesSearch(haystack, q);
 }
 
-function JourCard({
+function JourRow({
   jour: { date, entries },
   now,
   q,
   token,
   optionsPour,
-  pleineLargeur,
   selected,
   onSelect,
 }: {
@@ -246,52 +219,70 @@ function JourCard({
   q: string;
   token: string;
   optionsPour: (role: "menage" | "cuisine") => Option[];
-  pleineLargeur?: boolean;
-  // Desktop uniquement : clic sur l'en-tête pour choisir le jour affiché dans le résumé
-  // "Info du jour" au-dessus de la grille (voir PublicPlanningGrid). Absent en mobile où les
-  // pastilles du haut jouent déjà ce rôle.
-  selected?: boolean;
-  onSelect?: () => void;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const estAujourdhui = isSameDay(date, now);
   const filtrees = q ? entries.filter((e) => entreeCorrespond(e, q)) : entries;
-  // Aujourd'hui est signalé par un encadrement noir de la date, pas par un badge "Aujourd'hui" —
-  // Kamel, 2026-08-10 : "c'est pas homogène à cause de 'aujourd'hui' [...] encadre en noir la
-  // date [...] écris pas aujourd'hui" : le badge forçait le texte de la date à passer sur 3
-  // lignes au lieu de 2 comme les autres colonnes, cassant l'alignement de la grille.
-  const dateClass = cn(
-    "text-sm font-medium capitalize",
-    estAujourdhui && "rounded border border-foreground px-1.5 py-0.5"
-  );
+  const menage = filtrees.filter((e) => e.role === "menage");
+  const cuisine = filtrees.filter((e) => e.role === "cuisine");
+
   return (
-    <Card className={cn("min-w-0", selected && !pleineLargeur && "border-foreground/40")}>
-      <CardHeader className="pb-1.5">
-        {onSelect ? (
-          <button
-            type="button"
-            onClick={onSelect}
-            className={cn(dateClass, "text-left hover:underline", selected && "underline")}
-            title="Voir le résumé de ce jour"
-          >
-            {format(date, "EEEE d MMMM", { locale: fr })}
-          </button>
-        ) : (
-          <CardTitle className={dateClass}>{format(date, "EEEE d MMMM", { locale: fr })}</CardTitle>
+    <div className={cn("min-w-0 rounded-lg border p-2.5", selected && "border-foreground/40 bg-muted/20")}>
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn(
+          "mb-1.5 text-left text-sm font-medium capitalize hover:underline",
+          selected && "underline",
+          estAujourdhui && "rounded border border-foreground px-1.5 py-0.5"
         )}
-      </CardHeader>
-      <CardContent className="space-y-1.5">
-        {filtrees.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{q ? "Aucun résultat." : "Rien de prévu."}</p>
-        ) : (
-          filtrees.map((e) => <EntryCard key={e.affectationId} entry={e} token={token} options={optionsPour(e.role)} />)
-        )}
-      </CardContent>
-    </Card>
+        title="Voir le résumé de ce jour"
+      >
+        {format(date, "EEEE d MMMM", { locale: fr })}
+      </button>
+
+      {q && filtrees.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Aucun résultat.</p>
+      ) : (
+        <div className="space-y-1">
+          <MissionLigne label="Ménage" entries={menage} token={token} options={optionsPour("menage")} />
+          <MissionLigne label="Cuisine" entries={cuisine} token={token} options={optionsPour("cuisine")} />
+        </div>
+      )}
+    </div>
   );
 }
 
-// Trigger de select compact réutilisé pour les 3 champs modifiables inline d'une mission
-// (personne, moment du ménage, formule cuisine) — pas de troncature du texte (contrairement au
+function MissionLigne({
+  label,
+  entries,
+  token,
+  options,
+}: {
+  label: string;
+  entries: PublicPlanningEntry[];
+  token: string;
+  options: Option[];
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-2">
+      <span className="w-14 shrink-0 pt-1 text-[11px] font-medium text-muted-foreground">{label}</span>
+      {entries.length === 0 ? (
+        <span className="pt-1 text-xs text-muted-foreground">—</span>
+      ) : (
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          {entries.map((e) => (
+            <MissionChip key={e.affectationId} entry={e} token={token} options={options} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Trigger de select compact réutilisé pour les 2 champs modifiables inline d'une mission
+// (personne, moment du ménage/formule cuisine) — pas de troncature du texte (contrairement au
 // <select> natif qu'il remplace) pour qu'on distingue toujours "Khadija MASLIK" de "Khadija
 // KEJJAJI" sans avoir à ouvrir le menu.
 function InlineSelect<T extends string>({
@@ -311,13 +302,13 @@ function InlineSelect<T extends string>({
     <SelectPrimitive.Root value={value} disabled={disabled} onValueChange={(v) => onChange(v as T)}>
       <SelectPrimitive.Trigger
         className={cn(
-          "flex w-full min-w-0 cursor-pointer items-center justify-between gap-1 rounded-md border border-border/60 bg-background/70 py-0.5 pl-1.5 pr-1 text-left font-medium outline-none transition-colors hover:border-foreground/30 hover:bg-background focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60",
+          "flex w-fit min-w-0 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded border-none bg-transparent p-0 text-left font-medium outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60",
           className
         )}
       >
-        <SelectPrimitive.Value className="min-w-0 break-words whitespace-normal" />
+        <SelectPrimitive.Value className="whitespace-nowrap" />
         <SelectPrimitive.Icon asChild>
-          <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
+          <ChevronDown className="h-2.5 w-2.5 shrink-0 opacity-60" />
         </SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
       <SelectContent>
@@ -332,15 +323,19 @@ function InlineSelect<T extends string>({
 }
 
 const OPTIONS_MOMENT: { value: "depart" | "sejour"; label: string }[] = [
-  { value: "depart", label: "Ménage de départ" },
-  { value: "sejour", label: "Pendant le séjour" },
+  { value: "depart", label: "Départ" },
+  { value: "sejour", label: "Séjour" },
 ];
 const OPTIONS_REPAS: { value: "non" | "oui"; label: string }[] = [
-  { value: "non", label: "Petit-déj seul" },
-  { value: "oui", label: "Petit-déj + déj" },
+  { value: "non", label: "P-déj seul" },
+  { value: "oui", label: "P-déj + déj" },
 ];
 
-function EntryCard({ entry: e, token, options }: { entry: PublicPlanningEntry; token: string; options: Option[] }) {
+// Une mission = une pastille compacte tenant sur une seule ligne (nom, villa/client, détail,
+// retirer) — plusieurs pastilles s'enchaînent horizontalement et ne passent à la ligne que
+// lorsque la largeur manque (voir MissionLigne), au lieu de l'ancienne carte pleine largeur
+// empilée verticalement par jour.
+function MissionChip({ entry: e, token, options }: { entry: PublicPlanningEntry; token: string; options: Option[] }) {
   const [isPending, startTransition] = useTransition();
 
   function handlePersonnelChange(newPersonnelId: string) {
@@ -394,50 +389,36 @@ function EntryCard({ entry: e, token, options }: { entry: PublicPlanningEntry; t
   return (
     <div
       className={cn(
-        "min-w-0 space-y-0.5 rounded-md border-l-4 bg-muted/40 py-1.5 pl-2 pr-1.5 text-xs",
+        "inline-flex min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border-l-4 bg-muted/40 py-1 pl-2 pr-1 text-xs",
         e.role === "menage" ? "border-l-orange-500" : "border-l-violet-500"
       )}
     >
-      <div className="flex min-w-0 items-center gap-1">
-        {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
-        <InlineSelect
-          value={e.personnelId}
-          options={options.map((o) => ({ value: o.id, label: o.nom }))}
-          onChange={handlePersonnelChange}
-          disabled={isPending}
-          className="text-sm sm:text-xs"
-        />
-        <button
-          type="button"
-          onClick={handleRemove}
-          disabled={isPending}
-          className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label={`Retirer ${e.personnelNom}`}
-          title="Retirer"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
-      </div>
-      <p className="text-muted-foreground" title={e.domaineNom ?? undefined}>
-        {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
-      </p>
+      {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
+      <InlineSelect
+        value={e.personnelId}
+        options={options.map((o) => ({ value: o.id, label: o.nom }))}
+        onChange={handlePersonnelChange}
+        disabled={isPending}
+        className="font-semibold"
+      />
+      <span className="text-muted-foreground" title={e.domaineNom ?? undefined}>
+        · {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName} ·
+      </span>
       {e.role === "cuisine" ? (
-        <InlineSelect
-          value={e.avecDejeuner ? "oui" : "non"}
-          options={OPTIONS_REPAS}
-          onChange={handleRepasChange}
-          disabled={isPending}
-          className="text-[11px] text-muted-foreground"
-        />
+        <InlineSelect value={e.avecDejeuner ? "oui" : "non"} options={OPTIONS_REPAS} onChange={handleRepasChange} disabled={isPending} className="text-muted-foreground" />
       ) : (
-        <InlineSelect
-          value={e.moment === "sejour" ? "sejour" : "depart"}
-          options={OPTIONS_MOMENT}
-          onChange={handleMomentChange}
-          disabled={isPending}
-          className="text-[11px] text-muted-foreground"
-        />
+        <InlineSelect value={e.moment === "sejour" ? "sejour" : "depart"} options={OPTIONS_MOMENT} onChange={handleMomentChange} disabled={isPending} className="text-muted-foreground" />
       )}
+      <button
+        type="button"
+        onClick={handleRemove}
+        disabled={isPending}
+        className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+        aria-label={`Retirer ${e.personnelNom}`}
+        title="Retirer"
+      >
+        <X className="h-3 w-3" />
+      </button>
     </div>
   );
 }
