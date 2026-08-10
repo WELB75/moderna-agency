@@ -1,22 +1,24 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { format, isSameDay } from "date-fns";
+import { format, isSameDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
 import { Select as SelectPrimitive } from "radix-ui";
-import { Search, X, Loader2, ChevronDown } from "lucide-react";
+import { Search, X, Loader2, ChevronDown, MessageCircle, Check } from "lucide-react";
 import { SelectContent, SelectItem } from "@/components/ui/select";
 import {
   reassignPlanningAffectation,
   removePlanningAffectation,
   updatePlanningAffectationMoment,
   updatePlanningAffectationRepas,
+  togglePlanningAffectationConfirme,
 } from "@/lib/actions/planning-public";
 import { AddPlanningEntryDialog, type ReservationOption } from "@/components/app/add-planning-entry-dialog";
 import { PublicStaffAvailability, type StaffAvailability } from "@/components/app/public-staff-availability";
 import { PlanningInfoDuJour } from "@/components/app/planning-info-du-jour";
 import { matchesSearch } from "@/lib/text-match";
+import { toWhatsAppUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 export type PublicPlanningEntry = {
@@ -30,7 +32,11 @@ export type PublicPlanningEntry = {
   moment: "sejour" | "depart" | "unique";
   personnelId: string;
   personnelNom: string;
+  telephone: string | null;
   avecDejeuner: boolean;
+  // Coché quand la personne a été contactée/confirmée pour cette mission (typiquement la veille) —
+  // voir confirmeAt dans db/schema.ts.
+  confirmeAt: Date | null;
   // Jusqu'à quand la mission court (fin de séjour) — pour l'affichage "Info du jour" (voir
   // planning-info-du-jour.tsx), qui doit dire "jusqu'au 13 sept." pour une cuisine ou un ménage
   // pendant le séjour, distinct du ménage de départ qui est toujours un jour unique.
@@ -92,6 +98,10 @@ export function PublicPlanningGrid({
           <span className="flex items-center gap-1.5">
             <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" />
             Cuisinière
+          </span>
+          <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-amber-500/70 bg-amber-500/20" />
+            À confirmer pour demain
           </span>
         </div>
 
@@ -246,8 +256,8 @@ function JourRow({
         <p className="text-xs text-muted-foreground">Aucun résultat.</p>
       ) : (
         <div className="space-y-1">
-          <MissionLigne label="Ménage" entries={menage} token={token} options={optionsPour("menage")} />
-          <MissionLigne label="Cuisine" entries={cuisine} token={token} options={optionsPour("cuisine")} />
+          <MissionLigne label="Ménage" entries={menage} token={token} options={optionsPour("menage")} jour={date} now={now} />
+          <MissionLigne label="Cuisine" entries={cuisine} token={token} options={optionsPour("cuisine")} jour={date} now={now} />
         </div>
       )}
     </div>
@@ -259,11 +269,15 @@ function MissionLigne({
   entries,
   token,
   options,
+  jour,
+  now,
 }: {
   label: string;
   entries: PublicPlanningEntry[];
   token: string;
   options: Option[];
+  jour: Date;
+  now: Date;
 }) {
   return (
     <div className="flex min-w-0 items-start gap-2">
@@ -273,7 +287,7 @@ function MissionLigne({
       ) : (
         <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
           {entries.map((e) => (
-            <MissionChip key={e.affectationId} entry={e} token={token} options={options} />
+            <MissionChip key={e.affectationId} entry={e} token={token} options={options} jour={jour} now={now} />
           ))}
         </div>
       )}
@@ -335,8 +349,35 @@ const OPTIONS_REPAS: { value: "non" | "oui"; label: string }[] = [
 // retirer) — plusieurs pastilles s'enchaînent horizontalement et ne passent à la ligne que
 // lorsque la largeur manque (voir MissionLigne), au lieu de l'ancienne carte pleine largeur
 // empilée verticalement par jour.
-function MissionChip({ entry: e, token, options }: { entry: PublicPlanningEntry; token: string; options: Option[] }) {
+function MissionChip({
+  entry: e,
+  token,
+  options,
+  jour,
+  now,
+}: {
+  entry: PublicPlanningEntry;
+  token: string;
+  options: Option[];
+  jour: Date;
+  now: Date;
+}) {
   const [isPending, startTransition] = useTransition();
+  // Kamel, 2026-08-10 : "savoir aussi si par exemple celle prévue demain on valide la veille" —
+  // le rappel visuel ne compte que pour demain (pas toute la semaine), c'est le seul moment où
+  // "pas encore confirmé" est vraiment urgent.
+  const estDemain = isSameDay(jour, addDays(now, 1));
+  const aConfirmer = estDemain && !e.confirmeAt;
+
+  function handleToggleConfirme() {
+    startTransition(async () => {
+      try {
+        await togglePlanningAffectationConfirme(token, e.affectationId, !e.confirmeAt);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
 
   function handlePersonnelChange(newPersonnelId: string) {
     if (newPersonnelId === e.personnelId) return;
@@ -390,10 +431,23 @@ function MissionChip({ entry: e, token, options }: { entry: PublicPlanningEntry;
     <div
       className={cn(
         "inline-flex min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border-l-4 bg-muted/40 py-1 pl-2 pr-1 text-xs",
-        e.role === "menage" ? "border-l-orange-500" : "border-l-violet-500"
+        e.role === "menage" ? "border-l-orange-500" : "border-l-violet-500",
+        aConfirmer && "ring-1 ring-amber-500/70 bg-amber-500/10"
       )}
     >
       {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
+      {e.telephone ? (
+        <a
+          href={toWhatsAppUrl(e.telephone)}
+          target="_blank"
+          rel="noreferrer"
+          title={e.telephone}
+          aria-label={`WhatsApp ${e.personnelNom}`}
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-background dark:text-emerald-400"
+        >
+          <MessageCircle className="h-3 w-3" />
+        </a>
+      ) : null}
       <InlineSelect
         value={e.personnelId}
         options={options.map((o) => ({ value: o.id, label: o.nom }))}
@@ -409,6 +463,21 @@ function MissionChip({ entry: e, token, options }: { entry: PublicPlanningEntry;
       ) : (
         <InlineSelect value={e.moment === "sejour" ? "sejour" : "depart"} options={OPTIONS_MOMENT} onChange={handleMomentChange} disabled={isPending} className="text-muted-foreground" />
       )}
+      <button
+        type="button"
+        onClick={handleToggleConfirme}
+        disabled={isPending}
+        className={cn(
+          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
+          e.confirmeAt
+            ? "text-emerald-600 hover:bg-background dark:text-emerald-400"
+            : "text-muted-foreground hover:bg-background hover:text-foreground"
+        )}
+        aria-label={e.confirmeAt ? `Annuler la confirmation de ${e.personnelNom}` : `Confirmer ${e.personnelNom}`}
+        title={e.confirmeAt ? `Confirmée le ${format(e.confirmeAt, "d MMM HH:mm", { locale: fr })}` : "Pas encore confirmée — cliquer une fois la personne contactée"}
+      >
+        <Check className="h-3 w-3" strokeWidth={e.confirmeAt ? 3 : 2} />
+      </button>
       <button
         type="button"
         onClick={handleRemove}

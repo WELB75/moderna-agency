@@ -119,6 +119,22 @@ export async function updatePlanningAffectationRepas(token: string, affectationI
   revalidatePath("/dashboard");
 }
 
+// Marque (ou démarque) une mission comme confirmée — typiquement Kamel/l'équipe qui a contacté
+// la personne la veille pour vérifier qu'elle vient bien. Réversible (même pattern que
+// payeAt/faitAt) : un clic annule un clic précédent en cas d'erreur. Voir confirmeAt dans
+// db/schema.ts.
+export async function togglePlanningAffectationConfirme(token: string, affectationId: string, confirme: boolean) {
+  if (!isValidPlanningToken(token)) throw new Error("Lien invalide.");
+
+  const db = getDb();
+  await db
+    .update(personnelAffectations)
+    .set({ confirmeAt: confirme ? new Date() : null })
+    .where(eq(personnelAffectations.id, affectationId));
+
+  revalidatePath(`/planning/${token}`);
+}
+
 // Ajoute une nouvelle affectation (pas une réaffectation) depuis le lien public — Kamel,
 // 2026-08-08 : "la possibilité de les ajouter [...] on met le nom, on met le lieu [...] et si
 // c'est ménage de départ si c'est pendant le séjour si c'est petit déjeuner déjeuner etc." Le

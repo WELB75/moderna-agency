@@ -590,6 +590,10 @@ export const personnelAffectations = pgTable(
     // repasse l'affectation en "non payée" (voir unmarkAffectationPaid). Kamel, 2026-08-06 :
     // "réactivé tout le bloc, faire un ON OFF" — le statut payée doit être réversible, pas figé.
     cashEntryId: uuid("cash_entry_id").references(() => cashEntries.id, { onDelete: "set null" }),
+    // Coché une fois la personne contactée/confirmée pour cette mission (typiquement la veille) —
+    // Kamel, 2026-08-10 : "savoir aussi si par exemple celle prévue demain on valide la veille".
+    // Simple horodatage réversible, même pattern que faitAt/payeAt ci-dessus (pas de champ "par").
+    confirmeAt: timestamp("confirme_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("personnel_affectations_unique_idx").on(t.reservationId, t.personnelId, t.moment)]

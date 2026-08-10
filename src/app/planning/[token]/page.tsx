@@ -100,7 +100,9 @@ export default async function PublicPlanningPage({
         moment: a.moment,
         personnelId: a.personnelId,
         personnelNom: p?.nom ?? "Personne retirée",
+        telephone: p?.telephone ?? null,
         avecDejeuner: a.avecDejeuner,
+        confirmeAt: a.confirmeAt,
         checkOut,
       });
     }
