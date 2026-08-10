@@ -16,11 +16,16 @@ import type { PublicPlanningEntry } from "@/components/app/public-planning-grid"
 // du jour sélectionné, sans avoir à scanner la grille colonne par colonne.
 export function PlanningInfoDuJour({ entries, jour, now }: { entries: PublicPlanningEntry[]; jour: Date; now: Date }) {
   const estAujourdhui = isSameDay(jour, now);
+  // Regroupé par NOM affiché, pas par personnelId — Kamel, 2026-08-10 : "si aisha est premiere,
+  // bah en dessous c aussi aisha, c plus clair". Une même personne peut avoir une fiche ménage et
+  // une fiche cuisine distinctes (personnelId différents) pour le même prénom (voir staff.ts) :
+  // sans ce regroupement par nom, ses deux missions du jour apparaissaient comme deux inconnues
+  // séparées dans la liste au lieu d'une seule entrée "Aisha" avec ses deux missions.
   const parPersonne = new Map<string, { nom: string; entries: PublicPlanningEntry[] }>();
   for (const e of entries) {
-    const groupe = parPersonne.get(e.personnelId) ?? { nom: e.personnelNom, entries: [] };
+    const groupe = parPersonne.get(e.personnelNom) ?? { nom: e.personnelNom, entries: [] };
     groupe.entries.push(e);
-    parPersonne.set(e.personnelId, groupe);
+    parPersonne.set(e.personnelNom, groupe);
   }
   const personnes = Array.from(parPersonne.values()).sort((a, b) => a.nom.localeCompare(b.nom));
 
