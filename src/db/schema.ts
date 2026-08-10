@@ -195,11 +195,21 @@ export const moyenPaiementCaisseEnum = pgEnum("moyen_paiement_caisse", ["especes
 // comptées comme avant) tant que Kamel ne requalifie pas une entrée précise.
 export const cashFinanceParEnum = pgEnum("cash_finance_par", ["societe", "loyers_perso"]);
 
+// Pertinent seulement pour type="depense" : permet au comptable de filtrer/regrouper les
+// dépenses par type dans le rapport financier (demande de la comptable, 2026-08-10).
+export const cashEntryCategorieEnum = pgEnum("cash_entry_categorie", [
+  "femmes_menage",
+  "cuisinieres",
+  "jardinier",
+  "hebergement", // réparations/achats liés à un bien précis (store, coussins, mobilier...) — voir villaId
+]);
+
 export const cashEntries = pgTable("cash_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "set null" }),
   reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "set null" }),
   type: cashEntryTypeEnum("type").notNull(),
+  categorie: cashEntryCategorieEnum("categorie"),
   moyenPaiement: moyenPaiementCaisseEnum("moyen_paiement").default("especes").notNull(),
   financePar: cashFinanceParEnum("finance_par").default("societe").notNull(),
   montant: numeric("montant", { precision: 10, scale: 2 }).notNull(),

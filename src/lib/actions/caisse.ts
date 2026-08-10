@@ -13,6 +13,7 @@ export async function createCashEntry(formData: FormData) {
   const villaId = String(formData.get("villaId") ?? "").trim() || null;
   const reservationId = String(formData.get("reservationId") ?? "").trim() || null;
   const type = String(formData.get("type") ?? "");
+  const categorie = String(formData.get("categorie") ?? "").trim() || null;
   const financePar = String(formData.get("financePar") ?? "societe");
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "especes");
   const montant = String(formData.get("montant") ?? "").trim();
@@ -28,6 +29,18 @@ export async function createCashEntry(formData: FormData) {
   if (!["societe", "loyers_perso"].includes(financePar)) {
     throw new Error("Source de financement invalide.");
   }
+  if (
+    categorie &&
+    !["femmes_menage", "cuisinieres", "jardinier", "hebergement"].includes(categorie)
+  ) {
+    throw new Error("Catégorie de dépense invalide.");
+  }
+  if (type === "depense" && !categorie) {
+    throw new Error("Choisis une catégorie pour cette dépense.");
+  }
+  if (categorie === "hebergement" && !villaId) {
+    throw new Error("Choisis le bien concerné pour une dépense d'hébergement.");
+  }
   if (!["especes", "virement", "carte"].includes(moyenPaiement)) {
     throw new Error("Moyen de paiement invalide.");
   }
@@ -41,6 +54,10 @@ export async function createCashEntry(formData: FormData) {
     villaId,
     reservationId,
     type: type as "remise" | "loyer" | "extra" | "depense" | "restitution",
+    categorie:
+      type === "depense"
+        ? (categorie as "femmes_menage" | "cuisinieres" | "jardinier" | "hebergement")
+        : null,
     financePar: type === "depense" ? (financePar as "societe" | "loyers_perso") : "societe",
     moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",
     montant: montantNum.toFixed(2),

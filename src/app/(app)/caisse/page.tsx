@@ -1,44 +1,14 @@
-import Image from "next/image";
 import { desc, eq, ne, gte, and } from "drizzle-orm";
-import { format, subDays } from "date-fns";
-import { fr } from "date-fns/locale";
+import { subDays } from "date-fns";
 import { getDb } from "@/db";
 import { cashEntries, villas, domaines, reservations } from "@/db/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddCashEntryDialog } from "@/components/app/add-cash-entry-dialog";
-import { DomaineBadge } from "@/components/app/domaine-badge";
-import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { CaisseMouvementsList } from "@/components/app/caisse-mouvements-list";
 import { CaisseStats } from "@/components/app/caisse-stats";
-import { deleteCashEntry } from "@/lib/actions/caisse";
 import { domaineEstActif } from "@/lib/domaines-actifs";
-import { cn } from "@/lib/utils";
-
-const TYPE_LABELS: Record<string, string> = {
-  remise: "Argent confié",
-  loyer: "Loyer reçu",
-  extra: "Extra (petit-déj, options)",
-  depense: "Dépense",
-  restitution: "Restitution",
-};
-
-type Entry = {
-  id: string;
-  type: string;
-  financePar: string;
-  montant: string;
-  devise: string;
-  description: string | null;
-  responsable: string | null;
-  createdByName: string | null;
-  createdAt: Date;
-  villaNom: string | null;
-  villaNumero: string | null;
-  domaineNom: string | null;
-  photoUrls: string[] | null;
-  guestName: string | null;
-};
+import type { Entry } from "@/lib/caisse-labels";
 
 export default async function CaissePage() {
   const db = getDb();
@@ -48,6 +18,7 @@ export default async function CaissePage() {
       .select({
         id: cashEntries.id,
         type: cashEntries.type,
+        categorie: cashEntries.categorie,
         financePar: cashEntries.financePar,
         moyenPaiement: cashEntries.moyenPaiement,
         montant: cashEntries.montant,
@@ -204,78 +175,7 @@ function CaissePanel({
         );
       })}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Mouvements</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {entries.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun mouvement enregistré.</p>
-          ) : (
-            entries.map((e) => (
-              <div key={e.id} className="flex items-start justify-between gap-3 rounded-md border p-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant={e.type === "remise" || e.type === "loyer" || e.type === "extra" ? "secondary" : "outline"}
-                      className={cn(
-                        e.type === "loyer" && "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400",
-                        e.type === "extra" && "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-400"
-                      )}
-                    >
-                      {TYPE_LABELS[e.type]}
-                    </Badge>
-                    {e.type === "depense" && e.financePar === "loyers_perso" ? (
-                      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
-                        Payé avec mes loyers
-                      </Badge>
-                    ) : null}
-                    <span className="font-semibold">
-                      {e.type === "remise" || e.type === "loyer" || e.type === "extra" ? "+" : "-"}
-                      {Number(e.montant).toFixed(2)} {e.devise}
-                    </span>
-                  </div>
-                  {e.description ? <p className="mt-1 text-sm">{e.description}</p> : null}
-                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                    {e.domaineNom ? <DomaineBadge nom={e.domaineNom} className="text-xs" /> : null}
-                    {e.villaNom ? (
-                      <span className="text-xs text-muted-foreground">
-                        {e.villaNom} (n°{e.villaNumero})
-                      </span>
-                    ) : null}
-                    {e.responsable ? (
-                      <span className="text-xs text-muted-foreground">· {e.responsable}</span>
-                    ) : null}
-                    {e.guestName ? (
-                      <span className="text-xs font-medium text-foreground">· Client : {e.guestName}</span>
-                    ) : e.type !== "remise" ? (
-                      <span className="text-xs text-amber-600 dark:text-amber-400">· Client non lié</span>
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Ajouté par {e.createdByName ?? "Équipe"} ·{" "}
-                    {format(new Date(e.createdAt), "d MMM yyyy HH:mm", { locale: fr })}
-                  </p>
-                  {e.photoUrls && e.photoUrls.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {e.photoUrls.map((url) => (
-                        <a key={url} href={url} target="_blank" rel="noreferrer" className="relative h-16 w-16 overflow-hidden rounded-md border">
-                          <Image src={url} alt="" fill sizes="64px" className="object-cover" />
-                        </a>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-                <ConfirmDeleteButton
-                  action={deleteCashEntry.bind(null, e.id)}
-                  title="Supprimer ce mouvement ?"
-                  description="Cette action est irréversible."
-                />
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
+      <CaisseMouvementsList entries={entries} />
     </div>
   );
 }

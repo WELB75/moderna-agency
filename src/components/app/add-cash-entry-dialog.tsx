@@ -33,6 +33,13 @@ const MOYEN_LABELS: Record<string, string> = {
   carte: "Carte bleue",
 };
 
+const CATEGORIE_LABELS: Record<string, string> = {
+  femmes_menage: "Femmes de ménage",
+  cuisinieres: "Cuisinières",
+  jardinier: "Jardinier / Brahim",
+  hebergement: "Hébergement (réparation, achat, mobilier...)",
+};
+
 export function AddCashEntryDialog({
   villas,
   reservations,
@@ -44,6 +51,7 @@ export function AddCashEntryDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("remise");
+  const [categorie, setCategorie] = useState("");
   const [financePar, setFinancePar] = useState("societe");
   const [devise, setDevise] = useState("MAD");
   const [villaId, setVillaId] = useState("");
@@ -83,6 +91,7 @@ export function AddCashEntryDialog({
 
   async function handleSubmit(formData: FormData) {
     formData.set("type", type);
+    formData.set("categorie", type === "depense" ? categorie : "");
     formData.set("financePar", type === "depense" ? financePar : "societe");
     formData.set("moyenPaiement", moyenPaiement);
     formData.set("devise", devise);
@@ -96,6 +105,7 @@ export function AddCashEntryDialog({
         setVillaId("");
         setReservationId("");
         setFinancePar("societe");
+        setCategorie("");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -132,18 +142,40 @@ export function AddCashEntryDialog({
             </Select>
           </div>
           {type === "depense" ? (
-            <div className="space-y-1.5">
-              <Label>Financé par</Label>
-              <Select value={financePar} onValueChange={setFinancePar}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="societe">Société (compte dans ce qu&apos;elle te doit)</SelectItem>
-                  <SelectItem value="loyers_perso">Mes loyers perso (pas de remboursement dû)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div className="space-y-1.5">
+                <Label>Catégorie</Label>
+                <Select value={categorie} onValueChange={setCategorie} required>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choisir une catégorie" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(CATEGORIE_LABELS).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {categorie === "hebergement" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Pense à sélectionner le bien concerné ci-dessous.
+                  </p>
+                ) : null}
+              </div>
+              <div className="space-y-1.5">
+                <Label>Financé par</Label>
+                <Select value={financePar} onValueChange={setFinancePar}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="societe">Société (compte dans ce qu&apos;elle te doit)</SelectItem>
+                    <SelectItem value="loyers_perso">Mes loyers perso (pas de remboursement dû)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           ) : null}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -205,8 +237,19 @@ export function AddCashEntryDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="description">Description</Label>
-            <Textarea id="description" name="description" rows={2} placeholder="Ex. courses ménage villa 12" />
+            <Label htmlFor="description">
+              {type === "loyer" ? "Répartition du montant" : "Description"}
+            </Label>
+            <Textarea
+              id="description"
+              name="description"
+              rows={2}
+              placeholder={
+                type === "loyer"
+                  ? "Ex. Nuitées : 70 000 DH · Cuisine : 20 000 DH · Ménage : 10 000 DH"
+                  : "Ex. courses ménage villa 12"
+              }
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Photos (reçus, preuves)</Label>

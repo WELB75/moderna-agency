@@ -11,12 +11,16 @@ import {
   ChartLegendContent,
   type ChartConfig,
 } from "@/components/ui/chart";
+import { CATEGORIE_LABELS } from "@/lib/caisse-labels";
 
 type Entry = {
   type: string;
+  categorie: string | null;
   montant: string;
   responsable: string | null;
   createdAt: Date;
+  villaNom: string | null;
+  villaNumero: string | null;
 };
 
 const MOIS_LABELS = [
@@ -76,6 +80,55 @@ export function CaisseStats({ entries }: { entries: Entry[] }) {
     () => responsables.map((r) => ({ name: r.nom, value: r.total, fill: r.color })),
     [responsables]
   );
+
+  const categories = useMemo(() => {
+    const totals = new Map<string, { total: number; count: number }>();
+    for (const e of depenses) {
+      const cle = e.categorie ?? "non_categorise";
+      const current = totals.get(cle) ?? { total: 0, count: 0 };
+      current.total += Number(e.montant);
+      current.count += 1;
+      totals.set(cle, current);
+    }
+    return Array.from(totals.entries())
+      .map(([cle, v], i) => ({
+        cle,
+        label: CATEGORIE_LABELS[cle] ?? "Non catégorisé",
+        ...v,
+        color: PALETTE[i % PALETTE.length],
+      }))
+      .sort((a, b) => b.total - a.total);
+  }, [depenses]);
+
+  const categoriePieConfig: ChartConfig = useMemo(() => {
+    const config: ChartConfig = {};
+    categories.forEach((c) => {
+      config[c.label] = { label: c.label, color: c.color };
+    });
+    return config;
+  }, [categories]);
+
+  const categoriePieData = useMemo(
+    () => categories.map((c) => ({ name: c.label, value: c.total, fill: c.color })),
+    [categories]
+  );
+
+  // Dépenses "hébergement" regroupées par bien — c'est ce que la comptable veut retrouver
+  // dans le rapport financier des propriétaires (combien chaque villa a coûté).
+  const depensesParVilla = useMemo(() => {
+    const totals = new Map<string, { total: number; count: number; numero: string | null }>();
+    for (const e of depenses) {
+      if (e.categorie !== "hebergement") continue;
+      const nom = e.villaNom ?? "Bien non précisé";
+      const current = totals.get(nom) ?? { total: 0, count: 0, numero: e.villaNumero };
+      current.total += Number(e.montant);
+      current.count += 1;
+      totals.set(nom, current);
+    }
+    return Array.from(totals.entries())
+      .map(([nom, v]) => ({ nom, ...v }))
+      .sort((a, b) => b.total - a.total);
+  }, [depenses]);
 
   const monthlyTotals = useMemo(() => {
     const byMonth = new Map<string, number>();
@@ -208,6 +261,63 @@ export function CaisseStats({ entries }: { entries: Entry[] }) {
                 />
               </LineChart>
             </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Répartition par catégorie</CardTitle>
+            <CardDescription>Femmes de ménage, cuisinières, jardinier, hébergement</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={categoriePieConfig} className="mx-auto aspect-square max-h-72">
+              <PieChart>
+                <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+                <Pie
+                  data={categoriePieData}
+                  dataKey="value"
+                  nameKey="name"
+                  innerRadius={55}
+                  outerRadius={100}
+                  strokeWidth={2}
+                  stroke="var(--background)"
+                >
+                  {categoriePieData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <ChartLegend content={<ChartLegendContent nameKey="name" />} />
+              </PieChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Dépenses par bien (Hébergement)</CardTitle>
+            <CardDescription>Pour le fichier financier des propriétaires</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {depensesParVilla.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucune dépense hébergement enregistrée.</p>
+            ) : (
+              depensesParVilla.map((v) => (
+                <div key={v.nom} className="flex items-center justify-between gap-2 rounded-md border p-3">
+                  <div>
+                    <p className="font-medium">
+                      {v.nom}
+                      {v.numero ? ` (n°${v.numero})` : ""}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {v.count} dépense{v.count > 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  <p className="font-semibold">{v.total.toFixed(2)} DH</p>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
