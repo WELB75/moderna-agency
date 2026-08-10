@@ -16,7 +16,6 @@ import {
 } from "@/lib/actions/planning-public";
 import { AddPlanningEntryDialog, type ReservationOption } from "@/components/app/add-planning-entry-dialog";
 import { PublicStaffAvailability, type StaffAvailability } from "@/components/app/public-staff-availability";
-import { PlanningInfoDuJour } from "@/components/app/planning-info-du-jour";
 import { matchesSearch } from "@/lib/text-match";
 import { toWhatsAppUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
@@ -37,10 +36,6 @@ export type PublicPlanningEntry = {
   // Coché quand la personne a été contactée/confirmée pour cette mission (typiquement la veille) —
   // voir confirmeAt dans db/schema.ts.
   confirmeAt: Date | null;
-  // Jusqu'à quand la mission court (fin de séjour) — pour l'affichage "Info du jour" (voir
-  // planning-info-du-jour.tsx), qui doit dire "jusqu'au 13 sept." pour une cuisine ou un ménage
-  // pendant le séjour, distinct du ménage de départ qui est toujours un jour unique.
-  checkOut: Date;
 };
 
 type JourPlanning = { date: Date; entries: PublicPlanningEntry[] };
@@ -65,6 +60,10 @@ type Option = { id: string; nom: string };
 // même les apparts" — la recherche filtre sur le nom du personnel, la villa/l'appart (nom,
 // numéro, "villa"/"appartement") et le client, à la fois dans la grille et dans le panneau
 // Personnel disponible (qui partage le même champ de recherche).
+//
+// Kamel, 2026-08-10 (le patron) : "supprime la ligne d'info du jour ca prend trop de place" —
+// le résumé en phrases du jour sélectionné (ex-PlanningInfoDuJour) est retiré ; cliquer une date
+// dans la grille garde juste son effet de surbrillance.
 export function PublicPlanningGrid({
   jours,
   now,
@@ -181,10 +180,6 @@ export function PublicPlanningGrid({
           />
         </div>
       </div>
-
-      {/* Résumé en phrases du jour sélectionné (cliquer une date dans la grille ci-dessous en
-          change) — Kamel, 2026-08-10 : "si je clic sur mardi je veux aussi les infos de mardi". */}
-      <PlanningInfoDuJour entries={jours[jourActif].entries} jour={jours[jourActif].date} now={now} />
 
       <div className="space-y-2">
         {jours.map((j, i) => (

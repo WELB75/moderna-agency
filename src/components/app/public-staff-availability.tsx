@@ -12,6 +12,14 @@ export type StaffAvailability = {
   occupeAujourdhui: boolean;
 };
 
+type StaffMerged = {
+  id: string;
+  nom: string;
+  telephone: string | null;
+  roles: Set<"menage" | "cuisine">;
+  occupeAujourdhui: boolean;
+};
+
 // Panneau "qui est libre, comment la joindre" sous le planning du lien public — Kamel,
 // 2026-08-08 : "en un seul clic qu'on a le WhatsApp on peut la contacter". Le badge
 // libre/occupée reflète uniquement aujourd'hui — quelqu'un d'occupé aujourd'hui reste contactable
@@ -20,37 +28,31 @@ export type StaffAvailability = {
 // Kamel, 2026-08-09 : partage le même champ de recherche que la grille du planning (voir
 // PublicPlanningGrid) pour retrouver une femme de ménage/cuisinière par son prénom sans avoir à
 // scroller toute la liste.
+//
+// Kamel, 2026-08-10 (le patron) : "en bas les contact whatsapp fais un seul bloc avec les badges
+// [...] comme ca on voit pas deux fois les memes prenoms" — une personne qui fait les deux
+// métiers a 2 fiches personnel distinctes en base (une par rôle, voir personnel.role dans
+// db/schema.ts), donc regroupé ici par nom en une seule pastille par personne, avec un badge M
+// et/ou C selon ses rôles (même langage visuel que la grille du planning ci-dessus).
 export function PublicStaffAvailability({ staff, query = "" }: { staff: StaffAvailability[]; query?: string }) {
-  const menage = staff.filter((s) => s.role === "menage");
-  const cuisine = staff.filter((s) => s.role === "cuisine");
+  const parNom = new Map<string, StaffMerged>();
+  for (const s of staff) {
+    const existant = parNom.get(s.nom);
+    if (existant) {
+      existant.roles.add(s.role);
+      existant.telephone ??= s.telephone;
+      existant.occupeAujourdhui ||= s.occupeAujourdhui;
+    } else {
+      parNom.set(s.nom, { id: s.id, nom: s.nom, telephone: s.telephone, roles: new Set([s.role]), occupeAujourdhui: s.occupeAujourdhui });
+    }
+  }
+  const personnes = [...parNom.values()].sort((a, b) => a.nom.localeCompare(b.nom));
+  const filtrees = query ? personnes.filter((p) => matchesSearch(p.nom, query)) : personnes;
 
-  return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <StaffColumn title="Femmes de ménage" dotColor="bg-orange-500" people={menage} query={query} />
-      <StaffColumn title="Cuisinières" dotColor="bg-violet-500" people={cuisine} query={query} />
-    </div>
-  );
-}
-
-function StaffColumn({
-  title,
-  dotColor,
-  people,
-  query,
-}: {
-  title: string;
-  dotColor: string;
-  people: StaffAvailability[];
-  query: string;
-}) {
-  const filtrees = query ? people.filter((p) => matchesSearch(p.nom, query)) : people;
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-1.5 text-sm font-medium">
-          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotColor}`} />
-          {title}
-        </CardTitle>
+        <CardTitle className="text-sm font-medium">Personnel</CardTitle>
       </CardHeader>
       <CardContent>
         {filtrees.length === 0 ? (
@@ -62,8 +64,18 @@ function StaffColumn({
             {filtrees.map((p) => (
               <div
                 key={p.id}
-                className="flex shrink-0 items-center gap-1.5 rounded-full border bg-muted/30 py-1 pl-2.5 pr-1 text-xs"
+                className="flex shrink-0 items-center gap-1.5 rounded-full border bg-muted/30 py-1 pl-1.5 pr-1 text-xs"
               >
+                {p.roles.has("menage") ? (
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
+                    M
+                  </span>
+                ) : null}
+                {p.roles.has("cuisine") ? (
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">
+                    C
+                  </span>
+                ) : null}
                 <span
                   className={cn("h-1.5 w-1.5 shrink-0 rounded-full", p.occupeAujourdhui ? "bg-red-500" : "bg-green-500")}
                   aria-hidden

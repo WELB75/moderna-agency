@@ -103,7 +103,6 @@ export default async function PublicPlanningPage({
         telephone: p?.telephone ?? null,
         avecDejeuner: a.avecDejeuner,
         confirmeAt: a.confirmeAt,
-        checkOut,
       });
     }
     // Ménage toujours en haut, cuisine toujours en bas — Kamel, 2026-08-10 : "plannifie les
