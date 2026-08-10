@@ -1,11 +1,17 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { X, Check, Circle, Coffee, UtensilsCrossed } from "lucide-react";
+import { X, Check, Circle, Coffee, UtensilsCrossed, Star } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import {
   addPersonnelAffectation,
@@ -16,6 +22,7 @@ import {
   updateAffectationCommentaire,
   markAffectationPaidSolo,
   unmarkAffectationPaid,
+  setAffectationQualiteNote,
 } from "@/lib/actions/personnel";
 import {
   TARIF_MENAGE,
@@ -33,6 +40,7 @@ export type PersonnelAssigne = {
   avecDejeuner: boolean;
   payeAt: Date | null;
   commentaire: string | null;
+  qualiteNote: number | null;
 };
 
 type OptimisticAction =
@@ -42,7 +50,8 @@ type OptimisticAction =
   | { type: "setJours"; affectationId: string; nbJours: number | null }
   | { type: "toggleAvecDejeuner"; affectationId: string; avecDejeuner: boolean }
   | { type: "setPaid"; affectationId: string; paye: boolean }
-  | { type: "setCommentaire"; affectationId: string; commentaire: string | null };
+  | { type: "setCommentaire"; affectationId: string; commentaire: string | null }
+  | { type: "setQualiteNote"; affectationId: string; qualiteNote: number | null };
 
 // Plusieurs personnes peuvent être affectées au même séjour (ex. 2-3 femmes de ménage pour
 // une grande villa) : chacune apparaît en badge retirable, et le menu déroulant ne propose que
@@ -91,6 +100,7 @@ export function PersonnelAffectationEditor({
             avecDejeuner: false,
             payeAt: null,
             commentaire: null,
+            qualiteNote: null,
           },
         ];
       case "remove":
@@ -107,6 +117,8 @@ export function PersonnelAffectationEditor({
         return state.map((a) => (a.affectationId === action.affectationId ? { ...a, payeAt: action.paye ? new Date() : null } : a));
       case "setCommentaire":
         return state.map((a) => (a.affectationId === action.affectationId ? { ...a, commentaire: action.commentaire } : a));
+      case "setQualiteNote":
+        return state.map((a) => (a.affectationId === action.affectationId ? { ...a, qualiteNote: action.qualiteNote } : a));
       default:
         return state;
     }
@@ -202,6 +214,20 @@ export function PersonnelAffectationEditor({
     });
   }
 
+  // Note qualité (1-5) sur le travail réellement constaté — distincte de la note client (voir
+  // StayRatingButton). Ménage : uniquement pour le ménage de départ (propreté vérifiée avant
+  // l'arrivée suivante) ; cuisine : sur chaque mission.
+  function handleSetQualiteNote(affectationId: string, qualiteNote: number | null) {
+    startTransition(async () => {
+      applyOptimistic({ type: "setQualiteNote", affectationId, qualiteNote });
+      try {
+        await setAffectationQualiteNote(affectationId, qualiteNote);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -212,10 +238,12 @@ export function PersonnelAffectationEditor({
               key={a.affectationId}
               a={a}
               disabled={isPending}
+              notable={moment === "depart"}
               onToggleFait={handleToggleFait}
               onRemove={handleRemove}
               onSetJours={handleSetJours}
               onSetCommentaire={handleSetCommentaire}
+              onSetQualiteNote={handleSetQualiteNote}
               montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
             />
           ) : (
@@ -228,6 +256,7 @@ export function PersonnelAffectationEditor({
               onToggleAvecDejeuner={handleToggleAvecDejeuner}
               onTogglePaid={handleTogglePaid}
               onSetCommentaire={handleSetCommentaire}
+              onSetQualiteNote={handleSetQualiteNote}
               montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
             />
           )
@@ -255,6 +284,55 @@ export function PersonnelAffectationEditor({
   );
 }
 
+// Note qualité (1-5, étoiles) sur le travail réellement constaté d'une affectation — compact,
+// à côté du reste du badge. Distinct de StayRatingButton (note client) : celle-ci note la
+// personne, pas le client, et vit par affectation pour pouvoir moyenner sur le long terme
+// (RosterSection, personnel/page.tsx). Kamel, 2026-08-09.
+function QualiteNoteControl({
+  qualiteNote,
+  disabled,
+  onSetQualiteNote,
+  title,
+}: {
+  qualiteNote: number | null;
+  disabled: boolean;
+  onSetQualiteNote: (note: number | null) => void;
+  title: string;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          title={title}
+          className={cn(
+            "flex items-center gap-0.5 border px-1.5 py-0.5 text-xs",
+            qualiteNote
+              ? "border-foreground bg-foreground text-background"
+              : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+          )}
+        >
+          <Star className="h-3 w-3" />
+          {qualiteNote ? `${qualiteNote}/5` : "Noter"}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {[5, 4, 3, 2, 1].map((n) => (
+          <DropdownMenuItem key={n} onClick={() => onSetQualiteNote(n)}>
+            {n}/5
+          </DropdownMenuItem>
+        ))}
+        {qualiteNote ? (
+          <DropdownMenuItem onClick={() => onSetQualiteNote(null)} className="text-muted-foreground">
+            Retirer la note
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 // Bouton (pas juste un badge à plat) pour que ce soit visuellement clair que c'est cliquable :
 // gris avec cercle vide = pas encore fait, noir plein avec coche = confirmé, comme un
 // interrupteur — même traitement neutre que le reste de l'app, pas de couleur sémantique ici.
@@ -265,18 +343,24 @@ export function PersonnelAffectationEditor({
 function MenageBadge({
   a,
   disabled,
+  notable,
   onToggleFait,
   onRemove,
   onSetJours,
   onSetCommentaire,
+  onSetQualiteNote,
   montantVisible,
 }: {
   a: PersonnelAssigne;
   disabled: boolean;
+  // Note qualité réservée au ménage de départ (moment "depart") : c'est le seul moment où l'état
+  // de propreté est vraiment vérifié, avant l'arrivée suivante.
+  notable: boolean;
   onToggleFait: (affectationId: string, fait: boolean) => void;
   onRemove: (affectationId: string) => void;
   onSetJours: (affectationId: string, nbJours: number | null) => void;
   onSetCommentaire: (affectationId: string, commentaire: string | null) => void;
+  onSetQualiteNote: (affectationId: string, qualiteNote: number | null) => void;
   montantVisible: boolean;
 }) {
   const fait = Boolean(a.faitAt);
@@ -331,6 +415,14 @@ function MenageBadge({
           · Payé par proprio
         </span>
       )}
+      {notable ? (
+        <QualiteNoteControl
+          qualiteNote={a.qualiteNote}
+          disabled={disabled}
+          onSetQualiteNote={(note) => onSetQualiteNote(a.affectationId, note)}
+          title="Note qualité sur la propreté constatée (moyenne affichée sur la fiche de la personne)"
+        />
+      ) : null}
       <Input
         value={commentaire}
         onChange={(e) => setCommentaire(e.target.value)}
@@ -362,6 +454,7 @@ function CuisineBadge({
   onToggleAvecDejeuner,
   onTogglePaid,
   onSetCommentaire,
+  onSetQualiteNote,
   montantVisible,
 }: {
   a: PersonnelAssigne;
@@ -371,6 +464,7 @@ function CuisineBadge({
   onToggleAvecDejeuner: (affectationId: string, avecDejeuner: boolean) => void;
   onTogglePaid: (affectationId: string, paye: boolean) => void;
   onSetCommentaire: (affectationId: string, commentaire: string | null) => void;
+  onSetQualiteNote: (affectationId: string, qualiteNote: number | null) => void;
   montantVisible: boolean;
 }) {
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
@@ -455,6 +549,12 @@ function CuisineBadge({
         {a.avecDejeuner ? <UtensilsCrossed className="h-3 w-3" /> : <Coffee className="h-3 w-3" />}
         {a.avecDejeuner ? "+ Déjeuner" : "PDJ seul"}
       </button>
+      <QualiteNoteControl
+        qualiteNote={a.qualiteNote}
+        disabled={disabled}
+        onSetQualiteNote={(note) => onSetQualiteNote(a.affectationId, note)}
+        title="Note qualité sur la cuisine constatée (moyenne affichée sur la fiche de la personne)"
+      />
       <Input
         value={commentaire}
         onChange={(e) => setCommentaire(e.target.value)}

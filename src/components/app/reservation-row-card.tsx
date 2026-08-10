@@ -189,19 +189,36 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
       </Link>
 
       {/* En dehors du Link (bouton cliquable dans une carte cliquable = navigation
-          accidentelle). Un seul statut ménage/cuisine à la fois : le ménage se fait après un
-          départ, la cuisine se prépare pour une arrivée. */}
+          accidentelle). La cuisine ne se prépare que pour une arrivée (kind "in") ; le ménage a
+          ses deux sections (pendant le séjour + départ) sur les deux cartes, pour toujours voir
+          l'ensemble du ménage d'un séjour au même endroit. */}
       <div className="space-y-2 px-3 pb-3">
         {kind === "out" ? (
-          <PersonnelAffectationEditor
-            reservationId={r.id}
-            role="menage"
-            moment="depart"
-            label="Ménage de départ (prépare l'arrivée suivante) — cliquer sur le nom pour confirmer fait"
-            assigned={r.menageDepartAssignes}
-            options={r.menageOptions}
-            payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
-          />
+          <>
+            <PersonnelAffectationEditor
+              reservationId={r.id}
+              role="menage"
+              moment="depart"
+              label="Ménage de départ (prépare l'arrivée suivante) — cliquer sur le nom pour confirmer fait"
+              assigned={r.menageDepartAssignes}
+              options={r.menageOptions}
+              payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+            />
+            {/* Visible aussi sur la carte checkout (pas seulement à l'arrivée) — Kamel,
+                2026-08-09 : besoin de voir qui a déjà fait le ménage pendant le séjour tout en
+                affectant, séparément, le ménage de départ (souvent une personne différente). Les
+                deux listes sont déjà distinctes en base (moment "sejour" vs "depart"), donc
+                affecter la même personne aux deux ne pose aucun conflit. */}
+            <PersonnelAffectationEditor
+              reservationId={r.id}
+              role="menage"
+              moment="sejour"
+              label="Femme de ménage (si besoin pendant le séjour)"
+              assigned={r.menageSejourAssignes}
+              options={r.menageOptions}
+              payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+            />
+          </>
         ) : (
           <>
             <PersonnelAffectationEditor

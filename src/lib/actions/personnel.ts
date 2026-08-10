@@ -160,6 +160,23 @@ export async function updateAffectationCommentaire(affectationId: string, commen
   revalidatePath("/dashboard");
 }
 
+// Note qualité (1 à 5) donnée par l'équipe sur le travail réellement constaté d'une affectation
+// (propreté du ménage de départ, qualité de la cuisine) — distincte de setStayRating ci-dessous
+// qui note le CLIENT, pas le personnel. Sert à calculer une moyenne long terme par personne
+// (voir RosterSection, personnel/page.tsx). null retire la note (erreur de saisie).
+export async function setAffectationQualiteNote(affectationId: string, note: number | null) {
+  await auth.protect();
+  if (note !== null && (!Number.isInteger(note) || note < 1 || note > 5)) {
+    throw new Error("Note invalide (doit être entre 1 et 5).");
+  }
+  const db = getDb();
+  await db.update(personnelAffectations).set({ qualiteNote: note }).where(eq(personnelAffectations.id, affectationId));
+
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+}
+
 // Marque payée une seule affectation directement depuis sa carte (cercle cliquable, comme le
 // "fait" du ménage) plutôt que de devoir passer par l'onglet Paiements — le montant réel est
 // recalculé côté serveur (pas celui affiché en aperçu côté client) et ajouté à la caisse.

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { asc, and, ne, gte, lte, eq, inArray, isNull, or } from "drizzle-orm";
+import { asc, and, ne, gte, lte, eq, inArray, isNull, isNotNull, or } from "drizzle-orm";
 import {
   format,
   startOfMonth,
@@ -53,6 +53,7 @@ import {
   LogIn,
   LogOut,
   Trophy,
+  Star,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -100,6 +101,28 @@ export default async function PersonnelPage({
   const menageOptions = menageRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const cuisineOptions = cuisineRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
+
+  // Moyenne long terme de la note qualité (ménage de départ / cuisine, voir QualiteNoteControl
+  // dans personnel-affectation-editor.tsx) — toute la période, pas juste le mois affiché dans
+  // l'onglet Statistiques, puisque c'est une réputation qui se construit sur la durée. Kamel,
+  // 2026-08-09 : "sur le long terme on aura une moyenne pareil pour les cuisinieres".
+  const qualiteRows = await db
+    .select({ personnelId: personnelAffectations.personnelId, qualiteNote: personnelAffectations.qualiteNote })
+    .from(personnelAffectations)
+    .where(isNotNull(personnelAffectations.qualiteNote));
+  const qualiteById = new Map<string, { somme: number; total: number }>();
+  for (const q of qualiteRows) {
+    if (q.qualiteNote === null) continue;
+    const current = qualiteById.get(q.personnelId) ?? { somme: 0, total: 0 };
+    current.somme += q.qualiteNote;
+    current.total += 1;
+    qualiteById.set(q.personnelId, current);
+  }
+  function moyenneQualite(personnelId: string): { moyenne: number; total: number } | null {
+    const entry = qualiteById.get(personnelId);
+    if (!entry) return null;
+    return { moyenne: entry.somme / entry.total, total: entry.total };
+  }
 
   // Séparé en deux listes distinctes plutôt qu'une seule "à venir" mélangeant les deux dates :
   // la cuisine se prépare pour une arrivée, le ménage se fait après un départ. On garde une
@@ -172,6 +195,7 @@ export default async function PersonnelPage({
       avecDejeuner: boolean;
       payeAt: Date | null;
       commentaire: string | null;
+      qualiteNote: number | null;
     }[]
   >();
   for (const a of upcomingAffectations) {
@@ -188,6 +212,7 @@ export default async function PersonnelPage({
       avecDejeuner: a.avecDejeuner,
       payeAt: a.payeAt,
       commentaire: a.commentaire,
+      qualiteNote: a.qualiteNote,
     });
     affectationsByReservation.set(a.reservationId, list);
   }
@@ -206,6 +231,7 @@ export default async function PersonnelPage({
         avecDejeuner: a.avecDejeuner,
         payeAt: a.payeAt,
         commentaire: a.commentaire,
+        qualiteNote: a.qualiteNote,
       }));
   }
 
@@ -598,8 +624,8 @@ export default async function PersonnelPage({
         </TabsList>
 
         <TabsContent value="equipe" className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          <RosterSection title="Femmes de ménage" role="menage" people={menageRoster} />
-          <RosterSection title="Cuisinières" role="cuisine" people={cuisineRoster} />
+          <RosterSection title="Femmes de ménage" role="menage" people={menageRoster} moyenneQualite={moyenneQualite} />
+          <RosterSection title="Cuisinières" role="cuisine" people={cuisineRoster} moyenneQualite={moyenneQualite} />
         </TabsContent>
 
         <TabsContent value="affectations" className="grid gap-6 lg:grid-cols-2 lg:items-start">
@@ -892,10 +918,12 @@ function RosterSection({
   title,
   role,
   people,
+  moyenneQualite,
 }: {
   title: string;
   role: "menage" | "cuisine";
   people: (typeof personnel.$inferSelect)[];
+  moyenneQualite: (personnelId: string) => { moyenne: number; total: number } | null;
 }) {
   return (
     <Card>
@@ -908,7 +936,9 @@ function RosterSection({
           <p className="text-sm text-muted-foreground">Personne enregistrée pour l&apos;instant.</p>
         ) : (
           <div className="space-y-2">
-            {people.map((p) => (
+            {people.map((p) => {
+              const qualite = moyenneQualite(p.id);
+              return (
               <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
                 <div>
                   <div className="flex items-center gap-1.5">
@@ -917,6 +947,16 @@ function RosterSection({
                     </Link>
                     {!p.actif ? <Badge variant="outline">Inactif</Badge> : null}
                     <PersonnelEnqueteBadge personnelId={p.id} enquete={p.enquete} />
+                    {qualite ? (
+                      <Badge
+                        variant="outline"
+                        className="gap-1"
+                        title={`Moyenne des notes qualité sur ${qualite.total} ${qualite.total > 1 ? (role === "menage" ? "ménages notés" : "missions notées") : role === "menage" ? "ménage noté" : "mission notée"}`}
+                      >
+                        <Star className="h-3 w-3" />
+                        {qualite.moyenne.toFixed(1)}/5
+                      </Badge>
+                    ) : null}
                   </div>
                   {p.telephone ? <PhoneLink phone={p.telephone} /> : null}
                   {p.notes ? <p className="mt-0.5 text-sm text-muted-foreground">{p.notes}</p> : null}
@@ -931,7 +971,8 @@ function RosterSection({
                   />
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>

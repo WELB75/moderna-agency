@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { SelectContent, SelectItem } from "@/components/ui/select";
 import {
   reassignPlanningAffectation,
+  removePlanningAffectation,
   updatePlanningAffectationMoment,
   updatePlanningAffectationRepas,
 } from "@/lib/actions/planning-public";
@@ -31,6 +32,10 @@ export type PublicPlanningEntry = {
   personnelId: string;
   personnelNom: string;
   avecDejeuner: boolean;
+  // Jusqu'à quand la mission court (fin de séjour) — pour l'affichage "Info du jour" (voir
+  // planning-info-du-jour.tsx), qui doit dire "jusqu'au 13 sept." pour une cuisine ou un ménage
+  // pendant le séjour, distinct du ménage de départ qui est toujours un jour unique.
+  checkOut: Date;
 };
 
 type JourPlanning = { date: Date; entries: PublicPlanningEntry[] };
@@ -338,6 +343,17 @@ function EntryCard({ entry: e, token, options }: { entry: PublicPlanningEntry; t
     });
   }
 
+  function handleRemove() {
+    startTransition(async () => {
+      try {
+        await removePlanningAffectation(token, e.affectationId);
+        toast.success(`${e.personnelNom} retirée du planning.`);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      }
+    });
+  }
+
   return (
     <div
       className={cn(
@@ -354,6 +370,16 @@ function EntryCard({ entry: e, token, options }: { entry: PublicPlanningEntry; t
           disabled={isPending}
           className="text-sm sm:text-xs"
         />
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={isPending}
+          className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label={`Retirer ${e.personnelNom}`}
+          title="Retirer"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
       </div>
       <p className="text-muted-foreground" title={e.domaineNom ?? undefined}>
         {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}

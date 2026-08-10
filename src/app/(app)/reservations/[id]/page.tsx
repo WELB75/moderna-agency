@@ -96,6 +96,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       payeAt: personnelAffectations.payeAt,
       moment: personnelAffectations.moment,
       commentaire: personnelAffectations.commentaire,
+      qualiteNote: personnelAffectations.qualiteNote,
     })
     .from(personnelAffectations)
     .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
@@ -110,6 +111,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     nbJours: a.nbJours,
     avecDejeuner: a.avecDejeuner,
     payeAt: a.payeAt,
+    qualiteNote: a.qualiteNote,
   });
   const menageSejourAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "menage" && a.moment === "sejour").map(toAssigne);
   const menageDepartAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "menage" && a.moment === "depart").map(toAssigne);

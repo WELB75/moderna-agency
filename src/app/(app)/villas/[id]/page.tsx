@@ -122,6 +122,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       avecDejeuner: boolean;
       payeAt: Date | null;
       commentaire: string | null;
+      qualiteNote: number | null;
     }[]
   >();
   for (const a of allAffectations) {
@@ -138,6 +139,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       avecDejeuner: a.avecDejeuner,
       payeAt: a.payeAt,
       commentaire: a.commentaire,
+      qualiteNote: a.qualiteNote,
     });
     affectationsByReservation.set(a.reservationId, list);
   }
@@ -155,6 +157,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         avecDejeuner: a.avecDejeuner,
         payeAt: a.payeAt,
         commentaire: a.commentaire,
+        qualiteNote: a.qualiteNote,
       }));
   }
 

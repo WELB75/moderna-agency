@@ -170,6 +170,7 @@ export default async function DashboardPage({
             payeAt: personnelAffectations.payeAt,
             moment: personnelAffectations.moment,
             commentaire: personnelAffectations.commentaire,
+            qualiteNote: personnelAffectations.qualiteNote,
           })
           .from(personnelAffectations)
           .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
@@ -195,6 +196,7 @@ export default async function DashboardPage({
       avecDejeuner: a.avecDejeuner,
       payeAt: a.payeAt,
       commentaire: a.commentaire,
+      qualiteNote: a.qualiteNote,
     });
     map.set(a.reservationId, list);
     const all = affectationsByReservationForCash.get(a.reservationId) ?? [];

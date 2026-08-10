@@ -549,6 +549,14 @@ export const personnelAffectations = pgTable(
     // langage libre. Sert à faire remonter les meilleures candidates en premier dans
     // findNextCandidate (staff.ts).
     note: integer("note"),
+    // Note qualité (1 à 5) donnée par l'équipe/l'agence sur le travail réellement constaté —
+    // distincte de `note` ci-dessus qui note le CLIENT, pas le personnel. Kamel, 2026-08-09 :
+    // "la possibilité de noter le ménage selon les ménages de sortie de client [...] pareil pour
+    // les cuisinieres" — sert à calculer une moyenne par personne sur le long terme (voir
+    // RosterSection, personnel/page.tsx). Pour le ménage, ne s'applique qu'au ménage de départ
+    // (moment "depart") : c'est le seul moment où l'état de propreté est vraiment vérifié avant
+    // l'arrivée suivante.
+    qualiteNote: integer("qualite_note"),
     // Ménage uniquement (voir personnelAffectationMomentEnum) — "unique" pour la cuisine, qui n'a
     // qu'un seul type d'affectation. La clé unique inclut ce champ pour que la MÊME personne
     // puisse être affectée à la fois pour le séjour et pour le départ sur la même réservation.

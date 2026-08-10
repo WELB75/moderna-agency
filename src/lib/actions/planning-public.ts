@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations, reservations } from "@/db/schema";
+import { personnel, personnelAffectations, reservations, cashEntries } from "@/db/schema";
 import { isValidPlanningToken } from "@/lib/planning-token";
 
 // Réaffecte une mission (ménage ou cuisine) à quelqu'un d'autre, directement depuis le lien
@@ -36,6 +36,34 @@ export async function reassignPlanningAffectation(token: string, affectationId: 
   revalidatePath("/personnel");
   revalidatePath("/villas");
   revalidatePath("/dashboard");
+}
+
+// Retire une mission (ménage ou cuisine) directement depuis le lien public — Kamel, 2026-08-09 :
+// "donne nous la possibilité de supprimer aussi les femmes dans le planning direct" (ex. une
+// cuisine notée par erreur le jour du départ, où il n'y a pas de petit-déj à préparer). Même
+// nettoyage de la dépense de caisse liée que removePersonnelAffectation (personnel.ts) : sinon
+// une dépense payée resterait fantôme, sans plus aucune affectation à laquelle la rattacher.
+export async function removePlanningAffectation(token: string, affectationId: string) {
+  if (!isValidPlanningToken(token)) throw new Error("Lien invalide.");
+
+  const db = getDb();
+  const [a] = await db
+    .select({ cashEntryId: personnelAffectations.cashEntryId })
+    .from(personnelAffectations)
+    .where(eq(personnelAffectations.id, affectationId))
+    .limit(1);
+  if (!a) throw new Error("Affectation introuvable.");
+
+  await db.delete(personnelAffectations).where(eq(personnelAffectations.id, affectationId));
+  if (a.cashEntryId) {
+    await db.delete(cashEntries).where(eq(cashEntries.id, a.cashEntryId));
+  }
+
+  revalidatePath(`/planning/${token}`);
+  revalidatePath("/personnel");
+  revalidatePath("/villas");
+  revalidatePath("/dashboard");
+  revalidatePath("/caisse");
 }
 
 // Change le moment d'une mission de ménage (départ ⇄ pendant le séjour) depuis le lien public —
