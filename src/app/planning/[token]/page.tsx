@@ -8,7 +8,6 @@ import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { PublicPlanningGrid, type PublicPlanningEntry } from "@/components/app/public-planning-grid";
-import { PlanningInfoDuJour } from "@/components/app/planning-info-du-jour";
 import { type StaffAvailability } from "@/components/app/public-staff-availability";
 import { isValidPlanningToken } from "@/lib/planning-token";
 import { nowInMorocco } from "@/lib/now";
@@ -154,8 +153,6 @@ export default async function PublicPlanningPage({
           </Link>
         ) : null}
       </div>
-
-      <PlanningInfoDuJour entries={entreesAujourdhui} now={now} />
 
       <PublicPlanningGrid
         jours={joursSemaine.map((date) => ({ date, entries: planningPourJour(date) }))}

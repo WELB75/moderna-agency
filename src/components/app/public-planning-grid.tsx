@@ -17,6 +17,7 @@ import {
 } from "@/lib/actions/planning-public";
 import { AddPlanningEntryDialog, type ReservationOption } from "@/components/app/add-planning-entry-dialog";
 import { PublicStaffAvailability, type StaffAvailability } from "@/components/app/public-staff-availability";
+import { PlanningInfoDuJour } from "@/components/app/planning-info-du-jour";
 import { matchesSearch } from "@/lib/text-match";
 import { cn } from "@/lib/utils";
 
@@ -164,6 +165,11 @@ export function PublicPlanningGrid({
         </div>
       </div>
 
+      {/* Résumé en phrases du jour actuellement sélectionné (aujourd'hui par défaut, ou le jour
+          cliqué dans la grille ci-dessous — pastilles mobile ou en-tête de colonne desktop).
+          Kamel, 2026-08-10 : "si je clic sur mardi je veux aussi les infos de mardi". */}
+      <PlanningInfoDuJour entries={jours[jourActif].entries} jour={jours[jourActif].date} now={now} />
+
       {/* ---------- Mobile : un jour à la fois ---------- */}
       <div className="min-w-0 space-y-3 sm:hidden">
         <div className="flex min-w-0 gap-1.5 overflow-x-auto pb-1">
@@ -192,8 +198,17 @@ export function PublicPlanningGrid({
 
       {/* ---------- Desktop : semaine entière ---------- */}
       <div className="hidden gap-2.5 sm:grid sm:grid-cols-7">
-        {jours.map((j) => (
-          <JourCard key={j.date.toISOString()} jour={j} now={now} q={q} token={token} optionsPour={optionsPour} />
+        {jours.map((j, i) => (
+          <JourCard
+            key={j.date.toISOString()}
+            jour={j}
+            now={now}
+            q={q}
+            token={token}
+            optionsPour={optionsPour}
+            selected={i === jourActif}
+            onSelect={() => setJourActif(i)}
+          />
         ))}
       </div>
 
@@ -224,6 +239,8 @@ function JourCard({
   token,
   optionsPour,
   pleineLargeur,
+  selected,
+  onSelect,
 }: {
   jour: JourPlanning;
   now: Date;
@@ -231,16 +248,36 @@ function JourCard({
   token: string;
   optionsPour: (role: "menage" | "cuisine") => Option[];
   pleineLargeur?: boolean;
+  // Desktop uniquement : clic sur l'en-tête pour choisir le jour affiché dans le résumé
+  // "Info du jour" au-dessus de la grille (voir PublicPlanningGrid). Absent en mobile où les
+  // pastilles du haut jouent déjà ce rôle.
+  selected?: boolean;
+  onSelect?: () => void;
 }) {
   const estAujourdhui = isSameDay(date, now);
   const filtrees = q ? entries.filter((e) => entreeCorrespond(e, q)) : entries;
   return (
-    <Card className={cn("min-w-0", estAujourdhui && !pleineLargeur && "border-foreground/40")}>
+    <Card className={cn("min-w-0", (estAujourdhui || selected) && !pleineLargeur && "border-foreground/40")}>
       <CardHeader className="pb-1.5">
-        <CardTitle className="text-sm font-medium capitalize">
-          {format(date, "EEEE d MMMM", { locale: fr })}
-          {estAujourdhui ? <Badge className="ml-1.5">Aujourd&apos;hui</Badge> : null}
-        </CardTitle>
+        {onSelect ? (
+          <button
+            type="button"
+            onClick={onSelect}
+            className={cn(
+              "flex items-center gap-1.5 text-left text-sm font-medium capitalize hover:underline",
+              selected && "underline"
+            )}
+            title="Voir le résumé de ce jour"
+          >
+            {format(date, "EEEE d MMMM", { locale: fr })}
+            {estAujourdhui ? <Badge>Aujourd&apos;hui</Badge> : null}
+          </button>
+        ) : (
+          <CardTitle className="flex items-center gap-1.5 text-sm font-medium capitalize">
+            {format(date, "EEEE d MMMM", { locale: fr })}
+            {estAujourdhui ? <Badge>Aujourd&apos;hui</Badge> : null}
+          </CardTitle>
+        )}
       </CardHeader>
       <CardContent className="space-y-1.5">
         {filtrees.length === 0 ? (
