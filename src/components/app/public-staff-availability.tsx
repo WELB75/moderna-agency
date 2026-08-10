@@ -46,7 +46,13 @@ export function PublicStaffAvailability({ staff, query = "" }: { staff: StaffAva
       parNom.set(s.nom, { id: s.id, nom: s.nom, telephone: s.telephone, roles: new Set([s.role]), occupeAujourdhui: s.occupeAujourdhui });
     }
   }
-  const personnes = [...parNom.values()].sort((a, b) => a.nom.localeCompare(b.nom));
+  // Kamel, 2026-08-10 : "toutes les personnes libres en premier [...] et toutes les personnes
+  // occupées [...] toujours à la fin" — tri par disponibilité d'abord, nom en ordre alphabétique
+  // ensuite dans chaque groupe.
+  const personnes = [...parNom.values()].sort((a, b) => {
+    if (a.occupeAujourdhui !== b.occupeAujourdhui) return a.occupeAujourdhui ? 1 : -1;
+    return a.nom.localeCompare(b.nom);
+  });
   const filtrees = query ? personnes.filter((p) => matchesSearch(p.nom, query)) : personnes;
 
   return (
