@@ -430,7 +430,11 @@ function MissionChip({
   return (
     <div
       className={cn(
-        "inline-flex min-w-0 max-w-full items-center gap-1.5 whitespace-nowrap rounded-md border-l-4 bg-muted/40 py-1 pl-2 pr-1 text-xs",
+        // Mobile : la pastille peut passer sur plusieurs lignes (sinon le nom du client/villa
+        // pousse le bouton "retirer" et le ✓ confirmation hors de l'écran, inaccessibles sans
+        // scroller horizontalement). Desktop (sm+) : reprend le format compact sur une seule
+        // ligne que Kamel avait demandé (voir commentaire plus haut dans le fichier).
+        "flex w-full min-w-0 max-w-full flex-wrap items-center gap-1.5 rounded-md border-l-4 bg-muted/40 py-1 pl-2 pr-1 text-xs sm:inline-flex sm:w-auto sm:flex-nowrap sm:whitespace-nowrap",
         e.role === "menage" ? "border-l-orange-500" : "border-l-violet-500",
         aConfirmer && "ring-1 ring-amber-500/70 bg-amber-500/10"
       )}
@@ -455,7 +459,7 @@ function MissionChip({
         disabled={isPending}
         className="font-semibold"
       />
-      <span className="text-muted-foreground" title={e.domaineNom ?? undefined}>
+      <span className="whitespace-normal text-muted-foreground sm:whitespace-nowrap" title={e.domaineNom ?? undefined}>
         · {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName} ·
       </span>
       {e.role === "cuisine" ? (
