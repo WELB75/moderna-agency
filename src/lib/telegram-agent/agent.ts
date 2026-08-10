@@ -40,6 +40,12 @@ const tools: Tool[] = [
         devise: { type: "string", enum: ["MAD", "EUR"], description: "Par défaut MAD si non précisé." },
         description: { type: "string", description: "Résumé court et clair du mouvement (qui, pourquoi)." },
         responsable: { type: "string", description: "Personne concernée (à qui donné, ou qui a payé), si connue." },
+        financePar: {
+          type: "string",
+          enum: ["societe", "loyers_perso"],
+          description:
+            "Uniquement pour type=depense. 'societe' (défaut) si l'argent vient de l'avance que la société lui a confiée (remise) — c'est le cas normal. 'loyers_perso' UNIQUEMENT si Kamel précise explicitement avoir payé avec ses propres loyers/sa propre poche plutôt qu'avec l'argent confié par la société (ex. \"j'ai payé ça avec mes loyers\", \"de ma poche\", \"pas avec l'argent de la société\") — une dépense loyers_perso n'est pas remboursable par la société, contrairement à societe. Ne jamais deviner loyers_perso sans indication claire.",
+        },
         villaNom: { type: "string", description: "Nom exact de la villa concernée si mentionnée, sinon omettre." },
         guestName: {
           type: "string",
@@ -97,6 +103,12 @@ const tools: Tool[] = [
         personnelNom: { type: "string", description: "Prénom de la personne payée." },
         guestName: { type: "string", description: "Nom du client de la réservation concernée." },
         villaNom: { type: "string", description: "Villa concernée, si connue (aide à désambiguïser)." },
+        financePar: {
+          type: "string",
+          enum: ["societe", "loyers_perso"],
+          description:
+            "'societe' (défaut) si payé avec l'argent confié par la société. 'loyers_perso' UNIQUEMENT si Kamel précise explicitement avoir payé avec ses propres loyers — ne jamais deviner sans indication claire (voir record_cash_entry).",
+        },
       },
       required: ["personnelNom", "guestName"],
     },
@@ -171,7 +183,8 @@ Règles :
 - Dès qu'une instruction est claire, agis directement (appelle l'outil) sans demander confirmation avant — mais confirme après coup ce que tu as fait, en une phrase claire, pour qu'il puisse corriger immédiatement si besoin.
 - Si une information clé est ambiguë (montant, devise, quelle villa, quelle personne parmi plusieurs), demande une précision avant d'agir plutôt que de deviner — surtout pour tout ce qui touche à l'argent.
 - Si Kamel corrige ou dit que c'est faux juste après un enregistrement de caisse, utilise cancel_last_entry puis ré-enregistre si les bonnes infos sont données.
-- Devise par défaut MAD si rien n'est précisé et que le contexte est marocain (paiement personnel local) ; EUR seulement si explicitement mentionné ou évident (ex. "€").`;
+- Devise par défaut MAD si rien n'est précisé et que le contexte est marocain (paiement personnel local) ; EUR seulement si explicitement mentionné ou évident (ex. "€").
+- Pour une dépense (record_cash_entry ou mark_staff_paid) : financePar reste "societe" par défaut, SAUF si Kamel dit explicitement qu'il a payé avec ses propres loyers/sa propre poche (pas l'argent confié par la société) — dans ce cas seulement, financePar="loyers_perso". Ne jamais deviner : dans le doute, "societe".`;
 }
 
 async function getVillasPromptList(): Promise<string> {
@@ -215,6 +228,7 @@ async function recordCashEntry(input: Record<string, unknown>) {
       villaId: villa?.id ?? null,
       reservationId: resa?.id ?? null,
       type: input.type as "depense" | "loyer" | "extra" | "remise" | "restitution",
+      financePar: input.type === "depense" && input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
       moyenPaiement: "especes",
       montant: String(input.montant),
       devise: (input.devise as string) || "MAD",
@@ -261,7 +275,13 @@ async function getCashSummary() {
   const db = getDb();
   const rows = (
     await db
-      .select({ type: cashEntries.type, montant: cashEntries.montant, devise: cashEntries.devise, domaineNom: domaines.nom })
+      .select({
+        type: cashEntries.type,
+        financePar: cashEntries.financePar,
+        montant: cashEntries.montant,
+        devise: cashEntries.devise,
+        domaineNom: domaines.nom,
+      })
       .from(cashEntries)
       .leftJoin(villas, eq(cashEntries.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
@@ -273,9 +293,24 @@ async function getCashSummary() {
     const enDev = rows.filter((r) => r.devise === dev);
     const sum = (t: string) => enDev.filter((r) => r.type === t).reduce((s, r) => s + Number(r.montant), 0);
     const remise = sum("remise");
-    const depense = sum("depense");
+    // Seules les dépenses financées par la société comptent contre le solde société — celles
+    // payées avec les loyers perso de Kamel ne sont pas une dette de la société envers lui.
+    const depenseSociete = enDev
+      .filter((r) => r.type === "depense" && r.financePar === "societe")
+      .reduce((s, r) => s + Number(r.montant), 0);
+    const depenseLoyersPerso = enDev
+      .filter((r) => r.type === "depense" && r.financePar === "loyers_perso")
+      .reduce((s, r) => s + Number(r.montant), 0);
     const restitution = sum("restitution");
-    summary[dev] = { loyer: sum("loyer"), extra: sum("extra"), remise, depense, restitution, solde: remise - depense - restitution };
+    summary[dev] = {
+      loyer: sum("loyer"),
+      extra: sum("extra"),
+      remise,
+      depenseSociete,
+      depenseLoyersPerso,
+      restitution,
+      solde: remise - depenseSociete - restitution,
+    };
   }
   return summary;
 }
@@ -403,6 +438,7 @@ async function markStaffPaid(input: Record<string, unknown>) {
       villaId: match.villaId,
       reservationId: match.reservationId,
       type: "depense",
+      financePar: input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
       moyenPaiement: "especes",
       montant: montant.toFixed(2),
       devise: "MAD",

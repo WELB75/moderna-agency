@@ -44,6 +44,7 @@ export function AddCashEntryDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("remise");
+  const [financePar, setFinancePar] = useState("societe");
   const [devise, setDevise] = useState("MAD");
   const [villaId, setVillaId] = useState("");
   const [reservationId, setReservationId] = useState("");
@@ -82,6 +83,7 @@ export function AddCashEntryDialog({
 
   async function handleSubmit(formData: FormData) {
     formData.set("type", type);
+    formData.set("financePar", type === "depense" ? financePar : "societe");
     formData.set("moyenPaiement", moyenPaiement);
     formData.set("devise", devise);
     formData.set("photoUrls", JSON.stringify(photoUrls));
@@ -93,6 +95,7 @@ export function AddCashEntryDialog({
         setPhotoUrls([]);
         setVillaId("");
         setReservationId("");
+        setFinancePar("societe");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -128,6 +131,20 @@ export function AddCashEntryDialog({
               </SelectContent>
             </Select>
           </div>
+          {type === "depense" ? (
+            <div className="space-y-1.5">
+              <Label>Financé par</Label>
+              <Select value={financePar} onValueChange={setFinancePar}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="societe">Société (compte dans ce qu&apos;elle te doit)</SelectItem>
+                  <SelectItem value="loyers_perso">Mes loyers perso (pas de remboursement dû)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="montant">Montant</Label>

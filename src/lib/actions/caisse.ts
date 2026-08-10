@@ -13,6 +13,7 @@ export async function createCashEntry(formData: FormData) {
   const villaId = String(formData.get("villaId") ?? "").trim() || null;
   const reservationId = String(formData.get("reservationId") ?? "").trim() || null;
   const type = String(formData.get("type") ?? "");
+  const financePar = String(formData.get("financePar") ?? "societe");
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "especes");
   const montant = String(formData.get("montant") ?? "").trim();
   const devise = String(formData.get("devise") ?? "MAD").trim() || "MAD";
@@ -23,6 +24,9 @@ export async function createCashEntry(formData: FormData) {
 
   if (!["remise", "loyer", "extra", "depense", "restitution"].includes(type)) {
     throw new Error("Type de mouvement invalide.");
+  }
+  if (!["societe", "loyers_perso"].includes(financePar)) {
+    throw new Error("Source de financement invalide.");
   }
   if (!["especes", "virement", "carte"].includes(moyenPaiement)) {
     throw new Error("Moyen de paiement invalide.");
@@ -37,6 +41,7 @@ export async function createCashEntry(formData: FormData) {
     villaId,
     reservationId,
     type: type as "remise" | "loyer" | "extra" | "depense" | "restitution",
+    financePar: type === "depense" ? (financePar as "societe" | "loyers_perso") : "societe",
     moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",
     montant: montantNum.toFixed(2),
     devise,

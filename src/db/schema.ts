@@ -186,12 +186,22 @@ export const reservations = pgTable(
 
 export const moyenPaiementCaisseEnum = pgEnum("moyen_paiement_caisse", ["especes", "virement", "carte"]);
 
+// Pertinent seulement pour type="depense" : d'où vient réellement l'argent dépensé — l'avance de
+// la société (remise), ou les loyers personnels de Kamel qu'il a parfois utilisés directement
+// pour payer une dépense courante sans passer par l'avance société. Kamel, 2026-08-10 : une
+// dépense payée avec ses loyers ne doit PAS réduire le solde société (ce n'est pas de l'argent
+// que la société lui a avancé), sinon le solde affiche une dette envers lui qui n'existe pas.
+// Défaut "societe" : préserve le comportement historique (toutes les dépenses passées restent
+// comptées comme avant) tant que Kamel ne requalifie pas une entrée précise.
+export const cashFinanceParEnum = pgEnum("cash_finance_par", ["societe", "loyers_perso"]);
+
 export const cashEntries = pgTable("cash_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "set null" }),
   reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "set null" }),
   type: cashEntryTypeEnum("type").notNull(),
   moyenPaiement: moyenPaiementCaisseEnum("moyen_paiement").default("especes").notNull(),
+  financePar: cashFinanceParEnum("finance_par").default("societe").notNull(),
   montant: numeric("montant", { precision: 10, scale: 2 }).notNull(),
   devise: text("devise").default("MAD").notNull(),
   description: text("description"),

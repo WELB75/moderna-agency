@@ -26,6 +26,7 @@ const TYPE_LABELS: Record<string, string> = {
 type Entry = {
   id: string;
   type: string;
+  financePar: string;
   montant: string;
   devise: string;
   description: string | null;
@@ -47,6 +48,7 @@ export default async function CaissePage() {
       .select({
         id: cashEntries.id,
         type: cashEntries.type,
+        financePar: cashEntries.financePar,
         moyenPaiement: cashEntries.moyenPaiement,
         montant: cashEntries.montant,
         devise: cashEntries.devise,
@@ -159,11 +161,19 @@ function CaissePanel({
         const totalLoyer = enDevise.filter((e) => e.type === "loyer").reduce((s, e) => s + Number(e.montant), 0);
         const totalExtra = enDevise.filter((e) => e.type === "extra").reduce((s, e) => s + Number(e.montant), 0);
         const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
-        const totalDepense = enDevise.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
+        // Seules les dépenses financées par l'avance société comptent contre le solde société —
+        // une dépense payée avec les loyers personnels de Kamel n'est pas une dette de la société
+        // envers lui (voir cashFinanceParEnum dans db/schema.ts), donc exclue de ce calcul.
+        const totalDepenseSociete = enDevise
+          .filter((e) => e.type === "depense" && e.financePar === "societe")
+          .reduce((s, e) => s + Number(e.montant), 0);
+        const totalDepenseLoyers = enDevise
+          .filter((e) => e.type === "depense" && e.financePar === "loyers_perso")
+          .reduce((s, e) => s + Number(e.montant), 0);
         const totalRestitution = enDevise
           .filter((e) => e.type === "restitution")
           .reduce((s, e) => s + Number(e.montant), 0);
-        const soldeSociete = totalRemise - totalDepense - totalRestitution;
+        const soldeSociete = totalRemise - totalDepenseSociete - totalRestitution;
 
         return (
           <div key={devise} className="space-y-4">
@@ -173,9 +183,10 @@ function CaissePanel({
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Loyers perçus (clients)
               </p>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <SummaryCard label="Total loyers reçus" value={totalLoyer} devise={devise} highlight />
                 <SummaryCard label="Extras (petit-déj, options...)" value={totalExtra} devise={devise} />
+                <SummaryCard label="Dépenses payées avec mes loyers" value={totalDepenseLoyers} devise={devise} />
               </div>
             </div>
 
@@ -214,6 +225,11 @@ function CaissePanel({
                     >
                       {TYPE_LABELS[e.type]}
                     </Badge>
+                    {e.type === "depense" && e.financePar === "loyers_perso" ? (
+                      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
+                        Payé avec mes loyers
+                      </Badge>
+                    ) : null}
                     <span className="font-semibold">
                       {e.type === "remise" || e.type === "loyer" || e.type === "extra" ? "+" : "-"}
                       {Number(e.montant).toFixed(2)} {e.devise}
