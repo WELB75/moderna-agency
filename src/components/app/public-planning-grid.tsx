@@ -50,10 +50,16 @@ type Option = { id: string; nom: string };
 // ligne chaque jour [...] Lundi : ligne de femme de ménage et en dessous ligne de cuisinière
 // [...] on a même pas à descendre on a déjà toutes les infos de la journée" — remplace l'ancien
 // découpage mobile (un jour à la fois, pastilles de navigation) / desktop (7 colonnes, une carte
-// empilée par mission) par UNE seule mise en page : chaque jour est un bloc compact de 2 lignes
-// (ménage, cuisine) où les missions sont des pastilles qui s'enchaînent et passent à la ligne
-// seulement si besoin — toute la semaine tient sans avoir à cliquer/scroller jour par jour, sur
-// mobile comme sur desktop.
+// empilée par mission) par UNE seule mise en page : chaque jour est un bloc compact où les
+// missions sont des pastilles qui s'enchaînent et passent à la ligne seulement si besoin — toute
+// la semaine tient sans avoir à cliquer/scroller jour par jour, sur mobile comme sur desktop.
+//
+// Kamel, 2026-08-10 (le patron) : "une seule colonne, [...] deux badges avec couleurs distinctes
+// M (Ménage) et C (Cuisine), si une femme fait les deux elle a deux badges et si elle fait qu'un
+// elle a un badge" — les deux lignes séparées "Ménage" / "Cuisine" par jour sont remplacées par
+// une seule liste de pastilles ; chaque pastille (= une mission) porte un badge lettré M ou C, une
+// personne qui fait les deux ce jour-là a naturellement deux pastilles adjacentes, chacune avec
+// son badge.
 //
 // Kamel, 2026-08-09 : "je veux qu'on puisse trouver aussi les villa, les femmes de ménages [...]
 // même les apparts" — la recherche filtre sur le nom du personnel, la villa/l'appart (nom,
@@ -92,11 +98,11 @@ export function PublicPlanningGrid({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-4 text-sm">
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-orange-500" />
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">M</span>
             Femme de ménage
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-500" />
+            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">C</span>
             Cuisinière
           </span>
           <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
@@ -234,8 +240,9 @@ function JourRow({
 }) {
   const estAujourdhui = isSameDay(date, now);
   const filtrees = q ? entries.filter((e) => entreeCorrespond(e, q)) : entries;
-  const menage = filtrees.filter((e) => e.role === "menage");
-  const cuisine = filtrees.filter((e) => e.role === "cuisine");
+  // Ménage toujours avant cuisine dans l'ordre d'affichage (même ordre que l'ancien découpage en
+  // 2 lignes), mais tout dans une seule liste — voir commentaire en tête de fichier.
+  const triees = [...filtrees.filter((e) => e.role === "menage"), ...filtrees.filter((e) => e.role === "cuisine")];
 
   return (
     <div className={cn("min-w-0 rounded-lg border p-2.5", selected && "border-foreground/40 bg-muted/20")}>
@@ -252,42 +259,14 @@ function JourRow({
         {format(date, "EEEE d MMMM", { locale: fr })}
       </button>
 
-      {q && filtrees.length === 0 ? (
+      {q && triees.length === 0 ? (
         <p className="text-xs text-muted-foreground">Aucun résultat.</p>
+      ) : triees.length === 0 ? (
+        <p className="text-xs text-muted-foreground">—</p>
       ) : (
-        <div className="space-y-1">
-          <MissionLigne label="Ménage" entries={menage} token={token} options={optionsPour("menage")} jour={date} now={now} />
-          <MissionLigne label="Cuisine" entries={cuisine} token={token} options={optionsPour("cuisine")} jour={date} now={now} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MissionLigne({
-  label,
-  entries,
-  token,
-  options,
-  jour,
-  now,
-}: {
-  label: string;
-  entries: PublicPlanningEntry[];
-  token: string;
-  options: Option[];
-  jour: Date;
-  now: Date;
-}) {
-  return (
-    <div className="flex min-w-0 items-start gap-2">
-      <span className="w-14 shrink-0 pt-1 text-[11px] font-medium text-muted-foreground">{label}</span>
-      {entries.length === 0 ? (
-        <span className="pt-1 text-xs text-muted-foreground">—</span>
-      ) : (
-        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-          {entries.map((e) => (
-            <MissionChip key={e.affectationId} entry={e} token={token} options={options} jour={jour} now={now} />
+        <div className="flex min-w-0 flex-wrap gap-1.5">
+          {triees.map((e) => (
+            <MissionChip key={e.affectationId} entry={e} token={token} options={optionsPour(e.role)} jour={date} now={now} />
           ))}
         </div>
       )}
@@ -345,10 +324,10 @@ const OPTIONS_REPAS: { value: "non" | "oui"; label: string }[] = [
   { value: "oui", label: "P-déj + déj" },
 ];
 
-// Une mission = une pastille compacte tenant sur une seule ligne (nom, villa/client, détail,
-// retirer) — plusieurs pastilles s'enchaînent horizontalement et ne passent à la ligne que
-// lorsque la largeur manque (voir MissionLigne), au lieu de l'ancienne carte pleine largeur
-// empilée verticalement par jour.
+// Une mission = une pastille compacte tenant sur une seule ligne (badge M/C, nom, villa/client,
+// détail, retirer) — plusieurs pastilles s'enchaînent horizontalement et ne passent à la ligne que
+// lorsque la largeur manque (voir JourRow), au lieu de l'ancienne carte pleine largeur empilée
+// verticalement par jour.
 function MissionChip({
   entry: e,
   token,
@@ -439,6 +418,15 @@ function MissionChip({
         aConfirmer && "ring-1 ring-amber-500/70 bg-amber-500/10"
       )}
     >
+      <span
+        className={cn(
+          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white",
+          e.role === "menage" ? "bg-orange-500" : "bg-violet-500"
+        )}
+        title={e.role === "menage" ? "Ménage" : "Cuisine"}
+      >
+        {e.role === "menage" ? "M" : "C"}
+      </span>
       {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
       {e.telephone ? (
         <a
