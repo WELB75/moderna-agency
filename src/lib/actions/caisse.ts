@@ -31,7 +31,7 @@ export async function createCashEntry(formData: FormData) {
   }
   if (
     categorie &&
-    !["femmes_menage", "cuisinieres", "jardinier", "hebergement"].includes(categorie)
+    !["femmes_menage", "cuisinieres", "jardinier", "hebergement", "autre"].includes(categorie)
   ) {
     throw new Error("Catégorie de dépense invalide.");
   }
@@ -56,7 +56,7 @@ export async function createCashEntry(formData: FormData) {
     type: type as "remise" | "loyer" | "extra" | "depense" | "restitution",
     categorie:
       type === "depense"
-        ? (categorie as "femmes_menage" | "cuisinieres" | "jardinier" | "hebergement")
+        ? (categorie as "femmes_menage" | "cuisinieres" | "jardinier" | "hebergement" | "autre")
         : null,
     financePar: type === "depense" ? (financePar as "societe" | "loyers_perso") : "societe",
     moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",

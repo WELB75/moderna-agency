@@ -38,6 +38,7 @@ const CATEGORIE_LABELS: Record<string, string> = {
   cuisinieres: "Cuisinières",
   jardinier: "Jardinier / Brahim",
   hebergement: "Hébergement (réparation, achat, mobilier...)",
+  autre: "Autre",
 };
 
 export function AddCashEntryDialog({

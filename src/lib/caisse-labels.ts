@@ -11,6 +11,7 @@ export const CATEGORIE_LABELS: Record<string, string> = {
   cuisinieres: "Cuisinières",
   jardinier: "Jardinier / Brahim",
   hebergement: "Hébergement",
+  autre: "Autre",
 };
 
 export type Entry = {

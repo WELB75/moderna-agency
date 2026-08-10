@@ -202,6 +202,7 @@ export const cashEntryCategorieEnum = pgEnum("cash_entry_categorie", [
   "cuisinieres",
   "jardinier",
   "hebergement", // réparations/achats liés à un bien précis (store, coussins, mobilier...) — voir villaId
+  "autre", // ne rentre dans aucune des 4 catégories ci-dessus (ex. part société, frais divers)
 ]);
 
 export const cashEntries = pgTable("cash_entries", {
