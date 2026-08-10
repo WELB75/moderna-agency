@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { Select as SelectPrimitive } from "radix-ui";
 import { Search, X, Loader2, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { SelectContent, SelectItem } from "@/components/ui/select";
 import {
   reassignPlanningAffectation,
@@ -256,27 +255,28 @@ function JourCard({
 }) {
   const estAujourdhui = isSameDay(date, now);
   const filtrees = q ? entries.filter((e) => entreeCorrespond(e, q)) : entries;
+  // Aujourd'hui est signalé par un encadrement noir de la date, pas par un badge "Aujourd'hui" —
+  // Kamel, 2026-08-10 : "c'est pas homogène à cause de 'aujourd'hui' [...] encadre en noir la
+  // date [...] écris pas aujourd'hui" : le badge forçait le texte de la date à passer sur 3
+  // lignes au lieu de 2 comme les autres colonnes, cassant l'alignement de la grille.
+  const dateClass = cn(
+    "text-sm font-medium capitalize",
+    estAujourdhui && "rounded border border-foreground px-1.5 py-0.5"
+  );
   return (
-    <Card className={cn("min-w-0", (estAujourdhui || selected) && !pleineLargeur && "border-foreground/40")}>
+    <Card className={cn("min-w-0", selected && !pleineLargeur && "border-foreground/40")}>
       <CardHeader className="pb-1.5">
         {onSelect ? (
           <button
             type="button"
             onClick={onSelect}
-            className={cn(
-              "flex items-center gap-1.5 text-left text-sm font-medium capitalize hover:underline",
-              selected && "underline"
-            )}
+            className={cn(dateClass, "text-left hover:underline", selected && "underline")}
             title="Voir le résumé de ce jour"
           >
             {format(date, "EEEE d MMMM", { locale: fr })}
-            {estAujourdhui ? <Badge>Aujourd&apos;hui</Badge> : null}
           </button>
         ) : (
-          <CardTitle className="flex items-center gap-1.5 text-sm font-medium capitalize">
-            {format(date, "EEEE d MMMM", { locale: fr })}
-            {estAujourdhui ? <Badge>Aujourd&apos;hui</Badge> : null}
-          </CardTitle>
+          <CardTitle className={dateClass}>{format(date, "EEEE d MMMM", { locale: fr })}</CardTitle>
         )}
       </CardHeader>
       <CardContent className="space-y-1.5">
