@@ -117,6 +117,14 @@ export default async function PublicPlanningPage({
   }
 
   const joursSemaine = Array.from({ length: 7 }, (_, i) => addDays(debutSemaine, i));
+  // Kamel, 2026-08-11 : "le jour J est toujours en haut [...] comme ça on gagne du temps" —
+  // dans la semaine courante, aujourd'hui remonte en première position (suivi du reste de la
+  // semaine dans l'ordre), au lieu de toujours démarrer lundi et forcer à scroller jusqu'à
+  // aujourd'hui. Une semaine passée/future ne contient pas "aujourd'hui" : elle garde l'ordre
+  // chronologique normal.
+  const indexAujourdhui = joursSemaine.findIndex((d) => isSameDay(d, now));
+  const joursOrdonnes =
+    indexAujourdhui > 0 ? [...joursSemaine.slice(indexAujourdhui), ...joursSemaine.slice(0, indexAujourdhui)] : joursSemaine;
   const entreesAujourdhui = planningPourJour(now);
   const occupeesAujourdhuiIds = new Set(entreesAujourdhui.map((e) => e.personnelId));
 
@@ -164,7 +172,7 @@ export default async function PublicPlanningPage({
       </div>
 
       <PublicPlanningGrid
-        jours={joursSemaine.map((date) => ({ date, entries: planningPourJour(date) }))}
+        jours={joursOrdonnes.map((date) => ({ date, entries: planningPourJour(date) }))}
         now={now}
         token={token}
         menageOptions={menageOptions}
