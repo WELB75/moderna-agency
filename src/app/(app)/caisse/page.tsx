@@ -1,5 +1,5 @@
-import { desc, eq, ne, gte, lte, and } from "drizzle-orm";
-import { subDays, startOfMonth, endOfMonth, subMonths, addMonths, format } from "date-fns";
+import { desc, eq, ne, gte, lt, and } from "drizzle-orm";
+import { subDays, startOfMonth, subMonths, addMonths, format } from "date-fns";
 import { fr } from "date-fns/locale";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -13,8 +13,25 @@ import { CaisseStats } from "@/components/app/caisse-stats";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import type { Entry } from "@/lib/caisse-labels";
 
+// Le mois comptable convenu avec la comptable ne suit pas le mois calendaire : il court
+// du 11 au 10 du mois suivant (ex. "juillet" = 11 juillet → 10 août inclus).
+const JOUR_DEBUT_PERIODE = 11;
+
 function moisHref(date: Date): string {
   return `/caisse?mois=${format(date, "yyyy-MM")}`;
+}
+
+function periodeAncre(mois?: string): Date {
+  if (mois && /^\d{4}-\d{2}$/.test(mois)) return new Date(`${mois}-01T00:00:00`);
+  const now = new Date();
+  return startOfMonth(now.getDate() >= JOUR_DEBUT_PERIODE ? now : subMonths(now, 1));
+}
+
+function periodeBounds(ancre: Date): { debut: Date; finExclusive: Date; finAffichee: Date } {
+  const debut = new Date(ancre.getFullYear(), ancre.getMonth(), JOUR_DEBUT_PERIODE);
+  const finExclusive = new Date(ancre.getFullYear(), ancre.getMonth() + 1, JOUR_DEBUT_PERIODE);
+  const finAffichee = new Date(ancre.getFullYear(), ancre.getMonth() + 1, JOUR_DEBUT_PERIODE - 1);
+  return { debut, finExclusive, finAffichee };
 }
 
 export default async function CaissePage({
@@ -25,9 +42,8 @@ export default async function CaissePage({
   const db = getDb();
 
   const { mois } = await searchParams;
-  const moisAncre = mois && /^\d{4}-\d{2}$/.test(mois) ? new Date(`${mois}-01T00:00:00`) : new Date();
-  const debutMois = startOfMonth(moisAncre);
-  const finMois = endOfMonth(moisAncre);
+  const moisAncre = periodeAncre(mois);
+  const { debut: debutMois, finExclusive: finMoisExclusive, finAffichee } = periodeBounds(moisAncre);
 
   const entries = (
     await db
@@ -53,7 +69,7 @@ export default async function CaissePage({
       .leftJoin(villas, eq(cashEntries.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .leftJoin(reservations, eq(cashEntries.reservationId, reservations.id))
-      .where(and(gte(cashEntries.createdAt, debutMois), lte(cashEntries.createdAt, finMois)))
+      .where(and(gte(cashEntries.createdAt, debutMois), lt(cashEntries.createdAt, finMoisExclusive)))
       .orderBy(desc(cashEntries.createdAt))
   ).filter((e) => domaineEstActif(e.domaineNom));
 
@@ -95,26 +111,31 @@ export default async function CaissePage({
           <h1 className="text-2xl font-semibold tracking-tight">Caisse</h1>
           <p className="text-sm text-muted-foreground">Argent confié, dépenses et restitutions</p>
         </div>
-        <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
-          <Link
-            href={moisHref(subMonths(moisAncre, 1))}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Mois précédent"
-            title="Mois précédent"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <p className="min-w-32 px-1.5 text-center text-sm font-medium capitalize">
-            {format(moisAncre, "MMMM yyyy", { locale: fr })}
+        <div className="flex flex-col items-end gap-1">
+          <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
+            <Link
+              href={moisHref(subMonths(moisAncre, 1))}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Période précédente"
+              title="Période précédente"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+            <p className="min-w-32 px-1.5 text-center text-sm font-medium capitalize">
+              {format(moisAncre, "MMMM yyyy", { locale: fr })}
+            </p>
+            <Link
+              href={moisHref(addMonths(moisAncre, 1))}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Période suivante"
+              title="Période suivante"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {format(debutMois, "d MMM", { locale: fr })} → {format(finAffichee, "d MMM yyyy", { locale: fr })}
           </p>
-          <Link
-            href={moisHref(addMonths(moisAncre, 1))}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Mois suivant"
-            title="Mois suivant"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Link>
         </div>
       </div>
 
