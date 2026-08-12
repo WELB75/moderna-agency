@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Plus, X } from "lucide-react";
+import { Plus, X, ScanLine, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SignaturePad, type SignaturePadHandle } from "@/components/app/signature-pad";
 import { IdPhotoCapture } from "@/components/app/id-photo-capture";
 import { submitGendarmerieOccupants, type OccupantInput } from "@/lib/actions/gendarmerie";
+import { analyzePassportImagePublic } from "@/lib/actions/gendarmerie-import";
 import {
   FIELD_KEYS,
   FIELD_LABELS,
@@ -17,8 +18,23 @@ import {
   UI_TEXT,
   DATE_FIELD_KEYS,
   emptyOccupant,
+  translateOcrWarning,
   type GendarmerieLang,
 } from "@/lib/gendarmerie-i18n";
+
+// Champs que la lecture MRZ peut effectivement remplir — sert à ne fusionner que ceux-là dans
+// l'occupant existant plutôt que d'écraser des champs déjà saisis (dateArrivee, allantA...) avec
+// les valeurs vides du résultat OCR.
+const OCR_FIELDS = [
+  "nom",
+  "prenom",
+  "dateNaissance",
+  "nationalite",
+  "venantDe",
+  "typePiece",
+  "numeroPiece",
+  "photoPieceUrl",
+] as const satisfies readonly (keyof OccupantInput)[];
 
 export function GendarmerieForm({
   formId,
@@ -45,6 +61,36 @@ export function GendarmerieForm({
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
   const sigRefs = useRef<(SignaturePadHandle | null)[]>([]);
+  const [scanningIndex, setScanningIndex] = useState<number | null>(null);
+  const scanInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  async function scanOccupant(index: number, file: File) {
+    setScanningIndex(index);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await analyzePassportImagePublic(formId, formData);
+      setOccupants((prev) =>
+        prev.map((o, i) => {
+          if (i !== index) return o;
+          const merged = { ...o };
+          for (const key of OCR_FIELDS) {
+            if (result.occupant[key]) merged[key] = result.occupant[key];
+          }
+          return merged;
+        })
+      );
+      if (result.warnings.length > 0) {
+        result.warnings.forEach((w) => toast.warning(translateOcrWarning(w, lang!)));
+      } else {
+        toast.success(UI_TEXT[lang!].scanSuccess);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur / Error");
+    } finally {
+      setScanningIndex(null);
+    }
+  }
 
   if (!lang) {
     return (
@@ -125,6 +171,42 @@ export function GendarmerieForm({
                   </Button>
                 ) : null}
               </div>
+
+              <div className="space-y-1.5 rounded-md border border-dashed p-3">
+                <input
+                  ref={(el) => {
+                    scanInputRefs.current[index] = el;
+                  }}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) scanOccupant(index, file);
+                    e.target.value = "";
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={scanningIndex !== null}
+                  onClick={() => scanInputRefs.current[index]?.click()}
+                >
+                  {scanningIndex === index ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t.scanning}
+                    </>
+                  ) : (
+                    <>
+                      <ScanLine className="h-4 w-4" />
+                      {t.scanPassportButton}
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground">{t.scanHint}</p>
+              </div>
+
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {FIELD_KEYS.map((key) => (
                   <div key={key} className="space-y-1.5">

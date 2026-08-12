@@ -3,12 +3,15 @@ import { fr, enUS } from "date-fns/locale";
 
 export type MessageLang = "fr" | "en";
 
-// Message unique envoyé au client avant son arrivée : demande l'horaire, et transmet le lien
-// de la fiche de police dans le même message si elle n'est pas déjà complétée (un seul message
-// plutôt que deux, un seul bouton à cliquer). Le "quand" s'adapte à la date réelle (comparée à
-// l'heure marocaine passée en "now", pas l'heure serveur) pour rester juste si envoyé à l'avance.
-// Salutation neutre ("Bonjour"/"Hello") plutôt que religieuse : tous les clients ne sont pas
-// musulmans. Existe en français et en anglais, au choix, pour les clients non-francophones.
+// Message unique envoyé au client avant son arrivée : demande l'horaire, transmet le lien de la
+// fiche de police dans le même message si elle n'est pas déjà complétée, et propose la cuisinière
+// avec les prix écrits noir sur blanc (un seul message plutôt que plusieurs, un seul bouton à
+// cliquer). Le lien fiche police fait maintenant tout le travail (photo du passeport → champs
+// remplis automatiquement → signature), donc on ne propose plus l'alternative "envoyez la photo
+// ici sur WhatsApp" : un seul choix, plus simple et plus pro. Le "quand" s'adapte à la date réelle
+// (comparée à l'heure marocaine passée en "now", pas l'heure serveur) pour rester juste si envoyé
+// à l'avance. Salutation neutre ("Bonjour"/"Hello") plutôt que religieuse : tous les clients ne
+// sont pas musulmans. Existe en français et en anglais, au choix, pour les clients non-francophones.
 export function buildArrivalMessage(
   guestName: string,
   checkIn: Date,
@@ -16,6 +19,9 @@ export function buildArrivalMessage(
   ficheLink: string | null,
   lang: MessageLang = "fr"
 ): string {
+  const cuisineFr = "Souhaitez-vous également les services d'une cuisinière pendant votre séjour ?\n- Petit-déjeuner : 200 MAD/jour\n- Petit-déjeuner + déjeuner : 300 MAD/jour";
+  const cuisineEn = "Would you also like the services of a cook during your stay?\n- Breakfast only: 200 MAD/day\n- Breakfast + lunch: 300 MAD/day";
+
   if (lang === "en") {
     const when = isSameDay(checkIn, now)
       ? "today"
@@ -25,9 +31,11 @@ export function buildArrivalMessage(
 
     const base = `Hello ${guestName},\n\nI hope you are doing well.\n\nThis is Kamel, regarding your check-in ${when}.\n\nDo you have an idea of your arrival time at the villa?`;
 
-    if (!ficheLink) return `${base}\n\nThank you,\nKamel, Moderna Agency`;
+    const fiche = ficheLink
+      ? `For the police registration form (required for the security of the domain and to protect you as well as the owner), just fill it in here: ${ficheLink}\nTake a photo of your passport's photo page and the fields fill in automatically — just check and sign.`
+      : null;
 
-    return `${base}\n\nI'm also sending you the link to fill in the police registration form, required for the security of the domain and to protect you as well as the owner:\n\n${ficheLink}\n\nThank you,\nKamel, Moderna Agency`;
+    return [base, fiche, cuisineEn, "Thank you,\nKamel, Moderna Agency"].filter(Boolean).join("\n\n");
   }
 
   const quand = isSameDay(checkIn, now)
@@ -38,9 +46,11 @@ export function buildArrivalMessage(
 
   const base = `Bonjour ${guestName},\n\nJ'espère que vous allez bien.\n\nC'est Kamel, pour votre check-in ${quand}.\n\nAvez-vous une idée de votre horaire d'arrivée à la villa ?`;
 
-  if (!ficheLink) return `${base}\n\nMerci,\nKamel, Moderna Agency`;
+  const fiche = ficheLink
+    ? `Pour la fiche de police (obligatoire, sécurité du domaine et protection du client comme du propriétaire), remplissez-la simplement ici : ${ficheLink}\nPrenez juste en photo la page avec votre photo sur le passeport, les champs se remplissent automatiquement — il ne reste plus qu'à vérifier et signer.`
+    : null;
 
-  return `${base}\n\nJe vous transmets aussi le lien pour compléter la fiche de police, nécessaire pour la sécurité du domaine et pour vous protéger ainsi que le propriétaire :\n\n${ficheLink}\n\nMerci,\nKamel, Moderna Agency`;
+  return [base, fiche, cuisineFr, "Merci,\nKamel, Moderna Agency"].filter(Boolean).join("\n\n");
 }
 
 // Message envoyé avec la localisation du domaine, pour que le client trouve facilement le

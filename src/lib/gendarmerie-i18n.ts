@@ -142,6 +142,10 @@ export const UI_TEXT: Record<
     signOnlyTitle: string;
     signOnlySubtitle: (villaNom: string) => string;
     signOnlyConfirmName: string;
+    scanPassportButton: string;
+    scanning: string;
+    scanHint: string;
+    scanSuccess: string;
   }
 > = {
   fr: {
@@ -165,6 +169,10 @@ export const UI_TEXT: Record<
     signOnlyTitle: "Vérifiez vos informations et signez",
     signOnlySubtitle: (v) => `Vos informations ont déjà été saisies pour votre séjour à ${v}. Merci de vérifier puis de signer.`,
     signOnlyConfirmName: "Tapez votre nom complet pour confirmer et signez ci-dessous",
+    scanPassportButton: "Scanner mon passeport",
+    scanning: "Lecture en cours...",
+    scanHint: "Prends en photo la page avec ta photo — les champs se remplissent automatiquement, vérifie avant de signer.",
+    scanSuccess: "Champs remplis automatiquement — vérifie avant de signer.",
   },
   en: {
     title: "Police registration form",
@@ -187,6 +195,10 @@ export const UI_TEXT: Record<
     signOnlyTitle: "Review your information and sign",
     signOnlySubtitle: (v) => `Your information has already been entered for your stay at ${v}. Please review it, then sign.`,
     signOnlyConfirmName: "Type your full name to confirm, then sign below",
+    scanPassportButton: "Scan my passport",
+    scanning: "Reading...",
+    scanHint: "Take a photo of the page with your photo on it — the fields fill in automatically, please check before signing.",
+    scanSuccess: "Fields filled in automatically — please check before signing.",
   },
   es: {
     title: "Ficha de policía",
@@ -209,6 +221,10 @@ export const UI_TEXT: Record<
     signOnlyTitle: "Verifica tus datos y firma",
     signOnlySubtitle: (v) => `Tus datos ya han sido introducidos para tu estancia en ${v}. Revísalos y luego firma.`,
     signOnlyConfirmName: "Escribe tu nombre completo para confirmar y firma abajo",
+    scanPassportButton: "Escanear mi pasaporte",
+    scanning: "Leyendo...",
+    scanHint: "Haz una foto de la página con tu foto — los campos se rellenan automáticamente, revísalos antes de firmar.",
+    scanSuccess: "Campos rellenados automáticamente — revísalos antes de firmar.",
   },
   ar: {
     title: "ورقة شخصية (الشرطة)",
@@ -231,6 +247,10 @@ export const UI_TEXT: Record<
     signOnlyTitle: "تحقق من معلوماتك ووقّع",
     signOnlySubtitle: (v) => `تم إدخال معلوماتك بالفعل لإقامتكم في ${v}. يرجى التحقق منها ثم التوقيع.`,
     signOnlyConfirmName: "اكتب اسمك الكامل للتأكيد ثم وقّع أدناه",
+    scanPassportButton: "امسح جواز سفري",
+    scanning: "جارٍ القراءة...",
+    scanHint: "التقط صورة للصفحة التي بها صورتك — ستُملأ الحقول تلقائيا، تحقق منها قبل التوقيع.",
+    scanSuccess: "تم ملء الحقول تلقائيا — تحقق منها قبل التوقيع.",
   },
   nl: {
     title: "Politieformulier (gendarmerie)",
@@ -253,8 +273,56 @@ export const UI_TEXT: Record<
     signOnlySubtitle: (v) => `Uw gegevens zijn al ingevoerd voor uw verblijf in ${v}. Controleer ze en onderteken daarna.`,
     signOnlyConfirmName: "Typ uw volledige naam ter bevestiging en onderteken hieronder",
     photoPiece: "Foto van uw identiteitsdocument (paspoort, ID-kaart...)",
+    scanPassportButton: "Mijn paspoort scannen",
+    scanning: "Bezig met lezen...",
+    scanHint: "Maak een foto van de pagina met uw foto — de velden worden automatisch ingevuld, controleer ze voor u ondertekent.",
+    scanSuccess: "Velden automatisch ingevuld — controleer ze voor u ondertekent.",
   },
 };
+
+// Les avertissements de src/lib/passport-ocr.ts sont générés en français (usage interne
+// d'origine) ; ce mini-dictionnaire les traduit pour l'écran public multilingue. Toute chaîne
+// inconnue retombe sur le français plutôt que de planter — mieux qu'un avertissement manquant.
+const OCR_WARNING_TRANSLATIONS: Record<string, Partial<Record<GendarmerieLang, string>>> = {
+  "MRZ lue mais certains champs semblent incorrects (photo penchée/floue ?) — à vérifier.": {
+    en: "MRZ read but some fields look incorrect (tilted/blurry photo?) — please check.",
+    es: "MRZ leída pero algunos campos parecen incorrectos (¿foto torcida o borrosa?) — revisa.",
+    ar: "تمت قراءة شريط MRZ لكن بعض الحقول تبدو غير صحيحة (صورة مائلة أو غير واضحة؟) — تحقق منها.",
+    nl: "MRZ gelezen maar sommige velden lijken onjuist (scheve/onscherpe foto?) — controleer.",
+  },
+  "Zone MRZ (bas de la page passeport) non lue avec certitude — remplis les champs à la main.": {
+    en: "MRZ zone (bottom of the passport page) not read with certainty — please fill in the fields by hand.",
+    es: "Zona MRZ (parte inferior de la página del pasaporte) no leída con certeza — rellena los campos a mano.",
+    ar: "لم تتم قراءة منطقة MRZ (أسفل صفحة جواز السفر) بشكل مؤكد — يرجى ملء الحقول يدويا.",
+    nl: "MRZ-zone (onderaan de paspoortpagina) niet met zekerheid gelezen — vul de velden handmatig in.",
+  },
+};
+
+const NATIONALITE_WARNING = /^Nationalité "(.+)" non reconnue — à compléter à la main\.$/;
+const NATIONALITE_WARNING_TRANSLATIONS: Partial<Record<GendarmerieLang, (code: string) => string>> = {
+  en: (code) => `Nationality "${code}" not recognized — please fill in by hand.`,
+  es: (code) => `Nacionalidad "${code}" no reconocida — complétala a mano.`,
+  ar: (code) => `الجنسية "${code}" غير معروفة — يرجى إدخالها يدويا.`,
+  nl: (code) => `Nationaliteit "${code}" niet herkend — vul deze handmatig in.`,
+};
+
+// Les avertissements de src/lib/passport-ocr.ts sont générés en français (usage interne
+// d'origine) ; cette fonction les traduit pour l'écran public multilingue. Toute chaîne
+// inconnue retombe sur le français plutôt que de planter — mieux qu'un avertissement manquant.
+export function translateOcrWarning(warning: string, lang: GendarmerieLang): string {
+  if (lang === "fr") return warning;
+
+  const exact = OCR_WARNING_TRANSLATIONS[warning]?.[lang];
+  if (exact) return exact;
+
+  const nationaliteMatch = warning.match(NATIONALITE_WARNING);
+  if (nationaliteMatch) {
+    const translate = NATIONALITE_WARNING_TRANSLATIONS[lang];
+    if (translate) return translate(nationaliteMatch[1]);
+  }
+
+  return warning;
+}
 
 export function emptyOccupant() {
   return {

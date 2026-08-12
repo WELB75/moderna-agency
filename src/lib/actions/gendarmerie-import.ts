@@ -2,6 +2,7 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
+import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants } from "@/db/schema";
 import { extractPassport } from "@/lib/passport-ocr";
@@ -16,14 +17,10 @@ export type PassportAnalysis = {
   mrzValid: boolean;
 };
 
-// Lecture 100% locale (OCR + MRZ), sans API IA payante — voir src/lib/passport-ocr.ts pour les
-// limites : fiable sur nom/prénom/naissance/nationalité/numéro quand la MRZ est lue, sinon les
-// champs restent vides et sont à saisir à la main dans l'écran de relecture.
-export async function analyzePassportImage(formData: FormData): Promise<PassportAnalysis> {
-  await auth.protect();
-
+async function runPassportAnalysis(formData: FormData): Promise<PassportAnalysis> {
   const file = formData.get("file");
   if (!(file instanceof File)) throw new Error("Fichier manquant.");
+  if (file.size > 15 * 1024 * 1024) throw new Error("Photo trop lourde (max 15 Mo).");
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const result = await extractPassport(buffer);
@@ -41,6 +38,31 @@ export async function analyzePassportImage(formData: FormData): Promise<Passport
   };
 
   return { occupant, warnings: result.warnings, mrzFound: result.mrzFound, mrzValid: result.mrzValid };
+}
+
+// Lecture 100% locale (OCR + MRZ), sans API IA payante — voir src/lib/passport-ocr.ts pour les
+// limites : fiable sur nom/prénom/naissance/nationalité/numéro quand la MRZ est lue, sinon les
+// champs restent vides et sont à saisir à la main dans l'écran de relecture.
+export async function analyzePassportImage(formData: FormData): Promise<PassportAnalysis> {
+  await auth.protect();
+  return runPassportAnalysis(formData);
+}
+
+// Volontairement sans auth.protect() : appelée depuis le formulaire public /g/[id] pour que le
+// client scanne lui-même son passeport (au lieu de tout ressaisir à la main). Sécurisée par le
+// même principe que le reste du flux public : il faut connaître l'identifiant (non devinable) du
+// formulaire, et celui-ci doit exister et ne pas être déjà complété.
+export async function analyzePassportImagePublic(formId: string, formData: FormData): Promise<PassportAnalysis> {
+  const db = getDb();
+  const [form] = await db
+    .select({ id: gendarmerieForms.id, statut: gendarmerieForms.statut })
+    .from(gendarmerieForms)
+    .where(eq(gendarmerieForms.id, formId))
+    .limit(1);
+  if (!form) throw new Error("Formulaire introuvable.");
+  if (form.statut === "complete") throw new Error("Ce formulaire a déjà été rempli.");
+
+  return runPassportAnalysis(formData);
 }
 
 export async function saveImportedGendarmerieForm(villaId: string, occupants: OccupantInput[]) {
