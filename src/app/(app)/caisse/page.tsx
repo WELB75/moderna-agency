@@ -51,6 +51,7 @@ export default async function CaissePage({
         id: cashEntries.id,
         type: cashEntries.type,
         categorie: cashEntries.categorie,
+        caisse: cashEntries.caisse,
         financePar: cashEntries.financePar,
         moyenPaiement: cashEntries.moyenPaiement,
         montant: cashEntries.montant,
@@ -192,20 +193,37 @@ function CaissePanel({
         // mais distinctes du loyer pur — donc jamais additionnées dans "Total loyers reçus".
         const totalLoyer = enDevise.filter((e) => e.type === "loyer").reduce((s, e) => s + Number(e.montant), 0);
         const totalExtra = enDevise.filter((e) => e.type === "extra").reduce((s, e) => s + Number(e.montant), 0);
-        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+        // Le solde société ne doit compter que ce qui appartient à sa propre caisse — l'argent
+        // confié à Brahim (caisse dédiée, voir plus bas) n'en fait pas partie.
+        const totalRemise = enDevise
+          .filter((e) => e.type === "remise" && e.caisse === "societe")
+          .reduce((s, e) => s + Number(e.montant), 0);
         // Seules les dépenses financées par l'avance société comptent contre le solde société —
         // une dépense payée avec les loyers personnels de Kamel n'est pas une dette de la société
         // envers lui (voir cashFinanceParEnum dans db/schema.ts), donc exclue de ce calcul.
         const totalDepenseSociete = enDevise
-          .filter((e) => e.type === "depense" && e.financePar === "societe")
+          .filter((e) => e.type === "depense" && e.caisse === "societe" && e.financePar === "societe")
           .reduce((s, e) => s + Number(e.montant), 0);
         const totalDepenseLoyers = enDevise
           .filter((e) => e.type === "depense" && e.financePar === "loyers_perso")
           .reduce((s, e) => s + Number(e.montant), 0);
         const totalRestitution = enDevise
-          .filter((e) => e.type === "restitution")
+          .filter((e) => e.type === "restitution" && e.caisse === "societe")
           .reduce((s, e) => s + Number(e.montant), 0);
         const soldeSociete = totalRemise - totalDepenseSociete - totalRestitution;
+
+        // Caisse dédiée à Brahim (jardinier + coursier) : même logique que la caisse société,
+        // mais son propre solde — l'argent qu'on lui confie ne doit pas se mélanger au reste.
+        const totalRemiseBrahim = enDevise
+          .filter((e) => e.type === "remise" && e.caisse === "brahim")
+          .reduce((s, e) => s + Number(e.montant), 0);
+        const totalDepenseBrahim = enDevise
+          .filter((e) => e.type === "depense" && e.caisse === "brahim")
+          .reduce((s, e) => s + Number(e.montant), 0);
+        const totalRestitutionBrahim = enDevise
+          .filter((e) => e.type === "restitution" && e.caisse === "brahim")
+          .reduce((s, e) => s + Number(e.montant), 0);
+        const soldeBrahim = totalRemiseBrahim - totalDepenseBrahim - totalRestitutionBrahim;
 
         return (
           <div key={devise} className="space-y-4">
@@ -230,6 +248,17 @@ function CaissePanel({
                 <SummaryCard label="Solde société" value={soldeSociete} devise={devise} highlight />
                 <SummaryCard label="Total confié (société)" value={totalRemise} devise={devise} />
                 <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Brahim (confié / dépenses)
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <SummaryCard label="Solde Brahim" value={soldeBrahim} devise={devise} highlight />
+                <SummaryCard label="Total confié (Brahim)" value={totalRemiseBrahim} devise={devise} />
+                <SummaryCard label="Total restitué" value={totalRestitutionBrahim} devise={devise} />
               </div>
             </div>
           </div>

@@ -14,6 +14,7 @@ export async function createCashEntry(formData: FormData) {
   const reservationId = String(formData.get("reservationId") ?? "").trim() || null;
   const type = String(formData.get("type") ?? "");
   const categorie = String(formData.get("categorie") ?? "").trim() || null;
+  const caisse = String(formData.get("caisse") ?? "societe");
   const financePar = String(formData.get("financePar") ?? "societe");
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "especes");
   const montant = String(formData.get("montant") ?? "").trim();
@@ -26,12 +27,15 @@ export async function createCashEntry(formData: FormData) {
   if (!["remise", "loyer", "extra", "depense", "restitution"].includes(type)) {
     throw new Error("Type de mouvement invalide.");
   }
+  if (!["societe", "brahim"].includes(caisse)) {
+    throw new Error("Caisse invalide.");
+  }
   if (!["societe", "loyers_perso"].includes(financePar)) {
     throw new Error("Source de financement invalide.");
   }
   if (
     categorie &&
-    !["femmes_menage", "cuisinieres", "jardinier", "hebergement", "autre"].includes(categorie)
+    !["femmes_menage", "cuisinieres", "jardinier", "coursier", "hebergement", "autre"].includes(categorie)
   ) {
     throw new Error("Catégorie de dépense invalide.");
   }
@@ -56,8 +60,9 @@ export async function createCashEntry(formData: FormData) {
     type: type as "remise" | "loyer" | "extra" | "depense" | "restitution",
     categorie:
       type === "depense"
-        ? (categorie as "femmes_menage" | "cuisinieres" | "jardinier" | "hebergement" | "autre")
+        ? (categorie as "femmes_menage" | "cuisinieres" | "jardinier" | "coursier" | "hebergement" | "autre")
         : null,
+    caisse: ["remise", "depense", "restitution"].includes(type) ? (caisse as "societe" | "brahim") : "societe",
     financePar: type === "depense" ? (financePar as "societe" | "loyers_perso") : "societe",
     moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",
     montant: montantNum.toFixed(2),

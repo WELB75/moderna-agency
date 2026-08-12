@@ -201,9 +201,15 @@ export const cashEntryCategorieEnum = pgEnum("cash_entry_categorie", [
   "femmes_menage",
   "cuisinieres",
   "jardinier",
+  "coursier", // courses/livraisons confiées à Brahim, distinct de son travail de jardinage
   "hebergement", // réparations/achats liés à un bien précis (store, coussins, mobilier...) — voir villaId
   "autre", // ne rentre dans aucune des 4 catégories ci-dessus (ex. part société, frais divers)
 ]);
+
+// À qui appartient ce mouvement de caisse : la caisse société (par défaut) ou une caisse
+// dédiée à une personne — demande du patron, 2026-08-12 : Brahim (jardinier + coursier) a sa
+// propre avance à suivre séparément, avec son propre solde (remise - dépense - restitution).
+export const cashCaisseEnum = pgEnum("cash_caisse", ["societe", "brahim"]);
 
 export const cashEntries = pgTable("cash_entries", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -211,6 +217,7 @@ export const cashEntries = pgTable("cash_entries", {
   reservationId: uuid("reservation_id").references(() => reservations.id, { onDelete: "set null" }),
   type: cashEntryTypeEnum("type").notNull(),
   categorie: cashEntryCategorieEnum("categorie"),
+  caisse: cashCaisseEnum("caisse").default("societe").notNull(),
   moyenPaiement: moyenPaiementCaisseEnum("moyen_paiement").default("especes").notNull(),
   financePar: cashFinanceParEnum("finance_par").default("societe").notNull(),
   montant: numeric("montant", { precision: 10, scale: 2 }).notNull(),

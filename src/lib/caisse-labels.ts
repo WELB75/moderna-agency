@@ -10,14 +10,21 @@ export const CATEGORIE_LABELS: Record<string, string> = {
   femmes_menage: "Femmes de ménage",
   cuisinieres: "Cuisinières",
   jardinier: "Jardinier / Brahim",
+  coursier: "Coursier / Brahim",
   hebergement: "Hébergement",
   autre: "Autre",
+};
+
+export const CAISSE_LABELS: Record<string, string> = {
+  societe: "Société",
+  brahim: "Brahim",
 };
 
 export type Entry = {
   id: string;
   type: string;
   categorie: string | null;
+  caisse: string;
   financePar: string;
   montant: string;
   devise: string;

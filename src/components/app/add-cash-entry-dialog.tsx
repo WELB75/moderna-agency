@@ -37,8 +37,14 @@ const CATEGORIE_LABELS: Record<string, string> = {
   femmes_menage: "Femmes de ménage",
   cuisinieres: "Cuisinières",
   jardinier: "Jardinier / Brahim",
+  coursier: "Coursier / Brahim",
   hebergement: "Hébergement (réparation, achat, mobilier...)",
   autre: "Autre",
+};
+
+const CAISSE_LABELS: Record<string, string> = {
+  societe: "Société",
+  brahim: "Brahim (jardinier / coursier)",
 };
 
 export function AddCashEntryDialog({
@@ -53,6 +59,7 @@ export function AddCashEntryDialog({
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("remise");
   const [categorie, setCategorie] = useState("");
+  const [caisse, setCaisse] = useState("societe");
   const [financePar, setFinancePar] = useState("societe");
   const [devise, setDevise] = useState("MAD");
   const [villaId, setVillaId] = useState("");
@@ -91,8 +98,10 @@ export function AddCashEntryDialog({
   }
 
   async function handleSubmit(formData: FormData) {
+    const caisseApplicable = ["remise", "depense", "restitution"].includes(type);
     formData.set("type", type);
     formData.set("categorie", type === "depense" ? categorie : "");
+    formData.set("caisse", caisseApplicable ? caisse : "societe");
     formData.set("financePar", type === "depense" ? financePar : "societe");
     formData.set("moyenPaiement", moyenPaiement);
     formData.set("devise", devise);
@@ -107,6 +116,7 @@ export function AddCashEntryDialog({
         setReservationId("");
         setFinancePar("societe");
         setCategorie("");
+        setCaisse("societe");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -134,7 +144,7 @@ export function AddCashEntryDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="remise">Argent confié par la société (remise)</SelectItem>
+                <SelectItem value="remise">Argent confié (remise)</SelectItem>
                 <SelectItem value="loyer">Loyer reçu d&apos;un client</SelectItem>
                 <SelectItem value="extra">Extra reçu d&apos;un client (petit-déj, options...)</SelectItem>
                 <SelectItem value="depense">Dépense</SelectItem>
@@ -142,6 +152,23 @@ export function AddCashEntryDialog({
               </SelectContent>
             </Select>
           </div>
+          {["remise", "depense", "restitution"].includes(type) ? (
+            <div className="space-y-1.5">
+              <Label>Caisse</Label>
+              <Select value={caisse} onValueChange={setCaisse}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CAISSE_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           {type === "depense" ? (
             <>
               <div className="space-y-1.5">
@@ -164,18 +191,20 @@ export function AddCashEntryDialog({
                   </p>
                 ) : null}
               </div>
-              <div className="space-y-1.5">
-                <Label>Financé par</Label>
-                <Select value={financePar} onValueChange={setFinancePar}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="societe">Société (compte dans ce qu&apos;elle te doit)</SelectItem>
-                    <SelectItem value="loyers_perso">Mes loyers perso (pas de remboursement dû)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              {caisse === "societe" ? (
+                <div className="space-y-1.5">
+                  <Label>Financé par</Label>
+                  <Select value={financePar} onValueChange={setFinancePar}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="societe">Société (compte dans ce qu&apos;elle te doit)</SelectItem>
+                      <SelectItem value="loyers_perso">Mes loyers perso (pas de remboursement dû)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
             </>
           ) : null}
           <div className="grid grid-cols-2 gap-3">
