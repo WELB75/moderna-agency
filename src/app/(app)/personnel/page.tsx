@@ -21,7 +21,6 @@ import {
   isSameDay,
   isBefore,
   isAfter,
-  formatDistanceToNow,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -40,13 +39,13 @@ import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { MarkPaidButton } from "@/components/app/mark-paid-button";
 import { PersonnelPlanningGrid } from "@/components/app/personnel-planning-grid";
-import { PersonnelMapLoader } from "@/components/app/personnel-map-loader";
-import type { MapStaffPoint, MapDomainePoint } from "@/components/app/personnel-map";
+import { PersonnelCarteLoader } from "@/components/app/personnel-carte-loader";
+import type { CarteStaff, CarteDomaine } from "@/components/app/personnel-carte";
 import { deletePersonnel } from "@/lib/actions/personnel";
-import { domaineEstActif, filtrerDomainesActifs } from "@/lib/domaines-actifs";
+import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
-import { distanceKm, parseWazeCoords } from "@/lib/geo";
+import { distanceKm } from "@/lib/geo";
 import {
   Users,
   CalendarClock,
@@ -109,16 +108,16 @@ export default async function PersonnelPage({
 
   // Onglet Carte : dernière position connue de chaque personne (voir personnel.latitude/
   // longitude dans db/schema.ts, alimenté par un partage de localisation WhatsApp — voir
-  // updateStaffPosition), avec la distance au domaine le plus proche pour repérer d'un coup
-  // d'œil qui envoyer en cas d'urgence. Demande du patron, 2026-08-12.
-  const domainesAvecCoords: MapDomainePoint[] = filtrerDomainesActifs(
-    await db.select({ id: domaines.id, nom: domaines.nom, wazeUrl: domaines.wazeUrl }).from(domaines)
+  // updateStaffPosition), avec la distance à chaque domaine pour repérer d'un coup d'œil qui
+  // envoyer en cas d'urgence. Demande du patron, 2026-08-12 — TOUS les domaines avec des
+  // coordonnées doivent apparaître ici, y compris ceux masqués ailleurs dans l'app pendant la
+  // phase de test (voir domaines-actifs.ts) : cette carte sert à localiser le personnel, pas à
+  // filtrer les biens en location.
+  const domainesAvecCoords: CarteDomaine[] = (
+    await db.select({ id: domaines.id, nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude }).from(domaines)
   )
-    .map((d) => {
-      const coords = parseWazeCoords(d.wazeUrl);
-      return coords ? { id: d.id, nom: d.nom, latitude: coords.lat, longitude: coords.lng } : null;
-    })
-    .filter((d): d is MapDomainePoint => d !== null);
+    .filter((d): d is typeof d & { latitude: string; longitude: string } => d.latitude !== null && d.longitude !== null)
+    .map((d) => ({ id: d.id, nom: d.nom, latitude: Number(d.latitude), longitude: Number(d.longitude) }));
 
   type StaffCarteEntry = {
     id: string;
@@ -155,29 +154,25 @@ export default async function PersonnelPage({
       });
     }
   }
-  const staffCarte = [...staffParNom.values()]
-    .map((s) => {
-      if (s.latitude === null || s.longitude === null) return { ...s, domaineProche: null, distanceKm: null };
-      let domaineProche: MapDomainePoint | null = null;
-      let meilleureDistance = Infinity;
-      for (const d of domainesAvecCoords) {
-        const dist = distanceKm(s.latitude, s.longitude, d.latitude, d.longitude);
-        if (dist < meilleureDistance) {
-          meilleureDistance = dist;
-          domaineProche = d;
-        }
-      }
-      return { ...s, domaineProche, distanceKm: domaineProche ? meilleureDistance : null };
-    })
+  const staffCarte: CarteStaff[] = [...staffParNom.values()]
+    .map((s) => ({
+      ...s,
+      roles: [...s.roles],
+      distances:
+        s.latitude === null || s.longitude === null
+          ? []
+          : domainesAvecCoords
+              .map((d) => ({ domaineId: d.id, domaineNom: d.nom, km: distanceKm(s.latitude!, s.longitude!, d.latitude, d.longitude) }))
+              .sort((a, b) => a.km - b.km),
+    }))
     .sort((a, b) => {
-      if (a.distanceKm === null && b.distanceKm === null) return a.nom.localeCompare(b.nom);
-      if (a.distanceKm === null) return 1;
-      if (b.distanceKm === null) return -1;
-      return a.distanceKm - b.distanceKm;
+      const distA = a.distances[0]?.km ?? null;
+      const distB = b.distances[0]?.km ?? null;
+      if (distA === null && distB === null) return a.nom.localeCompare(b.nom);
+      if (distA === null) return 1;
+      if (distB === null) return -1;
+      return distA - distB;
     });
-  const staffAvecPosition: MapStaffPoint[] = staffCarte
-    .filter((s): s is typeof s & { latitude: number; longitude: number } => s.latitude !== null && s.longitude !== null)
-    .map((s) => ({ id: s.id, nom: s.nom, roles: [...s.roles], latitude: s.latitude, longitude: s.longitude }));
 
   // Moyenne long terme de la note qualité (ménage de départ / cuisine, voir QualiteNoteControl
   // dans personnel-affectation-editor.tsx) — toute la période, pas juste le mois affiché dans
@@ -793,50 +788,10 @@ export default async function PersonnelPage({
 
         <TabsContent value="carte" className="space-y-4">
           {domainesAvecCoords.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Aucun domaine actif n&apos;a de coordonnées exploitables (lien Waze) pour l&apos;instant.
-            </p>
+            <p className="text-sm text-muted-foreground">Aucun domaine n&apos;a de coordonnées pour l&apos;instant.</p>
           ) : (
-            <PersonnelMapLoader staff={staffAvecPosition} domaines={domainesAvecCoords} />
+            <PersonnelCarteLoader staff={staffCarte} domaines={domainesAvecCoords} />
           )}
-
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">
-                Personnel — la plus proche d&apos;abord
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {staffCarte.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
-              ) : (
-                staffCarte.map((s) => (
-                  <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-                    <div className="flex items-center gap-2">
-                      {s.roles.has("menage") ? (
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">M</span>
-                      ) : null}
-                      {s.roles.has("cuisine") ? (
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white">C</span>
-                      ) : null}
-                      <span className="font-medium">{s.nom}</span>
-                      {s.telephone ? <PhoneLink phone={s.telephone} /> : null}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {s.distanceKm !== null && s.domaineProche ? (
-                        <>
-                          <span className="font-medium text-foreground">{s.distanceKm.toFixed(1)} km</span> de {s.domaineProche.nom}
-                          {s.positionMajAt ? ` · maj ${formatDistanceToNow(s.positionMajAt, { locale: fr, addSuffix: true })}` : ""}
-                        </>
-                      ) : (
-                        "Position inconnue — pas encore partagé sa localisation par WhatsApp"
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="statistiques" className="space-y-6">

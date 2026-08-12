@@ -77,6 +77,11 @@ export const domaines = pgTable("domaines", {
   adresse: text("adresse"),
   mapsUrl: text("maps_url"), // lien Google Maps partageable (localisation du domaine)
   wazeUrl: text("waze_url"), // lien Waze partageable (localisation du domaine)
+  // Point utilisé pour la carte du personnel (distance à vol d'oiseau) — séparé de wazeUrl, qui
+  // reste le lien de navigation GPS et peut viser un point d'arrivée légèrement différent (accès
+  // voiture) du point qu'on veut afficher sur la carte. Kamel, 2026-08-12.
+  latitude: numeric("latitude", { precision: 9, scale: 6 }),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }),
   securitePhone: text("securite_phone"), // WhatsApp du gardien/sécurité du domaine
   estBase: boolean("est_base").default(false).notNull(), // entrepôt central (ex. Bureau Moderna Agency) : source des transferts de stock
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
