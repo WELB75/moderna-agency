@@ -15,11 +15,6 @@ export const CATEGORIE_LABELS: Record<string, string> = {
   autre: "Autre",
 };
 
-export const CAISSE_LABELS: Record<string, string> = {
-  societe: "Société",
-  brahim: "Brahim",
-};
-
 export type Entry = {
   id: string;
   type: string;

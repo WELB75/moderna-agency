@@ -17,7 +17,7 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { deleteCashEntry } from "@/lib/actions/caisse";
 import { cn } from "@/lib/utils";
-import { CATEGORIE_LABELS, TYPE_LABELS, CAISSE_LABELS, type Entry } from "@/lib/caisse-labels";
+import { CATEGORIE_LABELS, TYPE_LABELS, type Entry } from "@/lib/caisse-labels";
 
 export function CaisseMouvementsList({ entries }: { entries: Entry[] }) {
   const [categorieFiltre, setCategorieFiltre] = useState("toutes");
@@ -72,11 +72,6 @@ export function CaisseMouvementsList({ entries }: { entries: Entry[] }) {
                   {e.categorie ? (
                     <Badge variant="outline" className="border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300">
                       {CATEGORIE_LABELS[e.categorie] ?? e.categorie}
-                    </Badge>
-                  ) : null}
-                  {e.caisse === "brahim" ? (
-                    <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                      Caisse {CAISSE_LABELS[e.caisse] ?? e.caisse}
                     </Badge>
                   ) : null}
                   {e.type === "depense" && e.financePar === "loyers_perso" ? (

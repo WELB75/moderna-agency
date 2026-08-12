@@ -42,24 +42,23 @@ const CATEGORIE_LABELS: Record<string, string> = {
   autre: "Autre",
 };
 
-const CAISSE_LABELS: Record<string, string> = {
-  societe: "Société",
-  brahim: "Brahim (jardinier / coursier)",
-};
-
 export function AddCashEntryDialog({
   villas,
   reservations,
   moyenPaiement = "especes",
+  lockedCaisse = "societe",
 }: {
   villas: { id: string; nom: string; numero: string }[];
   reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
   moyenPaiement?: "especes" | "virement" | "carte";
+  // La caisse (société ou Brahim) est fixée par l'onglet dans lequel ce dialogue est ouvert —
+  // pas un choix libre dans le formulaire, pour ne jamais mélanger les deux (demande du patron,
+  // 2026-08-12 : la caisse Brahim doit être totalement séparée, pas juste un filtre).
+  lockedCaisse?: "societe" | "brahim";
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState("remise");
   const [categorie, setCategorie] = useState("");
-  const [caisse, setCaisse] = useState("societe");
   const [financePar, setFinancePar] = useState("societe");
   const [devise, setDevise] = useState("MAD");
   const [villaId, setVillaId] = useState("");
@@ -98,10 +97,11 @@ export function AddCashEntryDialog({
   }
 
   async function handleSubmit(formData: FormData) {
-    const caisseApplicable = ["remise", "depense", "restitution"].includes(type);
     formData.set("type", type);
-    formData.set("categorie", type === "depense" ? categorie : "");
-    formData.set("caisse", caisseApplicable ? caisse : "societe");
+    // La caisse Brahim ne sert qu'à ses courses (bons) — une seule catégorie possible,
+    // pas besoin de choisir parmi les catégories de la caisse société (jardinier, ménage...).
+    formData.set("categorie", type === "depense" ? (lockedCaisse === "brahim" ? "coursier" : categorie) : "");
+    formData.set("caisse", lockedCaisse);
     formData.set("financePar", type === "depense" ? financePar : "societe");
     formData.set("moyenPaiement", moyenPaiement);
     formData.set("devise", devise);
@@ -116,7 +116,6 @@ export function AddCashEntryDialog({
         setReservationId("");
         setFinancePar("societe");
         setCategorie("");
-        setCaisse("societe");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -133,7 +132,9 @@ export function AddCashEntryDialog({
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nouveau mouvement · {MOYEN_LABELS[moyenPaiement]}</DialogTitle>
+          <DialogTitle>
+            Nouveau mouvement · {lockedCaisse === "brahim" ? "Brahim" : MOYEN_LABELS[moyenPaiement]}
+          </DialogTitle>
           <DialogDescription>Enregistre l&apos;argent confié, dépensé ou restitué.</DialogDescription>
         </DialogHeader>
         <form action={handleSubmit} className="space-y-4">
@@ -152,46 +153,33 @@ export function AddCashEntryDialog({
               </SelectContent>
             </Select>
           </div>
-          {["remise", "depense", "restitution"].includes(type) ? (
-            <div className="space-y-1.5">
-              <Label>Caisse</Label>
-              <Select value={caisse} onValueChange={setCaisse}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(CAISSE_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          ) : null}
           {type === "depense" ? (
             <>
-              <div className="space-y-1.5">
-                <Label>Catégorie</Label>
-                <Select value={categorie} onValueChange={setCategorie} required>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Choisir une catégorie" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(CATEGORIE_LABELS).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {categorie === "hebergement" ? (
-                  <p className="text-xs text-muted-foreground">
-                    Pense à sélectionner le bien concerné ci-dessous.
-                  </p>
-                ) : null}
-              </div>
-              {caisse === "societe" ? (
+              {lockedCaisse !== "brahim" ? (
+                <div className="space-y-1.5">
+                  <Label>Catégorie</Label>
+                  <Select value={categorie} onValueChange={setCategorie} required>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choisir une catégorie" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(CATEGORIE_LABELS)
+                        .filter(([value]) => value !== "coursier")
+                        .map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                  {categorie === "hebergement" ? (
+                    <p className="text-xs text-muted-foreground">
+                      Pense à sélectionner le bien concerné ci-dessous.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+              {lockedCaisse === "societe" ? (
                 <div className="space-y-1.5">
                   <Label>Financé par</Label>
                   <Select value={financePar} onValueChange={setFinancePar}>

@@ -101,9 +101,14 @@ export default async function CaissePage({
       .orderBy(desc(reservations.checkIn))
   ).filter((r) => domaineEstActif(r.domaineNom));
 
-  const especes = entries.filter((e) => e.moyenPaiement === "especes");
-  const virement = entries.filter((e) => e.moyenPaiement === "virement");
-  const carte = entries.filter((e) => e.moyenPaiement === "carte");
+  // La caisse Brahim est un onglet à part entière (avance perso, pas mêlée à la caisse
+  // société) — elle ne doit apparaître nulle part ailleurs, y compris dans les Statistiques.
+  const entriesSociete = entries.filter((e) => e.caisse === "societe");
+  const entriesBrahim = entries.filter((e) => e.caisse === "brahim");
+
+  const especes = entriesSociete.filter((e) => e.moyenPaiement === "especes");
+  const virement = entriesSociete.filter((e) => e.moyenPaiement === "virement");
+  const carte = entriesSociete.filter((e) => e.moyenPaiement === "carte");
 
   return (
     <div className="space-y-6">
@@ -145,6 +150,7 @@ export default async function CaissePage({
           <TabsTrigger value="especes" className="shrink-0">Espèces</TabsTrigger>
           <TabsTrigger value="virement" className="shrink-0">Virement bancaire</TabsTrigger>
           <TabsTrigger value="carte" className="shrink-0">Carte bleue</TabsTrigger>
+          <TabsTrigger value="brahim" className="shrink-0">Brahim</TabsTrigger>
           <TabsTrigger value="stats" className="shrink-0">Statistiques</TabsTrigger>
         </TabsList>
         <TabsContent value="especes" className="pt-2">
@@ -156,8 +162,11 @@ export default async function CaissePage({
         <TabsContent value="carte" className="pt-2">
           <CaissePanel entries={carte} villas={allVillas} reservations={recentReservations} moyenPaiement="carte" />
         </TabsContent>
+        <TabsContent value="brahim" className="pt-2">
+          <BrahimPanel entries={entriesBrahim} villas={allVillas} reservations={recentReservations} />
+        </TabsContent>
         <TabsContent value="stats" className="pt-2">
-          <CaisseStats entries={entries} />
+          <CaisseStats entries={entriesSociete} />
         </TabsContent>
       </Tabs>
     </div>
@@ -193,37 +202,20 @@ function CaissePanel({
         // mais distinctes du loyer pur — donc jamais additionnées dans "Total loyers reçus".
         const totalLoyer = enDevise.filter((e) => e.type === "loyer").reduce((s, e) => s + Number(e.montant), 0);
         const totalExtra = enDevise.filter((e) => e.type === "extra").reduce((s, e) => s + Number(e.montant), 0);
-        // Le solde société ne doit compter que ce qui appartient à sa propre caisse — l'argent
-        // confié à Brahim (caisse dédiée, voir plus bas) n'en fait pas partie.
-        const totalRemise = enDevise
-          .filter((e) => e.type === "remise" && e.caisse === "societe")
-          .reduce((s, e) => s + Number(e.montant), 0);
+        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
         // Seules les dépenses financées par l'avance société comptent contre le solde société —
         // une dépense payée avec les loyers personnels de Kamel n'est pas une dette de la société
         // envers lui (voir cashFinanceParEnum dans db/schema.ts), donc exclue de ce calcul.
         const totalDepenseSociete = enDevise
-          .filter((e) => e.type === "depense" && e.caisse === "societe" && e.financePar === "societe")
+          .filter((e) => e.type === "depense" && e.financePar === "societe")
           .reduce((s, e) => s + Number(e.montant), 0);
         const totalDepenseLoyers = enDevise
           .filter((e) => e.type === "depense" && e.financePar === "loyers_perso")
           .reduce((s, e) => s + Number(e.montant), 0);
         const totalRestitution = enDevise
-          .filter((e) => e.type === "restitution" && e.caisse === "societe")
+          .filter((e) => e.type === "restitution")
           .reduce((s, e) => s + Number(e.montant), 0);
         const soldeSociete = totalRemise - totalDepenseSociete - totalRestitution;
-
-        // Caisse dédiée à Brahim (jardinier + coursier) : même logique que la caisse société,
-        // mais son propre solde — l'argent qu'on lui confie ne doit pas se mélanger au reste.
-        const totalRemiseBrahim = enDevise
-          .filter((e) => e.type === "remise" && e.caisse === "brahim")
-          .reduce((s, e) => s + Number(e.montant), 0);
-        const totalDepenseBrahim = enDevise
-          .filter((e) => e.type === "depense" && e.caisse === "brahim")
-          .reduce((s, e) => s + Number(e.montant), 0);
-        const totalRestitutionBrahim = enDevise
-          .filter((e) => e.type === "restitution" && e.caisse === "brahim")
-          .reduce((s, e) => s + Number(e.montant), 0);
-        const soldeBrahim = totalRemiseBrahim - totalDepenseBrahim - totalRestitutionBrahim;
 
         return (
           <div key={devise} className="space-y-4">
@@ -250,16 +242,50 @@ function CaissePanel({
                 <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
               </div>
             </div>
+          </div>
+        );
+      })}
 
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Brahim (confié / dépenses)
-              </p>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <SummaryCard label="Solde Brahim" value={soldeBrahim} devise={devise} highlight />
-                <SummaryCard label="Total confié (Brahim)" value={totalRemiseBrahim} devise={devise} />
-                <SummaryCard label="Total restitué" value={totalRestitutionBrahim} devise={devise} />
-              </div>
+      <CaisseMouvementsList entries={entries} />
+    </div>
+  );
+}
+
+// Caisse séparée de Brahim (jardinier / coursier) : sa propre avance, jamais mélangée à la
+// caisse société — demande explicite du patron, un onglet à part entière (2026-08-12).
+function BrahimPanel({
+  entries,
+  villas,
+  reservations,
+}: {
+  entries: Entry[];
+  villas: { id: string; nom: string; numero: string }[];
+  reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
+}) {
+  const devises = Array.from(new Set(entries.map((e) => e.devise))).sort();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-end">
+        <AddCashEntryDialog villas={villas} reservations={reservations} moyenPaiement="especes" lockedCaisse="brahim" />
+      </div>
+
+      {devises.map((devise) => {
+        const enDevise = entries.filter((e) => e.devise === devise);
+        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+        const totalDepense = enDevise.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
+        const totalRestitution = enDevise
+          .filter((e) => e.type === "restitution")
+          .reduce((s, e) => s + Number(e.montant), 0);
+        const solde = totalRemise - totalDepense - totalRestitution;
+
+        return (
+          <div key={devise} className="space-y-2">
+            {devises.length > 1 ? <p className="text-sm font-medium text-muted-foreground">{devise}</p> : null}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <SummaryCard label="Solde Brahim" value={solde} devise={devise} highlight />
+              <SummaryCard label="Total confié" value={totalRemise} devise={devise} />
+              <SummaryCard label="Total restitué" value={totalRestitution} devise={devise} />
             </div>
           </div>
         );
