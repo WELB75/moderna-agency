@@ -95,7 +95,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
   return (
     <div
       className={cn(
-        "rounded-md border-l-4 transition-opacity",
+        "min-w-0 rounded-md border-l-4 transition-opacity",
         isIn ? "border-l-emerald-500" : "border-l-red-500",
         isDone && "opacity-60"
       )}

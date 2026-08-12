@@ -383,7 +383,7 @@ function MenageBadge({
   const montantApercu = joursApercu * TARIF_MENAGE;
 
   return (
-    <div className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background pl-0.5 pr-2.5 text-[0.8rem] font-medium">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background py-0.5 pl-0.5 pr-2.5 text-[0.8rem] font-medium">
       <Button
         type="button"
         variant={fait ? "default" : "outline"}
@@ -492,7 +492,7 @@ function CuisineBadge({
   const montantApercu = joursApercu * tarifJour;
 
   return (
-    <div className="inline-flex h-7 items-center gap-1 rounded-lg border border-border bg-background px-2.5 text-[0.8rem] font-medium">
+    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-0.5 text-[0.8rem] font-medium">
       {a.nom}
       <Input
         type="number"

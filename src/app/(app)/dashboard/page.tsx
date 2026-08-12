@@ -609,17 +609,17 @@ function DayCard({
             {/* Un seul domaine actif la plupart du temps : forcer 2 colonnes ici laisserait la
                 moitié de l'écran vide. On ne coupe en colonnes que s'il y a vraiment plusieurs
                 domaines à afficher côte à côte. */}
-            <div className={cn("grid gap-4", domaineGroups.length > 1 && "sm:grid-cols-2")}>
+            <div className={cn("grid min-w-0 gap-4", domaineGroups.length > 1 && "sm:grid-cols-2")}>
               {domaineGroups.map((g) => (
-                <div key={g.domaineName} className="space-y-2">
+                <div key={g.domaineName} className="min-w-0 space-y-2">
                   <DomaineBadge nom={g.domaineName} />
                   {/* Grille 2 colonnes sur grand écran : un turnover (check-out + check-in de la
                       même villa) occupe les 2 colonnes côte à côte ; les réservations isolées se
                       rangent naturellement 2 par 2 plutôt que de laisser l'espace vide. */}
-                  <div className="grid gap-2 lg:grid-cols-2">
+                  <div className="grid min-w-0 gap-2 lg:grid-cols-2">
                     {groupTurnoverRows(g.items).map((row, i) =>
                       row.length === 2 ? (
-                        <div key={i} className="grid gap-2 sm:grid-cols-2 lg:col-span-2">
+                        <div key={i} className="grid min-w-0 gap-2 sm:grid-cols-2 lg:col-span-2">
                           {row.map(({ r, kind }) => (
                             <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />
                           ))}
