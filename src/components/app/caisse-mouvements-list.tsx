@@ -34,11 +34,11 @@ export function CaisseMouvementsList({ entries }: { entries: Entry[] }) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
         <CardTitle className="text-base">Mouvements</CardTitle>
         {categoriesPresentes.length > 0 ? (
           <Select value={categorieFiltre} onValueChange={setCategorieFiltre}>
-            <SelectTrigger className="w-[220px]" size="sm">
+            <SelectTrigger className="w-full sm:w-[220px]" size="sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

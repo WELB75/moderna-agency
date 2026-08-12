@@ -89,7 +89,10 @@ export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number })
           <SheetHeader>
             <SheetTitle>Plus</SheetTitle>
           </SheetHeader>
-          <ul className="space-y-1 px-4 pb-6">
+          <ul
+            className="space-y-1 px-4 pb-6"
+            style={{ paddingBottom: "max(env(safe-area-inset-bottom), 1.5rem)" }}
+          >
             {overflowItems.map((item) => {
               const active = pathname === item.href || pathname.startsWith(item.href + "/");
               const Icon = item.icon;

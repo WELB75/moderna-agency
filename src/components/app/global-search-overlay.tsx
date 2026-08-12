@@ -67,7 +67,7 @@ export function GlobalSearchOverlay() {
             e.preventDefault();
             document.getElementById("global-search-input")?.focus();
           }}
-          className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-2xl border border-white/15 bg-background/75 text-popover-foreground shadow-2xl outline-none backdrop-blur-2xl supports-backdrop-filter:bg-background/60 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
+          className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border border-white/15 bg-background/75 text-popover-foreground shadow-2xl outline-none backdrop-blur-2xl supports-backdrop-filter:bg-background/60 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
         >
           <DialogTitle className="sr-only">Recherche</DialogTitle>
           <div className="flex items-center gap-3 px-4 py-3.5">

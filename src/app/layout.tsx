@@ -38,7 +38,7 @@ export default function RootLayout({
       className={`${jost.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-full w-full flex flex-col overflow-x-hidden">
         <ClerkProvider>
           {children}
           <Toaster richColors position="top-center" />
