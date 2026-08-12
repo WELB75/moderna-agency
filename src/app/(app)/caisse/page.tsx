@@ -1,5 +1,8 @@
-import { desc, eq, ne, gte, and } from "drizzle-orm";
-import { subDays } from "date-fns";
+import { desc, eq, ne, gte, lte, and } from "drizzle-orm";
+import { subDays, startOfMonth, endOfMonth, subMonths, addMonths, format } from "date-fns";
+import { fr } from "date-fns/locale";
+import Link from "next/link";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { getDb } from "@/db";
 import { cashEntries, villas, domaines, reservations } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,8 +13,21 @@ import { CaisseStats } from "@/components/app/caisse-stats";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import type { Entry } from "@/lib/caisse-labels";
 
-export default async function CaissePage() {
+function moisHref(date: Date): string {
+  return `/caisse?mois=${format(date, "yyyy-MM")}`;
+}
+
+export default async function CaissePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mois?: string }>;
+}) {
   const db = getDb();
+
+  const { mois } = await searchParams;
+  const moisAncre = mois && /^\d{4}-\d{2}$/.test(mois) ? new Date(`${mois}-01T00:00:00`) : new Date();
+  const debutMois = startOfMonth(moisAncre);
+  const finMois = endOfMonth(moisAncre);
 
   const entries = (
     await db
@@ -37,6 +53,7 @@ export default async function CaissePage() {
       .leftJoin(villas, eq(cashEntries.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .leftJoin(reservations, eq(cashEntries.reservationId, reservations.id))
+      .where(and(gte(cashEntries.createdAt, debutMois), lte(cashEntries.createdAt, finMois)))
       .orderBy(desc(cashEntries.createdAt))
   ).filter((e) => domaineEstActif(e.domaineNom));
 
@@ -73,9 +90,32 @@ export default async function CaissePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Caisse</h1>
-        <p className="text-sm text-muted-foreground">Argent confié, dépenses et restitutions</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Caisse</h1>
+          <p className="text-sm text-muted-foreground">Argent confié, dépenses et restitutions</p>
+        </div>
+        <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
+          <Link
+            href={moisHref(subMonths(moisAncre, 1))}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Mois précédent"
+            title="Mois précédent"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Link>
+          <p className="min-w-32 px-1.5 text-center text-sm font-medium capitalize">
+            {format(moisAncre, "MMMM yyyy", { locale: fr })}
+          </p>
+          <Link
+            href={moisHref(addMonths(moisAncre, 1))}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            aria-label="Mois suivant"
+            title="Mois suivant"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
 
       <Tabs defaultValue="especes">
