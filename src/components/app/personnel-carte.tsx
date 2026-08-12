@@ -49,15 +49,21 @@ function staffColorClass(roles: ("menage" | "cuisine")[]) {
 }
 
 // Silhouette plutôt que des lettres (M/C/MC) : la couleur porte déjà le rôle (voir la légende
-// sous la carte), pas besoin de le répéter en texte sur le marqueur. Kamel, 2026-08-12.
-function pastilleIcon(colorClass: string) {
+// sous la carte), pas besoin de le répéter en texte sur le marqueur. Kamel, 2026-08-12. Petite
+// pastille verte/rouge en surimpression (disponible/occupée) — doit être visible directement sur
+// le marqueur, pas seulement dans le popup au clic, aussi bien sur mobile que sur PC.
+function pastilleIcon(colorClass: string, occupe: boolean) {
+  const statutColor = occupe ? "#ef4444" : "#22c55e";
   return L.divIcon({
     className: "",
-    html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);" class="${colorClass}">
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-        <circle cx="12" cy="7" r="4" />
-      </svg>
+    html: `<div style="position:relative;width:28px;height:28px;">
+      <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);" class="${colorClass}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </div>
+      <div style="position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:9999px;background:${statutColor};border:2px solid white;"></div>
     </div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
@@ -256,7 +262,7 @@ function MarkersLayer({
             <Marker
               key={s.id}
               position={position}
-              icon={pastilleIcon(staffColorClass(s.roles))}
+              icon={pastilleIcon(staffColorClass(s.roles), s.occupeAujourdhui)}
               ref={(instance) => {
                 if (instance) markerRefs.current.set(s.id, instance);
               }}
@@ -306,6 +312,8 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
   const displayPositions = declusterPositions(staff);
   const points = [...[...displayPositions.values()].map((d) => d.position), ...domaines.map((d) => [d.latitude, d.longitude] as [number, number])];
   const center: [number, number] = points.length > 0 ? points[0] : [31.6295, -7.9811];
+  const staffOccupees = staff.filter((s) => s.occupeAujourdhui).length;
+  const staffDisponibles = staff.length - staffOccupees;
 
   return (
     <div className="flex flex-col gap-4 lg:h-[calc(100vh-220px)] lg:flex-row">
@@ -376,7 +384,9 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
       <div className="order-1 flex min-w-0 flex-col gap-3 lg:order-2 lg:w-2/3 lg:grow">
         <Card className="overflow-hidden py-0 lg:h-full">
           <div className="relative h-full">
-            <MapContainer center={center} zoom={12} scrollWheelZoom style={{ height: "440px", width: "100%" }} className="lg:!h-full">
+            {/* Sur mobile, la carte doit dominer l'écran à l'arrivée sur l'onglet (comme une vraie
+                app de carte type Airbnb/Uber) plutôt qu'un petit aperçu — Kamel, 2026-08-12. */}
+            <MapContainer center={center} zoom={12} scrollWheelZoom style={{ height: "70vh", width: "100%" }} className="lg:!h-full">
             {/* Voyager (CARTO) plutôt que le rendu OSM standard : routes bien plus lisibles
                 (couleurs distinctes par type de route, labels clairs), gratuit et sans clé API. */}
             <TileLayer
@@ -395,6 +405,15 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               markerRefs={markerRefs}
             />
           </MapContainer>
+          {/* Résumé flottant façon Airbnb/Uber ("Plus de 1000 logements") — l'info utile
+              (qui est libre) visible d'un coup d'œil, sans avoir à descendre à la liste. */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[400] flex justify-center">
+            <div className="rounded-full border bg-background/95 px-3.5 py-1.5 text-xs font-medium shadow-lg backdrop-blur-sm">
+              <span className="text-green-600 dark:text-green-400">{staffDisponibles}</span> disponible{staffDisponibles > 1 ? "s" : ""}
+              <span className="mx-1.5 text-muted-foreground">·</span>
+              <span className="text-red-600 dark:text-red-400">{staffOccupees}</span> occupée{staffOccupees > 1 ? "s" : ""}
+            </div>
+          </div>
           </div>
         </Card>
 
