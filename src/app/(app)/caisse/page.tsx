@@ -185,8 +185,10 @@ function CaissePanel({
   moyenPaiement: "especes" | "virement" | "carte";
 }) {
   // Des montants dans des devises différentes ne doivent jamais être additionnés ensemble
-  // (ex. 13000 MAD + 6400 EUR n'a aucun sens) : un jeu de totaux par devise présente.
-  const devises = Array.from(new Set(entries.map((e) => e.devise))).sort();
+  // (ex. 13000 MAD + 6400 EUR n'a aucun sens) : un jeu de totaux par devise présente. Si la
+  // période n'a aucun mouvement, on affiche quand même les cartes à 0 (par défaut en MAD) —
+  // sinon la section entière disparaît, ce qui donne l'impression que la page est cassée.
+  const devises = entries.length > 0 ? Array.from(new Set(entries.map((e) => e.devise))).sort() : ["MAD"];
 
   return (
     <div className="space-y-6">
@@ -262,7 +264,9 @@ function BrahimPanel({
   villas: { id: string; nom: string; numero: string }[];
   reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
 }) {
-  const devises = Array.from(new Set(entries.map((e) => e.devise))).sort();
+  // Toujours afficher au moins les cartes en MAD, même sans mouvement sur la période —
+  // pareil que CaissePanel, pour ne pas donner l'impression d'un onglet vide/cassé.
+  const devises = entries.length > 0 ? Array.from(new Set(entries.map((e) => e.devise))).sort() : ["MAD"];
 
   return (
     <div className="space-y-6">
