@@ -60,7 +60,7 @@ export function GendarmerieAction({
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <Badge variant="outline">Fiche gendarmerie : en attente</Badge>
       <Button type="button" variant="ghost" size="sm" onClick={handleCopyLink}>
         <Share2 className="h-3.5 w-3.5" />

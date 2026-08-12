@@ -165,7 +165,7 @@ export function GendarmerieForm({
             <CardContent className="space-y-4 py-4">
               {enfantsPhotos.map((photo, index) => (
                 <div key={index} className="space-y-1.5">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <IdPhotoCapture
                       value={photo}
                       onChange={(dataUrl) =>

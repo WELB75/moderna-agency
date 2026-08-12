@@ -44,7 +44,7 @@ export function ProprietaireList({ logements }: { logements: Logement[] }) {
             <p className="text-sm font-medium text-muted-foreground">{domaineNom}</p>
           )}
           {items.map((l) => (
-            <div key={l.id} className="flex items-center justify-between gap-3 rounded-md border bg-card p-3">
+            <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
               <Link href={`/villas/${l.id}`} className="min-w-0 hover:opacity-80">
                 <p className="truncate font-medium">{l.nom}</p>
                 <p className="text-xs text-muted-foreground">

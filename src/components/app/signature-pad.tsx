@@ -23,8 +23,8 @@ export const SignaturePad = forwardRef<SignaturePadHandle, { label: string; clea
 
     return (
       <div className="space-y-1.5">
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-medium">{label}</p>
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <p className="min-w-0 break-words text-sm font-medium">{label}</p>
           <Button type="button" variant="ghost" size="sm" onClick={() => sigRef.current?.clear()}>
             <Eraser className="h-4 w-4" />
             {clearLabel ?? "Effacer"}

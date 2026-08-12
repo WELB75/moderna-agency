@@ -17,7 +17,7 @@ export function OwnerTeamSection({ contacts }: { contacts: OwnerTeamRow[] }) {
   return (
     <div className="space-y-2">
       {contacts.map((c) => (
-        <div key={c.id} className="flex items-center justify-between gap-2 rounded-md border p-3">
+        <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge variant="outline">{CONTACT_ROLE_LABELS[c.role] ?? c.role}</Badge>

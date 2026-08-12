@@ -45,7 +45,7 @@ export function ProprietaireAccessButton({
   }
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <Button type="button" variant="outline" size="sm" onClick={copyLink}>
         <Share2 className="h-3.5 w-3.5" />
         Copier le lien propriétaire

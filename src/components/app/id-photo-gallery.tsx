@@ -69,14 +69,14 @@ export function IdPhotoGallery({ occupants }: { occupants: GalleryOccupant[] }) 
           className="fixed inset-0 z-50 flex flex-col bg-black/90 p-4"
           onClick={() => setOpenIndex(null)}
         >
-          <div className="flex items-center justify-between text-white">
-            <p className="text-sm font-medium">
+          <div className="flex items-center justify-between gap-2 text-white">
+            <p className="min-w-0 flex-1 truncate text-sm font-medium">
               {[current.prenom, current.nom].filter(Boolean).join(" ") || "Sans nom"}
               <span className="ml-2 text-xs text-white/60">
                 {openIndex! + 1} / {withPhoto.length}
               </span>
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex shrink-0 items-center gap-3">
               <a
                 href={current.photoPieceUrl!}
                 download={`piece-identite-${[current.prenom, current.nom].filter(Boolean).join("-") || current.id}.jpg`}

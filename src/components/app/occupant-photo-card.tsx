@@ -41,7 +41,7 @@ export function OccupantPhotoCard({
           Télécharger
         </a>
       </div>
-      <div className="flex items-start gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <Image
           src={photoPieceUrl}
           alt="Pièce d'identité"

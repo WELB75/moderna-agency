@@ -200,7 +200,7 @@ export function PassportDropZone({ domaines, villas }: { domaines: LieuDomaine[]
                   ) : (
                     <>
                       {row.occupant.photoPieceUrl ? (
-                        <div className="flex items-start gap-2">
+                        <div className="flex flex-wrap items-start gap-2">
                           <Image
                             src={row.occupant.photoPieceUrl}
                             alt="Passeport"

@@ -70,7 +70,7 @@ export function IdPhotoCapture({
     <div className="space-y-1.5">
       <p className="text-sm font-medium">{label}</p>
       {value ? (
-        <div className="flex items-start gap-2">
+        <div className="flex flex-wrap items-start gap-2">
           <div className="relative w-fit">
             <Image
               src={value}
