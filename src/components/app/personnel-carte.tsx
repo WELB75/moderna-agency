@@ -115,8 +115,23 @@ function WhatsAppLink({ phone, className }: { phone: string; className?: string 
 // écarte légèrement en cercle autour du point réel, uniquement pour l'AFFICHAGE (les distances
 // aux domaines, elles, restent calculées sur la vraie position). Kamel, 2026-08-12 : "on voit
 // pas les 3, écarte-les un peu qu'elles soient visibles direct".
-const RAYON_ECART_DEGRES = 0.006; // ~650m, pour rester distinctes même dans la vue "tout voir" au chargement
-function declusterPositions(staff: CarteStaff[]): Map<string, [number, number]> {
+const RAYON_ECART_DEGRES = 0.007; // ~770m, pour rester distinctes même dans la vue "tout voir" au chargement
+
+type TooltipDirection = "right" | "left" | "top" | "bottom";
+type DisplayPosition = { position: [number, number]; direction: TooltipDirection };
+
+// L'étiquette (nom en permanence affiché) part toujours vers la droite par défaut — pour un
+// groupe écarté en cercle, ça les fait toutes se chevaucher au même endroit même si les points
+// eux-mêmes sont séparés. On fait pointer chaque étiquette vers l'extérieur du cercle (l'axe
+// dominant de son angle), pas toujours à droite. Kamel, 2026-08-12 : "elles se chevauchent".
+function directionForAngle(angle: number): TooltipDirection {
+  const composanteEst = Math.cos(angle);
+  const composanteNord = Math.sin(angle);
+  if (Math.abs(composanteEst) >= Math.abs(composanteNord)) return composanteEst >= 0 ? "right" : "left";
+  return composanteNord >= 0 ? "top" : "bottom";
+}
+
+function declusterPositions(staff: CarteStaff[]): Map<string, DisplayPosition> {
   const groupes = new Map<string, CarteStaff[]>();
   for (const s of staff) {
     if (s.latitude === null || s.longitude === null) continue;
@@ -125,20 +140,23 @@ function declusterPositions(staff: CarteStaff[]): Map<string, [number, number]> 
     if (groupe) groupe.push(s);
     else groupes.set(cle, [s]);
   }
-  const positions = new Map<string, [number, number]>();
+  const positions = new Map<string, DisplayPosition>();
   for (const groupe of groupes.values()) {
     if (groupe.length === 1) {
       const s = groupe[0];
-      positions.set(s.id, [s.latitude!, s.longitude!]);
+      positions.set(s.id, { position: [s.latitude!, s.longitude!], direction: "right" });
       continue;
     }
     groupe.forEach((s, i) => {
       const angle = (2 * Math.PI * i) / groupe.length;
       const correctionLongitude = Math.cos((s.latitude! * Math.PI) / 180) || 1;
-      positions.set(s.id, [
-        s.latitude! + RAYON_ECART_DEGRES * Math.sin(angle),
-        s.longitude! + (RAYON_ECART_DEGRES * Math.cos(angle)) / correctionLongitude,
-      ]);
+      positions.set(s.id, {
+        position: [
+          s.latitude! + RAYON_ECART_DEGRES * Math.sin(angle),
+          s.longitude! + (RAYON_ECART_DEGRES * Math.cos(angle)) / correctionLongitude,
+        ],
+        direction: directionForAngle(angle),
+      });
     });
   }
   return positions;
@@ -168,15 +186,15 @@ function FlyToSelected({
   markerRefs,
 }: {
   selectedId: string | null;
-  displayPositions: Map<string, [number, number]>;
+  displayPositions: Map<string, DisplayPosition>;
   markerRefs: React.RefObject<Map<string, L.Marker>>;
 }) {
   const map = useMap();
   useEffect(() => {
     if (!selectedId) return;
-    const position = displayPositions.get(selectedId);
-    if (!position) return;
-    map.flyTo(position, 14, { duration: 0.8 });
+    const entry = displayPositions.get(selectedId);
+    if (!entry) return;
+    map.flyTo(entry.position, 14, { duration: 0.8 });
     const marker = markerRefs.current.get(selectedId);
     marker?.openPopup();
   }, [selectedId, displayPositions, map, markerRefs]);
@@ -188,7 +206,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
 
   const displayPositions = declusterPositions(staff);
-  const points = [...displayPositions.values(), ...domaines.map((d) => [d.latitude, d.longitude] as [number, number])];
+  const points = [...[...displayPositions.values()].map((d) => d.position), ...domaines.map((d) => [d.latitude, d.longitude] as [number, number])];
   const center: [number, number] = points.length > 0 ? points[0] : [31.6295, -7.9811];
 
   return (
@@ -283,17 +301,21 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
             ))}
             {staff
               .filter((s) => displayPositions.has(s.id))
-              .map((s) => (
+              .map((s) => {
+                const { position, direction } = displayPositions.get(s.id)!;
+                const offset: [number, number] =
+                  direction === "right" ? [10, 0] : direction === "left" ? [-10, 0] : direction === "top" ? [0, -10] : [0, 10];
+                return (
                 <Marker
                   key={s.id}
-                  position={displayPositions.get(s.id)!}
+                  position={position}
                   icon={pastilleIcon(staffColorClass(s.roles))}
                   ref={(instance) => {
                     if (instance) markerRefs.current.set(s.id, instance);
                   }}
                   eventHandlers={{ click: () => setSelectedId(s.id) }}
                 >
-                  <Tooltip permanent direction="right" offset={[10, 0]} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
+                  <Tooltip permanent direction={direction} offset={offset} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
                     {s.nom}
                   </Tooltip>
                   <Popup>
@@ -322,7 +344,8 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                     </div>
                   </Popup>
                 </Marker>
-              ))}
+                );
+              })}
           </MapContainer>
           </div>
         </Card>
