@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import { MessageCircle, MapPin, Home } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,18 @@ export type CarteStaff = {
 };
 
 const ROLE_LABEL: Record<"menage" | "cuisine", string> = { menage: "Ménage", cuisine: "Cuisine" };
+
+// Nom d'usage de Kamel pour les domaines, différent du nom en base (historique — voir
+// "Domaine Zaraba" dans db/schema.ts) : sur la carte, on affiche toujours le nom qu'il utilise
+// à l'oral ("Moderna 1", "Moderna 2"), pas le nom technique de la fiche.
+const DOMAINE_LABELS: Record<string, string> = {
+  "Domaine Zaraba": "Moderna 1",
+  "Domaine Moderna II": "Moderna 2",
+  Noria: "Noria",
+};
+function domaineLabel(nom: string): string {
+  return DOMAINE_LABELS[nom] ?? nom;
+}
 
 function staffColorClass(roles: ("menage" | "cuisine")[]) {
   const hasMenage = roles.includes("menage");
@@ -96,6 +108,24 @@ function WhatsAppLink({ phone, className }: { phone: string; className?: string 
       WhatsApp
     </a>
   );
+}
+
+// Au chargement, on veut toujours tout voir d'un coup (domaines + personnel) plutôt qu'un
+// centrage/zoom fixe qui peut couper des marqueurs éloignés — Kamel, 2026-08-12 : "quand on se
+// connecte je veux toujours voir tout sur la map". Seulement au montage (pas à chaque
+// sélection dans la liste, sinon ça annulerait le fly-to de FlyToSelected).
+function FitAllOnMount({ points }: { points: [number, number][] }) {
+  const map = useMap();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- volontairement une seule fois, au montage
+  useEffect(() => {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      map.setView(points[0], 13);
+      return;
+    }
+    map.fitBounds(L.latLngBounds(points), { padding: [40, 40] });
+  }, []);
+  return null;
 }
 
 function FlyToSelected({
@@ -174,7 +204,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                           {aPosition && proche ? (
                             <>
                               <MapPin className="mr-0.5 inline h-3 w-3" />
-                              <span className="font-medium text-foreground">{proche.km.toFixed(1)} km</span> de {proche.domaineNom}
+                              <span className="font-medium text-foreground">{proche.km.toFixed(1)} km</span> de {domaineLabel(proche.domaineNom)}
                               {s.positionMajAt ? ` · maj ${formatDistanceToNow(s.positionMajAt, { locale: fr, addSuffix: true })}` : ""}
                             </>
                           ) : (
@@ -204,11 +234,15 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               subdomains="abcd"
               maxZoom={20}
             />
+            <FitAllOnMount points={points} />
             <FlyToSelected selectedId={selectedId} staff={staff} markerRefs={markerRefs} />
             {domaines.map((d) => (
               <Marker key={d.id} position={[d.latitude, d.longitude]} icon={domaineIcon}>
+                <Tooltip permanent direction="top" offset={[0, -12]} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
+                  {domaineLabel(d.nom)}
+                </Tooltip>
                 <Popup>
-                  <span className="font-semibold">{d.nom}</span>
+                  <span className="font-semibold">{domaineLabel(d.nom)}</span>
                 </Popup>
               </Marker>
             ))}
@@ -224,6 +258,9 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                   }}
                   eventHandlers={{ click: () => setSelectedId(s.id) }}
                 >
+                  <Tooltip permanent direction="right" offset={[10, 0]} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
+                    {s.nom}
+                  </Tooltip>
                   <Popup>
                     <div className="min-w-44 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
@@ -241,7 +278,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                         <ul className="space-y-0.5 text-xs text-muted-foreground">
                           {s.distances.map((d) => (
                             <li key={d.domaineId}>
-                              {d.domaineNom} — <span className="font-medium text-foreground">{d.km.toFixed(1)} km</span>
+                              {domaineLabel(d.domaineNom)} — <span className="font-medium text-foreground">{d.km.toFixed(1)} km</span>
                             </li>
                           ))}
                         </ul>
