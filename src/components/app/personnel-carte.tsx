@@ -110,6 +110,40 @@ function WhatsAppLink({ phone, className }: { phone: string; className?: string 
   );
 }
 
+// Plusieurs personnes peuvent partager exactement la même position (ex. colocataires) — sans
+// décalage, leurs marqueurs se superposent pile et une seule reste visible/cliquable. On les
+// écarte légèrement en cercle autour du point réel, uniquement pour l'AFFICHAGE (les distances
+// aux domaines, elles, restent calculées sur la vraie position). Kamel, 2026-08-12 : "on voit
+// pas les 3, écarte-les un peu qu'elles soient visibles direct".
+const RAYON_ECART_DEGRES = 0.006; // ~650m, pour rester distinctes même dans la vue "tout voir" au chargement
+function declusterPositions(staff: CarteStaff[]): Map<string, [number, number]> {
+  const groupes = new Map<string, CarteStaff[]>();
+  for (const s of staff) {
+    if (s.latitude === null || s.longitude === null) continue;
+    const cle = `${s.latitude.toFixed(5)},${s.longitude.toFixed(5)}`;
+    const groupe = groupes.get(cle);
+    if (groupe) groupe.push(s);
+    else groupes.set(cle, [s]);
+  }
+  const positions = new Map<string, [number, number]>();
+  for (const groupe of groupes.values()) {
+    if (groupe.length === 1) {
+      const s = groupe[0];
+      positions.set(s.id, [s.latitude!, s.longitude!]);
+      continue;
+    }
+    groupe.forEach((s, i) => {
+      const angle = (2 * Math.PI * i) / groupe.length;
+      const correctionLongitude = Math.cos((s.latitude! * Math.PI) / 180) || 1;
+      positions.set(s.id, [
+        s.latitude! + RAYON_ECART_DEGRES * Math.sin(angle),
+        s.longitude! + (RAYON_ECART_DEGRES * Math.cos(angle)) / correctionLongitude,
+      ]);
+    });
+  }
+  return positions;
+}
+
 // Au chargement, on veut toujours tout voir d'un coup (domaines + personnel) plutôt qu'un
 // centrage/zoom fixe qui peut couper des marqueurs éloignés — Kamel, 2026-08-12 : "quand on se
 // connecte je veux toujours voir tout sur la map". Seulement au montage (pas à chaque
@@ -130,22 +164,22 @@ function FitAllOnMount({ points }: { points: [number, number][] }) {
 
 function FlyToSelected({
   selectedId,
-  staff,
+  displayPositions,
   markerRefs,
 }: {
   selectedId: string | null;
-  staff: CarteStaff[];
+  displayPositions: Map<string, [number, number]>;
   markerRefs: React.RefObject<Map<string, L.Marker>>;
 }) {
   const map = useMap();
   useEffect(() => {
     if (!selectedId) return;
-    const s = staff.find((p) => p.id === selectedId);
-    if (!s || s.latitude === null || s.longitude === null) return;
-    map.flyTo([s.latitude, s.longitude], 14, { duration: 0.8 });
+    const position = displayPositions.get(selectedId);
+    if (!position) return;
+    map.flyTo(position, 14, { duration: 0.8 });
     const marker = markerRefs.current.get(selectedId);
     marker?.openPopup();
-  }, [selectedId, staff, map, markerRefs]);
+  }, [selectedId, displayPositions, map, markerRefs]);
   return null;
 }
 
@@ -153,7 +187,8 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
 
-  const points = [...staff.filter((s) => s.latitude !== null).map((s) => [s.latitude!, s.longitude!] as [number, number]), ...domaines.map((d) => [d.latitude, d.longitude] as [number, number])];
+  const displayPositions = declusterPositions(staff);
+  const points = [...displayPositions.values(), ...domaines.map((d) => [d.latitude, d.longitude] as [number, number])];
   const center: [number, number] = points.length > 0 ? points[0] : [31.6295, -7.9811];
 
   return (
@@ -235,7 +270,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               maxZoom={20}
             />
             <FitAllOnMount points={points} />
-            <FlyToSelected selectedId={selectedId} staff={staff} markerRefs={markerRefs} />
+            <FlyToSelected selectedId={selectedId} displayPositions={displayPositions} markerRefs={markerRefs} />
             {domaines.map((d) => (
               <Marker key={d.id} position={[d.latitude, d.longitude]} icon={domaineIcon}>
                 <Tooltip permanent direction="top" offset={[0, -12]} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
@@ -247,11 +282,11 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               </Marker>
             ))}
             {staff
-              .filter((s): s is CarteStaff & { latitude: number; longitude: number } => s.latitude !== null && s.longitude !== null)
+              .filter((s) => displayPositions.has(s.id))
               .map((s) => (
                 <Marker
                   key={s.id}
-                  position={[s.latitude, s.longitude]}
+                  position={displayPositions.get(s.id)!}
                   icon={pastilleIcon(staffColorClass(s.roles))}
                   ref={(instance) => {
                     if (instance) markerRefs.current.set(s.id, instance);
