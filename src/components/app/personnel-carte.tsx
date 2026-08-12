@@ -4,8 +4,9 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
-import { MessageCircle, MapPin } from "lucide-react";
+import { MessageCircle, MapPin, Home } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { toWhatsAppUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -21,14 +22,12 @@ export type CarteStaff = {
   latitude: number | null;
   longitude: number | null;
   positionMajAt: Date | null;
+  occupeAujourdhui: boolean;
   // Triée par distance croissante — vide si position inconnue.
   distances: { domaineId: string; domaineNom: string; km: number }[];
 };
 
-const ROLE_STYLE: Record<"menage" | "cuisine", { label: string; dot: string; badge: string }> = {
-  menage: { label: "Ménage", dot: "bg-orange-500", badge: "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-400" },
-  cuisine: { label: "Cuisine", dot: "bg-purple-500", badge: "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-400" },
-};
+const ROLE_LABEL: Record<"menage" | "cuisine", string> = { menage: "Ménage", cuisine: "Cuisine" };
 
 function staffColorClass(roles: ("menage" | "cuisine")[]) {
   const hasMenage = roles.includes("menage");
@@ -44,25 +43,60 @@ function staffLabel(roles: ("menage" | "cuisine")[]) {
   return hasMenage ? "M" : "C";
 }
 
-function pastilleIcon(label: string, colorClass: string, initiale: string) {
+function pastilleIcon(initiale: string, colorClass: string) {
   return L.divIcon({
     className: "",
-    html: `<div style="display:flex;flex-direction:column;align-items:center;">
-      <div style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9999px;border:2.5px solid white;box-shadow:0 2px 5px rgba(0,0,0,0.4);font-size:12px;font-weight:700;color:white;" class="${colorClass}">${initiale}</div>
-    </div>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-    popupAnchor: [0, -15],
+    html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);font-size:11px;font-weight:700;color:white;" class="${colorClass}">${initiale}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -14],
   });
 }
 
+// Trait fin (icône maison, style lucide) plutôt qu'un emoji ou un pictogramme plein — juste de
+// quoi reconnaître "c'est un domaine" d'un coup d'œil, sans couleur criarde. Kamel, 2026-08-12 :
+// "il me faut juste comme des traits fins".
 const domaineIcon = L.divIcon({
   className: "",
-  html: `<div style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:9999px;background:#0f172a;border:2.5px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.5);font-size:16px;">🏡</div>`,
-  iconSize: [34, 34],
-  iconAnchor: [17, 17],
-  popupAnchor: [0, -17],
+  html: `<div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:white;border:1.5px solid #334155;box-shadow:0 1px 3px rgba(0,0,0,0.25);">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
+      <path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </svg>
+  </div>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 13],
+  popupAnchor: [0, -13],
 });
+
+function DisponibiliteBadge({ occupe }: { occupe: boolean }) {
+  return (
+    <span className="flex items-center gap-1 text-[11px]">
+      <span className={cn("h-1.5 w-1.5 rounded-full", occupe ? "bg-red-500" : "bg-green-500")} />
+      <span className={cn(occupe ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400")}>
+        {occupe ? "Occupée" : "Disponible"}
+      </span>
+    </span>
+  );
+}
+
+function WhatsAppLink({ phone, className }: { phone: string; className?: string }) {
+  return (
+    <a
+      href={toWhatsAppUrl(phone)}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className={cn(
+        "flex w-fit items-center gap-1 rounded-md border px-2 py-1 text-xs text-muted-foreground hover:bg-muted",
+        className
+      )}
+    >
+      <MessageCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+      WhatsApp
+    </a>
+  );
+}
 
 function FlyToSelected({
   selectedId,
@@ -109,7 +143,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
             {domaines.map((d) => (
               <Marker key={d.id} position={[d.latitude, d.longitude]} icon={domaineIcon}>
                 <Popup>
-                  <span className="font-semibold">🏡 {d.nom}</span>
+                  <span className="font-semibold">{d.nom}</span>
                 </Popup>
               </Marker>
             ))}
@@ -119,7 +153,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                 <Marker
                   key={s.id}
                   position={[s.latitude, s.longitude]}
-                  icon={pastilleIcon(staffLabel(s.roles), staffColorClass(s.roles), staffLabel(s.roles))}
+                  icon={pastilleIcon(staffLabel(s.roles), staffColorClass(s.roles))}
                   ref={(instance) => {
                     if (instance) markerRefs.current.set(s.id, instance);
                   }}
@@ -127,34 +161,27 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                 >
                   <Popup>
                     <div className="min-w-44 space-y-1.5">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold">{s.nom}</span>
+                        <DisponibiliteBadge occupe={s.occupeAujourdhui} />
+                      </div>
+                      <div className="flex items-center gap-1">
                         {s.roles.map((r) => (
-                          <span key={r} className={cn("rounded-full border px-1.5 py-0 text-[10px] font-medium", ROLE_STYLE[r].badge)}>
-                            {ROLE_STYLE[r].label}
-                          </span>
+                          <Badge key={r} variant="outline" className="text-[10px]">
+                            {ROLE_LABEL[r]}
+                          </Badge>
                         ))}
                       </div>
                       {s.distances.length > 0 ? (
                         <ul className="space-y-0.5 text-xs text-muted-foreground">
                           {s.distances.map((d) => (
                             <li key={d.domaineId}>
-                              🏡 {d.domaineNom} — <span className="font-medium text-foreground">{d.km.toFixed(1)} km</span>
+                              {d.domaineNom} — <span className="font-medium text-foreground">{d.km.toFixed(1)} km</span>
                             </li>
                           ))}
                         </ul>
                       ) : null}
-                      {s.telephone ? (
-                        <a
-                          href={toWhatsAppUrl(s.telephone)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="mt-1 flex w-fit items-center gap-1 rounded-md bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-                        >
-                          <MessageCircle className="h-3 w-3" />
-                          WhatsApp
-                        </a>
-                      ) : null}
+                      {s.telephone ? <WhatsAppLink phone={s.telephone} className="mt-1" /> : null}
                     </div>
                   </Popup>
                 </Marker>
@@ -173,7 +200,9 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Ménage + Cuisine
         </span>
-        <span className="flex items-center gap-1.5">🏡 Domaine</span>
+        <span className="flex items-center gap-1.5">
+          <Home className="h-3 w-3" /> Domaine
+        </span>
       </div>
 
       <Card>
@@ -211,10 +240,11 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium">{s.nom}</span>
                         {s.roles.map((r) => (
-                          <span key={r} className={cn("rounded-full border px-1.5 py-0 text-[10px] font-medium", ROLE_STYLE[r].badge)}>
-                            {ROLE_STYLE[r].label}
-                          </span>
+                          <Badge key={r} variant="outline" className="text-[10px]">
+                            {ROLE_LABEL[r]}
+                          </Badge>
                         ))}
+                        <DisponibiliteBadge occupe={s.occupeAujourdhui} />
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {aPosition && proche ? (
@@ -229,18 +259,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                       </p>
                     </div>
                   </div>
-                  {s.telephone ? (
-                    <a
-                      href={toWhatsAppUrl(s.telephone)}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      WhatsApp
-                    </a>
-                  ) : null}
+                  {s.telephone ? <WhatsAppLink phone={s.telephone} className="shrink-0" /> : null}
                 </button>
               );
             })

@@ -158,6 +158,9 @@ export default async function PersonnelPage({
     .map((s) => ({
       ...s,
       roles: [...s.roles],
+      // Renseigné plus bas (occupeAujourdhuiParNom, une fois planningPourJour disponible) —
+      // false ici n'est qu'un placeholder le temps que les affectations du jour soient calculées.
+      occupeAujourdhui: false,
       distances:
         s.latitude === null || s.longitude === null
           ? []
@@ -661,6 +664,13 @@ export default async function PersonnelPage({
       if (a.role !== b.role) return a.role === "menage" ? -1 : 1;
       return (a.villaNom ?? "").localeCompare(b.villaNom ?? "");
     });
+  }
+  // Onglet Carte : "Occupée aujourd'hui" = a une affectation qui la concerne aujourd'hui (même
+  // logique que planningPourJour — ex. ménage de départ dont le check-out est aujourd'hui).
+  // Demande du patron, 2026-08-12 : savoir d'un coup d'œil si la personne est disponible.
+  const occupeesAujourdhuiNoms = new Set(planningPourJour(now).map((e) => e.personnelNom));
+  for (const s of staffCarte) {
+    s.occupeAujourdhui = occupeesAujourdhuiNoms.has(s.nom);
   }
   const joursSemaine = Array.from({ length: 7 }, (_, i) => addDays(debutSemaine, i));
 
