@@ -171,7 +171,7 @@ export function CommentItem({
 
   return (
     <div className="rounded-md bg-muted/40 p-2 text-sm">
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <span className="font-medium">{comment.auteur}</span>
         <Badge
           variant="outline"

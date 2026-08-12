@@ -246,7 +246,7 @@ export default async function MaintenancePage() {
           ) : (
             <div className="space-y-2">
               {allTechnicians.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                <div key={t.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
                   <div>
                     <p className="font-medium">{t.nom}</p>
                     <p className="text-sm text-muted-foreground">{t.fonction}</p>

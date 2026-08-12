@@ -125,7 +125,7 @@ export function TechnicianInterventionCard({
                 disabled={isPending}
                 onClick={() => handleStepTap(s.key)}
                 className={cn(
-                  "flex flex-col items-center gap-1 rounded-lg border p-2 text-center transition-colors",
+                  "flex min-w-0 flex-col items-center gap-1 rounded-lg border p-2 text-center transition-colors",
                   active && "border-primary bg-primary/10",
                   done && !active && "border-emerald-500/40 bg-emerald-500/5",
                   !active && !done && "border-transparent"

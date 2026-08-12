@@ -1026,7 +1026,7 @@ function RosterSection({
 }) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
         <CardTitle className="text-base">{title}</CardTitle>
         <AddPersonnelDialog defaultRole={role} />
       </CardHeader>
@@ -1169,12 +1169,12 @@ function StatsSection({
         ) : (
           <div className="space-y-2">
             {rows.map((r) => (
-              <div key={r.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+              <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
                 <div className="flex items-center gap-1.5">
                   <p className="font-medium">{r.nom}</p>
                   {!r.actif ? <Badge variant="outline">Inactif</Badge> : null}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <Badge variant="secondary">
                     {r.total} {r.total > 1 ? unitPlural : unit}
                   </Badge>
