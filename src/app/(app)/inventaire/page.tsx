@@ -83,16 +83,16 @@ export default async function InventairePage() {
       </div>
 
       <Tabs defaultValue="stock">
-        <TabsList>
-          <TabsTrigger value="stock">
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
+          <TabsTrigger value="stock" className="shrink-0">
             <Boxes className="h-4 w-4" />
             Stock
           </TabsTrigger>
-          <TabsTrigger value="etats-des-lieux">
+          <TabsTrigger value="etats-des-lieux" className="shrink-0">
             <ClipboardCheck className="h-4 w-4" />
             États des lieux
           </TabsTrigger>
-          <TabsTrigger value="procedures">
+          <TabsTrigger value="procedures" className="shrink-0">
             <ListChecks className="h-4 w-4" />
             Procédures
           </TabsTrigger>

@@ -142,16 +142,16 @@ export default async function MaintenancePage() {
       </div>
 
       <Tabs defaultValue="entretiens">
-        <TabsList>
-          <TabsTrigger value="entretiens">
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
+          <TabsTrigger value="entretiens" className="shrink-0">
             <Wrench className="h-4 w-4" />
             Entretiens
           </TabsTrigger>
-          <TabsTrigger value="techniciens">
+          <TabsTrigger value="techniciens" className="shrink-0">
             <Users className="h-4 w-4" />
             Techniciens
           </TabsTrigger>
-          <TabsTrigger value="taches">
+          <TabsTrigger value="taches" className="shrink-0">
             <ListTodo className="h-4 w-4" />
             Tâches
           </TabsTrigger>

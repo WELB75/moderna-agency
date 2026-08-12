@@ -171,16 +171,16 @@ export default async function DocumentsPage() {
       </div>
 
       <Tabs defaultValue="fiche-police">
-        <TabsList>
-          <TabsTrigger value="fiche-police">
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
+          <TabsTrigger value="fiche-police" className="shrink-0">
             <FileText className="h-4 w-4" />
             Fiche police
           </TabsTrigger>
-          <TabsTrigger value="contrat">
+          <TabsTrigger value="contrat" className="shrink-0">
             <FileSignature className="h-4 w-4" />
             Contrat de location
           </TabsTrigger>
-          <TabsTrigger value="pieces-identite">
+          <TabsTrigger value="pieces-identite" className="shrink-0">
             <IdCard className="h-4 w-4" />
             Pièces d&apos;identité
           </TabsTrigger>
