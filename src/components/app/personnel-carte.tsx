@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { MessageCircle, MapPin, Home } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,6 +162,19 @@ function declusterPositions(staff: CarteStaff[]): Map<string, DisplayPosition> {
   return positions;
 }
 
+// En dessous de ce zoom, trop de marqueurs sont proches les uns des autres à l'écran pour que
+// leurs étiquettes tiennent sans se marcher dessus (vu sur la vue "tout voir" avec le personnel
+// groupé autour de Marrakech) — au-delà, les étiquettes réapparaissent. Kamel, 2026-08-12 :
+// "trouve un moyen que ce soit plus propre, ça fait brouillon".
+const ZOOM_MIN_ETIQUETTES = 13;
+
+function useZoomActuel() {
+  const map = useMap();
+  const [zoom, setZoom] = useState(map.getZoom());
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) });
+  return zoom;
+}
+
 // Au chargement, on veut toujours tout voir d'un coup (domaines + personnel) plutôt qu'un
 // centrage/zoom fixe qui peut couper des marqueurs éloignés — Kamel, 2026-08-12 : "quand on se
 // connecte je veux toujours voir tout sur la map". Seulement au montage (pas à chaque
@@ -199,6 +212,91 @@ function FlyToSelected({
     marker?.openPopup();
   }, [selectedId, displayPositions, map, markerRefs]);
   return null;
+}
+
+// Rendu des marqueurs (domaines + personnel), séparé de PersonnelCarte parce que useZoomActuel
+// (comme useMap) n'est utilisable que dans un descendant de MapContainer.
+function MarkersLayer({
+  domaines,
+  staff,
+  displayPositions,
+  setSelectedId,
+  markerRefs,
+}: {
+  domaines: CarteDomaine[];
+  staff: CarteStaff[];
+  displayPositions: Map<string, DisplayPosition>;
+  setSelectedId: (id: string) => void;
+  markerRefs: React.RefObject<Map<string, L.Marker>>;
+}) {
+  const zoom = useZoomActuel();
+  const afficherEtiquettes = zoom >= ZOOM_MIN_ETIQUETTES;
+
+  return (
+    <>
+      {domaines.map((d) => (
+        <Marker key={d.id} position={[d.latitude, d.longitude]} icon={domaineIcon}>
+          {afficherEtiquettes ? (
+            <Tooltip permanent direction="top" offset={[0, -12]} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
+              {domaineLabel(d.nom)}
+            </Tooltip>
+          ) : null}
+          <Popup>
+            <span className="font-semibold">{domaineLabel(d.nom)}</span>
+          </Popup>
+        </Marker>
+      ))}
+      {staff
+        .filter((s) => displayPositions.has(s.id))
+        .map((s) => {
+          const { position, direction } = displayPositions.get(s.id)!;
+          const offset: [number, number] =
+            direction === "right" ? [10, 0] : direction === "left" ? [-10, 0] : direction === "top" ? [0, -10] : [0, 10];
+          return (
+            <Marker
+              key={s.id}
+              position={position}
+              icon={pastilleIcon(staffColorClass(s.roles))}
+              ref={(instance) => {
+                if (instance) markerRefs.current.set(s.id, instance);
+              }}
+              eventHandlers={{ click: () => setSelectedId(s.id) }}
+            >
+              {afficherEtiquettes ? (
+                <Tooltip permanent direction={direction} offset={offset} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
+                  {s.nom}
+                </Tooltip>
+              ) : null}
+              <Popup>
+                <div className="min-w-44 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold">{s.nom}</span>
+                    <DisponibiliteBadge occupe={s.occupeAujourdhui} />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {s.roles.map((r) => (
+                      <Badge key={r} variant="outline" className="text-[10px]">
+                        {ROLE_LABEL[r]}
+                      </Badge>
+                    ))}
+                  </div>
+                  {s.distances.length > 0 ? (
+                    <ul className="space-y-0.5 text-xs text-muted-foreground">
+                      {s.distances.map((d) => (
+                        <li key={d.domaineId}>
+                          {domaineLabel(d.domaineNom)} — <span className="font-medium text-foreground">{d.km.toFixed(1)} km</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {s.telephone ? <WhatsAppLink phone={s.telephone} className="mt-1" /> : null}
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
+    </>
+  );
 }
 
 export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domaines: CarteDomaine[] }) {
@@ -289,63 +387,13 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
             />
             <FitAllOnMount points={points} />
             <FlyToSelected selectedId={selectedId} displayPositions={displayPositions} markerRefs={markerRefs} />
-            {domaines.map((d) => (
-              <Marker key={d.id} position={[d.latitude, d.longitude]} icon={domaineIcon}>
-                <Tooltip permanent direction="top" offset={[0, -12]} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
-                  {domaineLabel(d.nom)}
-                </Tooltip>
-                <Popup>
-                  <span className="font-semibold">{domaineLabel(d.nom)}</span>
-                </Popup>
-              </Marker>
-            ))}
-            {staff
-              .filter((s) => displayPositions.has(s.id))
-              .map((s) => {
-                const { position, direction } = displayPositions.get(s.id)!;
-                const offset: [number, number] =
-                  direction === "right" ? [10, 0] : direction === "left" ? [-10, 0] : direction === "top" ? [0, -10] : [0, 10];
-                return (
-                <Marker
-                  key={s.id}
-                  position={position}
-                  icon={pastilleIcon(staffColorClass(s.roles))}
-                  ref={(instance) => {
-                    if (instance) markerRefs.current.set(s.id, instance);
-                  }}
-                  eventHandlers={{ click: () => setSelectedId(s.id) }}
-                >
-                  <Tooltip permanent direction={direction} offset={offset} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
-                    {s.nom}
-                  </Tooltip>
-                  <Popup>
-                    <div className="min-w-44 space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold">{s.nom}</span>
-                        <DisponibiliteBadge occupe={s.occupeAujourdhui} />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {s.roles.map((r) => (
-                          <Badge key={r} variant="outline" className="text-[10px]">
-                            {ROLE_LABEL[r]}
-                          </Badge>
-                        ))}
-                      </div>
-                      {s.distances.length > 0 ? (
-                        <ul className="space-y-0.5 text-xs text-muted-foreground">
-                          {s.distances.map((d) => (
-                            <li key={d.domaineId}>
-                              {domaineLabel(d.domaineNom)} — <span className="font-medium text-foreground">{d.km.toFixed(1)} km</span>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                      {s.telephone ? <WhatsAppLink phone={s.telephone} className="mt-1" /> : null}
-                    </div>
-                  </Popup>
-                </Marker>
-                );
-              })}
+            <MarkersLayer
+              domaines={domaines}
+              staff={staff}
+              displayPositions={displayPositions}
+              setSelectedId={setSelectedId}
+              markerRefs={markerRefs}
+            />
           </MapContainer>
           </div>
         </Card>
