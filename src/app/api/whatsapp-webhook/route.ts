@@ -12,6 +12,7 @@ import {
   handleCancellationReply,
   isKnownStaffPhone,
   handleGenericStaffMessage,
+  updateStaffPosition,
 } from "@/lib/whatsapp-agent/staff";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 
@@ -124,6 +125,20 @@ export async function POST(req: NextRequest) {
     // réservation" + "quand la personne elle répond en vocal, il faut que tu répondes en vocal".
     const isStaff = await isKnownStaffPhone(from);
     const sendReply = isStaff ? sendWhatsAppTextAndVoice : sendWhatsAppText;
+
+    // Partage de localisation WhatsApp (un tap, natif) — sert uniquement au pointage ponctuel de
+    // position du personnel (voir updateStaffPosition), pas géré pour les clients pour l'instant.
+    if (message.type === "location" && isStaff) {
+      const lat = message.location?.latitude;
+      const lng = message.location?.longitude;
+      if (typeof lat === "number" && typeof lng === "number") {
+        await updateStaffPosition(from, lat, lng);
+        await sendWhatsAppTextAndVoice(message.from, "📍 مرسي، توصلت بالبلاصة ديالك.");
+      } else {
+        await sendWhatsAppTextAndVoice(message.from, "ما قدرتش نقرا البلاصة، عافاك عاود صيفطها.");
+      }
+      return NextResponse.json({ ok: true });
+    }
 
     // Kamel, 2026-08-08 : "quand la personne elle répond en vocal, il faut que tu répondes en
     // vocal" — appliqué au personnel via `sendReply`/`sendWhatsAppTextAndVoice` ci-dessous, mais

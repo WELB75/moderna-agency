@@ -21,6 +21,7 @@ import {
   isSameDay,
   isBefore,
   isAfter,
+  formatDistanceToNow,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -39,10 +40,13 @@ import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { MarkPaidButton } from "@/components/app/mark-paid-button";
 import { PersonnelPlanningGrid } from "@/components/app/personnel-planning-grid";
+import { PersonnelMapLoader } from "@/components/app/personnel-map-loader";
+import type { MapStaffPoint, MapDomainePoint } from "@/components/app/personnel-map";
 import { deletePersonnel } from "@/lib/actions/personnel";
-import { domaineEstActif } from "@/lib/domaines-actifs";
+import { domaineEstActif, filtrerDomainesActifs } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
+import { distanceKm, parseWazeCoords } from "@/lib/geo";
 import {
   Users,
   CalendarClock,
@@ -56,11 +60,12 @@ import {
   Star,
   ChevronLeft,
   ChevronRight,
+  MapPin,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const ONGLETS_VALIDES = ["equipe", "affectations", "planning", "statistiques", "historique", "paiements"];
+const ONGLETS_VALIDES = ["equipe", "affectations", "planning", "carte", "statistiques", "historique", "paiements"];
 
 function statsPeriodeHref(date: Date, vue: "mois" | "annee"): string {
   const base = `/personnel?onglet=statistiques&mois=${format(date, "yyyy-MM")}`;
@@ -101,6 +106,78 @@ export default async function PersonnelPage({
   const menageOptions = menageRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const cuisineOptions = cuisineRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
+
+  // Onglet Carte : dernière position connue de chaque personne (voir personnel.latitude/
+  // longitude dans db/schema.ts, alimenté par un partage de localisation WhatsApp — voir
+  // updateStaffPosition), avec la distance au domaine le plus proche pour repérer d'un coup
+  // d'œil qui envoyer en cas d'urgence. Demande du patron, 2026-08-12.
+  const domainesAvecCoords: MapDomainePoint[] = filtrerDomainesActifs(
+    await db.select({ id: domaines.id, nom: domaines.nom, wazeUrl: domaines.wazeUrl }).from(domaines)
+  )
+    .map((d) => {
+      const coords = parseWazeCoords(d.wazeUrl);
+      return coords ? { id: d.id, nom: d.nom, latitude: coords.lat, longitude: coords.lng } : null;
+    })
+    .filter((d): d is MapDomainePoint => d !== null);
+
+  type StaffCarteEntry = {
+    id: string;
+    nom: string;
+    telephone: string | null;
+    roles: Set<"menage" | "cuisine">;
+    latitude: number | null;
+    longitude: number | null;
+    positionMajAt: Date | null;
+  };
+  // Regroupé par nom : une même personne a une fiche par métier (menage/cuisine, voir
+  // personnel.role) mais une seule position réelle — même logique que PublicStaffAvailability.
+  const staffParNom = new Map<string, StaffCarteEntry>();
+  for (const p of allPersonnel.filter((p) => p.actif)) {
+    const existant = staffParNom.get(p.nom);
+    const positionPlusRecente = p.positionMajAt && (!existant?.positionMajAt || p.positionMajAt > existant.positionMajAt);
+    if (existant) {
+      existant.roles.add(p.role);
+      existant.telephone ??= p.telephone;
+      if (positionPlusRecente && p.latitude && p.longitude) {
+        existant.latitude = Number(p.latitude);
+        existant.longitude = Number(p.longitude);
+        existant.positionMajAt = p.positionMajAt;
+      }
+    } else {
+      staffParNom.set(p.nom, {
+        id: p.id,
+        nom: p.nom,
+        telephone: p.telephone,
+        roles: new Set([p.role]),
+        latitude: p.latitude ? Number(p.latitude) : null,
+        longitude: p.longitude ? Number(p.longitude) : null,
+        positionMajAt: p.positionMajAt,
+      });
+    }
+  }
+  const staffCarte = [...staffParNom.values()]
+    .map((s) => {
+      if (s.latitude === null || s.longitude === null) return { ...s, domaineProche: null, distanceKm: null };
+      let domaineProche: MapDomainePoint | null = null;
+      let meilleureDistance = Infinity;
+      for (const d of domainesAvecCoords) {
+        const dist = distanceKm(s.latitude, s.longitude, d.latitude, d.longitude);
+        if (dist < meilleureDistance) {
+          meilleureDistance = dist;
+          domaineProche = d;
+        }
+      }
+      return { ...s, domaineProche, distanceKm: domaineProche ? meilleureDistance : null };
+    })
+    .sort((a, b) => {
+      if (a.distanceKm === null && b.distanceKm === null) return a.nom.localeCompare(b.nom);
+      if (a.distanceKm === null) return 1;
+      if (b.distanceKm === null) return -1;
+      return a.distanceKm - b.distanceKm;
+    });
+  const staffAvecPosition: MapStaffPoint[] = staffCarte
+    .filter((s): s is typeof s & { latitude: number; longitude: number } => s.latitude !== null && s.longitude !== null)
+    .map((s) => ({ id: s.id, nom: s.nom, roles: [...s.roles], latitude: s.latitude, longitude: s.longitude }));
 
   // Moyenne long terme de la note qualité (ménage de départ / cuisine, voir QualiteNoteControl
   // dans personnel-affectation-editor.tsx) — toute la période, pas juste le mois affiché dans
@@ -613,6 +690,10 @@ export default async function PersonnelPage({
             <CalendarDays className="h-4 w-4" />
             Planning
           </TabsTrigger>
+          <TabsTrigger value="carte" className="shrink-0">
+            <MapPin className="h-4 w-4" />
+            Carte
+          </TabsTrigger>
           <TabsTrigger value="statistiques" className="shrink-0">
             <BarChart3 className="h-4 w-4" />
             Statistiques
@@ -708,6 +789,54 @@ export default async function PersonnelPage({
           </div>
 
           <PersonnelPlanningGrid jours={joursSemaine.map((date) => ({ date, entries: planningPourJour(date) }))} now={now} />
+        </TabsContent>
+
+        <TabsContent value="carte" className="space-y-4">
+          {domainesAvecCoords.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Aucun domaine actif n&apos;a de coordonnées exploitables (lien Waze) pour l&apos;instant.
+            </p>
+          ) : (
+            <PersonnelMapLoader staff={staffAvecPosition} domaines={domainesAvecCoords} />
+          )}
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium">
+                Personnel — la plus proche d&apos;abord
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {staffCarte.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
+              ) : (
+                staffCarte.map((s) => (
+                  <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
+                    <div className="flex items-center gap-2">
+                      {s.roles.has("menage") ? (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">M</span>
+                      ) : null}
+                      {s.roles.has("cuisine") ? (
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-500 text-[10px] font-bold text-white">C</span>
+                      ) : null}
+                      <span className="font-medium">{s.nom}</span>
+                      {s.telephone ? <PhoneLink phone={s.telephone} /> : null}
+                    </div>
+                    <div className="text-sm text-muted-foreground">
+                      {s.distanceKm !== null && s.domaineProche ? (
+                        <>
+                          <span className="font-medium text-foreground">{s.distanceKm.toFixed(1)} km</span> de {s.domaineProche.nom}
+                          {s.positionMajAt ? ` · maj ${formatDistanceToNow(s.positionMajAt, { locale: fr, addSuffix: true })}` : ""}
+                        </>
+                      ) : (
+                        "Position inconnue — pas encore partagé sa localisation par WhatsApp"
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="statistiques" className="space-y-6">

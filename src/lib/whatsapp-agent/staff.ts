@@ -57,6 +57,19 @@ export async function isKnownStaffPhone(phone: string): Promise<boolean> {
   return Boolean(row);
 }
 
+// Pointage ponctuel de position : la personne partage sa localisation WhatsApp (fonctionnalité
+// native, un seul tap, aucune app à installer) — on garde juste la dernière position connue,
+// pas d'historique de suivi continu. Demande du patron, 2026-08-12 : savoir qui est la plus
+// proche d'un domaine en cas d'urgence. Une même personne peut avoir plusieurs fiches (une par
+// rôle menage/cuisine, voir personnel.role) — on met à jour toutes ses fiches d'un coup.
+export async function updateStaffPosition(phone: string, latitude: number, longitude: number): Promise<void> {
+  const db = getDb();
+  await db
+    .update(personnel)
+    .set({ latitude: latitude.toFixed(6), longitude: longitude.toFixed(6), positionMajAt: new Date() })
+    .where(eq(personnel.telephone, phone));
+}
+
 // Filet de sécurité pour un message de personnel qui ne correspond à aucun cas géré (pas de
 // demande en attente, pas d'annulation claire d'une mission confirmée) — plutôt que de laisser le
 // webhook tomber sur l'agent client, ou renvoyer un message figé qui ignore ce qu'elle a

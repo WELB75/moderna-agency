@@ -543,6 +543,13 @@ export const personnel = pgTable("personnel", {
   // personne, sans détailler pourquoi nulle part dans l'app — Kamel, 2026-08-06 : "donne pas
   // d'infos écrite ! juste ENQUETE à côté de son prénom c'est tout en orange".
   enquete: boolean("enquete").default(false).notNull(),
+  // Dernière position connue, reçue quand la personne partage sa localisation par WhatsApp
+  // (fonctionnalité native, pas besoin d'app dédiée) — sert à repérer qui est la plus proche
+  // d'un domaine en cas d'urgence. Pas de suivi continu : juste un pointage ponctuel, mis à
+  // jour à chaque nouveau partage. Demande du patron, 2026-08-12.
+  latitude: numeric("latitude", { precision: 9, scale: 6 }),
+  longitude: numeric("longitude", { precision: 9, scale: 6 }),
+  positionMajAt: timestamp("position_maj_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
