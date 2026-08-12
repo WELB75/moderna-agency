@@ -36,17 +36,17 @@ function staffColorClass(roles: ("menage" | "cuisine")[]) {
   return hasMenage ? "bg-orange-500" : "bg-purple-500";
 }
 
-function staffLabel(roles: ("menage" | "cuisine")[]) {
-  const hasMenage = roles.includes("menage");
-  const hasCuisine = roles.includes("cuisine");
-  if (hasMenage && hasCuisine) return "MC";
-  return hasMenage ? "M" : "C";
-}
-
-function pastilleIcon(initiale: string, colorClass: string) {
+// Silhouette plutôt que des lettres (M/C/MC) : la couleur porte déjà le rôle (voir la légende
+// sous la carte), pas besoin de le répéter en texte sur le marqueur. Kamel, 2026-08-12.
+function pastilleIcon(colorClass: string) {
   return L.divIcon({
     className: "",
-    html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);font-size:11px;font-weight:700;color:white;" class="${colorClass}">${initiale}</div>`,
+    html: `<div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);" class="${colorClass}">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    </div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
     popupAnchor: [0, -14],
@@ -153,7 +153,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                 <Marker
                   key={s.id}
                   position={[s.latitude, s.longitude]}
-                  icon={pastilleIcon(staffLabel(s.roles), staffColorClass(s.roles))}
+                  icon={pastilleIcon(staffColorClass(s.roles))}
                   ref={(instance) => {
                     if (instance) markerRefs.current.set(s.id, instance);
                   }}
