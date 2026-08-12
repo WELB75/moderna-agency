@@ -126,5 +126,10 @@
   }
   html {
     @apply font-sans;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+  }
+  body {
+    overscroll-behavior-x: none;
   }
 }
