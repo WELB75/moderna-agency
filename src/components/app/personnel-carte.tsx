@@ -127,10 +127,75 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
   const center: [number, number] = points.length > 0 ? points[0] : [31.6295, -7.9811];
 
   return (
-    <div className="space-y-4">
-      <Card className="overflow-hidden py-0">
-        <div className="relative">
-          <MapContainer center={center} zoom={12} scrollWheelZoom style={{ height: "440px", width: "100%" }}>
+    <div className="flex flex-col gap-4 lg:h-[calc(100vh-220px)] lg:flex-row">
+      <div className="order-2 space-y-3 overflow-y-auto lg:order-1 lg:w-1/3 lg:shrink-0">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Personnel — la plus proche d&apos;abord</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1.5">
+            {staff.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
+            ) : (
+              staff.map((s) => {
+                const proche = s.distances[0];
+                const aPosition = s.latitude !== null && s.longitude !== null;
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => aPosition && setSelectedId(s.id)}
+                    className={cn(
+                      "flex w-full flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors",
+                      aPosition ? "cursor-pointer hover:bg-muted/50" : "cursor-default opacity-70",
+                      selectedId === s.id && "border-primary bg-muted/50"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className={cn(
+                          "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white",
+                          staffColorClass(s.roles)
+                        )}
+                      >
+                        {s.nom.charAt(0).toUpperCase()}
+                      </span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="font-medium">{s.nom}</span>
+                          {s.roles.map((r) => (
+                            <Badge key={r} variant="outline" className="text-[10px]">
+                              {ROLE_LABEL[r]}
+                            </Badge>
+                          ))}
+                          <DisponibiliteBadge occupe={s.occupeAujourdhui} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {aPosition && proche ? (
+                            <>
+                              <MapPin className="mr-0.5 inline h-3 w-3" />
+                              <span className="font-medium text-foreground">{proche.km.toFixed(1)} km</span> de {proche.domaineNom}
+                              {s.positionMajAt ? ` · maj ${formatDistanceToNow(s.positionMajAt, { locale: fr, addSuffix: true })}` : ""}
+                            </>
+                          ) : (
+                            "Position inconnue — pas encore partagé sa localisation par WhatsApp"
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    {s.telephone ? <WhatsAppLink phone={s.telephone} className="shrink-0" /> : null}
+                  </button>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="order-1 flex min-w-0 flex-col gap-3 lg:order-2 lg:w-2/3 lg:grow">
+        <Card className="overflow-hidden py-0 lg:h-full">
+          <div className="relative h-full">
+            <MapContainer center={center} zoom={12} scrollWheelZoom style={{ height: "440px", width: "100%" }} className="lg:!h-full">
             {/* Voyager (CARTO) plutôt que le rendu OSM standard : routes bien plus lisibles
                 (couleurs distinctes par type de route, labels clairs), gratuit et sans clé API. */}
             <TileLayer
@@ -187,85 +252,24 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                 </Marker>
               ))}
           </MapContainer>
+          </div>
+        </Card>
+
+        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> Ménage
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-purple-500" /> Cuisine
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Ménage + Cuisine
+          </span>
+          <span className="flex items-center gap-1.5">
+            <Home className="h-3 w-3" /> Domaine
+          </span>
         </div>
-      </Card>
-
-      <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> Ménage
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-purple-500" /> Cuisine
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-blue-500" /> Ménage + Cuisine
-        </span>
-        <span className="flex items-center gap-1.5">
-          <Home className="h-3 w-3" /> Domaine
-        </span>
       </div>
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Personnel — la plus proche d&apos;abord</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-1.5">
-          {staff.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
-          ) : (
-            staff.map((s) => {
-              const proche = s.distances[0];
-              const aPosition = s.latitude !== null && s.longitude !== null;
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => aPosition && setSelectedId(s.id)}
-                  className={cn(
-                    "flex w-full flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors",
-                    aPosition ? "cursor-pointer hover:bg-muted/50" : "cursor-default opacity-70",
-                    selectedId === s.id && "border-primary bg-muted/50"
-                  )}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className={cn(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white",
-                        staffColorClass(s.roles)
-                      )}
-                    >
-                      {s.nom.charAt(0).toUpperCase()}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-medium">{s.nom}</span>
-                        {s.roles.map((r) => (
-                          <Badge key={r} variant="outline" className="text-[10px]">
-                            {ROLE_LABEL[r]}
-                          </Badge>
-                        ))}
-                        <DisponibiliteBadge occupe={s.occupeAujourdhui} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {aPosition && proche ? (
-                          <>
-                            <MapPin className="mr-0.5 inline h-3 w-3" />
-                            <span className="font-medium text-foreground">{proche.km.toFixed(1)} km</span> de {proche.domaineNom}
-                            {s.positionMajAt ? ` · maj ${formatDistanceToNow(s.positionMajAt, { locale: fr, addSuffix: true })}` : ""}
-                          </>
-                        ) : (
-                          "Position inconnue — pas encore partagé sa localisation par WhatsApp"
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  {s.telephone ? <WhatsAppLink phone={s.telephone} className="shrink-0" /> : null}
-                </button>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
