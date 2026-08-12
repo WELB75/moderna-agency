@@ -97,9 +97,13 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
       <Card className="overflow-hidden py-0">
         <div className="relative">
           <MapContainer center={center} zoom={12} scrollWheelZoom style={{ height: "440px", width: "100%" }}>
+            {/* Voyager (CARTO) plutôt que le rendu OSM standard : routes bien plus lisibles
+                (couleurs distinctes par type de route, labels clairs), gratuit et sans clé API. */}
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              subdomains="abcd"
+              maxZoom={20}
             />
             <FlyToSelected selectedId={selectedId} staff={staff} markerRefs={markerRefs} />
             {domaines.map((d) => (
