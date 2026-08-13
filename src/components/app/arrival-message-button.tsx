@@ -27,6 +27,7 @@ export function ArrivalMessageButton({
   now,
   ficheId,
   ficheComplete,
+  repasInclus = false,
 }: {
   reservationId: string;
   villaId: string;
@@ -36,6 +37,7 @@ export function ArrivalMessageButton({
   now: Date;
   ficheId: string | null;
   ficheComplete: boolean;
+  repasInclus?: boolean;
 }) {
   const [id, setId] = useState(ficheId);
   const [isPending, startTransition] = useTransition();
@@ -59,7 +61,7 @@ export function ArrivalMessageButton({
           }
           ficheLink = `${window.location.origin}/g/${formId}`;
         }
-        const url = toWhatsAppUrl(phone, buildArrivalMessage(guestName, checkIn, now, ficheLink, lang));
+        const url = toWhatsAppUrl(phone, buildArrivalMessage(guestName, checkIn, now, ficheLink, lang, repasInclus));
         if (win) win.location.href = url;
         else window.open(url, "_blank");
       } catch (err) {

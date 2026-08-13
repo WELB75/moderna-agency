@@ -118,6 +118,10 @@ export const villas = pgTable(
     // paiement ne doit apparaître côté agence pour ces personnes-là sur cette villa. Les autres
     // membres de l'équipe qui interviennent sur la même villa restent payés normalement.
     personnelPayeParProprietaireNoms: jsonb("personnel_paye_par_proprietaire_noms").$type<string[]>().default([]).notNull(),
+    // La cuisinière (petit-déjeuner/déjeuner) est déjà comprise dans le loyer pour certaines
+    // villas (ex. Villa 16, Villa 13) — le client ne paie alors que les suppléments au-delà de la
+    // capacité et les courses/épicerie, jamais la formule repas elle-même. Kamel, 2026-08-13.
+    repasInclusDansLoyer: boolean("repas_inclus_dans_loyer").default(false).notNull(),
     proprietaireNom: text("proprietaire_nom"),
     proprietaireTelephone: text("proprietaire_telephone"),
     // Prénoms des personnes autorisées à s'identifier comme auteur dans le chat de l'espace

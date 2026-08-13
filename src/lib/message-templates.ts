@@ -3,6 +3,11 @@ import { fr, enUS } from "date-fns/locale";
 
 export type MessageLang = "fr" | "en";
 
+// Carte tarifs cuisinière (formules petit-déj / petit-déj + déjeuner) envoyée en pièce jointe
+// (lien image, WhatsApp l'affiche en aperçu) dans le message d'arrivée et le message de
+// bienvenue. Kamel, 2026-08-13.
+const CARTE_REPAS_URL = "https://loyak6makvlkxqye.public.blob.vercel-storage.com/welcome/carte-repas-moderna-agency.png";
+
 // Message unique envoyé au client avant son arrivée : demande l'horaire, transmet le lien de la
 // fiche de police dans le même message si elle n'est pas déjà complétée, et propose la cuisinière
 // avec les prix écrits noir sur blanc (un seul message plutôt que plusieurs, un seul bouton à
@@ -17,10 +22,19 @@ export function buildArrivalMessage(
   checkIn: Date,
   now: Date,
   ficheLink: string | null,
-  lang: MessageLang = "fr"
+  lang: MessageLang = "fr",
+  // Certaines villas (ex. Villa 16, Villa 13) ont déjà la cuisinière comprise dans le loyer —
+  // il ne faut jamais la reproposer comme un service payant à ces clients-là. Kamel, 2026-08-13 :
+  // "propose pas cette carte... ou sinon on la propose mais leur dire qu'ils paient pas sauf les
+  // suppléments de personnes + les courses".
+  repasInclus: boolean = false
 ): string {
-  const cuisineFr = "Souhaitez-vous également les services d'une cuisinière pendant votre séjour ?\n- Petit-déjeuner : 200 MAD/jour\n- Petit-déjeuner + déjeuner : 300 MAD/jour";
-  const cuisineEn = "Would you also like the services of a cook during your stay?\n- Breakfast only: 200 MAD/day\n- Breakfast + lunch: 300 MAD/day";
+  const cuisineFr = repasInclus
+    ? `Une cuisinière est déjà incluse dans votre séjour, sans supplément (voir formules ci-joint) :\n${CARTE_REPAS_URL}\nSeuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
+    : `Souhaitez-vous également les services d'une cuisinière pendant votre séjour ? Formules ci-joint :\n${CARTE_REPAS_URL}`;
+  const cuisineEn = repasInclus
+    ? `A cook is already included in your stay, at no extra cost (menu attached):\n${CARTE_REPAS_URL}\nOnly the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
+    : `Would you also like the services of a cook during your stay? Formulas attached:\n${CARTE_REPAS_URL}`;
 
   if (lang === "en") {
     const when = isSameDay(checkIn, now)
@@ -82,8 +96,19 @@ export function buildWelcomeMessage(
   wazeUrl: string | null,
   codeBoitier: string | null,
   guideBienvenueUrl: string | null,
-  lang: MessageLang = "fr"
+  lang: MessageLang = "fr",
+  // Voir buildArrivalMessage : même règle, la cuisinière est déjà comprise dans le loyer pour
+  // certaines villas (Villa 16, Villa 13) — jamais proposée comme un service payant à ces
+  // clients-là. Kamel, 2026-08-13.
+  repasInclus: boolean = false
 ): string {
+  const carteRepasFr = repasInclus
+    ? `🍽️ Une cuisinière est déjà incluse dans votre séjour, sans supplément (formules ci-joint) :\n${CARTE_REPAS_URL}\nSeuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
+    : `🍽️ Envie d'une cuisinière pendant votre séjour ? Formules ci-joint :\n${CARTE_REPAS_URL}`;
+  const carteRepasEn = repasInclus
+    ? `🍽️ A cook is already included in your stay, at no extra cost (menu attached):\n${CARTE_REPAS_URL}\nOnly the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
+    : `🍽️ Would you like a cook during your stay? Formulas attached:\n${CARTE_REPAS_URL}`;
+
   if (lang === "en") {
     const lines = [
       `Hello ${guestName}, thank you for your booking at ${villaNom}!`,
@@ -94,6 +119,8 @@ export function buildWelcomeMessage(
         ? `📍 Location:${mapsUrl ? ` Maps ${mapsUrl}` : ""}${wazeUrl ? ` — Waze ${wazeUrl}` : ""}`
         : null,
       codeBoitier ? `🔑 Lockbox code: ${codeBoitier}` : null,
+      "",
+      carteRepasEn,
       "",
       "Please send us the ID documents of all adult travelers before your arrival (speeds up check-in). A team member will contact you before you arrive to finalize check-in.",
       "",
@@ -113,6 +140,8 @@ export function buildWelcomeMessage(
       ? `📍 Localisation :${mapsUrl ? ` Maps ${mapsUrl}` : ""}${wazeUrl ? ` — Waze ${wazeUrl}` : ""}`
       : null,
     codeBoitier ? `🔑 Code du boîtier à clé : ${codeBoitier}` : null,
+    "",
+    carteRepasFr,
     "",
     "Merci de nous envoyer les pièces d'identité de tous les voyageurs adultes avant votre arrivée (accélère l'enregistrement). Un membre de l'équipe vous contactera avant votre arrivée pour finaliser le check-in.",
     "",

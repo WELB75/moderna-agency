@@ -36,6 +36,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
       codeChambreMaster: villas.codeChambreMaster,
+      repasInclusDansLoyer: villas.repasInclusDansLoyer,
       guideBienvenueUrl: villas.guideBienvenueUrl,
       personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       numeroImmeuble: villas.numeroImmeuble,
@@ -139,6 +140,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
   const row: ReservationRow = {
     ...r,
     personnelPayeParProprietaireNoms: r.personnelPayeParProprietaireNoms ?? [],
+    repasInclusDansLoyer: r.repasInclusDansLoyer ?? false,
     ficheStatut,
     ficheId,
     contratStatut,

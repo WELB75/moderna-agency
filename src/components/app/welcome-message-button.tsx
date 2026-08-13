@@ -19,6 +19,7 @@ export function WelcomeMessageButton({
   wazeUrl,
   codeBoitier,
   guideBienvenueUrl,
+  repasInclus = false,
 }: {
   phone: string;
   guestName: string;
@@ -27,10 +28,11 @@ export function WelcomeMessageButton({
   wazeUrl: string | null;
   codeBoitier: string | null;
   guideBienvenueUrl: string | null;
+  repasInclus?: boolean;
 }) {
   function handleClick(lang: MessageLang) {
     window.open(
-      toWhatsAppUrl(phone, buildWelcomeMessage(guestName, villaNom, mapsUrl, wazeUrl, codeBoitier, guideBienvenueUrl, lang)),
+      toWhatsAppUrl(phone, buildWelcomeMessage(guestName, villaNom, mapsUrl, wazeUrl, codeBoitier, guideBienvenueUrl, lang, repasInclus)),
       "_blank"
     );
   }

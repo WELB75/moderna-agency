@@ -52,6 +52,7 @@ export type ReservationRow = {
   codeBoitier: string | null;
   codePorteEntree: string | null;
   codeChambreMaster: string | null;
+  repasInclusDansLoyer: boolean;
   personnelPayeParProprietaireNoms: string[];
   numeroImmeuble: string | null;
   proprietaireTelephone: string | null;
@@ -304,6 +305,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 now={nowInMorocco()}
                 ficheId={r.ficheId}
                 ficheComplete={r.ficheStatut === "complete"}
+                repasInclus={r.repasInclusDansLoyer}
               />
             ) : null}
             {r.guestPhone && kind === "in" && !isProprietaire && r.villaNom ? (
@@ -315,6 +317,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 wazeUrl={r.domaineWazeUrl}
                 codeBoitier={r.codeBoitier}
                 guideBienvenueUrl={r.guideBienvenueUrl}
+                repasInclus={r.repasInclusDansLoyer}
               />
             ) : null}
             {r.guestPhone && kind === "in" && !isProprietaire && r.domaineMapsUrl ? (

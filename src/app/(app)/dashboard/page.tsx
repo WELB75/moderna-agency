@@ -79,6 +79,7 @@ export default async function DashboardPage({
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
       codeChambreMaster: villas.codeChambreMaster,
+      repasInclusDansLoyer: villas.repasInclusDansLoyer,
       guideBienvenueUrl: villas.guideBienvenueUrl,
       personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
       numeroImmeuble: villas.numeroImmeuble,
@@ -240,6 +241,7 @@ export default async function DashboardPage({
     return {
       ...r,
       personnelPayeParProprietaireNoms: r.personnelPayeParProprietaireNoms ?? [],
+      repasInclusDansLoyer: r.repasInclusDansLoyer ?? false,
       ficheStatut,
       ficheId,
       contratStatut,
