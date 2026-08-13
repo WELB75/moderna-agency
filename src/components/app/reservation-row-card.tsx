@@ -295,7 +295,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
           )}
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {r.guestPhone && kind === "in" && !isProprietaire && r.villaId ? (
+            {r.guestPhone && kind === "in" && r.villaId ? (
               <ArrivalMessageButton
                 reservationId={r.id}
                 villaId={r.villaId}
@@ -308,7 +308,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 repasInclus={r.repasInclusDansLoyer}
               />
             ) : null}
-            {r.guestPhone && kind === "in" && !isProprietaire && r.villaNom ? (
+            {r.guestPhone && kind === "in" && r.villaNom ? (
               <WelcomeMessageButton
                 phone={r.guestPhone}
                 guestName={r.guestName}
@@ -320,7 +320,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 repasInclus={r.repasInclusDansLoyer}
               />
             ) : null}
-            {r.guestPhone && kind === "in" && !isProprietaire && r.domaineMapsUrl ? (
+            {r.guestPhone && kind === "in" && r.domaineMapsUrl ? (
               <LocationMessageButton
                 phone={r.guestPhone}
                 guestName={r.guestName}
