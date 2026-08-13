@@ -76,13 +76,16 @@ function pastilleIcon(roleColorClass: string, occupe: boolean) {
   });
 }
 
-// Trait fin (icône maison, style lucide) plutôt qu'un emoji ou un pictogramme plein — juste de
-// quoi reconnaître "c'est un domaine" d'un coup d'œil, sans couleur criarde. Kamel, 2026-08-12 :
-// "il me faut juste comme des traits fins".
+// Trait fin (icône maison, style lucide) — même esprit minimaliste que les marqueurs personnel,
+// mais couleurs inversées (fond noir, icône blanche) pour que les domaines restent toujours
+// reconnaissables d'un coup d'œil au milieu de tout le personnel blanc. Kamel, 2026-08-13 :
+// "les domaines en vrai faut inverser fond noir, icone blanche... qu'on voit toujours les
+// domaines visible aussi". Voir aussi zIndexOffset sur le Marker (MarkersLayer) : passe toujours
+// devant un marqueur personnel qui le chevaucherait.
 const domaineIcon = L.divIcon({
   className: "",
-  html: `<div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:white;border:1.5px solid #334155;box-shadow:0 1px 3px rgba(0,0,0,0.25);">
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  html: `<div style="display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:9999px;background:#0f172a;border:1.5px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.4);">
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" />
       <path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
     </svg>
@@ -257,7 +260,7 @@ function MarkersLayer({
   return (
     <>
       {domaines.map((d) => (
-        <Marker key={d.id} position={[d.latitude, d.longitude]} icon={domaineIcon}>
+        <Marker key={d.id} position={[d.latitude, d.longitude]} icon={domaineIcon} zIndexOffset={1000}>
           {afficherEtiquettes ? (
             <Tooltip permanent direction="top" offset={[0, -12]} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
               {domaineLabel(d.nom)}
