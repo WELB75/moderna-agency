@@ -4,11 +4,12 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
-import { MessageCircle, MapPin, Home } from "lucide-react";
+import { MessageCircle, MapPin, Home, Search, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toWhatsAppUrl } from "@/lib/phone";
 import { distanceKm } from "@/lib/geo";
+import { matchesSearch } from "@/lib/text-match";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -319,7 +320,19 @@ function MarkersLayer({
 
 export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domaines: CarteDomaine[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [recherche, setRecherche] = useState("");
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
+
+  // La recherche filtre la liste ET les marqueurs affichés sur la carte (moins de bruit pour
+  // repérer quelqu'un) — s'il ne reste qu'une seule personne, on vole directement vers elle.
+  // Kamel, 2026-08-13 : "trouver direct sur le plan et la barre latérale".
+  const staffFiltre = recherche ? staff.filter((s) => matchesSearch(s.nom, recherche)) : staff;
+  useEffect(() => {
+    if (staffFiltre.length === 1 && staffFiltre[0].latitude !== null) {
+      setSelectedId(staffFiltre[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- seulement quand la recherche change, pas à chaque frappe de sélection
+  }, [recherche]);
 
   const displayPositions = declusterPositions(staff);
   const points = [...[...displayPositions.values()].map((d) => d.position), ...domaines.map((d) => [d.latitude, d.longitude] as [number, number])];
@@ -331,14 +344,35 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
     <div className="flex flex-col gap-4 lg:h-full lg:flex-row">
       <div className="order-2 space-y-3 overflow-y-auto lg:order-1 lg:w-1/3 lg:shrink-0">
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="space-y-2 pb-2">
             <CardTitle className="text-sm font-medium">Personnel — la plus proche d&apos;abord</CardTitle>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+                placeholder="Chercher un prénom..."
+                className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+              />
+              {recherche ? (
+                <button
+                  type="button"
+                  onClick={() => setRecherche("")}
+                  aria-label="Effacer"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="space-y-1.5">
-            {staff.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Personne d&apos;actif pour l&apos;instant.</p>
+            {staffFiltre.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {staff.length === 0 ? "Personne d'actif pour l'instant." : "Aucun résultat."}
+              </p>
             ) : (
-              staff.map((s) => {
+              staffFiltre.map((s) => {
                 const proche = s.distances[0];
                 const aPosition = s.latitude !== null && s.longitude !== null;
                 return (
@@ -411,7 +445,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
             <FlyToSelected selectedId={selectedId} displayPositions={displayPositions} markerRefs={markerRefs} />
             <MarkersLayer
               domaines={domaines}
-              staff={staff}
+              staff={staffFiltre}
               displayPositions={displayPositions}
               setSelectedId={setSelectedId}
               markerRefs={markerRefs}
