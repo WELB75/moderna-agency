@@ -302,6 +302,7 @@ export default async function PersonnelPage({
         affectationId: a.affectationId,
         personnelId: a.personnelId,
         nom: personnelById.get(a.personnelId)!.nom,
+        telephone: personnelById.get(a.personnelId)!.telephone,
         faitAt: a.faitAt,
         nbJours: a.nbJours,
         avecDejeuner: a.avecDejeuner,

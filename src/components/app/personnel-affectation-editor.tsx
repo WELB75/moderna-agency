@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { X, Check, Circle, Coffee, UtensilsCrossed, Star } from "lucide-react";
+import { X, Check, Circle, Coffee, UtensilsCrossed, Star, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { toWhatsAppUrl } from "@/lib/phone";
 import {
   addPersonnelAffectation,
   removePersonnelAffectation,
@@ -35,6 +36,7 @@ export type PersonnelAssigne = {
   affectationId: string;
   personnelId: string;
   nom: string;
+  telephone: string | null;
   faitAt: Date | null;
   nbJours: number | null;
   avecDejeuner: boolean;
@@ -95,6 +97,7 @@ export function PersonnelAffectationEditor({
             affectationId: `optimistic-${action.personnelId}`,
             personnelId: action.personnelId,
             nom: action.nom,
+            telephone: null,
             faitAt: null,
             nbJours: null,
             avecDejeuner: false,
@@ -333,6 +336,25 @@ function QualiteNoteControl({
   );
 }
 
+// Contact WhatsApp direct depuis le badge — Kamel, 2026-08-13 : "donne la possibilité aussi ici
+// de les contacter en un clic whatsapp", pour joindre la personne affectée sans devoir aller
+// chercher son numéro sur la page Personnel.
+function WhatsAppContactButton({ telephone, nom }: { telephone: string; nom: string }) {
+  return (
+    <a
+      href={toWhatsAppUrl(telephone)}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="rounded-full p-1 text-emerald-600 hover:bg-muted dark:text-emerald-400"
+      aria-label={`Contacter ${nom} sur WhatsApp`}
+      title={`Contacter ${nom} sur WhatsApp`}
+    >
+      <MessageCircle className="h-3.5 w-3.5" />
+    </a>
+  );
+}
+
 // Bouton (pas juste un badge à plat) pour que ce soit visuellement clair que c'est cliquable :
 // gris avec cercle vide = pas encore fait, noir plein avec coche = confirmé, comme un
 // interrupteur — même traitement neutre que le reste de l'app, pas de couleur sémantique ici.
@@ -432,6 +454,7 @@ function MenageBadge({
         title="Remarque libre sur cette affectation"
         className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
       />
+      {a.telephone ? <WhatsAppContactButton telephone={a.telephone} nom={a.nom} /> : null}
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
@@ -564,6 +587,7 @@ function CuisineBadge({
         title="Remarque libre sur cette affectation"
         className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
       />
+      {a.telephone ? <WhatsAppContactButton telephone={a.telephone} nom={a.nom} /> : null}
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
