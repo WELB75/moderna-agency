@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { format } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Countdown } from "@/components/app/countdown";
@@ -117,10 +117,15 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
 
         <div>
           <p className={cn("text-sm font-semibold", isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
-            {isIn ? "Check-in" : "Check-out"} · {format(target, "HH:mm", { locale: fr })}
+            {isIn ? "Check-in" : "Check-out"} · {format(target, "d MMM", { locale: fr })} à {format(target, "HH:mm", { locale: fr })}
             {isIn ? (
               <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                (départ le {format(new Date(r.checkOut), "d MMM", { locale: fr })})
+                (départ le {format(new Date(r.checkOut), "d MMM", { locale: fr })}
+                {(() => {
+                  const nuits = differenceInCalendarDays(new Date(r.checkOut), new Date(r.checkIn));
+                  return ` · ${nuits + 1} jour${nuits + 1 > 1 ? "s" : ""} / ${nuits} nuit${nuits > 1 ? "s" : ""}`;
+                })()}
+                )
               </span>
             ) : null}
           </p>
