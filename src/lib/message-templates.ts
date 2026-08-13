@@ -173,6 +173,16 @@ export function buildDepartureMessage(guestName: string, lang: MessageLang = "fr
 
 // Message envoyé au gardien/sécurité du domaine (en arabe, car ils ne lisent pas le français) :
 // prévient de l'arrivée d'un client et transmet le lien de la fiche des occupants.
-export function buildSecurityMessage(guestName: string, villaNom: string, villaNumero: string, link: string): string {
-  return `السلام عليكم،\n\nضيف جديد (${guestName}) سيصل إلى ${villaNom} (فيلا رقم ${villaNumero}).\n\nهذا رابط الأمن الخاص بمعلومات الضيوف:\n\n${link}\n\nشكرا`;
+// La date est écrite en chiffres (jj/mm/aaaa) plutôt qu'en mots ("aujourd'hui"/"demain") car ce
+// message peut être envoyé n'importe quand avant l'arrivée (jusqu'à 48h à l'avance) — une date
+// relative serait fausse si elle est lue un autre jour que celui de l'envoi.
+export function buildSecurityMessage(
+  guestName: string,
+  villaNom: string,
+  villaNumero: string,
+  link: string,
+  checkIn: Date
+): string {
+  const dateStr = checkIn.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  return `السلام عليكم،\n\nضيف جديد (${guestName}) غادي يوصل إلى ${villaNom} (فيلا رقم ${villaNumero}) نهار ${dateStr}.\n\nهذا رابط الأمن الخاص بمعلومات الضيوف:\n\n${link}\n\nشكرا`;
 }

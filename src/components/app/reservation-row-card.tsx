@@ -336,6 +336,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 villaNom={r.villaNom ?? "Villa"}
                 villaNumero={r.villaNumero ?? "?"}
                 villaId={r.villaId}
+                checkIn={new Date(r.checkIn)}
               />
             ) : null}
             {r.guestPhone && kind === "out" && !isProprietaire && r.villaNom ? (
