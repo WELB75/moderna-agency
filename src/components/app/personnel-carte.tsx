@@ -50,22 +50,25 @@ function staffColorClass(roles: ("menage" | "cuisine")[]) {
   return hasMenage ? "bg-orange-500" : "bg-purple-500";
 }
 
-// Silhouette plutôt que des lettres (M/C/MC) : la couleur porte déjà le rôle (voir la légende
-// sous la carte), pas besoin de le répéter en texte sur le marqueur. Kamel, 2026-08-12. Petite
-// pastille verte/rouge en surimpression (disponible/occupée) — doit être visible directement sur
-// le marqueur, pas seulement dans le popup au clic, aussi bien sur mobile que sur PC.
-function pastilleIcon(colorClass: string, occupe: boolean) {
+// Minimalisme, même charte que l'icône domaine : fond blanc, icône en trait fin (noir/gris
+// foncé), pas de rond plein coloré — trop de couleurs sur la carte. Kamel, 2026-08-13 : "on va
+// rester dans la même charte graphique que les icônes... fond blanc, icône noir pour tous...
+// trop de couleurs j'aime pas". Deux petites pastilles portent l'info utile : à gauche le rôle
+// (orange ménage / violet cuisine / bleu les deux), à droite la disponibilité (vert/rouge) —
+// gardée telle quelle, c'est le seul usage de couleur que Kamel veut conserver.
+function pastilleIcon(roleColorClass: string, occupe: boolean) {
   const statutColor = occupe ? "#ef4444" : "#22c55e";
   return L.divIcon({
     className: "",
     html: `<div style="position:relative;width:28px;height:28px;">
-      <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.35);" class="${colorClass}">
-        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9999px;background:white;border:1.5px solid #334155;box-shadow:0 1px 4px rgba(0,0,0,0.3);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
           <circle cx="12" cy="7" r="4" />
         </svg>
       </div>
-      <div style="position:absolute;bottom:-1px;right:-1px;width:10px;height:10px;border-radius:9999px;background:${statutColor};border:2px solid white;"></div>
+      <div style="position:absolute;bottom:-1px;left:-1px;width:9px;height:9px;border-radius:9999px;border:1.5px solid white;" class="${roleColorClass}"></div>
+      <div style="position:absolute;bottom:-1px;right:-1px;width:9px;height:9px;border-radius:9999px;background:${statutColor};border:1.5px solid white;"></div>
     </div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
