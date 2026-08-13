@@ -246,12 +246,14 @@ function MarkersLayer({
   staff,
   displayPositions,
   setSelectedId,
+  setHoveredId,
   markerRefs,
 }: {
   domaines: CarteDomaine[];
   staff: CarteStaff[];
   displayPositions: Map<string, DisplayPosition>;
   setSelectedId: (id: string) => void;
+  setHoveredId: (id: string | null) => void;
   markerRefs: React.RefObject<Map<string, L.Marker>>;
 }) {
   const zoom = useZoomActuel();
@@ -285,7 +287,11 @@ function MarkersLayer({
               ref={(instance) => {
                 if (instance) markerRefs.current.set(s.id, instance);
               }}
-              eventHandlers={{ click: () => setSelectedId(s.id) }}
+              eventHandlers={{
+                click: () => setSelectedId(s.id),
+                mouseover: () => setHoveredId(s.id),
+                mouseout: () => setHoveredId(null),
+              }}
             >
               {afficherEtiquettes ? (
                 <Tooltip permanent direction={direction} offset={offset} className="!border-slate-300 !bg-white/90 !py-0.5 !text-[11px] !font-medium !text-slate-700">
@@ -326,6 +332,7 @@ function MarkersLayer({
 
 export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domaines: CarteDomaine[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [recherche, setRecherche] = useState("");
   const markerRefs = useRef<Map<string, L.Marker>>(new Map());
 
@@ -389,7 +396,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                     className={cn(
                       "flex w-full flex-wrap items-center justify-between gap-3 rounded-lg border p-3 text-left transition-colors",
                       aPosition ? "cursor-pointer hover:bg-muted/50" : "cursor-default opacity-70",
-                      selectedId === s.id && "border-primary bg-muted/50"
+                      (selectedId === s.id || hoveredId === s.id) && "border-primary bg-muted/50"
                     )}
                   >
                     <div className="flex items-center gap-2.5">
@@ -454,6 +461,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               staff={staffFiltre}
               displayPositions={displayPositions}
               setSelectedId={setSelectedId}
+              setHoveredId={setHoveredId}
               markerRefs={markerRefs}
             />
           </MapContainer>
