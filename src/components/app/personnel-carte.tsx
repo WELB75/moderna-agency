@@ -8,6 +8,7 @@ import { MessageCircle, MapPin, Home } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toWhatsAppUrl } from "@/lib/phone";
+import { distanceKm } from "@/lib/geo";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -137,30 +138,41 @@ function directionForAngle(angle: number): TooltipDirection {
   return composanteNord >= 0 ? "top" : "bottom";
 }
 
+// Regrouper seulement les coordonnées EXACTEMENT identiques ratait un cas réel : deux personnes
+// qui n'habitent pas au même endroit mais suffisamment proches pour que leurs marqueurs se
+// chevauchent quand même à faible zoom — la pastille dispo/occupée de l'une se retrouvait
+// entièrement cachée sous le marqueur de l'autre (repéré par Kamel, 2026-08-13 : "on voit pas si
+// c'est vert ou rouge"). Un simple chevauchement de couleur se voit encore ; une pastille
+// complètement recouverte, non — donc on regroupe par PROXIMITÉ (clustering glouton), pas par
+// égalité stricte.
+const SEUIL_PROXIMITE_KM = 1;
+
 function declusterPositions(staff: CarteStaff[]): Map<string, DisplayPosition> {
-  const groupes = new Map<string, CarteStaff[]>();
-  for (const s of staff) {
-    if (s.latitude === null || s.longitude === null) continue;
-    const cle = `${s.latitude.toFixed(5)},${s.longitude.toFixed(5)}`;
-    const groupe = groupes.get(cle);
-    if (groupe) groupe.push(s);
-    else groupes.set(cle, [s]);
+  const avecPosition = staff.filter(
+    (s): s is CarteStaff & { latitude: number; longitude: number } => s.latitude !== null && s.longitude !== null
+  );
+  const clusters: { lat: number; lng: number; membres: CarteStaff[] }[] = [];
+  for (const s of avecPosition) {
+    const proche = clusters.find((c) => distanceKm(c.lat, c.lng, s.latitude, s.longitude) < SEUIL_PROXIMITE_KM);
+    if (proche) proche.membres.push(s);
+    else clusters.push({ lat: s.latitude, lng: s.longitude, membres: [s] });
   }
   const positions = new Map<string, DisplayPosition>();
-  for (const groupe of groupes.values()) {
-    if (groupe.length === 1) {
-      const s = groupe[0];
+  for (const cluster of clusters) {
+    if (cluster.membres.length === 1) {
+      const s = cluster.membres[0];
       positions.set(s.id, { position: [s.latitude!, s.longitude!], direction: "right" });
       continue;
     }
-    groupe.forEach((s, i) => {
-      const angle = (2 * Math.PI * i) / groupe.length;
-      const correctionLongitude = Math.cos((s.latitude! * Math.PI) / 180) || 1;
+    // Écart autour du centre du groupe (moyenne), pas juste de la première personne — plus
+    // naturel quand les positions réelles ne sont pas déjà toutes au même point.
+    const centreLat = cluster.membres.reduce((somme, s) => somme + s.latitude!, 0) / cluster.membres.length;
+    const centreLng = cluster.membres.reduce((somme, s) => somme + s.longitude!, 0) / cluster.membres.length;
+    const correctionLongitude = Math.cos((centreLat * Math.PI) / 180) || 1;
+    cluster.membres.forEach((s, i) => {
+      const angle = (2 * Math.PI * i) / cluster.membres.length;
       positions.set(s.id, {
-        position: [
-          s.latitude! + RAYON_ECART_DEGRES * Math.sin(angle),
-          s.longitude! + (RAYON_ECART_DEGRES * Math.cos(angle)) / correctionLongitude,
-        ],
+        position: [centreLat + RAYON_ECART_DEGRES * Math.sin(angle), centreLng + (RAYON_ECART_DEGRES * Math.cos(angle)) / correctionLongitude],
         direction: directionForAngle(angle),
       });
     });
