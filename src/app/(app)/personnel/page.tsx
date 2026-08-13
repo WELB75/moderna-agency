@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonnelTabs } from "@/components/app/personnel-tabs";
+import { CloseCarteButton } from "@/components/app/close-carte-button";
 import { GlobalSearchBar } from "@/components/app/global-search-bar";
 import { AddPersonnelDialog } from "@/components/app/add-personnel-dialog";
 import { EditPersonnelDialog } from "@/components/app/edit-personnel-dialog";
@@ -796,12 +797,23 @@ export default async function PersonnelPage({
           <PersonnelPlanningGrid jours={joursSemaine.map((date) => ({ date, entries: planningPourJour(date) }))} now={now} />
         </TabsContent>
 
-        <TabsContent value="carte" className="space-y-4">
-          {domainesAvecCoords.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucun domaine n&apos;a de coordonnées pour l&apos;instant.</p>
-          ) : (
-            <PersonnelCarteLoader staff={staffCarte} domaines={domainesAvecCoords} />
-          )}
+        {/* Plein écran (par-dessus sidebar/header/nav du bas) : Kamel, 2026-08-13 — "qu'on
+            voit plus rien de l'app", sur mobile comme sur PC. z-[70] pour passer au-dessus du
+            BottomNav (z-50) et de AppHeader (z-40, sticky) — voir (app)/layout.tsx. TabsContent
+            n'est monté que pour l'onglet actif (comportement par défaut de Radix Tabs), donc cet
+            overlay disparaît complètement dès qu'on quitte l'onglet Carte. */}
+        <TabsContent value="carte" className="fixed inset-0 z-[70] flex flex-col overflow-y-auto bg-background">
+          <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b bg-background px-4 py-2.5">
+            <p className="text-sm font-medium">Carte du personnel</p>
+            <CloseCarteButton />
+          </div>
+          <div className="min-h-0 flex-1 p-4">
+            {domainesAvecCoords.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucun domaine n&apos;a de coordonnées pour l&apos;instant.</p>
+            ) : (
+              <PersonnelCarteLoader staff={staffCarte} domaines={domainesAvecCoords} />
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="statistiques" className="space-y-6">

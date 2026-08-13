@@ -328,7 +328,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
   const staffDisponibles = staff.length - staffOccupees;
 
   return (
-    <div className="flex flex-col gap-4 lg:h-[calc(100vh-220px)] lg:flex-row">
+    <div className="flex flex-col gap-4 lg:h-full lg:flex-row">
       <div className="order-2 space-y-3 overflow-y-auto lg:order-1 lg:w-1/3 lg:shrink-0">
         <Card>
           <CardHeader className="pb-2">
