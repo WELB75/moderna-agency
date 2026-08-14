@@ -41,6 +41,9 @@ async function runPassportAnalysis(formData: FormData): Promise<PassportAnalysis
     venantDe: result.fields.venantDe ?? "",
     typePiece: result.fields.typePiece ?? "",
     numeroPiece: result.fields.numeroPiece ?? "",
+    lieuNaissance: result.fields.lieuNaissance ?? "",
+    datePiece: result.fields.datePiece ?? "",
+    lieuPiece: result.fields.lieuPiece ?? "",
     photoPieceUrl: result.photoDataUrl,
   };
 

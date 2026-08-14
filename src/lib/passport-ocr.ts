@@ -26,6 +26,12 @@ export type PassportField = {
   venantDe: string;
   typePiece: string;
   numeroPiece: string;
+  // Ni le lieu de naissance ni la date/le lieu de délivrance ne sont dans la MRZ (norme ICAO
+  // 9303) — l'OCR local ne les remplit donc jamais. Seule la lecture IA (passport-ai.ts), qui
+  // voit la page imprimée entière, peut les lire.
+  lieuNaissance: string;
+  datePiece: string; // YYYY-MM-DD
+  lieuPiece: string;
 };
 
 export type PassportExtraction = {

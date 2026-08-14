@@ -25,6 +25,15 @@ const PassportSchema = z.object({
     .string()
     .describe("Code pays ICAO alpha-3 de la nationalité (ex. FRA, MAR, USA, GBR...), chaîne vide si illisible."),
   numero_piece: z.string().describe("Numéro du passeport, chaîne vide si illisible."),
+  lieu_naissance: z.string().describe("Lieu de naissance tel qu'imprimé (ville, parfois + pays), chaîne vide si absent/illisible."),
+  date_delivrance: z
+    .string()
+    .describe("Date de délivrance/émission du passeport (\"Date of issue\") au format YYYY-MM-DD, chaîne vide si absente/illisible."),
+  lieu_delivrance: z
+    .string()
+    .describe(
+      "Lieu ou autorité de délivrance du passeport (\"Place of issue\"/\"Authority\"), chaîne vide si absent/illisible."
+    ),
   avertissements: z
     .array(z.string())
     .describe(
@@ -51,10 +60,14 @@ export async function extractPassportAI(inputBuffer: Buffer, mimeType: string): 
     output_config: { effort: "low", format: zodOutputFormat(PassportSchema) },
     system:
       "Tu lis une photo de passeport (n'importe quel pays) pour préremplir une fiche de police marocaine. " +
-      "Base-toi en priorité sur la bande MRZ (les deux lignes de lettres/chiffres/< tout en bas de la page " +
-      "bio) si elle est visible et nette, sinon sur les champs imprimés au-dessus. Ne devine et n'invente " +
-      "jamais une valeur : si un champ n'est pas lisible avec certitude, laisse-le en chaîne vide et " +
-      "signale-le dans avertissements plutôt que d'approximer.",
+      "Pour nom/prénom/date de naissance/nationalité/numéro, base-toi en priorité sur la bande MRZ (les deux " +
+      "lignes de lettres/chiffres/< tout en bas de la page bio) si elle est visible et nette, sinon sur les " +
+      "champs imprimés au-dessus. Le lieu de naissance et la date/le lieu de délivrance ne sont jamais dans " +
+      "la MRZ : lis-les uniquement dans les champs imprimés (\"Place of birth\", \"Date of issue\", " +
+      "\"Place of issue\"/\"Authority\" ou équivalents dans la langue du document) — laisse-les vides si le " +
+      "document ne les imprime pas du tout. Ne devine et n'invente jamais une valeur : si un champ n'est pas " +
+      "lisible avec certitude, laisse-le en chaîne vide et signale-le dans avertissements plutôt que " +
+      "d'approximer.",
     messages: [
       {
         role: "user",
@@ -80,6 +93,9 @@ export async function extractPassportAI(inputBuffer: Buffer, mimeType: string): 
   if (result.date_naissance) fields.dateNaissance = result.date_naissance;
   if (result.numero_piece) fields.numeroPiece = result.numero_piece;
   if (result.nom || result.prenom || result.numero_piece) fields.typePiece = "Passeport";
+  if (result.lieu_naissance) fields.lieuNaissance = result.lieu_naissance;
+  if (result.date_delivrance) fields.datePiece = result.date_delivrance;
+  if (result.lieu_delivrance) fields.lieuPiece = result.lieu_delivrance;
 
   const nat = nationaliteFromCode(result.nationalite_code);
   if (nat) {

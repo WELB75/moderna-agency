@@ -22,9 +22,9 @@ import {
   type GendarmerieLang,
 } from "@/lib/gendarmerie-i18n";
 
-// Champs que la lecture MRZ peut effectivement remplir — sert à ne fusionner que ceux-là dans
-// l'occupant existant plutôt que d'écraser des champs déjà saisis (dateArrivee, allantA...) avec
-// les valeurs vides du résultat OCR.
+// Champs que la lecture passeport (IA ou repli MRZ, voir gendarmerie-import.ts) peut
+// effectivement remplir — sert à ne fusionner que ceux-là dans l'occupant existant plutôt que
+// d'écraser des champs déjà saisis (dateArrivee, allantA...) avec les valeurs vides du résultat.
 const OCR_FIELDS = [
   "nom",
   "prenom",
@@ -33,6 +33,9 @@ const OCR_FIELDS = [
   "venantDe",
   "typePiece",
   "numeroPiece",
+  "lieuNaissance",
+  "datePiece",
+  "lieuPiece",
   "photoPieceUrl",
 ] as const satisfies readonly (keyof OccupantInput)[];
 
