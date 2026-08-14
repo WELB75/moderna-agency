@@ -108,6 +108,10 @@ export async function extractPassport(inputBuffer: Buffer): Promise<PassportExtr
     if (!lines) continue;
     const { score, result } = scoreMrzAttempt(lines);
     if (!best || score > best.score) best = { angle, score, result, rotatedBuffer };
+    // Une MRZ dont tous les chiffres de contrôle passent ne peut pas être battue par une autre
+    // rotation (le bonus +10 dans scoreMrzAttempt domine le score max atteignable autrement) :
+    // inutile de payer 3 passes OCR de plus (~4x le temps de lecture) une fois la bonne trouvée.
+    if (result?.valid) break;
   }
 
   const fields: Partial<PassportField> = {};

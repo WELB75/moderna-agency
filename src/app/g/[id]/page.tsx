@@ -7,6 +7,10 @@ import { Logo } from "@/components/app/logo";
 import { GendarmerieForm } from "@/components/app/gendarmerie-form";
 import { GendarmerieSignatureForm } from "@/components/app/gendarmerie-signature-form";
 
+// Le scan passeport (GendarmerieForm) lit la MRZ via OCR local (voir passport-ocr.ts) : plus lent
+// que le timeout par défaut des Server Actions sur cette page, surtout à froid.
+export const maxDuration = 60;
+
 export default async function PublicGendarmerieFormPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const db = getDb();

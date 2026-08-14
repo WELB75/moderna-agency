@@ -5,6 +5,11 @@ import { contratsLocation, gendarmerieForms, villas } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { DossierFlow } from "@/components/app/dossier-flow";
 
+// Le scan passeport (GendarmerieForm dans DossierFlow) lit la MRZ via OCR local (voir
+// passport-ocr.ts) : plus lent que le timeout par défaut des Server Actions sur cette page,
+// surtout à froid.
+export const maxDuration = 60;
+
 export default async function DossierPage({ params }: { params: Promise<{ contratId: string }> }) {
   const { contratId } = await params;
   const db = getDb();

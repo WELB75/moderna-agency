@@ -17,6 +17,10 @@ import { deleteContrat } from "@/lib/actions/contrats";
 import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs } from "@/lib/domaines-actifs";
 import { FileText, FileSignature, IdCard, Download } from "lucide-react";
 
+// L'import de passeport (PassportDropZone) lit la MRZ via OCR local (voir passport-ocr.ts) : plus
+// lent que le timeout par défaut des Server Actions sur cette page, surtout à froid.
+export const maxDuration = 60;
+
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <Card>
