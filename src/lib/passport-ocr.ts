@@ -5,15 +5,15 @@ import { nationaliteFromCode } from "@/lib/nationalites";
 import { normalizeIdPhotoBuffer } from "@/lib/id-photo-normalize";
 import { getOcrWorker } from "@/lib/ocr-worker";
 
-// Lecture de passeport 100% locale (pas d'API IA payante) : on ne tente pas de lire les champs
-// imprimés (mise en page différente dans chaque pays, peu fiable en OCR générique) mais
-// uniquement la MRZ — la bande de deux lignes en bas de la page bio, normée ICAO 9303 donc
-// identique dans le monde entier, avec chiffres de contrôle qui permettent de vérifier la
-// lecture. Comme on ne sait pas à l'avance dans quel sens la photo a été prise (les téléphones
-// ne mettent pas toujours de tag EXIF, cf. les passeports pris de travers du 31/07), on essaie
-// les 4 rotations possibles et on garde celle dont la MRZ passe la validation. Le lieu de
-// naissance, la profession et le lieu de délivrance ne sont pas dans la MRZ et restent à
-// compléter à la main dans l'écran de relecture.
+// Repli local (pas d'API IA payante) utilisé uniquement quand la lecture IA (passport-ai.ts)
+// échoue — on ne tente pas de lire les champs imprimés (mise en page différente dans chaque pays,
+// peu fiable en OCR générique) mais uniquement la MRZ — la bande de deux lignes en bas de la page
+// bio, normée ICAO 9303 donc identique dans le monde entier, avec chiffres de contrôle qui
+// permettent de vérifier la lecture. Comme on ne sait pas à l'avance dans quel sens la photo a été
+// prise (les téléphones ne mettent pas toujours de tag EXIF, cf. les passeports pris de travers du
+// 31/07), on essaie les 4 rotations possibles et on garde celle dont la MRZ passe la validation.
+// Le lieu de naissance, la profession et le lieu de délivrance ne sont pas dans la MRZ et restent
+// à compléter à la main dans l'écran de relecture.
 
 const MRZ_CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<";
 const ROTATIONS = [0, 90, 180, 270] as const;

@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants } from "@/db/schema";
 import { extractPassport } from "@/lib/passport-ocr";
+import { extractPassportAI } from "@/lib/passport-ai";
 import { normalizeIdPhotoDataUrl } from "@/lib/id-photo-normalize";
 import { emptyOccupant } from "@/lib/gendarmerie-i18n";
 import type { OccupantInput } from "@/lib/actions/gendarmerie";
@@ -23,7 +24,13 @@ async function runPassportAnalysis(formData: FormData): Promise<PassportAnalysis
   if (file.size > 15 * 1024 * 1024) throw new Error("Photo trop lourde (max 15 Mo).");
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  const result = await extractPassport(buffer);
+  let result: Awaited<ReturnType<typeof extractPassport>>;
+  try {
+    result = await extractPassportAI(buffer, file.type);
+  } catch (err) {
+    console.error("Lecture passeport par IA indisponible, repli sur l'OCR local :", err);
+    result = await extractPassport(buffer);
+  }
 
   const occupant: OccupantInput = {
     ...emptyOccupant(),
@@ -40,9 +47,9 @@ async function runPassportAnalysis(formData: FormData): Promise<PassportAnalysis
   return { occupant, warnings: result.warnings, mrzFound: result.mrzFound, mrzValid: result.mrzValid };
 }
 
-// Lecture 100% locale (OCR + MRZ), sans API IA payante — voir src/lib/passport-ocr.ts pour les
-// limites : fiable sur nom/prénom/naissance/nationalité/numéro quand la MRZ est lue, sinon les
-// champs restent vides et sont à saisir à la main dans l'écran de relecture.
+// Lecture par IA vision (voir src/lib/passport-ai.ts), avec repli automatique sur l'OCR MRZ local
+// (src/lib/passport-ocr.ts) si l'appel IA échoue (clé absente, quota, réseau...) — dans les deux
+// cas les champs non lus avec certitude restent vides, à saisir à la main dans l'écran de relecture.
 export async function analyzePassportImage(formData: FormData): Promise<PassportAnalysis> {
   await auth.protect();
   return runPassportAnalysis(formData);
