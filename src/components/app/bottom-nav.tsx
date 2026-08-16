@@ -29,7 +29,7 @@ export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number })
   return (
     <>
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:hidden print:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-white/50 bg-white/45 shadow-[0_-8px_30px_rgba(0,0,0,0.04)] backdrop-blur-2xl backdrop-saturate-150 md:hidden print:hidden dark:border-white/10 dark:bg-white/8"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <ul className="flex items-stretch justify-around">
