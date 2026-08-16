@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Polyline, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { MessageCircle, MapPin, Home, Search, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +94,113 @@ const domaineIcon = L.divIcon({
   iconAnchor: [13, 13],
   popupAnchor: [0, -13],
 });
+
+// Itinéraires voiture façon Waze/Google Maps quand on sélectionne quelqu'un : jusqu'à 3 tracés
+// distincts vers le domaine le plus proche (celui déjà en tête de s.distances), avec durée —
+// calculés via OSRM (moteur gratuit, sans clé API, cohérent avec les tuiles CARTO déjà utilisées
+// ici). Kamel, 2026-08-16 : "je veux les 3 itineraire avec durée en voiture jusqu'au domaine avec
+// 3 couleurs différentes par tracé".
+const ROUTE_COLORS = ["#2563eb", "#f97316", "#16a34a"]; // bleu, orange, vert
+
+type RouteOption = { coords: [number, number][]; durationSec: number; distanceM: number };
+type OsrmRoute = { duration: number; distance: number; geometry: { coordinates: [number, number][] } };
+
+function formatDuration(seconds: number): string {
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m}`;
+}
+
+function useDrivingRoutes(origin: [number, number] | null, destination: [number, number] | null) {
+  const [state, setState] = useState<{ routes: RouteOption[]; loading: boolean; error: string | null }>({
+    routes: [],
+    loading: false,
+    error: null,
+  });
+
+  const key = origin && destination ? `${origin[0]},${origin[1]};${destination[0]},${destination[1]}` : null;
+
+  useEffect(() => {
+    if (!key || !origin || !destination) return;
+    const controller = new AbortController();
+    setState({ routes: [], loading: true, error: null });
+    const url = `https://router.project-osrm.org/route/v1/driving/${origin[1]},${origin[0]};${destination[1]},${destination[0]}?alternatives=true&overview=full&geometries=geojson`;
+    fetch(url, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error("request-failed");
+        return res.json();
+      })
+      .then((data: { code: string; routes?: OsrmRoute[] }) => {
+        if (data.code !== "Ok" || !data.routes || data.routes.length === 0) throw new Error("no-route");
+        const routes: RouteOption[] = data.routes.slice(0, 3).map((r) => ({
+          coords: r.geometry.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]),
+          durationSec: r.duration,
+          distanceM: r.distance,
+        }));
+        setState({ routes, loading: false, error: null });
+      })
+      .catch((err: Error) => {
+        if (err.name === "AbortError") return;
+        setState({ routes: [], loading: false, error: "Itinéraire indisponible" });
+      });
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` résume déjà origin+destination
+  }, [key]);
+
+  if (!origin || !destination) return { routes: [], loading: false, error: null };
+  return state;
+}
+
+function RoutesLayer({ routes }: { routes: RouteOption[] }) {
+  return (
+    <>
+      {routes.map((route, i) => (
+        <Polyline
+          key={i}
+          positions={route.coords}
+          pathOptions={{ color: ROUTE_COLORS[i % ROUTE_COLORS.length], weight: i === 0 ? 5 : 4, opacity: i === 0 ? 0.9 : 0.55 }}
+        />
+      ))}
+    </>
+  );
+}
+
+function RoutesPanel({
+  routes,
+  loading,
+  error,
+  domaineNom,
+}: {
+  routes: RouteOption[];
+  loading: boolean;
+  error: string | null;
+  domaineNom: string;
+}) {
+  return (
+    <div className="pointer-events-none absolute left-3 top-3 z-[400] max-w-[230px]">
+      <div className="pointer-events-auto rounded-lg border bg-background/95 p-2.5 shadow-lg backdrop-blur-sm">
+        <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Vers {domaineLabel(domaineNom)} en voiture</p>
+        {loading ? (
+          <p className="text-xs text-muted-foreground">Calcul de l&apos;itinéraire…</p>
+        ) : error ? (
+          <p className="text-xs text-muted-foreground">{error}</p>
+        ) : (
+          <ul className="space-y-1">
+            {routes.map((r, i) => (
+              <li key={i} className="flex items-center gap-1.5 text-xs">
+                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: ROUTE_COLORS[i % ROUTE_COLORS.length] }} />
+                <span className="font-medium text-foreground">{formatDuration(r.durationSec)}</span>
+                <span className="text-muted-foreground">· {(r.distanceM / 1000).toFixed(1)} km</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function DisponibiliteBadge({ occupe }: { occupe: boolean }) {
   return (
@@ -353,6 +460,18 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
   const staffOccupees = staff.filter((s) => s.occupeAujourdhui).length;
   const staffDisponibles = staff.length - staffOccupees;
 
+  // Itinéraires vers le domaine le plus proche de la personne sélectionnée (voir RoutesLayer /
+  // RoutesPanel plus haut) — réutilise s.distances, déjà trié par proximité croissante.
+  const selectedStaff = selectedId ? staff.find((s) => s.id === selectedId) : undefined;
+  const nearestDomaine = selectedStaff?.distances[0];
+  const nearestDomaineCoords = nearestDomaine ? domaines.find((d) => d.id === nearestDomaine.domaineId) : undefined;
+  const routeOrigin: [number, number] | null =
+    selectedStaff?.latitude != null && selectedStaff?.longitude != null ? [selectedStaff.latitude, selectedStaff.longitude] : null;
+  const routeDestination: [number, number] | null = nearestDomaineCoords
+    ? [nearestDomaineCoords.latitude, nearestDomaineCoords.longitude]
+    : null;
+  const { routes, loading: routesLoading, error: routesError } = useDrivingRoutes(routeOrigin, routeDestination);
+
   return (
     <div className="flex flex-col gap-4 lg:h-full lg:flex-row">
       <div className="order-2 space-y-3 overflow-y-auto lg:order-1 lg:w-1/3 lg:shrink-0">
@@ -464,7 +583,11 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               setHoveredId={setHoveredId}
               markerRefs={markerRefs}
             />
+            <RoutesLayer routes={routes} />
           </MapContainer>
+          {selectedStaff && nearestDomaine ? (
+            <RoutesPanel routes={routes} loading={routesLoading} error={routesError} domaineNom={nearestDomaine.domaineNom} />
+          ) : null}
           {/* Résumé flottant façon Airbnb/Uber ("Plus de 1000 logements") — l'info utile
               (qui est libre) visible d'un coup d'œil, sans avoir à descendre à la liste. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[400] flex justify-center">
