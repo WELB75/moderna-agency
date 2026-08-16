@@ -10,7 +10,7 @@ export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col bg-black text-white md:flex print:hidden">
+    <aside className="hidden w-64 shrink-0 flex-col bg-black/55 text-white shadow-[8px_0_30px_rgba(0,0,0,0.15)] backdrop-blur-xl backdrop-saturate-150 md:flex print:hidden">
       <div className="flex flex-col items-center border-b border-white/15 px-5 py-8">
         <div className="rounded-full bg-white p-1.5">
           <Logo size={72} />
@@ -28,7 +28,7 @@ export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 text-sm font-light uppercase tracking-[0.12em] transition-colors",
                 active
-                  ? "bg-white text-black"
+                  ? "bg-white/90 text-black"
                   : "text-white/70 hover:bg-white/10 hover:text-white"
               )}
             >
