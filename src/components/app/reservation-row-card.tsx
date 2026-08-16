@@ -87,7 +87,12 @@ export type ReservationRow = {
 // documents, messages) — utilisée à la fois sur le tableau de bord (groupée par jour) et sur la
 // fiche dédiée /reservations/[id] (arrivée avec la recherche globale), pour toujours retomber
 // sur exactement la même vue, peu importe d'où on y accède.
-export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
+//
+// `glass` : habillage "verre dépoli" façon Apple (fond translucide flouté, coins arrondis,
+// ombre douce) au lieu du style plat à bordure gauche colorée — en test sur l'accueil
+// uniquement pour l'instant (Kamel, 2026-08-16 : "je voulais tester déjà sur accueil voir ce
+// que ça donne"), pas encore le style par défaut partout.
+export function ReservationRowCard({ r, kind, glass = false }: { r: ReservationRow; kind: "in" | "out"; glass?: boolean }) {
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
   const isProprietaire = phonesMatch(r.guestPhone, r.proprietaireTelephone);
@@ -96,8 +101,13 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
   return (
     <div
       className={cn(
-        "min-w-0 rounded-md border-l-4 transition-opacity",
-        isIn ? "border-l-emerald-500" : "border-l-red-500",
+        "min-w-0 transition-opacity",
+        glass
+          ? cn(
+              "rounded-2xl border bg-white/55 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 dark:bg-white/8",
+              isIn ? "border-emerald-400/40 dark:border-emerald-400/20" : "border-red-400/40 dark:border-red-400/20"
+            )
+          : cn("rounded-md border-l-4", isIn ? "border-l-emerald-500" : "border-l-red-500"),
         isDone && "opacity-60"
       )}
     >
@@ -282,10 +292,14 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             />
           )}
 
+          {/* Mêmes actions "qui concluent une étape" que sur la carte checkout : boutons noirs
+              pleine largeur, un par ligne (Kamel, 2026-08-16 : "tu l'as fais pour checkout mais
+              pas checkin donc fais le"). */}
           {kind === "in" ? (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-col gap-1.5">
               {r.guestPhone && r.villaId ? (
                 <ArrivalMessageButton
+                  prominent
                   reservationId={r.id}
                   villaId={r.villaId}
                   phone={r.guestPhone}
@@ -299,6 +313,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               ) : null}
               {r.guestPhone && r.villaNom ? (
                 <WelcomeMessageButton
+                  prominent
                   phone={r.guestPhone}
                   guestName={r.guestName}
                   villaNom={r.villaNom}
@@ -311,6 +326,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               ) : null}
               {r.guestPhone && r.domaineMapsUrl ? (
                 <LocationMessageButton
+                  prominent
                   phone={r.guestPhone}
                   guestName={r.guestName}
                   domaineNom={r.domaineNom ?? "domaine"}
@@ -320,6 +336,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               ) : null}
               {r.villaId && r.domaineSecuritePhone ? (
                 <SecurityMessageButton
+                  prominent
                   securityPhone={r.domaineSecuritePhone}
                   guestName={r.guestName}
                   villaNom={r.villaNom ?? "Villa"}

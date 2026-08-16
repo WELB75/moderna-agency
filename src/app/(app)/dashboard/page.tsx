@@ -341,7 +341,15 @@ export default async function DashboardPage({
     .limit(1);
 
   return (
-    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+    <div className="relative w-full max-w-full space-y-6 overflow-x-hidden">
+      {/* Fond décoratif pour l'essai "verre dépoli" (Kamel, 2026-08-16) : sans quelque chose à
+          flouter derrière elles, les cartes en glass sur un fond plat ne rendent pas grand-chose.
+          Purement visuel (fixed, sans interaction, en arrière-plan) — n'affecte ni la mise en
+          page ni le reste de l'app. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-br from-sky-100 via-white to-indigo-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"
+      />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1.5">
           <div className="flex flex-wrap items-center gap-2">
@@ -625,11 +633,11 @@ function DayCard({
                       row.length === 2 ? (
                         <div key={i} className="grid min-w-0 gap-2 sm:grid-cols-2 lg:col-span-2">
                           {row.map(({ r, kind }) => (
-                            <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />
+                            <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} glass />
                           ))}
                         </div>
                       ) : (
-                        row.map(({ r, kind }) => <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />)
+                        row.map(({ r, kind }) => <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} glass />)
                       )
                     )}
                   </div>

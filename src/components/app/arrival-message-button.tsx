@@ -28,6 +28,7 @@ export function ArrivalMessageButton({
   ficheId,
   ficheComplete,
   repasInclus = false,
+  prominent,
 }: {
   reservationId: string;
   villaId: string;
@@ -38,6 +39,7 @@ export function ArrivalMessageButton({
   ficheId: string | null;
   ficheComplete: boolean;
   repasInclus?: boolean;
+  prominent?: boolean;
 }) {
   const [id, setId] = useState(ficheId);
   const [isPending, startTransition] = useTransition();
@@ -74,7 +76,13 @@ export function ArrivalMessageButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" disabled={isPending}>
+        <Button
+          type="button"
+          variant={prominent ? "default" : "outline"}
+          size={prominent ? "default" : "sm"}
+          disabled={isPending}
+          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+        >
           <MessageCircleMore className="h-3.5 w-3.5" />
           Message d&apos;arrivée
           <ChevronDown className="h-3 w-3" />

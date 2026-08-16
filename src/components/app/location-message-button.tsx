@@ -17,12 +17,14 @@ export function LocationMessageButton({
   domaineNom,
   mapsUrl,
   wazeUrl = null,
+  prominent,
 }: {
   phone: string;
   guestName: string;
   domaineNom: string;
   mapsUrl: string;
   wazeUrl?: string | null;
+  prominent?: boolean;
 }) {
   function handleClick(lang: MessageLang) {
     window.open(toWhatsAppUrl(phone, buildLocationMessage(guestName, domaineNom, mapsUrl, wazeUrl, lang)), "_blank");
@@ -31,7 +33,12 @@ export function LocationMessageButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button
+          type="button"
+          variant={prominent ? "default" : "outline"}
+          size={prominent ? "default" : "sm"}
+          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+        >
           <MapPin className="h-3.5 w-3.5" />
           Localisation
           <ChevronDown className="h-3 w-3" />

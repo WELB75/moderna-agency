@@ -20,6 +20,7 @@ export function WelcomeMessageButton({
   codeBoitier,
   guideBienvenueUrl,
   repasInclus = false,
+  prominent,
 }: {
   phone: string;
   guestName: string;
@@ -29,6 +30,7 @@ export function WelcomeMessageButton({
   codeBoitier: string | null;
   guideBienvenueUrl: string | null;
   repasInclus?: boolean;
+  prominent?: boolean;
 }) {
   function handleClick(lang: MessageLang) {
     window.open(
@@ -40,7 +42,12 @@ export function WelcomeMessageButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button
+          type="button"
+          variant={prominent ? "default" : "outline"}
+          size={prominent ? "default" : "sm"}
+          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+        >
           <Sparkles className="h-3.5 w-3.5" />
           Message de bienvenue
           <ChevronDown className="h-3 w-3" />

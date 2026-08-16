@@ -12,6 +12,7 @@ export function SecurityMessageButton({
   villaNumero,
   villaId,
   checkIn,
+  prominent,
 }: {
   securityPhone: string;
   guestName: string;
@@ -19,6 +20,7 @@ export function SecurityMessageButton({
   villaNumero: string;
   villaId: string;
   checkIn: Date;
+  prominent?: boolean;
 }) {
   function handleClick() {
     const link = `${window.location.origin}/securite/villa/${villaId}`;
@@ -27,7 +29,13 @@ export function SecurityMessageButton({
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={handleClick}>
+    <Button
+      type="button"
+      variant={prominent ? "default" : "outline"}
+      size={prominent ? "default" : "sm"}
+      onClick={handleClick}
+      className={prominent ? "w-full justify-start rounded-xl py-5" : undefined}
+    >
       <ShieldCheck className="h-3.5 w-3.5" />
       Message sécurité
     </Button>
