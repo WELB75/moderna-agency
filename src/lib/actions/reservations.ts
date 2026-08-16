@@ -98,6 +98,42 @@ export async function updatePaymentInfo(formData: FormData) {
   revalidatePath("/villas");
 }
 
+// Actions rapides pour le check-in physique : Kamel/l'équipe encaisse le solde restant et/ou
+// récupère la caution sur place, et veut le noter en un clic plutôt que rouvrir le formulaire
+// complet "Paiement" (Kamel, 2026-08-16 : "faut vraiment que j'ai un moyen de cliquer sur un
+// bouton"). Solde marqué payé = montant reçu aligné sur le loyer total convenu.
+export async function markSoldeRecu(reservationId: string, moyen: "especes" | "virement") {
+  await auth.protect();
+  if (!reservationId) throw new Error("Réservation introuvable.");
+
+  const db = getDb();
+  const [reservation] = await db.select({ loyerTotal: reservations.loyerTotal }).from(reservations).where(eq(reservations.id, reservationId)).limit(1);
+  if (!reservation) throw new Error("Réservation introuvable.");
+
+  await db
+    .update(reservations)
+    .set({
+      montantPaye: reservation.loyerTotal,
+      moyenPaiement: moyen === "especes" ? "Espèces" : "Virement",
+      updatedAt: new Date(),
+    })
+    .where(eq(reservations.id, reservationId));
+
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+}
+
+export async function markCautionRecue(reservationId: string) {
+  await auth.protect();
+  if (!reservationId) throw new Error("Réservation introuvable.");
+
+  const db = getDb();
+  await db.update(reservations).set({ cautionPayee: true, updatedAt: new Date() }).where(eq(reservations.id, reservationId));
+
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+}
+
 export async function updateOperationalInfo(formData: FormData) {
   await auth.protect();
 

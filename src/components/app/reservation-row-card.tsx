@@ -286,6 +286,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
 
           {isProprietaire ? null : (
             <PaymentSummary
+              reservationId={r.id}
               loyerTotal={r.loyerTotal}
               montantPaye={r.montantPaye}
               caution={r.caution}

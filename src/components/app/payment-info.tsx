@@ -25,21 +25,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { updatePaymentInfo } from "@/lib/actions/reservations";
+import { updatePaymentInfo, markSoldeRecu, markCautionRecue } from "@/lib/actions/reservations";
 
 export function PaymentSummary({
+  reservationId,
   loyerTotal,
   montantPaye,
   caution,
   cautionPayee,
   devisePaiement,
 }: {
+  reservationId?: string;
   loyerTotal: string | null;
   montantPaye: string | null;
   caution: string | null;
   cautionPayee: boolean;
   devisePaiement: string;
 }) {
+  const [isPending, startTransition] = useTransition();
+
   if (loyerTotal === null) {
     return null;
   }
@@ -49,6 +53,30 @@ export function PaymentSummary({
   const solde = total - paye;
   const d = devisePaiement;
 
+  function handleSoldeRecu(moyen: "especes" | "virement") {
+    if (!reservationId) return;
+    startTransition(async () => {
+      try {
+        await markSoldeRecu(reservationId, moyen);
+        toast.success("Solde marqué payé.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur lors de la mise à jour.");
+      }
+    });
+  }
+
+  function handleCautionRecue() {
+    if (!reservationId) return;
+    startTransition(async () => {
+      try {
+        await markCautionRecue(reservationId);
+        toast.success("Caution marquée reçue.");
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur lors de la mise à jour.");
+      }
+    });
+  }
+
   return (
     <div className="mt-2 space-y-1.5 rounded-md border p-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
@@ -56,7 +84,19 @@ export function PaymentSummary({
           Loyer : {paye.toFixed(2)} {d} / {total.toFixed(2)} {d}
         </span>
         {solde > 0.009 ? (
-          <Badge variant="destructive">Reste {solde.toFixed(2)} {d} à payer</Badge>
+          <>
+            <Badge variant="destructive">Reste {solde.toFixed(2)} {d} à payer</Badge>
+            {reservationId && (
+              <>
+                <Button variant="outline" size="sm" disabled={isPending} onClick={() => handleSoldeRecu("especes")}>
+                  Reçu en espèces
+                </Button>
+                <Button variant="outline" size="sm" disabled={isPending} onClick={() => handleSoldeRecu("virement")}>
+                  Reçu par virement
+                </Button>
+              </>
+            )}
+          </>
         ) : (
           <Badge variant="outline">Loyer soldé</Badge>
         )}
@@ -67,7 +107,14 @@ export function PaymentSummary({
           {cautionPayee ? (
             <Badge variant="outline">Caution reçue</Badge>
           ) : (
-            <Badge variant="destructive">Caution à recevoir</Badge>
+            <>
+              <Badge variant="destructive">Caution à recevoir</Badge>
+              {reservationId && (
+                <Button variant="outline" size="sm" disabled={isPending} onClick={handleCautionRecue}>
+                  Marquer reçue
+                </Button>
+              )}
+            </>
           )}
         </div>
       )}
