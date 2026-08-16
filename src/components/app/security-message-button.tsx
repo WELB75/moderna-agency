@@ -34,7 +34,7 @@ export function SecurityMessageButton({
       variant={prominent ? "default" : "outline"}
       size={prominent ? "default" : "sm"}
       onClick={handleClick}
-      className={prominent ? "w-full justify-start rounded-xl py-5" : undefined}
+      className={prominent ? "w-full justify-center rounded-xl py-5" : undefined}
     >
       <ShieldCheck className="h-3.5 w-3.5" />
       Message sécurité

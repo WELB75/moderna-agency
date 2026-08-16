@@ -4,7 +4,6 @@ import { fr } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
-import { PhoneLink } from "@/components/app/phone-link";
 import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
 import { WelcomeMessageButton } from "@/components/app/welcome-message-button";
 import { LocationMessageButton } from "@/components/app/location-message-button";
@@ -28,11 +27,12 @@ import {
   FileSignature,
   Wallet,
   UserCheck,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { cn } from "@/lib/utils";
-import { phonesMatch } from "@/lib/phone";
+import { phonesMatch, toWhatsAppUrl } from "@/lib/phone";
 
 export type ReservationRow = {
   id: string;
@@ -88,11 +88,10 @@ export type ReservationRow = {
 // fiche dédiée /reservations/[id] (arrivée avec la recherche globale), pour toujours retomber
 // sur exactement la même vue, peu importe d'où on y accède.
 //
-// `glass` : habillage "verre dépoli" façon Apple (fond translucide flouté, coins arrondis,
-// ombre douce) au lieu du style plat à bordure gauche colorée — en test sur l'accueil
-// uniquement pour l'instant (Kamel, 2026-08-16 : "je voulais tester déjà sur accueil voir ce
-// que ça donne"), pas encore le style par défaut partout.
-export function ReservationRowCard({ r, kind, glass = false }: { r: ReservationRow; kind: "in" | "out"; glass?: boolean }) {
+// Habillage "verre dépoli" façon Apple (fond translucide flouté, coins arrondis, ombre douce),
+// validé par Kamel après essai sur l'accueil — 2026-08-16 : "j'aime beaucoup donc fait ça
+// partout maintenant".
+export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
   const isProprietaire = phonesMatch(r.guestPhone, r.proprietaireTelephone);
@@ -101,13 +100,8 @@ export function ReservationRowCard({ r, kind, glass = false }: { r: ReservationR
   return (
     <div
       className={cn(
-        "min-w-0 transition-opacity",
-        glass
-          ? cn(
-              "rounded-2xl border bg-white/55 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 dark:bg-white/8",
-              isIn ? "border-emerald-400/40 dark:border-emerald-400/20" : "border-red-400/40 dark:border-red-400/20"
-            )
-          : cn("rounded-md border-l-4", isIn ? "border-l-emerald-500" : "border-l-red-500"),
+        "min-w-0 rounded-2xl border bg-white/55 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 transition-opacity dark:bg-white/8",
+        isIn ? "border-emerald-400/40 dark:border-emerald-400/20" : "border-red-400/40 dark:border-red-400/20",
         isDone && "opacity-60"
       )}
     >
@@ -120,6 +114,24 @@ export function ReservationRowCard({ r, kind, glass = false }: { r: ReservationR
               <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
             )}
             <p className="truncate font-medium">{r.guestName}</p>
+            {r.guestPhone ? (
+              // Icône WhatsApp juste à côté du nom (Kamel, 2026-08-16), pas seulement en bas de
+              // carte — bouton (pas un lien) pour rester valide imbriqué dans le <Link> de la
+              // carte, stopPropagation/preventDefault pour ne pas déclencher la navigation.
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  window.open(toWhatsAppUrl(r.guestPhone!), "_blank");
+                }}
+                className="shrink-0 rounded-full p-1 text-emerald-600 hover:bg-muted dark:text-emerald-400"
+                aria-label={`Contacter ${r.guestName} sur WhatsApp`}
+                title={r.guestPhone}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
             {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
             {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
           </div>
@@ -249,8 +261,9 @@ export function ReservationRowCard({ r, kind, glass = false }: { r: ReservationR
           </>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {r.guestPhone ? <PhoneLink phone={r.guestPhone} /> : <span />}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {/* Numéro déjà accessible en un clic via l'icône WhatsApp à côté du nom, en haut de la
+              carte — plus besoin de le répéter ici en plus (Kamel, 2026-08-16). */}
           <ValidateCheckinCheckoutButton
             reservationId={r.id}
             kind={kind}
