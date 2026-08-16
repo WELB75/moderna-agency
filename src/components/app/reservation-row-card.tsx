@@ -16,6 +16,7 @@ import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin
 import { StatusChip } from "@/components/app/status-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
+import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import {
   LogIn,
   LogOut,
@@ -27,12 +28,11 @@ import {
   FileSignature,
   Wallet,
   UserCheck,
-  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { cn } from "@/lib/utils";
-import { phonesMatch, toWhatsAppUrl } from "@/lib/phone";
+import { phonesMatch } from "@/lib/phone";
 
 export type ReservationRow = {
   id: string;
@@ -114,24 +114,10 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
             )}
             <p className="truncate font-medium">{r.guestName}</p>
-            {r.guestPhone ? (
-              // Icône WhatsApp juste à côté du nom (Kamel, 2026-08-16), pas seulement en bas de
-              // carte — bouton (pas un lien) pour rester valide imbriqué dans le <Link> de la
-              // carte, stopPropagation/preventDefault pour ne pas déclencher la navigation.
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  window.open(toWhatsAppUrl(r.guestPhone!), "_blank");
-                }}
-                className="shrink-0 rounded-full p-1 text-emerald-600 hover:bg-muted dark:text-emerald-400"
-                aria-label={`Contacter ${r.guestName} sur WhatsApp`}
-                title={r.guestPhone}
-              >
-                <MessageCircle className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
+            {/* Icône WhatsApp juste à côté du nom (Kamel, 2026-08-16), pas seulement en bas de
+                carte. Composant client à part : ReservationRowCard est rendu côté serveur, qui
+                ne peut pas passer de onClick directement à un élément. */}
+            {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
             {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
             {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
           </div>
