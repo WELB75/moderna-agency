@@ -592,25 +592,26 @@ export default async function PersonnelPage({
   // Réservations dont le séjour chevauche la semaine affichée (pas seulement le ménage/la cuisine
   // qui tombe dedans) : la fenêtre de recherche doit couvrir toute la durée du séjour car un jour
   // de cuisine peut tomber n'importe où entre le lendemain du check-in et le check-out.
-  const planningReservations = (
-    await db
-      .select({
-        id: reservations.id,
-        guestName: reservations.guestName,
-        checkIn: reservations.checkIn,
-        checkOut: reservations.checkOut,
-        villaId: reservations.villaId,
-        villaNom: villas.nom,
-        villaNumero: villas.numero,
-        domaineNom: domaines.nom,
-        personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
-      })
-      .from(reservations)
-      .leftJoin(villas, eq(reservations.villaId, villas.id))
-      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(and(ne(reservations.status, "annulee"), lte(reservations.checkIn, finSemaine), gte(reservations.checkOut, debutSemaine)))
-      .orderBy(asc(reservations.checkIn))
-  ).filter((r) => domaineEstActif(r.domaineNom));
+  // Contrairement aux autres onglets, le Planning n'applique PAS le filtre domaineEstActif : Kamel,
+  // 2026-08-16 — "je veux juste que tout soit visible dans le planning seulement" (Zaraba/Noria
+  // restent masqués partout ailleurs pendant la phase de test, voir domaines-actifs.ts).
+  const planningReservations = await db
+    .select({
+      id: reservations.id,
+      guestName: reservations.guestName,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      villaId: reservations.villaId,
+      villaNom: villas.nom,
+      villaNumero: villas.numero,
+      domaineNom: domaines.nom,
+      personnelPayeParProprietaireNoms: villas.personnelPayeParProprietaireNoms,
+    })
+    .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .where(and(ne(reservations.status, "annulee"), lte(reservations.checkIn, finSemaine), gte(reservations.checkOut, debutSemaine)))
+    .orderBy(asc(reservations.checkIn));
   const planningReservationIds = planningReservations.map((r) => r.id);
   const planningAffectations =
     planningReservationIds.length > 0
