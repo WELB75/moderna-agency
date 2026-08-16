@@ -15,7 +15,7 @@ import { setStayRating } from "@/lib/actions/personnel";
 // Saisie manuelle de la note client (1 à 5) collectée par le message de départ — ce message part
 // du téléphone personnel de l'équipe (pas du numéro du bot WhatsApp), donc la réponse du client
 // n'arrive pas automatiquement dans le système. L'équipe la reporte ici après l'avoir lue.
-export function StayRatingButton({ reservationId }: { reservationId: string }) {
+export function StayRatingButton({ reservationId, prominent }: { reservationId: string; prominent?: boolean }) {
   const [isPending, startTransition] = useTransition();
 
   function handleClick(note: number) {
@@ -32,7 +32,13 @@ export function StayRatingButton({ reservationId }: { reservationId: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm" disabled={isPending}>
+        <Button
+          type="button"
+          variant={prominent ? "default" : "outline"}
+          size={prominent ? "default" : "sm"}
+          disabled={isPending}
+          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+        >
           <Star className="h-3.5 w-3.5" />
           Note client
           <ChevronDown className="h-3 w-3" />

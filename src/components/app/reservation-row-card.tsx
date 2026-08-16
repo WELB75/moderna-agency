@@ -200,31 +200,18 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
           l'ensemble du ménage d'un séjour au même endroit. */}
       <div className="space-y-2 px-3 pb-3">
         {kind === "out" ? (
-          <>
-            <PersonnelAffectationEditor
-              reservationId={r.id}
-              role="menage"
-              moment="depart"
-              label="Ménage de départ (prépare l'arrivée suivante) — cliquer sur le nom pour confirmer fait"
-              assigned={r.menageDepartAssignes}
-              options={r.menageOptions}
-              payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
-            />
-            {/* Visible aussi sur la carte checkout (pas seulement à l'arrivée) — Kamel,
-                2026-08-09 : besoin de voir qui a déjà fait le ménage pendant le séjour tout en
-                affectant, séparément, le ménage de départ (souvent une personne différente). Les
-                deux listes sont déjà distinctes en base (moment "sejour" vs "depart"), donc
-                affecter la même personne aux deux ne pose aucun conflit. */}
-            <PersonnelAffectationEditor
-              reservationId={r.id}
-              role="menage"
-              moment="sejour"
-              label="Femme de ménage (si besoin pendant le séjour)"
-              assigned={r.menageSejourAssignes}
-              options={r.menageOptions}
-              payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
-            />
-          </>
+          // Uniquement le ménage de départ ici : la femme de ménage "pendant le séjour" n'a plus
+          // sa place sur une carte de checkout — le client part, ça ne peut plus être sollicité
+          // (Kamel, 2026-08-16). Elle reste sur la carte check-in, où elle a du sens.
+          <PersonnelAffectationEditor
+            reservationId={r.id}
+            role="menage"
+            moment="depart"
+            label="Ménage de départ (prépare l'arrivée suivante) — cliquer sur le nom pour confirmer fait"
+            assigned={r.menageDepartAssignes}
+            options={r.menageOptions}
+            payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+          />
         ) : (
           <>
             <PersonnelAffectationEditor
@@ -295,59 +282,67 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             />
           )}
 
-          <div className="flex flex-wrap items-center gap-1.5">
-            {r.guestPhone && kind === "in" && r.villaId ? (
-              <ArrivalMessageButton
-                reservationId={r.id}
-                villaId={r.villaId}
-                phone={r.guestPhone}
-                guestName={r.guestName}
-                checkIn={new Date(r.checkIn)}
-                now={nowInMorocco()}
-                ficheId={r.ficheId}
-                ficheComplete={r.ficheStatut === "complete"}
-                repasInclus={r.repasInclusDansLoyer}
-              />
-            ) : null}
-            {r.guestPhone && kind === "in" && r.villaNom ? (
-              <WelcomeMessageButton
-                phone={r.guestPhone}
-                guestName={r.guestName}
-                villaNom={r.villaNom}
-                mapsUrl={r.domaineMapsUrl}
-                wazeUrl={r.domaineWazeUrl}
-                codeBoitier={r.codeBoitier}
-                guideBienvenueUrl={r.guideBienvenueUrl}
-                repasInclus={r.repasInclusDansLoyer}
-              />
-            ) : null}
-            {r.guestPhone && kind === "in" && r.domaineMapsUrl ? (
-              <LocationMessageButton
-                phone={r.guestPhone}
-                guestName={r.guestName}
-                domaineNom={r.domaineNom ?? "domaine"}
-                mapsUrl={r.domaineMapsUrl}
-                wazeUrl={r.domaineWazeUrl}
-              />
-            ) : null}
-            {r.villaId && r.domaineSecuritePhone && kind === "in" ? (
-              <SecurityMessageButton
-                securityPhone={r.domaineSecuritePhone}
-                guestName={r.guestName}
-                villaNom={r.villaNom ?? "Villa"}
-                villaNumero={r.villaNumero ?? "?"}
-                villaId={r.villaId}
-                checkIn={new Date(r.checkIn)}
-              />
-            ) : null}
-            {r.guestPhone && kind === "out" && !isProprietaire && r.villaNom ? (
-              <CheckoutMessageButton phone={r.guestPhone} guestName={r.guestName} villaNom={r.villaNom} />
-            ) : null}
-            {r.guestPhone && kind === "out" && !isProprietaire ? (
-              <DepartureMessageButton phone={r.guestPhone} guestName={r.guestName} />
-            ) : null}
-            {kind === "out" && !isProprietaire ? <StayRatingButton reservationId={r.id} /> : null}
-          </div>
+          {kind === "in" ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {r.guestPhone && r.villaId ? (
+                <ArrivalMessageButton
+                  reservationId={r.id}
+                  villaId={r.villaId}
+                  phone={r.guestPhone}
+                  guestName={r.guestName}
+                  checkIn={new Date(r.checkIn)}
+                  now={nowInMorocco()}
+                  ficheId={r.ficheId}
+                  ficheComplete={r.ficheStatut === "complete"}
+                  repasInclus={r.repasInclusDansLoyer}
+                />
+              ) : null}
+              {r.guestPhone && r.villaNom ? (
+                <WelcomeMessageButton
+                  phone={r.guestPhone}
+                  guestName={r.guestName}
+                  villaNom={r.villaNom}
+                  mapsUrl={r.domaineMapsUrl}
+                  wazeUrl={r.domaineWazeUrl}
+                  codeBoitier={r.codeBoitier}
+                  guideBienvenueUrl={r.guideBienvenueUrl}
+                  repasInclus={r.repasInclusDansLoyer}
+                />
+              ) : null}
+              {r.guestPhone && r.domaineMapsUrl ? (
+                <LocationMessageButton
+                  phone={r.guestPhone}
+                  guestName={r.guestName}
+                  domaineNom={r.domaineNom ?? "domaine"}
+                  mapsUrl={r.domaineMapsUrl}
+                  wazeUrl={r.domaineWazeUrl}
+                />
+              ) : null}
+              {r.villaId && r.domaineSecuritePhone ? (
+                <SecurityMessageButton
+                  securityPhone={r.domaineSecuritePhone}
+                  guestName={r.guestName}
+                  villaNom={r.villaNom ?? "Villa"}
+                  villaNumero={r.villaNumero ?? "?"}
+                  villaId={r.villaId}
+                  checkIn={new Date(r.checkIn)}
+                />
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Ces trois actions concluent le séjour (procédure de départ, message de remerciement,
+              note client) — mises en avant en noir plein, une par ligne, plutôt que noyées dans
+              une rangée de boutons outline comme le reste (Kamel, 2026-08-16). */}
+          {kind === "out" && !isProprietaire ? (
+            <div className="flex flex-col gap-1.5">
+              {r.guestPhone && r.villaNom ? (
+                <CheckoutMessageButton prominent phone={r.guestPhone} guestName={r.guestName} villaNom={r.villaNom} />
+              ) : null}
+              {r.guestPhone ? <DepartureMessageButton prominent phone={r.guestPhone} guestName={r.guestName} /> : null}
+              <StayRatingButton prominent reservationId={r.id} />
+            </div>
+          ) : null}
 
           <EditReservationTimeDialog
             reservationId={r.id}

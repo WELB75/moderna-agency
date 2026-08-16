@@ -1,10 +1,11 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { X, Check, Circle, Coffee, UtensilsCrossed, Star, MessageCircle } from "lucide-react";
+import { X, Check, Circle, Coffee, UtensilsCrossed, Star, MessageCircle, StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   DropdownMenu,
@@ -12,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toWhatsAppUrl } from "@/lib/phone";
 import {
@@ -336,6 +338,100 @@ function QualiteNoteControl({
   );
 }
 
+// Version compacte de la remarque libre (vs. Input toujours affiché) : un simple bouton-icône
+// qui ouvre un petit popover avec la zone de texte, pour que la ligne entière (nom, montant,
+// note qualité, remarque) tienne sur une seule ligne même sur mobile étroit — Kamel, 2026-08-16 :
+// "rend ça plus minimaliste que ça tienne sur une ligne".
+function CommentaireControl({
+  commentaire,
+  disabled,
+  onSave,
+  title,
+}: {
+  commentaire: string | null;
+  disabled: boolean;
+  onSave: (commentaire: string | null) => void;
+  title: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(commentaire ?? "");
+
+  function handleOpenChange(next: boolean) {
+    if (next) setValue(commentaire ?? "");
+    setOpen(next);
+  }
+
+  function handleSave() {
+    const trimmed = value.trim();
+    if (trimmed !== (commentaire ?? "")) onSave(trimmed || null);
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          title={title}
+          className={cn(
+            "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
+            commentaire
+              ? "border-foreground bg-foreground text-background"
+              : "border-border bg-transparent text-muted-foreground hover:bg-muted"
+          )}
+        >
+          <StickyNote className="h-3 w-3" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64" align="start">
+        <Textarea
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Remarque libre sur cette affectation"
+          rows={3}
+          autoFocus
+        />
+        <Button type="button" size="sm" className="w-full" onClick={handleSave}>
+          Enregistrer
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// Remarque toujours visible (comportement d'origine, conservé pour le ménage "pendant le
+// séjour" — la ligne a plus de place vu qu'elle garde aussi le champ jours).
+function CommentaireInput({
+  commentaire,
+  disabled,
+  onSave,
+}: {
+  commentaire: string | null;
+  disabled: boolean;
+  onSave: (commentaire: string | null) => void;
+}) {
+  const [value, setValue] = useState(commentaire ?? "");
+
+  function handleBlur() {
+    const trimmed = value.trim();
+    if (trimmed === (commentaire ?? "")) return;
+    onSave(trimmed || null);
+  }
+
+  return (
+    <Input
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={handleBlur}
+      disabled={disabled}
+      placeholder="note"
+      title="Remarque libre sur cette affectation"
+      className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
+    />
+  );
+}
+
 // Contact WhatsApp direct depuis le badge — Kamel, 2026-08-13 : "donne la possibilité aussi ici
 // de les contacter en un clic whatsapp", pour joindre la personne affectée sans devoir aller
 // chercher son numéro sur la page Personnel.
@@ -387,7 +483,6 @@ function MenageBadge({
 }) {
   const fait = Boolean(a.faitAt);
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
-  const [commentaire, setCommentaire] = useState(a.commentaire ?? "");
 
   function handleBlur() {
     const parsed = jours.trim() === "" ? null : Math.max(1, parseInt(jours, 10));
@@ -395,14 +490,15 @@ function MenageBadge({
     onSetJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
   }
 
-  function handleCommentaireBlur() {
-    const trimmed = commentaire.trim();
-    if (trimmed === (a.commentaire ?? "")) return;
-    onSetCommentaire(a.affectationId, trimmed || null);
+  function handleSaveCommentaire(commentaire: string | null) {
+    onSetCommentaire(a.affectationId, commentaire);
   }
 
+  // Le ménage de départ est toujours 1 jour de travail (contrairement au ménage sollicité
+  // pendant le séjour, qui peut s'étaler) : pas de champ à saisir, juste le tarif fixe — Kamel,
+  // 2026-08-16 : "un ménage de départ c'est toujours un jour donc on peut supprimer".
   const joursApercu = jours.trim() === "" ? 1 : Math.max(1, parseInt(jours, 10) || 1);
-  const montantApercu = joursApercu * TARIF_MENAGE;
+  const montantApercu = notable ? TARIF_MENAGE : joursApercu * TARIF_MENAGE;
 
   return (
     <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background py-0.5 pl-0.5 pr-2.5 text-[0.8rem] font-medium">
@@ -418,23 +514,27 @@ function MenageBadge({
         {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
         {a.nom}
       </Button>
-      <Input
-        type="number"
-        min={1}
-        value={jours}
-        onChange={(e) => setJours(e.target.value)}
-        onBlur={handleBlur}
-        disabled={disabled}
-        placeholder="1"
-        title="Nombre de jours travaillés (si sollicitée pendant le séjour, pas seulement au départ)"
-        className="h-5 w-7 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
-      />
-      <span className="text-muted-foreground">{joursApercu > 1 ? "jours" : "jour"}</span>
+      {notable ? null : (
+        <>
+          <Input
+            type="number"
+            min={1}
+            value={jours}
+            onChange={(e) => setJours(e.target.value)}
+            onBlur={handleBlur}
+            disabled={disabled}
+            placeholder="1"
+            title="Nombre de jours travaillés (si sollicitée pendant le séjour, pas seulement au départ)"
+            className="h-5 w-7 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
+          />
+          <span className="text-muted-foreground">{joursApercu > 1 ? "jours" : "jour"}</span>
+        </>
+      )}
       {montantVisible ? (
-        <span className="text-muted-foreground">· {montantApercu} MAD</span>
+        <span className="text-muted-foreground">{notable ? "" : "· "}{montantApercu} MAD</span>
       ) : (
         <span className="text-muted-foreground" title="Payé directement par le propriétaire, pas par l'agence">
-          · Payé par proprio
+          {notable ? "" : "· "}Payé par proprio
         </span>
       )}
       {notable ? (
@@ -445,15 +545,16 @@ function MenageBadge({
           title="Note qualité sur la propreté constatée (moyenne affichée sur la fiche de la personne)"
         />
       ) : null}
-      <Input
-        value={commentaire}
-        onChange={(e) => setCommentaire(e.target.value)}
-        onBlur={handleCommentaireBlur}
-        disabled={disabled}
-        placeholder="note"
-        title="Remarque libre sur cette affectation"
-        className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
-      />
+      {notable ? (
+        <CommentaireControl
+          commentaire={a.commentaire}
+          disabled={disabled}
+          onSave={handleSaveCommentaire}
+          title="Remarque libre sur cette affectation"
+        />
+      ) : (
+        <CommentaireInput commentaire={a.commentaire} disabled={disabled} onSave={handleSaveCommentaire} />
+      )}
       {a.telephone ? <WhatsAppContactButton telephone={a.telephone} nom={a.nom} /> : null}
       <button
         type="button"

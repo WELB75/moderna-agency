@@ -11,7 +11,15 @@ import {
 import { toWhatsAppUrl } from "@/lib/phone";
 import { buildDepartureMessage, type MessageLang } from "@/lib/message-templates";
 
-export function DepartureMessageButton({ phone, guestName }: { phone: string; guestName: string }) {
+export function DepartureMessageButton({
+  phone,
+  guestName,
+  prominent,
+}: {
+  phone: string;
+  guestName: string;
+  prominent?: boolean;
+}) {
   function handleClick(lang: MessageLang) {
     window.open(toWhatsAppUrl(phone, buildDepartureMessage(guestName, lang)), "_blank");
   }
@@ -19,7 +27,12 @@ export function DepartureMessageButton({ phone, guestName }: { phone: string; gu
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
+        <Button
+          type="button"
+          variant={prominent ? "default" : "outline"}
+          size={prominent ? "default" : "sm"}
+          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+        >
           <HeartHandshake className="h-3.5 w-3.5" />
           Message de départ
           <ChevronDown className="h-3 w-3" />
