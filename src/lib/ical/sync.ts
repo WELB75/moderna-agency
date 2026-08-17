@@ -104,13 +104,15 @@ export async function runIcalSync(): Promise<
         if (existing.length > 0) {
           // Le nombre d'adultes/enfants de Superhote est souvent faux (rempli à la main par
           // le client) ; une fois corrigé manuellement (ex. via la fiche police), on ne veut
-          // plus qu'une synchro suivante l'écrase avec la valeur d'origine.
+          // plus qu'une synchro suivante l'écrase avec la valeur d'origine. Même chose pour le
+          // téléphone (Kamel, 2026-08-17) : Superhote exporte souvent un numéro local sans
+          // indicatif clair ("0619031716", ambigu entre +33 et +212) — une fois corrigé à la
+          // main dans l'app, un sync suivant l'écrasait avec la valeur brute d'origine.
           const updateValues = {
             villaId: values.villaId,
             superhoteBookingId: values.superhoteBookingId,
             guestName: values.guestName,
             guestEmail: values.guestEmail,
-            guestPhone: values.guestPhone,
             checkIn: values.checkIn,
             checkOut: values.checkOut,
             canal: values.canal,
