@@ -95,15 +95,26 @@ const domaineIcon = L.divIcon({
   popupAnchor: [0, -13],
 });
 
-// Itinéraires façon Waze/Google Maps quand on sélectionne quelqu'un : jusqu'à 3 tracés distincts
-// vers le domaine le plus proche (celui déjà en tête de s.distances), avec durée — calculés via
+// Itinéraires façon Waze/Google Maps quand on sélectionne quelqu'un : un tracé vers CHAQUE
+// domaine (pas juste le plus proche), une couleur fixe par domaine, avec durée — calculés via
 // OpenRouteService (clé API gardée côté serveur, voir /api/personnel-itineraire/route.ts). Kamel,
-// 2026-08-16 : OSRM (gratuit, sans clé) donnait des itinéraires peu fiables sur cette zone rurale
-// (parfois un seul tracé, parfois faux) — ORS avec alternative_routes est plus robuste. Icône et
-// libellé "moto" plutôt que voiture : c'est comme ça que le personnel se déplace en vrai.
-const ROUTE_COLORS = ["#2563eb", "#f97316", "#16a34a"]; // bleu, orange, vert
+// 2026-08-17 : "je veux tout les itineraires" — vers Moderna 1, Moderna 2 ET Noria en même temps,
+// pas seulement le domaine le plus proche.
+const ROUTE_COLORS = ["#2563eb", "#f97316", "#16a34a"]; // bleu, orange, vert — repli si domaine inconnu
+
+// Couleur stable par domaine (indépendante de l'ordre de distance, pour que la même couleur
+// représente toujours le même domaine d'une personne à l'autre).
+const DOMAINE_ROUTE_COLORS: Record<string, string> = {
+  "Domaine Zaraba": "#2563eb", // Moderna 1
+  "Domaine Moderna II": "#f97316", // Moderna 2
+  Noria: "#16a34a",
+};
+function domaineRouteColor(nom: string, fallbackIndex: number): string {
+  return DOMAINE_ROUTE_COLORS[nom] ?? ROUTE_COLORS[fallbackIndex % ROUTE_COLORS.length];
+}
 
 type RouteOption = { coords: [number, number][]; durationSec: number; distanceM: number };
+type DomaineRouteState = { domaineId: string; domaineNom: string; color: string; loading: boolean; error: string | null; route: RouteOption | null };
 
 function formatDuration(seconds: number): string {
   const minutes = Math.round(seconds / 60);
@@ -113,39 +124,53 @@ function formatDuration(seconds: number): string {
   return m === 0 ? `${h} h` : `${h} h ${m}`;
 }
 
-function useDrivingRoutes(origin: [number, number] | null, destination: [number, number] | null) {
-  const [state, setState] = useState<{ routes: RouteOption[]; loading: boolean; error: string | null }>({
-    routes: [],
-    loading: false,
-    error: null,
-  });
+// Un tracé par domaine (le premier itinéraire renvoyé, le plus rapide) plutôt que plusieurs
+// alternatives vers une seule destination — plus lisible et couvre le vrai besoin ("vers quel
+// domaine, combien de temps").
+function useRoutesToAllDomaines(origin: [number, number] | null, domaines: CarteDomaine[]): DomaineRouteState[] {
+  const [state, setState] = useState<Record<string, DomaineRouteState>>({});
 
-  const key = origin && destination ? `${origin[0]},${origin[1]};${destination[0]},${destination[1]}` : null;
+  const key = origin ? `${origin[0]},${origin[1]}` : null;
+  const domaineIdsKey = domaines.map((d) => d.id).join(",");
 
   useEffect(() => {
-    if (!key || !origin || !destination) return;
+    if (!key || !origin || domaines.length === 0) {
+      setState({});
+      return;
+    }
     const controller = new AbortController();
-    setState({ routes: [], loading: true, error: null });
-    const url = `/api/personnel-itineraire?originLat=${origin[0]}&originLng=${origin[1]}&destLat=${destination[0]}&destLng=${destination[1]}`;
-    fetch(url, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error("request-failed");
-        return res.json();
+    setState(
+      Object.fromEntries(
+        domaines.map((d, i) => [d.id, { domaineId: d.id, domaineNom: d.nom, color: domaineRouteColor(d.nom, i), loading: true, error: null, route: null }])
+      )
+    );
+    Promise.all(
+      domaines.map(async (d, i): Promise<DomaineRouteState | null> => {
+        const base = { domaineId: d.id, domaineNom: d.nom, color: domaineRouteColor(d.nom, i) };
+        try {
+          const url = `/api/personnel-itineraire?originLat=${origin[0]}&originLng=${origin[1]}&destLat=${d.latitude}&destLng=${d.longitude}`;
+          const res = await fetch(url, { signal: controller.signal });
+          if (!res.ok) throw new Error("request-failed");
+          const data: { routes?: RouteOption[]; error?: string } = await res.json();
+          if (!data.routes || data.routes.length === 0) throw new Error(data.error ?? "no-route");
+          return { ...base, loading: false, error: null, route: data.routes[0] };
+        } catch (err) {
+          if (err instanceof Error && err.name === "AbortError") return null;
+          return { ...base, loading: false, error: "Indisponible", route: null };
+        }
       })
-      .then((data: { routes?: RouteOption[]; error?: string }) => {
-        if (!data.routes || data.routes.length === 0) throw new Error(data.error ?? "no-route");
-        setState({ routes: data.routes, loading: false, error: null });
-      })
-      .catch((err: Error) => {
-        if (err.name === "AbortError") return;
-        setState({ routes: [], loading: false, error: "Itinéraire indisponible" });
+    ).then((results) => {
+      setState((prev) => {
+        const next = { ...prev };
+        for (const r of results) if (r) next[r.domaineId] = r;
+        return next;
       });
+    });
     return () => controller.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` résume déjà origin+destination
-  }, [key]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key`/`domaineIdsKey` résument déjà origin+domaines
+  }, [key, domaineIdsKey]);
 
-  if (!origin || !destination) return { routes: [], loading: false, error: null };
-  return state;
+  return domaines.map((d, i) => state[d.id] ?? { domaineId: d.id, domaineNom: d.nom, color: domaineRouteColor(d.nom, i), loading: false, error: null, route: null });
 }
 
 // Petite icône moto en trait fin, même esprit que les autres icônes de la carte (voir
@@ -171,19 +196,19 @@ function routeDurationIcon(color: string, label: string) {
   });
 }
 
-// Un tracé, sa couleur, et une bulle de durée posée au milieu — même esprit que les bulles
-// "24 min" de Google Maps sur la capture de référence (Kamel, 2026-08-16).
-function RoutesLayer({ routes }: { routes: RouteOption[] }) {
+// Un tracé par domaine, sa couleur, et une bulle de durée posée au milieu — même esprit que les
+// bulles "24 min" de Google Maps sur la capture de référence (Kamel, 2026-08-16).
+function RoutesLayer({ domaineRoutes }: { domaineRoutes: DomaineRouteState[] }) {
   return (
     <>
-      {routes.map((route, i) => {
-        const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
-        const midpoint = route.coords[Math.floor(route.coords.length / 2)];
+      {domaineRoutes.map((d) => {
+        if (!d.route) return null;
+        const midpoint = d.route.coords[Math.floor(d.route.coords.length / 2)];
         return (
-          <Fragment key={i}>
-            <Polyline positions={route.coords} pathOptions={{ color, weight: i === 0 ? 5 : 4, opacity: i === 0 ? 0.9 : 0.55 }} />
+          <Fragment key={d.domaineId}>
+            <Polyline positions={d.route.coords} pathOptions={{ color: d.color, weight: 5, opacity: 0.85 }} />
             {midpoint ? (
-              <Marker position={midpoint} icon={routeDurationIcon(color, formatDuration(route.durationSec))} interactive={false} zIndexOffset={500} />
+              <Marker position={midpoint} icon={routeDurationIcon(d.color, formatDuration(d.route.durationSec))} interactive={false} zIndexOffset={500} />
             ) : null}
           </Fragment>
         );
@@ -192,38 +217,31 @@ function RoutesLayer({ routes }: { routes: RouteOption[] }) {
   );
 }
 
-function RoutesPanel({
-  routes,
-  loading,
-  error,
-  domaineNom,
-}: {
-  routes: RouteOption[];
-  loading: boolean;
-  error: string | null;
-  domaineNom: string;
-}) {
+function RoutesPanel({ domaineRoutes }: { domaineRoutes: DomaineRouteState[] }) {
   return (
     <div className="pointer-events-none absolute left-3 top-3 z-[400] max-w-[230px]">
       <div className="pointer-events-auto rounded-lg border bg-background/95 p-2.5 shadow-lg backdrop-blur-sm">
         <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-          <MopedIcon className="h-3 w-3" /> Vers {domaineLabel(domaineNom)} à moto
+          <MopedIcon className="h-3 w-3" /> À moto vers…
         </p>
-        {loading ? (
-          <p className="text-xs text-muted-foreground">Calcul de l&apos;itinéraire…</p>
-        ) : error ? (
-          <p className="text-xs text-muted-foreground">{error}</p>
-        ) : (
-          <ul className="space-y-1">
-            {routes.map((r, i) => (
-              <li key={i} className="flex items-center gap-1.5 text-xs">
-                <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: ROUTE_COLORS[i % ROUTE_COLORS.length] }} />
-                <span className="font-medium text-foreground">{formatDuration(r.durationSec)}</span>
-                <span className="text-muted-foreground">· {(r.distanceM / 1000).toFixed(1)} km</span>
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="space-y-1">
+          {domaineRoutes.map((d) => (
+            <li key={d.domaineId} className="flex items-center gap-1.5 text-xs">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.color }} />
+              <span className="text-foreground">{domaineLabel(d.domaineNom)}</span>
+              {d.loading ? (
+                <span className="text-muted-foreground">calcul…</span>
+              ) : d.error || !d.route ? (
+                <span className="text-muted-foreground">indisponible</span>
+              ) : (
+                <>
+                  <span className="font-medium text-foreground">{formatDuration(d.route.durationSec)}</span>
+                  <span className="text-muted-foreground">· {(d.route.distanceM / 1000).toFixed(1)} km</span>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
@@ -352,24 +370,32 @@ function FitAllOnMount({ points }: { points: [number, number][] }) {
   return null;
 }
 
+// Cadre sur la personne ET tous les domaines (pas juste un flyTo zoomé sur la personne) pour que
+// les tracés dessinés jusqu'à chaque domaine restent visibles. Kamel, 2026-08-17 : "on voit rien
+// du tout" — le popup qui s'ouvrait automatiquement cachait les tracés fraîchement dessinés, donc
+// on ne l'ouvre plus ici (les mêmes infos sont déjà dans la carte latérale).
 function FlyToSelected({
   selectedId,
   displayPositions,
-  markerRefs,
+  domaines,
 }: {
   selectedId: string | null;
   displayPositions: Map<string, DisplayPosition>;
-  markerRefs: React.RefObject<Map<string, L.Marker>>;
+  domaines: CarteDomaine[];
 }) {
   const map = useMap();
   useEffect(() => {
     if (!selectedId) return;
     const entry = displayPositions.get(selectedId);
     if (!entry) return;
-    map.flyTo(entry.position, 14, { duration: 0.8 });
-    const marker = markerRefs.current.get(selectedId);
-    marker?.openPopup();
-  }, [selectedId, displayPositions, map, markerRefs]);
+    if (domaines.length === 0) {
+      map.flyTo(entry.position, 14, { duration: 0.8 });
+      return;
+    }
+    const bounds = L.latLngBounds([entry.position, ...domaines.map((d) => [d.latitude, d.longitude] as [number, number])]);
+    map.flyToBounds(bounds, { padding: [70, 70], duration: 0.8 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `domaines` est stable en pratique (props du parent)
+  }, [selectedId, displayPositions, map]);
   return null;
 }
 
@@ -487,17 +513,12 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
   const staffOccupees = staff.filter((s) => s.occupeAujourdhui).length;
   const staffDisponibles = staff.length - staffOccupees;
 
-  // Itinéraires vers le domaine le plus proche de la personne sélectionnée (voir RoutesLayer /
-  // RoutesPanel plus haut) — réutilise s.distances, déjà trié par proximité croissante.
+  // Itinéraires vers CHAQUE domaine pour la personne sélectionnée (voir RoutesLayer / RoutesPanel
+  // plus haut).
   const selectedStaff = selectedId ? staff.find((s) => s.id === selectedId) : undefined;
-  const nearestDomaine = selectedStaff?.distances[0];
-  const nearestDomaineCoords = nearestDomaine ? domaines.find((d) => d.id === nearestDomaine.domaineId) : undefined;
   const routeOrigin: [number, number] | null =
     selectedStaff?.latitude != null && selectedStaff?.longitude != null ? [selectedStaff.latitude, selectedStaff.longitude] : null;
-  const routeDestination: [number, number] | null = nearestDomaineCoords
-    ? [nearestDomaineCoords.latitude, nearestDomaineCoords.longitude]
-    : null;
-  const { routes, loading: routesLoading, error: routesError } = useDrivingRoutes(routeOrigin, routeDestination);
+  const domaineRoutes = useRoutesToAllDomaines(routeOrigin, domaines);
 
   return (
     <div className="flex flex-col gap-4 lg:h-full lg:flex-row">
@@ -601,7 +622,7 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               maxZoom={20}
             />
             <FitAllOnMount points={points} />
-            <FlyToSelected selectedId={selectedId} displayPositions={displayPositions} markerRefs={markerRefs} />
+            <FlyToSelected selectedId={selectedId} displayPositions={displayPositions} domaines={domaines} />
             <MarkersLayer
               domaines={domaines}
               staff={staffFiltre}
@@ -610,11 +631,9 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
               setHoveredId={setHoveredId}
               markerRefs={markerRefs}
             />
-            <RoutesLayer routes={routes} />
+            <RoutesLayer domaineRoutes={domaineRoutes} />
           </MapContainer>
-          {selectedStaff && nearestDomaine ? (
-            <RoutesPanel routes={routes} loading={routesLoading} error={routesError} domaineNom={nearestDomaine.domaineNom} />
-          ) : null}
+          {selectedStaff && routeOrigin ? <RoutesPanel domaineRoutes={domaineRoutes} /> : null}
           {/* Résumé flottant façon Airbnb/Uber ("Plus de 1000 logements") — l'info utile
               (qui est libre) visible d'un coup d'œil, sans avoir à descendre à la liste. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-3 z-[400] flex justify-center">
