@@ -31,11 +31,11 @@ export function DepartureMessageButton({
           type="button"
           variant={prominent ? "default" : "outline"}
           size={prominent ? "default" : "sm"}
-          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+          className={prominent ? "w-full justify-start rounded-xl py-5" : undefined}
         >
-          <HeartHandshake className="h-3.5 w-3.5" />
-          Message de départ
-          <ChevronDown className="h-3 w-3" />
+          <HeartHandshake className="h-3.5 w-3.5 shrink-0" />
+          {prominent ? <span className="flex-1 text-center">Message de départ</span> : "Message de départ"}
+          <ChevronDown className="h-3 w-3 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

@@ -35,11 +35,11 @@ export function CheckoutMessageButton({
           type="button"
           variant={prominent ? "default" : "outline"}
           size={prominent ? "default" : "sm"}
-          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+          className={prominent ? "w-full justify-start rounded-xl py-5" : undefined}
         >
-          <DoorOpen className="h-3.5 w-3.5" />
-          Instructions départ
-          <ChevronDown className="h-3 w-3" />
+          <DoorOpen className="h-3.5 w-3.5 shrink-0" />
+          {prominent ? <span className="flex-1 text-center">Instructions départ</span> : "Instructions départ"}
+          <ChevronDown className="h-3 w-3 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

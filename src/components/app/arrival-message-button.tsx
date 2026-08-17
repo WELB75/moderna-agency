@@ -81,11 +81,11 @@ export function ArrivalMessageButton({
           variant={prominent ? "default" : "outline"}
           size={prominent ? "default" : "sm"}
           disabled={isPending}
-          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+          className={prominent ? "w-full justify-start rounded-xl py-5" : undefined}
         >
-          <MessageCircleMore className="h-3.5 w-3.5" />
-          Message d&apos;arrivée
-          <ChevronDown className="h-3 w-3" />
+          <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />
+          {prominent ? <span className="flex-1 text-center">Message d&apos;arrivée</span> : "Message d'arrivée"}
+          <ChevronDown className="h-3 w-3 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

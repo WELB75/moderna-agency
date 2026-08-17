@@ -15,16 +15,16 @@ import {
   personnelAffectations,
   clients,
 } from "@/db/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { SyncBeds24Button } from "@/components/app/sync-beds24-button";
 import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
-import { DomainePlanModernaII, type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
+import { type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
+import { DomainePlanTrigger } from "@/components/app/domaine-plan-trigger";
 import { MenuGrid } from "@/components/app/menu-grid";
 import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
-import { CollapsibleSection } from "@/components/app/collapsible-section";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { LogIn, LogOut, Wrench, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
@@ -406,20 +406,28 @@ export default async function DashboardPage({
         <MenuGrid unreadChatCount={unreadChatCount} />
       </div>
 
-      <VillasLibresCard villas={villasLibresKamel} />
-      <CollapsibleSection label="le plan du domaine">
-        <DomainePlanModernaII villas={modernaIIPlanVillas} />
-      </CollapsibleSection>
+      <VillasLibresCard villas={villasLibresKamel} planVillas={modernaIIPlanVillas} />
       <PersonPanel reservations={modernaIIUpcoming} maintenance={modernaIIMaintenance} days={days} now={now} />
     </div>
   );
 }
 
-function VillasLibresCard({ villas }: { villas: { id: string; nom: string; numero: string }[] }) {
+function VillasLibresCard({
+  villas,
+  planVillas,
+}: {
+  villas: { id: string; nom: string; numero: string }[];
+  planVillas: PlanVilla[];
+}) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Villas libres en ce moment ({villas.length})</CardTitle>
+        {/* Plan du domaine réduit à une icône sur la même ligne que le titre (au lieu d'un bloc
+            "Voir le plan" permanent) — Kamel, 2026-08-17. */}
+        <CardAction>
+          <DomainePlanTrigger villas={planVillas} />
+        </CardAction>
       </CardHeader>
       <CardContent>
         {villas.length === 0 ? (
@@ -428,11 +436,13 @@ function VillasLibresCard({ villas }: { villas: { id: string; nom: string; numer
           <div className="flex flex-wrap gap-1.5">
             {villas.map((v) => (
               <Link key={v.id} href={`/villas/${v.id}`}>
+                {/* Juste le numéro, pas le nom de la villa (Kamel, 2026-08-17) : plus rapide à
+                    scanner d'un coup d'œil, le nom reste accessible sur la fiche villa. */}
                 <Badge
                   variant="outline"
                   className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                 >
-                  {v.nom} (n°{v.numero})
+                  n°{v.numero}
                 </Badge>
               </Link>
             ))}
@@ -605,9 +615,13 @@ function DayCard({
           <p className="text-sm text-muted-foreground">Rien à signaler.</p>
         ) : (
           <>
-            <div className="mb-4 space-y-1 rounded-md bg-muted/40 p-3 text-sm">
+            {/* Plus un pavé encadré : juste une légende légère au-dessus des cartes, moins lourd
+                visuellement (Kamel, 2026-08-17 : "ça fait trop pavé"). */}
+            <div className="mb-3 space-y-0.5">
               {domaineGroups.map((g) => (
-                <p key={g.domaineName}>{buildResumeDomaine(g.domaineName, g.checkIns, g.checkOuts)}</p>
+                <p key={g.domaineName} className="text-xs text-muted-foreground">
+                  {buildResumeDomaine(g.domaineName, g.checkIns, g.checkOuts)}
+                </p>
               ))}
             </div>
             {/* Un seul domaine actif la plupart du temps : forcer 2 colonnes ici laisserait la

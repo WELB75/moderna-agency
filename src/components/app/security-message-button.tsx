@@ -34,10 +34,20 @@ export function SecurityMessageButton({
       variant={prominent ? "default" : "outline"}
       size={prominent ? "default" : "sm"}
       onClick={handleClick}
-      className={prominent ? "w-full justify-center rounded-xl py-5" : undefined}
+      className={prominent ? "w-full justify-start rounded-xl py-5" : undefined}
     >
-      <ShieldCheck className="h-3.5 w-3.5" />
-      Message sécurité
+      <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+      {prominent ? (
+        <>
+          <span className="flex-1 text-center">Message sécurité</span>
+          {/* Espace invisible de la même taille que le chevron des autres boutons empilés, pour
+              que l'icône reste alignée avec eux malgré l'absence de menu déroulant ici (Kamel,
+              2026-08-17 : "je veux que tous les icones soit superposé parallèlement"). */}
+          <span className="h-3 w-3 shrink-0" aria-hidden />
+        </>
+      ) : (
+        "Message sécurité"
+      )}
     </Button>
   );
 }
