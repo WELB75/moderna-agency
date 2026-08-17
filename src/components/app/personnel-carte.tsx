@@ -1,7 +1,7 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { MessageCircle, MapPin, Home, Search, X } from "lucide-react";
@@ -95,15 +95,15 @@ const domaineIcon = L.divIcon({
   popupAnchor: [0, -13],
 });
 
-// Itinéraires voiture façon Waze/Google Maps quand on sélectionne quelqu'un : jusqu'à 3 tracés
-// distincts vers le domaine le plus proche (celui déjà en tête de s.distances), avec durée —
-// calculés via OSRM (moteur gratuit, sans clé API, cohérent avec les tuiles CARTO déjà utilisées
-// ici). Kamel, 2026-08-16 : "je veux les 3 itineraire avec durée en voiture jusqu'au domaine avec
-// 3 couleurs différentes par tracé".
+// Itinéraires façon Waze/Google Maps quand on sélectionne quelqu'un : jusqu'à 3 tracés distincts
+// vers le domaine le plus proche (celui déjà en tête de s.distances), avec durée — calculés via
+// OpenRouteService (clé API gardée côté serveur, voir /api/personnel-itineraire/route.ts). Kamel,
+// 2026-08-16 : OSRM (gratuit, sans clé) donnait des itinéraires peu fiables sur cette zone rurale
+// (parfois un seul tracé, parfois faux) — ORS avec alternative_routes est plus robuste. Icône et
+// libellé "moto" plutôt que voiture : c'est comme ça que le personnel se déplace en vrai.
 const ROUTE_COLORS = ["#2563eb", "#f97316", "#16a34a"]; // bleu, orange, vert
 
 type RouteOption = { coords: [number, number][]; durationSec: number; distanceM: number };
-type OsrmRoute = { duration: number; distance: number; geometry: { coordinates: [number, number][] } };
 
 function formatDuration(seconds: number): string {
   const minutes = Math.round(seconds / 60);
@@ -126,20 +126,15 @@ function useDrivingRoutes(origin: [number, number] | null, destination: [number,
     if (!key || !origin || !destination) return;
     const controller = new AbortController();
     setState({ routes: [], loading: true, error: null });
-    const url = `https://router.project-osrm.org/route/v1/driving/${origin[1]},${origin[0]};${destination[1]},${destination[0]}?alternatives=true&overview=full&geometries=geojson`;
+    const url = `/api/personnel-itineraire?originLat=${origin[0]}&originLng=${origin[1]}&destLat=${destination[0]}&destLng=${destination[1]}`;
     fetch(url, { signal: controller.signal })
       .then((res) => {
         if (!res.ok) throw new Error("request-failed");
         return res.json();
       })
-      .then((data: { code: string; routes?: OsrmRoute[] }) => {
-        if (data.code !== "Ok" || !data.routes || data.routes.length === 0) throw new Error("no-route");
-        const routes: RouteOption[] = data.routes.slice(0, 3).map((r) => ({
-          coords: r.geometry.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]),
-          durationSec: r.duration,
-          distanceM: r.distance,
-        }));
-        setState({ routes, loading: false, error: null });
+      .then((data: { routes?: RouteOption[]; error?: string }) => {
+        if (!data.routes || data.routes.length === 0) throw new Error(data.error ?? "no-route");
+        setState({ routes: data.routes, loading: false, error: null });
       })
       .catch((err: Error) => {
         if (err.name === "AbortError") return;
@@ -153,16 +148,46 @@ function useDrivingRoutes(origin: [number, number] | null, destination: [number,
   return state;
 }
 
+// Petite icône moto en trait fin, même esprit que les autres icônes de la carte (voir
+// pastilleIcon/domaineIcon) plutôt qu'une icône de lucide-react (pas de scooter/moped dans le set).
+function MopedIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <circle cx="5" cy="18" r="3" />
+      <circle cx="18" cy="18" r="3" />
+      <path d="M5 18h1a2 2 0 0 0 2-2v-1a3 3 0 0 1 3-3h1" />
+      <path d="M8 12h3l2-4h3" />
+      <path d="M15 18h3l1-4h-3" />
+      <path d="M9 6h3" />
+    </svg>
+  );
+}
+
+function routeDurationIcon(color: string, label: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="display:flex;align-items:center;gap:3px;padding:2px 7px;border-radius:9999px;background:${color};color:white;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:1.5px solid white;">${label}</div>`,
+    iconAnchor: [0, 0],
+  });
+}
+
+// Un tracé, sa couleur, et une bulle de durée posée au milieu — même esprit que les bulles
+// "24 min" de Google Maps sur la capture de référence (Kamel, 2026-08-16).
 function RoutesLayer({ routes }: { routes: RouteOption[] }) {
   return (
     <>
-      {routes.map((route, i) => (
-        <Polyline
-          key={i}
-          positions={route.coords}
-          pathOptions={{ color: ROUTE_COLORS[i % ROUTE_COLORS.length], weight: i === 0 ? 5 : 4, opacity: i === 0 ? 0.9 : 0.55 }}
-        />
-      ))}
+      {routes.map((route, i) => {
+        const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
+        const midpoint = route.coords[Math.floor(route.coords.length / 2)];
+        return (
+          <Fragment key={i}>
+            <Polyline positions={route.coords} pathOptions={{ color, weight: i === 0 ? 5 : 4, opacity: i === 0 ? 0.9 : 0.55 }} />
+            {midpoint ? (
+              <Marker position={midpoint} icon={routeDurationIcon(color, formatDuration(route.durationSec))} interactive={false} zIndexOffset={500} />
+            ) : null}
+          </Fragment>
+        );
+      })}
     </>
   );
 }
@@ -181,7 +206,9 @@ function RoutesPanel({
   return (
     <div className="pointer-events-none absolute left-3 top-3 z-[400] max-w-[230px]">
       <div className="pointer-events-auto rounded-lg border bg-background/95 p-2.5 shadow-lg backdrop-blur-sm">
-        <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Vers {domaineLabel(domaineNom)} en voiture</p>
+        <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+          <MopedIcon className="h-3 w-3" /> Vers {domaineLabel(domaineNom)} à moto
+        </p>
         {loading ? (
           <p className="text-xs text-muted-foreground">Calcul de l&apos;itinéraire…</p>
         ) : error ? (
