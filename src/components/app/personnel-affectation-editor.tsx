@@ -513,7 +513,10 @@ function MenageBadge({
         size="sm"
         onClick={() => onToggleFait(a.affectationId, !fait)}
         disabled={disabled}
-        className="h-6"
+        // min-w fixe : sans ça, le nom de chaque personne fait une largeur différente et tout ce
+        // qui suit (montant, note, remarque...) ne s'aligne pas d'une ligne à l'autre — Kamel,
+        // 2026-08-17 : "les 200 doivent etre bien alignée aussi, paralelle etc".
+        className="h-6 min-w-28 justify-start"
         title={fait ? "Confirmé fait — cliquer pour annuler" : "Cliquer pour confirmer que le travail a été fait"}
       >
         {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
@@ -622,7 +625,9 @@ function CuisineBadge({
 
   return (
     <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-0.5 text-[0.8rem] font-medium">
-      {a.nom}
+      {/* min-w fixe, même raison que MenageBadge : aligner le reste de la ligne (jours, montant...)
+          d'une personne à l'autre malgré des noms de longueur différente. */}
+      <span className="inline-block min-w-24">{a.nom}</span>
       <Input
         type="number"
         min={1}
