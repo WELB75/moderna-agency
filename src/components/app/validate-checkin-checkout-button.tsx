@@ -72,9 +72,8 @@ export function ValidateCheckinCheckoutButton({
   return (
     <Button
       type="button"
-      variant="outline"
       size="sm"
-      className="h-6 text-xs text-emerald-700 dark:text-emerald-400"
+      className="h-6 bg-emerald-600 text-xs text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
       disabled={isPending}
       onClick={(e) => {
         e.stopPropagation();

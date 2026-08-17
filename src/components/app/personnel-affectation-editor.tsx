@@ -513,14 +513,15 @@ function MenageBadge({
         size="sm"
         onClick={() => onToggleFait(a.affectationId, !fait)}
         disabled={disabled}
-        // min-w fixe : sans ça, le nom de chaque personne fait une largeur différente et tout ce
-        // qui suit (montant, note, remarque...) ne s'aligne pas d'une ligne à l'autre — Kamel,
-        // 2026-08-17 : "les 200 doivent etre bien alignée aussi, paralelle etc".
-        className="h-6 min-w-28 justify-start"
+        // Largeur FIXE (pas juste min-w) + nom tronqué : un min-w seul laisse un nom long
+        // (ex. "Khamissa") pousser le bouton plus large que "Nawal", donc "200 MAD" ne
+        // s'alignait toujours pas d'une ligne à l'autre. Kamel, 2026-08-17 : "je vois toujours
+        // le decalage... les 200 doivent etre bien alignée aussi, paralelle etc".
+        className="h-6 w-28 shrink-0 justify-start overflow-hidden"
         title={fait ? "Confirmé fait — cliquer pour annuler" : "Cliquer pour confirmer que le travail a été fait"}
       >
-        {fait ? <Check className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
-        {a.nom}
+        {fait ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0" />}
+        <span className="truncate">{a.nom}</span>
       </Button>
       {notable ? null : (
         <>
@@ -625,9 +626,10 @@ function CuisineBadge({
 
   return (
     <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-0.5 text-[0.8rem] font-medium">
-      {/* min-w fixe, même raison que MenageBadge : aligner le reste de la ligne (jours, montant...)
-          d'une personne à l'autre malgré des noms de longueur différente. */}
-      <span className="inline-block min-w-24">{a.nom}</span>
+      {/* Largeur fixe (pas min-w) + troncature, même raison que MenageBadge : un min-w seul
+          n'aligne pas le reste de la ligne (jours, montant...) quand un nom dépasse cette
+          largeur minimale. */}
+      <span className="inline-block w-24 shrink-0 truncate">{a.nom}</span>
       <Input
         type="number"
         min={1}
