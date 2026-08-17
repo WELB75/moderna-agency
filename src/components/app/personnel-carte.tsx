@@ -224,9 +224,12 @@ function RoutesLayer({ domaineRoutes }: { domaineRoutes: DomaineRouteState[] }) 
   );
 }
 
+// À droite, pas à gauche : les boutons zoom (+/-) de Leaflet sont en haut à gauche par défaut,
+// et un panneau au même endroit les chevauchait, coupant le début de chaque ligne ("Moderna 1"
+// devenait "oderna 1"). Kamel, 2026-08-17 : "ça touche le + et le -".
 function RoutesPanel({ domaineRoutes }: { domaineRoutes: DomaineRouteState[] }) {
   return (
-    <div className="pointer-events-none absolute left-3 top-3 z-[400] max-w-[230px]">
+    <div className="pointer-events-none absolute right-3 top-3 z-[400] max-w-[230px]">
       <div className="pointer-events-auto rounded-lg border bg-background/95 p-2.5 shadow-lg backdrop-blur-sm">
         <p className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
           <MopedIcon className="h-3 w-3" /> À moto vers…
