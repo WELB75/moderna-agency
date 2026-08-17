@@ -236,7 +236,12 @@ export function PersonnelAffectationEditor({
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
-      <div className="flex flex-wrap items-center gap-1.5">
+      {/* Une ligne par personne (plus le "+ Ajouter" sur sa propre ligne) plutôt qu'un flex-wrap
+          horizontal : avec plusieurs personnes affectées, les badges (largeur variable selon
+          leur contenu) tombaient n'importe où sur 2 lignes inégales, et "+ Ajouter" se retrouvait
+          collé au dernier badge au lieu d'être aligné proprement. Kamel, 2026-08-17 : "c pas
+          propre du tout... faut que tout soit propre symetrique bien proportionné". */}
+      <div className="flex flex-col items-start gap-1.5">
         {optimisticAssigned.map((a) =>
           role === "menage" ? (
             <MenageBadge
