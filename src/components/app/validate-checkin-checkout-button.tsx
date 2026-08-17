@@ -70,10 +70,13 @@ export function ValidateCheckinCheckoutButton({
   }
 
   return (
+    // Même gabarit (largeur pleine, arrondi, padding) que les boutons noirs "prominent" en bas
+    // de carte (voir ArrivalMessageButton etc.) — juste en vert plutôt qu'en noir — pour que
+    // "Valider le check-in/out" soit au même niveau visuel. Kamel, 2026-08-17 : "les boutons
+    // [vert] doivent etre au meme niveau et dans le meme style que les boutons noir".
     <Button
       type="button"
-      size="sm"
-      className="h-6 bg-emerald-600 text-xs text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
+      className="w-full justify-start rounded-xl bg-emerald-600 py-5 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-700"
       disabled={isPending}
       onClick={(e) => {
         e.stopPropagation();
