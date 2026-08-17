@@ -100,7 +100,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
   return (
     <div
       className={cn(
-        "min-w-0 rounded-2xl border bg-white/55 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 transition-opacity dark:bg-white/8",
+        "flex h-full min-w-0 flex-col rounded-2xl border bg-white/55 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 transition-opacity dark:bg-white/8",
         isIn ? "border-emerald-400/40 dark:border-emerald-400/20" : "border-red-400/40 dark:border-red-400/20",
         isDone && "opacity-60"
       )}
@@ -259,7 +259,12 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
         </div>
       </div>
 
-      <div className="space-y-3 border-t px-3 pb-3 pt-3">
+      {/* mt-auto : ancre ce bloc en bas de la carte, pour que les deux cartes d'un même
+          turnover (check-out à gauche, check-in à droite) se terminent au même niveau malgré un
+          contenu différent en quantité (le check-in a 4 barres + badges fiche/contrat, le
+          check-out seulement 3 barres) — Kamel, 2026-08-17 : "je veux toujours que tout soit
+          symétrique". */}
+      <div className="mt-auto space-y-3 border-t px-3 pb-3 pt-3">
           {/* Fiche police, contrat et messages d'arrivée/sécurité concernent l'arrivée d'un
               client, pas son départ — inutile et trompeur de les montrer sur une carte de
               checkout (le message sécurité dit littéralement "nouveau client à venir"). */}
