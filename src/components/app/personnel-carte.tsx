@@ -188,12 +188,19 @@ function MopedIcon({ className }: { className?: string }) {
   );
 }
 
+// iconSize [0,0] + position:absolute + translate(-50%,-50%) sur le contenu : sans ça, Leaflet
+// enferme le divIcon dans une boîte par défaut de 12×12px qui tronquait le texte ("19 min"
+// n'affichait qu'un "1"). Kamel, 2026-08-17 : "on voit pas bien les min sur le plan" + icône moto
+// directement sur la bulle, pas seulement dans le panneau.
+const MOPED_SVG_PATH =
+  '<circle cx="5" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M5 18h1a2 2 0 0 0 2-2v-1a3 3 0 0 1 3-3h1"/><path d="M8 12h3l2-4h3"/><path d="M15 18h3l1-4h-3"/><path d="M9 6h3"/>';
+
 function routeDurationIcon(color: string, label: string) {
-  return L.divIcon({
-    className: "",
-    html: `<div style="display:flex;align-items:center;gap:3px;padding:2px 7px;border-radius:9999px;background:${color};color:white;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,0.35);border:1.5px solid white;">${label}</div>`,
-    iconAnchor: [0, 0],
-  });
+  const html = `<div style="position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:9999px;background:${color};color:white;font-size:12px;font-weight:700;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,0.45);border:2px solid white;">
+    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${MOPED_SVG_PATH}</svg>
+    ${label}
+  </div>`;
+  return L.divIcon({ className: "", html, iconSize: [0, 0], iconAnchor: [0, 0] });
 }
 
 // Un tracé par domaine, sa couleur, et une bulle de durée posée au milieu — même esprit que les
