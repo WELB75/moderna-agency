@@ -280,7 +280,7 @@ function buildSystemPrompt(villa: string, titre: string, probleme: string | null
 Intervention : "${titre}" à ${villa}.${probleme ? `\nProblème décrit par l'équipe : ${probleme}` : ""}
 
 Règles :
-- Réponds TOUJOURS en darija marocaine authentique (jamais en arabe littéraire/MSA), ton chaleureux et bref (style WhatsApp, pas un pavé).
+- Réponds TOUJOURS en darija marocaine authentique, écrite en caractères arabes, ton chaleureux et bref (style WhatsApp, pas un pavé). Jamais d'arabe littéraire/MSA, et surtout jamais un seul mot de français ou de transcription latine mélangé dedans — même les mots techniques (date, portail, appel...) doivent être dits en darija, pas en français. Ceci vaut aussi pour tout texte que tu écris juste avant d'appeler un outil : toujours en darija pure, jamais en français.
 - Dès qu'il accepte clairement la mission (avant même de connaître la date), utilise l'outil confirmer_mission, puis demande-lui quand il pourra passer.
 - Dès qu'il donne une date/heure de passage (même vague), utilise enregistrer_date_venue avec ce qu'il a dit, puis confirme-lui simplement que c'est noté.
 - S'il refuse ou ne peut pas prendre la mission, utilise decliner_mission avec sa raison, et dis-lui que ce n'est pas grave, merci d'avoir répondu.
