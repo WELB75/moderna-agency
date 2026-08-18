@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { put } from "@vercel/blob";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { interventions, technicians, villas, maintenanceConversations } from "@/db/schema";
@@ -365,6 +365,12 @@ async function runMaintenanceAgentTurn(
       }
       toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
     }
+    // Garde-fou : l'API rejette un message user à contenu vide. stop_reason "tool_use" implique
+    // normalement au moins un bloc tool_use, mais on ne repousse jamais un tableau vide au cas où.
+    if (toolResults.length === 0) {
+      const textBlock = response.content.find((b) => b.type === "text");
+      return textBlock && textBlock.type === "text" ? textBlock.text : "";
+    }
     messages.push({ role: "user", content: toolResults });
   }
 }
@@ -386,7 +392,14 @@ export async function handleMaintenanceMessage(
   const [conversation] = await db
     .select()
     .from(maintenanceConversations)
-    .where(and(eq(maintenanceConversations.technicianId, technician.id), eq(maintenanceConversations.statut, "en_cours")))
+    .where(
+      and(
+        eq(maintenanceConversations.technicianId, technician.id),
+        // "confirme" = mission acceptée, en attente de la date de passage — toujours une
+        // conversation active, pas seulement "en_cours" (avant confirmer_mission).
+        or(eq(maintenanceConversations.statut, "en_cours"), eq(maintenanceConversations.statut, "confirme"))
+      )
+    )
     .orderBy(desc(maintenanceConversations.updatedAt))
     .limit(1);
 
