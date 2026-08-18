@@ -1,6 +1,15 @@
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { whatsappConversations, staffAssignmentRequests, reservations, villas, personnel } from "@/db/schema";
+import {
+  whatsappConversations,
+  staffAssignmentRequests,
+  maintenanceConversations,
+  interventions,
+  technicians,
+  reservations,
+  villas,
+  personnel,
+} from "@/db/schema";
 import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonnelTabs } from "@/components/app/personnel-tabs";
 import { Badge } from "@/components/ui/badge";
@@ -50,9 +59,21 @@ const STATUT_LABEL: Record<string, { label: string; className: string }> = {
 
 const ROLE_LABEL: Record<string, string> = { menage: "Ménage", cuisine: "Cuisine" };
 
+const MAINTENANCE_STATUT_LABEL: Record<string, { label: string; className: string }> = {
+  en_cours: { label: "En cours", className: "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400" },
+  confirme: { label: "Confirmé", className: "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400" },
+  planifie: { label: "Planifié", className: "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400" },
+  escalade: { label: "Escaladé (argent)", className: "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400" },
+  sans_reponse: { label: "Décliné", className: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400" },
+};
+
+function isAudioAttachment(url: string): boolean {
+  return /\.(mp3|ogg|opus|m4a|wav|aac)$/i.test(url);
+}
+
 export default async function AgentIaPage({ searchParams }: { searchParams: Promise<{ onglet?: string }> }) {
   const { onglet } = await searchParams;
-  const ongletActif = onglet === "personnel" ? "personnel" : "clients";
+  const ongletActif = onglet === "personnel" || onglet === "maintenance" ? onglet : "clients";
 
   const db = getDb();
 
@@ -82,6 +103,26 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
   const allPersonnel = await db.select({ id: personnel.id, nom: personnel.nom }).from(personnel);
   const nomParId = new Map(allPersonnel.map((p) => [p.id, p.nom]));
 
+  const maintenanceRows = await db
+    .select({
+      id: maintenanceConversations.id,
+      messages: maintenanceConversations.messages,
+      statut: maintenanceConversations.statut,
+      dateVenue: maintenanceConversations.dateVenue,
+      updatedAt: maintenanceConversations.updatedAt,
+      technicianNom: technicians.nom,
+      technicianFonction: technicians.fonction,
+      interventionTitre: interventions.titre,
+      attachmentUrls: interventions.attachmentUrls,
+      villaNom: villas.nom,
+      villaNumero: villas.numero,
+    })
+    .from(maintenanceConversations)
+    .leftJoin(technicians, eq(technicians.id, maintenanceConversations.technicianId))
+    .leftJoin(interventions, eq(interventions.id, maintenanceConversations.interventionId))
+    .leftJoin(villas, eq(villas.id, interventions.villaId))
+    .orderBy(desc(maintenanceConversations.updatedAt));
+
   return (
     <div className="space-y-6">
       <div>
@@ -98,6 +139,9 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
           </TabsTrigger>
           <TabsTrigger value="personnel" className="shrink-0">
             Sollicitations personnel ({staffRequests.length})
+          </TabsTrigger>
+          <TabsTrigger value="maintenance" className="shrink-0">
+            Techniciens ({maintenanceRows.length})
           </TabsTrigger>
         </TabsList>
 
@@ -215,6 +259,75 @@ export default async function AgentIaPage({ searchParams }: { searchParams: Prom
                         )
                       )
                     )}
+                  </div>
+                </details>
+              );
+            })
+          )}
+        </TabsContent>
+
+        <TabsContent value="maintenance" className="space-y-3 pt-2">
+          {maintenanceRows.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune conversation technicien pour l&apos;instant.</p>
+          ) : (
+            maintenanceRows.map((r) => {
+              const segments = toSegments((r.messages as StoredMessage[]) ?? []);
+              const statut = MAINTENANCE_STATUT_LABEL[r.statut] ?? { label: r.statut, className: "" };
+              const audios = (r.attachmentUrls ?? []).filter(isAudioAttachment);
+              return (
+                <details key={r.id} className="group rounded-lg border">
+                  <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-2 p-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={statut.className}>
+                          {statut.label}
+                        </Badge>
+                        <span className="text-sm font-medium">
+                          {r.technicianNom ?? "Technicien"}
+                          {r.technicianFonction ? ` (${r.technicianFonction})` : ""}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {r.interventionTitre ?? "Intervention"}
+                        {r.villaNom ? ` — ${r.villaNom}${r.villaNumero ? ` (n°${r.villaNumero})` : ""}` : ""}
+                        {r.dateVenue ? ` · Passage : ${r.dateVenue}` : ""}
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(r.updatedAt), "d MMM yyyy HH:mm", { locale: fr })}
+                    </span>
+                  </summary>
+                  <div className="space-y-2 border-t p-4">
+                    {segments.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">Aucun message échangé pour l&apos;instant.</p>
+                    ) : (
+                      segments.map((s, i) => (
+                        <div
+                          key={i}
+                          className={cn(
+                            "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                            s.kind === "client" && "ml-0 bg-muted",
+                            s.kind === "agent" && "ml-auto bg-primary/10",
+                            s.kind === "outil" && "mx-auto max-w-full bg-transparent text-center font-mono text-xs text-muted-foreground"
+                          )}
+                        >
+                          {s.kind !== "outil" ? (
+                            <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              {s.kind === "client" ? "Technicien" : "Agent IA"}
+                            </p>
+                          ) : null}
+                          <p className="whitespace-pre-wrap">{s.text}</p>
+                        </div>
+                      ))
+                    )}
+                    {audios.length > 0 ? (
+                      <div className="space-y-1.5 pt-2">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Audio</p>
+                        {audios.map((url, i) => (
+                          <audio key={i} controls src={url} className="w-full" />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </details>
               );

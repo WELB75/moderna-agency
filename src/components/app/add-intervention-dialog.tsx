@@ -175,7 +175,7 @@ export function AddInterventionDialog({
               <Label>Technicien</Label>
               <Select value={technicianId} onValueChange={setTechnicianId}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Optionnel" />
+                  <SelectValue placeholder="Laisser vide : l'IA choisit dès qu'une photo est ajoutée" />
                 </SelectTrigger>
                 <SelectContent>
                   {technicians.map((t) => (

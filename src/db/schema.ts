@@ -500,6 +500,34 @@ export const technicians = pgTable(
   (t) => [uniqueIndex("technicians_access_token_idx").on(t.accessToken)]
 );
 
+// Conversation WhatsApp de l'agent IA maintenance avec un technicien pour une intervention
+// donnée — table à part plutôt que réutiliser whatsappConversations (agent client), même
+// principe que staffAssignmentRequests pour ménage/cuisine. Kamel, 2026-08-18 : l'IA choisit
+// elle-même le technicien selon sa fonction, lui explique le souci en darija (texte + voix),
+// lui demande une date de passage une fois la mission confirmée, et transfère vers Kamel dès que
+// la conversation dérive sur l'argent/un devis (jamais négocié par l'IA elle-même).
+export const maintenanceConversations = pgTable("maintenance_conversations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  interventionId: uuid("intervention_id")
+    .references(() => interventions.id, { onDelete: "cascade" })
+    .notNull(),
+  technicianId: uuid("technician_id")
+    .references(() => technicians.id, { onDelete: "cascade" })
+    .notNull(),
+  phone: text("phone").notNull(),
+  messages: jsonb("messages").$type<unknown[]>().default([]).notNull(),
+  statut: text("statut")
+    .$type<"en_cours" | "confirme" | "planifie" | "escalade" | "sans_reponse">()
+    .default("en_cours")
+    .notNull(),
+  // Rempli par l'outil enregistrer_date_venue une fois la mission confirmée — texte libre
+  // ("demain matin", une date...), pas de format imposé au technicien.
+  dateVenue: text("date_venue"),
+  lastMessageId: text("last_message_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const contactRoleEnum = pgEnum("contact_role", [
   "proprietaire",
   "femme_menage",

@@ -15,6 +15,7 @@ import {
   updateStaffPosition,
 } from "@/lib/whatsapp-agent/staff";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
+import { isKnownTechnicianPhone, handleMaintenanceMessage } from "@/lib/maintenance-ai";
 
 export const maxDuration = 60;
 
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
 // Les messages vocaux WhatsApp arrivent comme un id de média, pas un fichier directement — il
 // faut d'abord résoudre son URL de téléchargement temporaire auprès de Meta, puis télécharger le
 // fichier lui-même (les deux appels nécessitent le même token d'accès).
-async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: ArrayBuffer; mimeType: string } | null> {
+export async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: ArrayBuffer; mimeType: string } | null> {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   if (!accessToken) return null;
   const metaRes = await fetch(`https://graph.facebook.com/v25.0/${mediaId}`, {
@@ -58,7 +59,7 @@ async function downloadWhatsAppMedia(mediaId: string): Promise<{ buffer: ArrayBu
 // personnel (darija/arabe) : sans ça, un "نعم" bref et net peut être mal détecté comme une autre
 // langue (ex. transcrit en coréen "네." — repéré par Kamel, 2026-08-08). Laissé indéterminé pour
 // l'agent client, qui doit rester multilingue (français/anglais/arabe).
-async function transcribeAudio(buffer: ArrayBuffer, mimeType: string, language?: string): Promise<string | null> {
+export async function transcribeAudio(buffer: ArrayBuffer, mimeType: string, language?: string): Promise<string | null> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   const ext = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") || mimeType.includes("m4a") ? "m4a" : "bin";
@@ -124,7 +125,10 @@ export async function POST(req: NextRequest) {
     // transcription ci-dessous. Kamel, 2026-08-08 : "il faut pas qu'il bascule après en agent de
     // réservation" + "quand la personne elle répond en vocal, il faut que tu répondes en vocal".
     const isStaff = await isKnownStaffPhone(from);
-    const sendReply = isStaff ? sendWhatsAppTextAndVoice : sendWhatsAppText;
+    // Même logique que le personnel ménage/cuisine, pour les techniciens de maintenance (voir
+    // maintenance-ai.ts) — un répertoire distinct (technicians), donc une vérification à part.
+    const isTechnician = await isKnownTechnicianPhone(from);
+    const sendReply = isStaff || isTechnician ? sendWhatsAppTextAndVoice : sendWhatsAppText;
 
     // Partage de localisation WhatsApp (un tap, natif) — sert uniquement au pointage ponctuel de
     // position du personnel (voir updateStaffPosition), pas géré pour les clients pour l'instant.
@@ -147,10 +151,16 @@ export async function POST(req: NextRequest) {
     const wasVoice = message.type === "audio";
 
     let text = message.type === "text" ? message.text?.body?.trim() : null;
+    // Gardé pour l'agent maintenance (technicien) : persisté comme pièce jointe de l'intervention
+    // en plus d'être transcrit, voir handleMaintenanceMessage — inutile pour les autres profils.
+    let audioBuffer: Buffer | null = null;
 
     if (!text && message.type === "audio" && message.audio?.id) {
       const media = await downloadWhatsAppMedia(message.audio.id);
-      if (media) text = await transcribeAudio(media.buffer, media.mimeType, isStaff ? "ar" : undefined);
+      if (media) {
+        audioBuffer = Buffer.from(media.buffer);
+        text = await transcribeAudio(media.buffer, media.mimeType, isStaff || isTechnician ? "ar" : undefined);
+      }
       if (!text) {
         await sendReply(message.from, "Désolé, je n'ai pas réussi à comprendre ce message vocal — pouvez-vous réessayer ou l'écrire par texte ?");
         return NextResponse.json({ ok: true });
@@ -192,6 +202,14 @@ export async function POST(req: NextRequest) {
     if (isStaff) {
       const reply = await handleGenericStaffMessage(from, text);
       await sendWhatsAppTextAndVoice(message.from, reply);
+      return NextResponse.json({ ok: true });
+    }
+
+    // Un numéro de technicien de maintenance ne doit jamais retomber sur l'agent client ni sur
+    // le dispatch ménage/cuisine — conversation dédiée (voir maintenance-ai.ts), qui gère
+    // elle-même l'envoi de la réponse (texte + voix) et la persistance audio.
+    if (isTechnician) {
+      await handleMaintenanceMessage(from, message.id, text, audioBuffer);
       return NextResponse.json({ ok: true });
     }
 

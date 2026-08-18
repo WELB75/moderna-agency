@@ -9,6 +9,31 @@ import type { Devis } from "@/lib/devis-types";
 import type { Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { notifyStaffWhatsApp, notifyPhoneWhatsApp } from "@/lib/whatsapp";
+import { initiateMaintenanceRequest } from "@/lib/maintenance-ai";
+
+// Dès qu'un problème décrit ET au moins une photo sont réunis sur une intervention SANS
+// technicien déjà choisi à la main, on laisse l'IA proposer elle-même le technicien le plus
+// pertinent (voir maintenance-ai.ts) plutôt que d'attendre que Kamel en assigne un — Kamel,
+// 2026-08-18. initiateMaintenanceRequest est déjà idempotent (ne fait rien si une conversation
+// existe déjà pour cette intervention), donc sûr à appeler à chaque fois que l'un des deux
+// éléments arrive (problème à la création, photo ajoutée après, ou l'inverse).
+async function maybeAutoDispatchMaintenance(interventionId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select({ probleme: interventions.probleme, attachmentUrls: interventions.attachmentUrls, technicianId: interventions.technicianId })
+    .from(interventions)
+    .where(eq(interventions.id, interventionId))
+    .limit(1);
+  if (!row) return;
+  if (row.technicianId) return; // technicien déjà choisi à la main : pas de dispatch IA
+  if (!row.probleme?.trim() || (row.attachmentUrls?.length ?? 0) === 0) return;
+
+  try {
+    await initiateMaintenanceRequest(interventionId);
+  } catch (err) {
+    console.error("Échec dispatch IA maintenance:", err);
+  }
+}
 
 const ETAPES = ["signale", "contacte", "planifie", "en_cours", "termine"] as const;
 type Etape = (typeof ETAPES)[number];
@@ -44,23 +69,30 @@ export async function createIntervention(formData: FormData) {
   if (!titre) throw new Error("Le titre est obligatoire.");
 
   const db = getDb();
-  await db.insert(interventions).values({
-    titre,
-    probleme: probleme || null,
-    lieu: lieu || null,
-    villaId,
-    domaineId,
-    prestataire: prestataire || null,
-    technicianId,
-    urgence,
-    categorie,
-    notes: notes || null,
-    origine: "staff",
-    createdByUserId: user?.id ?? null,
-    createdByName: user?.fullName ?? user?.username ?? "Équipe",
-  });
+  const [created] = await db
+    .insert(interventions)
+    .values({
+      titre,
+      probleme: probleme || null,
+      lieu: lieu || null,
+      villaId,
+      domaineId,
+      prestataire: prestataire || null,
+      technicianId,
+      urgence,
+      categorie,
+      notes: notes || null,
+      origine: "staff",
+      createdByUserId: user?.id ?? null,
+      createdByName: user?.fullName ?? user?.username ?? "Équipe",
+    })
+    .returning({ id: interventions.id });
 
-  if (technicianId) await notifyTechnicianAssignment(technicianId, titre);
+  if (technicianId) {
+    await notifyTechnicianAssignment(technicianId, titre);
+  } else {
+    await maybeAutoDispatchMaintenance(created.id);
+  }
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -329,6 +361,8 @@ export async function addInterventionAttachments(interventionId: string, urls: s
     .update(interventions)
     .set({ attachmentUrls: [...(existing.attachmentUrls ?? []), ...urls], updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
+
+  await maybeAutoDispatchMaintenance(interventionId);
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
