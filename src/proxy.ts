@@ -8,6 +8,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/whatsapp-webhook",
   "/api/telegram-webhook",
   "/api/staff-requests/sweep",
+  "/api/maintenance/dispatch",
   "/icon",
   "/favicon.ico",
   "/i/(.*)",
