@@ -198,7 +198,10 @@ async function sendLocationToTechnician(interventionId: string, phone: string, v
     .filter(Boolean)
     .join("\n");
   const message = `هاد هي البلاصة ديال ${villa} باش توصل ليها :\n\n${links}\n\nموديرنا أجونسي`;
-  await sendAndPersist(interventionId, phone, message);
+  // Texte seul, jamais de voix : lire des URLs à voix haute n'a aucun sens et ElevenLabs
+  // s'enlise dessus — Kamel, 2026-08-19 : "en mode vocal elle dit la localisation en mode vocale
+  // et ça il faut pas du tout le faire" (a aussi causé un timeout de la fonction en test).
+  await sendWhatsAppText(phone, message);
 }
 
 const TranslationSchema = z.object({
