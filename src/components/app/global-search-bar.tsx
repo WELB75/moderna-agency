@@ -49,11 +49,11 @@ export function GlobalSearchBar() {
 
   return (
     <div ref={containerRef} className="relative">
-      <div className="flex items-center gap-2 border border-border bg-muted/40 px-3 py-2.5">
+      <div className="flex items-center gap-3 rounded-2xl bg-black/70 px-4 py-3.5 shadow-[0_8px_30px_rgb(0,0,0,0.25)] ring-1 ring-white/10 backdrop-blur-2xl backdrop-saturate-150">
         {isPending ? (
-          <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-white/70" />
         ) : (
-          <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Search className="h-5 w-5 shrink-0 text-white/70" />
         )}
         <input
           value={query}
@@ -63,7 +63,7 @@ export function GlobalSearchBar() {
           }}
           onFocus={() => setOpen(true)}
           placeholder="Rechercher un client, des travaux, une femme de ménage, une cuisinière..."
-          className="w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="w-full min-w-0 bg-transparent text-lg font-semibold text-white outline-none placeholder:text-white/50"
         />
         {query ? (
           <button
@@ -74,13 +74,13 @@ export function GlobalSearchBar() {
             }}
             aria-label="Effacer la recherche"
           >
-            <X className="h-4 w-4 text-muted-foreground" />
+            <X className="h-5 w-5 text-white/70" />
           </button>
         ) : null}
       </div>
 
       {showPanel ? (
-        <div className="absolute inset-x-0 top-full z-50 mt-1 max-h-96 overflow-y-auto border border-border bg-popover shadow-lg">
+        <div className="absolute inset-x-0 top-full z-50 mt-2 max-h-96 overflow-y-auto rounded-2xl bg-popover/90 shadow-[0_8px_30px_rgb(0,0,0,0.15)] ring-1 ring-white/60 backdrop-blur-xl backdrop-saturate-150 dark:ring-white/10">
           {isPending && results.length === 0 ? (
             <p className="p-3 text-sm text-muted-foreground">Recherche...</p>
           ) : results.length === 0 ? (
@@ -88,11 +88,11 @@ export function GlobalSearchBar() {
           ) : (
             <ul>
               {results.map((r) => (
-                <li key={`${r.type}-${r.id}`} className="border-b border-border last:border-b-0">
+                <li key={`${r.type}-${r.id}`} className="border-b border-border/50 last:border-b-0">
                   <Link
                     href={r.href}
                     onClick={() => setOpen(false)}
-                    className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted"
+                    className="flex items-center justify-between gap-3 px-3 py-2.5 hover:bg-muted/60"
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{r.title}</p>
