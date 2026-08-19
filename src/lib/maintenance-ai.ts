@@ -548,6 +548,7 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
       phone: maintenanceConversations.phone,
       statut: maintenanceConversations.statut,
       relanceCount: maintenanceConversations.relanceCount,
+      messages: maintenanceConversations.messages,
       titre: interventions.titre,
       villaNom: villas.nom,
       villaNumero: villas.numero,
@@ -578,9 +579,12 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
         ? "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي. واش قدرتي تعطيني فوقاش غادي تجي؟"
         : "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي السابقة. واش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك.";
     await sendAndPersist(row.interventionId, row.phone, relance);
+    // Ajoutée au transcript (pas seulement à l'audio) pour rester visible dans l'onglet
+    // "Techniciens (maintenance)" de /agent-ia, comme le reste de la conversation.
+    const messages = [...((row.messages as MessageParam[]) ?? []), { role: "assistant" as const, content: [{ type: "text" as const, text: relance }] }];
     await db
       .update(maintenanceConversations)
-      .set({ relanceCount: row.relanceCount + 1, lastRelanceAt: new Date() })
+      .set({ relanceCount: row.relanceCount + 1, lastRelanceAt: new Date(), messages })
       .where(eq(maintenanceConversations.id, row.id));
   }
 }
