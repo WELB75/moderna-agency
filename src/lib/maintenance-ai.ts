@@ -175,6 +175,37 @@ async function sendAndPersist(interventionId: string, phone: string, text: strin
   if (audio) await persistAudioAttachment(interventionId, audio, "agent");
 }
 
+const TranslationSchema = z.object({
+  titre: z.string().describe("Traduction du titre en darija marocaine authentique, écriture arabe."),
+  probleme: z.string().nullable().describe("Traduction de la description du problème en darija marocaine authentique, écriture arabe, ou null si vide."),
+});
+
+// Kamel décrit toujours le problème en français (titre + probleme) — le technicien, lui, ne le
+// lira qu'en darija. Sans cette étape, le message d'ouverture insérait le texte français tel
+// quel au milieu d'une phrase en darija, illisible pour le technicien. Kamel, 2026-08-19 : "il va
+// pas comprendre le technicien ce que tu racontes".
+async function translateProblemToDarija(titre: string, probleme: string | null): Promise<{ titre: string; probleme: string | null }> {
+  try {
+    const message = await client.messages.parse({
+      model: "claude-sonnet-5",
+      max_tokens: 300,
+      thinking: { type: "disabled" },
+      output_config: { effort: "low", format: zodOutputFormat(TranslationSchema) },
+      system:
+        "Tu traduis un titre et une description de problème de maintenance, du français vers la darija marocaine authentique " +
+        "(jamais l'arabe littéraire/MSA, jamais un mot de français mélangé dedans), écrite en caractères arabes. Traduis le sens " +
+        "technique fidèlement, garde ça court et naturel, comme si un Marocain décrivait le problème à l'oral.",
+      messages: [{ role: "user", content: `Titre : ${titre}${probleme ? `\nProblème : ${probleme}` : ""}` }],
+    });
+    const result = message.parsed_output;
+    if (!result) return { titre, probleme };
+    return { titre: result.titre, probleme: result.probleme };
+  } catch (err) {
+    console.error("Échec traduction darija (titre/problème) :", err);
+    return { titre, probleme };
+  }
+}
+
 function buildOpeningMessage(villa: string, titre: string, probleme: string | null): string {
   const detail = probleme ? ` (${probleme})` : "";
   return `السلام عليكم،\n\nكاين مشكل ف${villa} : ${titre}${detail}.\n\nواش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك.\n\nموديرنا أجونسي`;
@@ -227,7 +258,8 @@ export async function initiateMaintenanceRequest(interventionId: string): Promis
     .returning({ id: maintenanceConversations.id });
 
   const villa = villaLabel(intervention.villaNom, intervention.villaNumero);
-  const opening = buildOpeningMessage(villa, intervention.titre, intervention.probleme);
+  const darija = await translateProblemToDarija(intervention.titre, intervention.probleme);
+  const opening = buildOpeningMessage(villa, darija.titre, darija.probleme);
 
   await db
     .update(maintenanceConversations)
