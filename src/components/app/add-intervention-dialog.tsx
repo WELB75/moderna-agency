@@ -204,11 +204,12 @@ export function AddInterventionDialog({
             </div>
             <div className="space-y-1.5">
               <Label>Technicien</Label>
-              <Select value={technicianId} onValueChange={setTechnicianId}>
+              <Select value={technicianId || "__none__"} onValueChange={(v) => setTechnicianId(v === "__none__" ? "" : v)}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Laisser vide : l'IA choisit dès qu'une photo est ajoutée" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none__">Laisser vide (l&apos;IA choisit)</SelectItem>
                   {technicians.map((t) => (
                     <SelectItem key={t.id} value={t.id}>
                       {t.nom} ({t.fonction})

@@ -8,7 +8,7 @@ import { interventions, technicians, villas } from "@/db/schema";
 import type { Devis } from "@/lib/devis-types";
 import type { Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
-import { notifyStaffWhatsApp, notifyPhoneWhatsApp } from "@/lib/whatsapp";
+import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 
 // Dès qu'un problème décrit ET au moins une photo sont réunis sur une intervention SANS
 // technicien déjà choisi à la main, on laisse l'IA proposer elle-même le technicien le plus
@@ -159,6 +159,10 @@ export async function createInterventionByOwner(
   revalidatePath("/maintenance");
 }
 
+// Utilise sendWhatsAppText (même mécanisme que l'agent maintenance, déjà éprouvé) plutôt que
+// notifyPhoneWhatsApp (message "template" Meta) : ce dernier exige un modèle pré-approuvé via
+// WHATSAPP_TEMPLATE_NAME, jamais configuré sur ce projet — le message partait silencieusement
+// dans le vide dès qu'un technicien était choisi à la main. Vu en prod le 2026-08-19.
 async function notifyTechnicianAssignment(technicianId: string, titre: string) {
   const db = getDb();
   const [tech] = await db
@@ -170,7 +174,8 @@ async function notifyTechnicianAssignment(technicianId: string, titre: string) {
 
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const link = baseUrl ? `${baseUrl}/t/${tech.accessToken}` : `/t/${tech.accessToken}`;
-  await notifyPhoneWhatsApp(
+  const { sendWhatsAppText } = await import("@/lib/whatsapp-agent/send");
+  await sendWhatsAppText(
     tech.telephone,
     `Nouvelle intervention assignée / تم تكليفك بمهمة جديدة : "${titre}". Suivi ici / تابع هنا : ${link}`
   );
