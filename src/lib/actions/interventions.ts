@@ -73,6 +73,17 @@ export async function createIntervention(formData: FormData) {
   const urgence = (URGENCES as readonly string[]).includes(urgenceRaw) ? (urgenceRaw as Urgence) : "normale";
   const categorieRaw = String(formData.get("categorie") ?? "autre").trim();
   const categorie = (CATEGORIE_KEYS as string[]).includes(categorieRaw) ? (categorieRaw as Categorie) : "autre";
+  // Photos/vidéos déjà uploadées côté client (voir AddInterventionDialog) avant l'appel à cette
+  // action — utile pour que le dispatch IA (probleme + photo requis) puisse se déclencher dès la
+  // création, sans passer par un aller-retour "créer puis ajouter une pièce jointe".
+  let attachmentUrls: string[] = [];
+  try {
+    const raw = String(formData.get("attachmentUrls") ?? "[]");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) attachmentUrls = parsed.filter((u) => typeof u === "string");
+  } catch {
+    attachmentUrls = [];
+  }
 
   if (!titre) throw new Error("Le titre est obligatoire.");
 
@@ -90,6 +101,7 @@ export async function createIntervention(formData: FormData) {
       urgence,
       categorie,
       notes: notes || null,
+      attachmentUrls,
       origine: "staff",
       createdByUserId: user?.id ?? null,
       createdByName: user?.fullName ?? user?.username ?? "Équipe",

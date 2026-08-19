@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Paperclip, Loader2, X } from "lucide-react";
+import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,8 @@ export function AddInterventionDialog({
   const [technicianId, setTechnicianId] = useState("");
   const [urgence, setUrgence] = useState<Urgence>("normale");
   const [categorie, setCategorie] = useState<Categorie>("autre");
+  const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const selectedVillaDomaineId = villas.find((v) => v.id === villaId)?.domaineId ?? domaineId;
@@ -55,12 +58,39 @@ export function AddInterventionDialog({
     (c) => (villaId && c.villaId === villaId) || (selectedVillaDomaineId && c.domaineId === selectedVillaDomaineId)
   );
 
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded: { url: string; name: string }[] = [];
+      for (const file of files) {
+        const blob = await upload(`interventions/new/${Date.now()}-${file.name}`, file, {
+          access: "public",
+          handleUploadUrl: "/api/blob/upload",
+        });
+        uploaded.push({ url: blob.url, name: file.name });
+      }
+      setAttachments((prev) => [...prev, ...uploaded]);
+    } catch {
+      toast.error("Échec de l'envoi.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function removeAttachment(url: string) {
+    setAttachments((prev) => prev.filter((a) => a.url !== url));
+  }
+
   async function handleSubmit(formData: FormData) {
     formData.set("villaId", villaId);
     formData.set("domaineId", domaineId);
     formData.set("technicianId", technicianId);
     formData.set("urgence", urgence);
     formData.set("categorie", categorie);
+    formData.set("attachmentUrls", JSON.stringify(attachments.map((a) => a.url)));
     startTransition(async () => {
       try {
         await createIntervention(formData);
@@ -71,6 +101,7 @@ export function AddInterventionDialog({
         setTechnicianId("");
         setUrgence("normale");
         setCategorie("autre");
+        setAttachments([]);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -212,8 +243,40 @@ export function AddInterventionDialog({
             <Label htmlFor="notes">Notes</Label>
             <Textarea id="notes" name="notes" rows={2} placeholder="Contexte, retard, suivi..." />
           </div>
+          <div className="space-y-1.5">
+            <Label>Photo / vidéo</Label>
+            <p className="text-xs text-muted-foreground">
+              Nécessaire (avec le problème décrit) pour que l&apos;IA choisisse elle-même un technicien.
+            </p>
+            <Button type="button" variant="outline" size="sm" disabled={uploading} asChild>
+              <label className="cursor-pointer">
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                Ajouter photo / vidéo
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="hidden"
+                  disabled={uploading}
+                  onChange={handleFileChange}
+                />
+              </label>
+            </Button>
+            {attachments.length > 0 ? (
+              <ul className="space-y-1">
+                {attachments.map((a) => (
+                  <li key={a.url} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
+                    <span className="truncate">{a.name}</span>
+                    <button type="button" onClick={() => removeAttachment(a.url)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
           <DialogFooter>
-            <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+            <Button type="submit" disabled={isPending || uploading} className="w-full sm:w-auto">
               {isPending ? "Création..." : "Créer"}
             </Button>
           </DialogFooter>
