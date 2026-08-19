@@ -1,7 +1,9 @@
 import sharp from "sharp";
+import { loadImageBuffer } from "@/lib/fetch-image-buffer";
+
+export { loadImageBuffer };
 
 const MAX_STORED_DIMENSION = 1400;
-const DATA_URL_RE = /^data:image\/[a-zA-Z0-9.+-]+;base64,(.+)$/;
 
 // Recadre les bords uniformes (table, fond, chrome d'appli sur une capture d'écran...) et
 // ramène à une taille/encodage cohérents. Ne touche PAS à la rotation : deux tentatives de
@@ -25,22 +27,6 @@ export async function normalizeIdPhotoBuffer(inputBuffer: Buffer): Promise<Buffe
     .resize({ width: MAX_STORED_DIMENSION, height: MAX_STORED_DIMENSION, fit: "inside", withoutEnlargement: true })
     .jpeg({ quality: 82 })
     .toBuffer();
-}
-
-// Accepte aussi bien une data URL (le format produit par les formulaires de l'app) qu'une URL
-// http(s) (ex. Vercel Blob) — certaines fiches sont pré-remplies hors de ces formulaires
-// (photos reçues par Kamel sur WhatsApp, uploadées à part) et arrivent déjà sous forme de lien
-// plutôt que de data URL. Retourne null si le lien est mort/inaccessible, plutôt que de bloquer
-// l'appelant (import à froid, sans savoir si le lien est encore valide).
-export async function loadImageBuffer(urlOrDataUrl: string): Promise<Buffer | null> {
-  const match = DATA_URL_RE.exec(urlOrDataUrl);
-  if (match) return Buffer.from(match[1], "base64");
-  if (/^https?:\/\//.test(urlOrDataUrl)) {
-    const res = await fetch(urlOrDataUrl);
-    if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
-  }
-  return null;
 }
 
 export async function normalizeIdPhotoDataUrl(urlOrDataUrl: string): Promise<string> {

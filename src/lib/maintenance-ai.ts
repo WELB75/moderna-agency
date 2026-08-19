@@ -6,7 +6,7 @@ import { eq, and, or, desc } from "drizzle-orm";
 import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { interventions, technicians, villas, maintenanceConversations } from "@/db/schema";
-import { loadImageBuffer } from "@/lib/id-photo-normalize";
+import { loadImageBuffer } from "@/lib/fetch-image-buffer";
 import { categorieLabel } from "@/lib/intervention-categorie";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
