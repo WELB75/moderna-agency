@@ -9,7 +9,6 @@ import type { Devis } from "@/lib/devis-types";
 import type { Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { notifyStaffWhatsApp, notifyPhoneWhatsApp } from "@/lib/whatsapp";
-import { initiateMaintenanceRequest } from "@/lib/maintenance-ai";
 
 // Dès qu'un problème décrit ET au moins une photo sont réunis sur une intervention SANS
 // technicien déjà choisi à la main, on laisse l'IA proposer elle-même le technicien le plus
@@ -17,6 +16,14 @@ import { initiateMaintenanceRequest } from "@/lib/maintenance-ai";
 // 2026-08-18. initiateMaintenanceRequest est déjà idempotent (ne fait rien si une conversation
 // existe déjà pour cette intervention), donc sûr à appeler à chaque fois que l'un des deux
 // éléments arrive (problème à la création, photo ajoutée après, ou l'inverse).
+//
+// Import dynamique volontaire (pas de `import ... from "@/lib/maintenance-ai"` en haut du
+// fichier) : maintenance-ai.ts tire le SDK Anthropic + @vercel/blob, et interventions.ts est le
+// premier fichier "use server" du projet à en dépendre — statique, ça casse le bundling
+// Turbopack des Server Actions ("Received an instance of URL", vu en prod le 2026-08-19 même
+// avec un technicien choisi à la main, donc avant même d'exécuter la moindre ligne de cette
+// fonction). L'import dynamique isole ce module dans son propre chunk, chargé seulement à
+// l'appel, et évite ce bug de bundling.
 async function maybeAutoDispatchMaintenance(interventionId: string) {
   const db = getDb();
   const [row] = await db
@@ -29,6 +36,7 @@ async function maybeAutoDispatchMaintenance(interventionId: string) {
   if (!row.probleme?.trim() || (row.attachmentUrls?.length ?? 0) === 0) return;
 
   try {
+    const { initiateMaintenanceRequest } = await import("@/lib/maintenance-ai");
     await initiateMaintenanceRequest(interventionId);
   } catch (err) {
     console.error("Échec dispatch IA maintenance:", err);
