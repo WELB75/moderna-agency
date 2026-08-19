@@ -329,6 +329,32 @@ Règles :
 - Si le message ne correspond à aucun de ces cas (question générale, salutation...), réponds naturellement sans appeler d'outil.`;
 }
 
+const DateTranslationSchema = z.object({
+  francais: z.string().describe("Traduction en français courant de la date/heure donnée par le technicien."),
+});
+
+// La date de passage donnée par le technicien reste en darija (ce qu'il a dit, tel quel), mais
+// elle finit aussi sur la page publique /i/[id] transmise au propriétaire — certains ne lisent
+// pas l'arabe. Kamel, 2026-08-19 : "laisse en arabe ET français car y a des proprio qui savent
+// pas lire [l'arabe]". Renvoie une version bilingue, jamais l'original seul.
+async function bilingualDateVenue(quand: string): Promise<string> {
+  try {
+    const message = await client.messages.parse({
+      model: "claude-sonnet-5",
+      max_tokens: 150,
+      thinking: { type: "disabled" },
+      output_config: { effort: "low", format: zodOutputFormat(DateTranslationSchema) },
+      system: "Tu traduis en français courant une date/heure de passage donnée en darija marocaine par un technicien (ex. jour, moment de la journée). Reste concis et naturel.",
+      messages: [{ role: "user", content: quand }],
+    });
+    const francais = message.parsed_output?.francais;
+    return francais ? `${quand} (${francais})` : quand;
+  } catch (err) {
+    console.error("Échec traduction date de passage :", err);
+    return quand;
+  }
+}
+
 async function assignTechnicianAndScheduleDate(interventionId: string, technicianId: string, quand: string): Promise<void> {
   const db = getDb();
   await db
@@ -384,13 +410,14 @@ async function runMaintenanceAgentTurn(
           await notifyKamelMaintenance(`"${context?.titre}" (${villa}) : le technicien confirme qu'il prend la mission — en attente de la date de passage.`);
         } else if (block.name === "enregistrer_date_venue") {
           const input = block.input as { quand: string };
+          const quandBilingue = await bilingualDateVenue(input.quand);
           await db
             .update(maintenanceConversations)
-            .set({ statut: "planifie", dateVenue: input.quand })
+            .set({ statut: "planifie", dateVenue: quandBilingue })
             .where(eq(maintenanceConversations.id, conversationId));
-          await assignTechnicianAndScheduleDate(interventionId, technicianId, input.quand);
+          await assignTechnicianAndScheduleDate(interventionId, technicianId, quandBilingue);
           await notifyKamelMaintenance(
-            `"${context?.titre}" (${villa}) : technicien assigné, passage prévu — ${input.quand}.\nLien à transmettre au propriétaire pour suivre la mission : ${interventionPublicLink(interventionId)}`
+            `"${context?.titre}" (${villa}) : technicien assigné, passage prévu — ${quandBilingue}.\nLien à transmettre au propriétaire pour suivre la mission : ${interventionPublicLink(interventionId)}`
           );
         } else if (block.name === "decliner_mission") {
           const input = block.input as { raison: string };
