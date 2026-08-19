@@ -311,6 +311,11 @@ export async function setInterventionTechnician(interventionId: string, technici
       .where(eq(interventions.id, interventionId))
       .limit(1);
     if (current) await notifyTechnicianAssignment(technicianId, current.titre);
+  } else {
+    // Technicien retiré : si problème + photo sont déjà là, laisse l'IA reproposer un
+    // technicien plutôt que de rester bloqué sans rien tant que personne ne retouche la pièce
+    // jointe.
+    await maybeAutoDispatchMaintenance(interventionId);
   }
 
   revalidatePath("/interventions");
