@@ -68,6 +68,7 @@ export const interventionCategorieEnum = pgEnum("intervention_categorie", [
   "exterieur_jardin",
   "internet_domotique",
   "proprete",
+  "electromenager",
   "autre",
 ]);
 

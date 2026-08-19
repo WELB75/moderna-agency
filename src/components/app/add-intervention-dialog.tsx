@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Paperclip, Loader2, X } from "lucide-react";
+import { Plus, Paperclip, Loader2, X, CheckCircle2 } from "lucide-react";
 import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createIntervention } from "@/lib/actions/interventions";
-import { CONTACT_ROLE_LABELS } from "@/lib/contact-roles";
 import { URGENCE_LEVELS, type Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { CategorieIcon } from "@/components/app/categorie-icon";
@@ -34,7 +33,6 @@ export function AddInterventionDialog({
   villas,
   domaines,
   technicians = [],
-  contacts = [],
 }: {
   villas: { id: string; nom: string; numero: string; domaineId: string | null }[];
   domaines: { id: string; nom: string }[];
@@ -49,14 +47,8 @@ export function AddInterventionDialog({
   const [categorie, setCategorie] = useState<Categorie>("autre");
   const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [justCreated, setJustCreated] = useState(false);
   const [isPending, startTransition] = useTransition();
-
-  const selectedVillaDomaineId = villas.find((v) => v.id === villaId)?.domaineId ?? domaineId;
-  // Priorise les contacts déjà rattachés à cette villa/ce domaine (jardinier, pisciniste...)
-  // plutôt que la liste générale des prestataires.
-  const relevantContacts = contacts.filter(
-    (c) => (villaId && c.villaId === villaId) || (selectedVillaDomaineId && c.domaineId === selectedVillaDomaineId)
-  );
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -85,6 +77,10 @@ export function AddInterventionDialog({
   }
 
   async function handleSubmit(formData: FormData) {
+    // Plus de champ "Titre" séparé : le souci décrit sert directement de titre — Kamel,
+    // 2026-08-19 : "on met direct le souci".
+    const probleme = String(formData.get("probleme") ?? "").trim();
+    formData.set("titre", probleme);
     formData.set("villaId", villaId);
     formData.set("domaineId", domaineId);
     formData.set("technicianId", technicianId);
@@ -94,14 +90,17 @@ export function AddInterventionDialog({
     startTransition(async () => {
       try {
         await createIntervention(formData);
-        toast.success("Intervention créée.");
-        setOpen(false);
-        setVillaId("");
-        setDomaineId("");
-        setTechnicianId("");
-        setUrgence("normale");
-        setCategorie("autre");
-        setAttachments([]);
+        setJustCreated(true);
+        setTimeout(() => {
+          setOpen(false);
+          setJustCreated(false);
+          setVillaId("");
+          setDomaineId("");
+          setTechnicianId("");
+          setUrgence("normale");
+          setCategorie("autre");
+          setAttachments([]);
+        }, 1100);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -117,20 +116,25 @@ export function AddInterventionDialog({
         </Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Nouvelle intervention</DialogTitle>
-          <DialogDescription>Suivi d&apos;une intervention, étape par étape.</DialogDescription>
-        </DialogHeader>
-        <form action={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="titre">Titre</Label>
-            <Input id="titre" name="titre" placeholder="Ex. Électricien" required />
+        {justCreated ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-10">
+            <CheckCircle2 className="h-14 w-14 animate-in zoom-in-50 fade-in-0 text-emerald-500 duration-500" />
+            <p className="animate-in fade-in-0 text-sm font-medium text-muted-foreground delay-150 duration-500">
+              Intervention créée et envoyée
+            </p>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="probleme">Problème</Label>
-            <Textarea id="probleme" name="probleme" rows={2} placeholder="Ex. Panne électrique dans l'appartement" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Nouvelle intervention</DialogTitle>
+              <DialogDescription>Suivi d&apos;une intervention, étape par étape.</DialogDescription>
+            </DialogHeader>
+            <form action={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="probleme">Souci</Label>
+                <Textarea id="probleme" name="probleme" rows={3} placeholder="Ex. Panne électrique dans l'appartement" required />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Domaine</Label>
               <Select value={domaineId} onValueChange={setDomaineId}>
@@ -220,27 +224,6 @@ export function AddInterventionDialog({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="prestataire">Prestataire (si pas dans la liste techniciens)</Label>
-            <Input
-              id="prestataire"
-              name="prestataire"
-              list="intervention-prestataire-suggestions"
-              placeholder="Ex. Mohamed (électricien)"
-            />
-            <datalist id="intervention-prestataire-suggestions">
-              {relevantContacts.map((c) => (
-                <option key={c.nom} value={c.nom}>
-                  {CONTACT_ROLE_LABELS[c.role] ?? c.role}
-                </option>
-              ))}
-              {technicians.map((t) => (
-                <option key={t.nom} value={t.nom}>
-                  {t.fonction}
-                </option>
-              ))}
-            </datalist>
-          </div>
-          <div className="space-y-1.5">
             <Label htmlFor="notes">Notes</Label>
             <Textarea id="notes" name="notes" rows={2} placeholder="Contexte, retard, suivi..." />
           </div>
@@ -276,12 +259,14 @@ export function AddInterventionDialog({
               </ul>
             ) : null}
           </div>
-          <DialogFooter>
-            <Button type="submit" disabled={isPending || uploading} className="w-full sm:w-auto">
-              {isPending ? "Création..." : "Créer"}
-            </Button>
-          </DialogFooter>
-        </form>
+              <DialogFooter>
+                <Button type="submit" disabled={isPending || uploading} className="w-full sm:w-auto">
+                  {isPending ? "Création..." : "Créer"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

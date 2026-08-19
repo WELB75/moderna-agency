@@ -10,6 +10,7 @@ import {
   Wifi,
   Sparkles,
   Wrench,
+  Refrigerator,
   type LucideIcon,
 } from "lucide-react";
 import type { Categorie } from "@/lib/intervention-categorie";
@@ -25,6 +26,7 @@ export const CATEGORIE_ICONS: Record<Categorie, LucideIcon> = {
   exterieur_jardin: TreePine,
   internet_domotique: Wifi,
   proprete: Sparkles,
+  electromenager: Refrigerator,
   autre: Wrench,
 };
 

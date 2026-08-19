@@ -94,7 +94,7 @@ export async function createIntervention(formData: FormData) {
     attachmentUrls = [];
   }
 
-  if (!titre) throw new Error("Le titre est obligatoire.");
+  if (!titre) throw new Error("Le souci est obligatoire.");
 
   const db = getDb();
   const [created] = await db

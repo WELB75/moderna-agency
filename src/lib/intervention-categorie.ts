@@ -9,6 +9,7 @@ export type Categorie =
   | "exterieur_jardin"
   | "internet_domotique"
   | "proprete"
+  | "electromenager"
   | "autre";
 
 export const CATEGORIES: { key: Categorie; label: string }[] = [
@@ -22,6 +23,7 @@ export const CATEGORIES: { key: Categorie; label: string }[] = [
   { key: "exterieur_jardin", label: "Extérieur / jardin" },
   { key: "internet_domotique", label: "Internet / domotique" },
   { key: "proprete", label: "Propreté" },
+  { key: "electromenager", label: "Électroménager" },
   { key: "autre", label: "Autre" },
 ];
 
