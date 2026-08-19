@@ -5,7 +5,7 @@ import { put } from "@vercel/blob";
 import { eq, and, or, desc } from "drizzle-orm";
 import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
-import { interventions, technicians, villas, maintenanceConversations } from "@/db/schema";
+import { interventions, technicians, villas, domaines, maintenanceConversations } from "@/db/schema";
 import { loadImageBuffer } from "@/lib/fetch-image-buffer";
 import { getBaseUrl } from "@/lib/base-url";
 import { categorieLabel } from "@/lib/intervention-categorie";
@@ -173,6 +173,32 @@ async function sendAndPersist(interventionId: string, phone: string, text: strin
   await sendWhatsAppTextAndVoice(phone, text);
   const audio = await textToSpeech(text);
   if (audio) await persistAudioAttachment(interventionId, audio, "agent");
+}
+
+// Envoie les liens Maps/Waze du domaine dès que le technicien confirme la mission, pour qu'il
+// puisse s'y rendre sans avoir à redemander l'adresse — Kamel, 2026-08-19 : "rajouter les urls
+// localisations maps et waze quand les techniciens accepteront la mission". Silencieux si le
+// domaine de la villa n'a ni l'un ni l'autre de configuré (pas de blocage, comme ailleurs dans le
+// projet — voir LocationMessageButton pour le même principe côté client).
+async function sendLocationToTechnician(interventionId: string, phone: string, villa: string): Promise<void> {
+  const db = getDb();
+  const [row] = await db
+    .select({ mapsUrl: domaines.mapsUrl, wazeUrl: domaines.wazeUrl })
+    .from(interventions)
+    .leftJoin(villas, eq(villas.id, interventions.villaId))
+    .leftJoin(domaines, eq(domaines.id, villas.domaineId))
+    .where(eq(interventions.id, interventionId))
+    .limit(1);
+  if (!row || (!row.mapsUrl && !row.wazeUrl)) return;
+
+  const links = [
+    row.mapsUrl ? `🚗 Google Maps : ${row.mapsUrl}` : null,
+    row.wazeUrl ? `🚗 Waze : ${row.wazeUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const message = `هاد هي البلاصة ديال ${villa} باش توصل ليها :\n\n${links}\n\nموديرنا أجونسي`;
+  await sendAndPersist(interventionId, phone, message);
 }
 
 const TranslationSchema = z.object({
@@ -375,7 +401,8 @@ async function runMaintenanceAgentTurn(
   messages: MessageParam[],
   conversationId: string,
   interventionId: string,
-  technicianId: string
+  technicianId: string,
+  phone: string
 ): Promise<string> {
   const context = await loadInterventionContext(interventionId);
   const villa = villaLabel(context?.villaNom ?? null, context?.villaNumero ?? null);
@@ -407,6 +434,7 @@ async function runMaintenanceAgentTurn(
       try {
         if (block.name === "confirmer_mission") {
           await db.update(maintenanceConversations).set({ statut: "confirme" }).where(eq(maintenanceConversations.id, conversationId));
+          await sendLocationToTechnician(interventionId, phone, villa);
           await notifyKamelMaintenance(`"${context?.titre}" (${villa}) : le technicien confirme qu'il prend la mission — en attente de la date de passage.`);
         } else if (block.name === "enregistrer_date_venue") {
           const input = block.input as { quand: string };
@@ -487,7 +515,7 @@ export async function handleMaintenanceMessage(
   const messages = repairMessageHistory((conversation.messages as MessageParam[]) ?? []);
   messages.push({ role: "user", content: text });
 
-  const reply = await runMaintenanceAgentTurn(messages, conversation.id, conversation.interventionId, conversation.technicianId);
+  const reply = await runMaintenanceAgentTurn(messages, conversation.id, conversation.interventionId, conversation.technicianId, phone);
 
   await db
     .update(maintenanceConversations)
