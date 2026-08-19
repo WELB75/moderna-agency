@@ -9,6 +9,7 @@ import type { Devis } from "@/lib/devis-types";
 import type { Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
+import { getBaseUrl } from "@/lib/base-url";
 
 // Dès qu'un problème décrit ET au moins une photo sont réunis sur une intervention SANS
 // technicien déjà choisi à la main, on laisse l'IA proposer elle-même le technicien le plus
@@ -17,13 +18,12 @@ import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 // existe déjà pour cette intervention), donc sûr à appeler à chaque fois que l'un des deux
 // éléments arrive (problème à la création, photo ajoutée après, ou l'inverse).
 //
-// Import dynamique volontaire (pas de `import ... from "@/lib/maintenance-ai"` en haut du
-// fichier) : maintenance-ai.ts tire le SDK Anthropic + @vercel/blob, et interventions.ts est le
-// premier fichier "use server" du projet à en dépendre — statique, ça casse le bundling
-// Turbopack des Server Actions ("Received an instance of URL", vu en prod le 2026-08-19 même
-// avec un technicien choisi à la main, donc avant même d'exécuter la moindre ligne de cette
-// fonction). L'import dynamique isole ce module dans son propre chunk, chargé seulement à
-// l'appel, et évite ce bug de bundling.
+// Appel HTTP interne volontaire vers /api/maintenance/dispatch plutôt qu'un import (statique OU
+// dynamique — les deux testés, voir historique de commits) de maintenance-ai.ts : ce module tire
+// le SDK Anthropic + @vercel/blob, et interventions.ts est un fichier "use server" — dans les
+// DEUX cas, ça casse le bundling Turbopack des Server Actions ("Received an instance of URL", vu
+// en prod le 2026-08-19). Le même module importé depuis une route API classique (comme
+// whatsapp-webhook/route.ts) n'a jamais eu ce problème, d'où l'appel HTTP plutôt qu'un import.
 async function maybeAutoDispatchMaintenance(interventionId: string) {
   const db = getDb();
   const [row] = await db
@@ -36,8 +36,17 @@ async function maybeAutoDispatchMaintenance(interventionId: string) {
   if (!row.probleme?.trim() || (row.attachmentUrls?.length ?? 0) === 0) return;
 
   try {
-    const { initiateMaintenanceRequest } = await import("@/lib/maintenance-ai");
-    await initiateMaintenanceRequest(interventionId);
+    const baseUrl = getBaseUrl();
+    if (!baseUrl) throw new Error("Base URL introuvable (NEXT_PUBLIC_APP_URL / VERCEL_URL absents).");
+    const res = await fetch(`${baseUrl}/api/maintenance/dispatch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.CRON_SECRET ? { Authorization: `Bearer ${process.env.CRON_SECRET}` } : {}),
+      },
+      body: JSON.stringify({ interventionId }),
+    });
+    if (!res.ok) throw new Error(`Dispatch IA maintenance : ${res.status} ${await res.text()}`);
   } catch (err) {
     console.error("Échec dispatch IA maintenance:", err);
   }
@@ -172,7 +181,7 @@ async function notifyTechnicianAssignment(technicianId: string, titre: string) {
     .limit(1);
   if (!tech) return;
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const baseUrl = getBaseUrl();
   const link = baseUrl ? `${baseUrl}/t/${tech.accessToken}` : `/t/${tech.accessToken}`;
   const { sendWhatsAppText } = await import("@/lib/whatsapp-agent/send");
   await sendWhatsAppText(

@@ -7,6 +7,7 @@ import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk
 import { getDb } from "@/db";
 import { interventions, technicians, villas, maintenanceConversations } from "@/db/schema";
 import { loadImageBuffer } from "@/lib/fetch-image-buffer";
+import { getBaseUrl } from "@/lib/base-url";
 import { categorieLabel } from "@/lib/intervention-categorie";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
@@ -131,7 +132,7 @@ function villaLabel(nom: string | null, numero: string | null): string {
 // une intervention à un prestataire/propriétaire — réutilisée ici pour que Kamel puisse la
 // retransmettre dès que le technicien confirme sa date de passage.
 function interventionPublicLink(interventionId: string): string {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const baseUrl = getBaseUrl();
   return baseUrl ? `${baseUrl}/i/${interventionId}` : `/i/${interventionId}`;
 }
 
