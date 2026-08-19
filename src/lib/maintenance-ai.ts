@@ -127,6 +127,14 @@ function villaLabel(nom: string | null, numero: string | null): string {
   return numero ? `${nom} (n°${numero})` : nom;
 }
 
+// Même page publique que /i/[id] (voir src/app/i/[id]/page.tsx), déjà utilisée pour transmettre
+// une intervention à un prestataire/propriétaire — réutilisée ici pour que Kamel puisse la
+// retransmettre dès que le technicien confirme sa date de passage.
+function interventionPublicLink(interventionId: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  return baseUrl ? `${baseUrl}/i/${interventionId}` : `/i/${interventionId}`;
+}
+
 // Même répertoire que isKnownStaffPhone (staff.ts), mais sur technicians — un numéro technicien
 // ne doit jamais retomber sur l'agent client ni sur le dispatch ménage/cuisine.
 export async function isKnownTechnicianPhone(phone: string): Promise<boolean> {
@@ -348,7 +356,9 @@ async function runMaintenanceAgentTurn(
             .set({ statut: "planifie", dateVenue: input.quand })
             .where(eq(maintenanceConversations.id, conversationId));
           await assignTechnicianAndScheduleDate(interventionId, technicianId, input.quand);
-          await notifyKamelMaintenance(`"${context?.titre}" (${villa}) : technicien assigné, passage prévu — ${input.quand}.`);
+          await notifyKamelMaintenance(
+            `"${context?.titre}" (${villa}) : technicien assigné, passage prévu — ${input.quand}.\nLien à transmettre au propriétaire pour suivre la mission : ${interventionPublicLink(interventionId)}`
+          );
         } else if (block.name === "decliner_mission") {
           const input = block.input as { raison: string };
           await db.update(maintenanceConversations).set({ statut: "sans_reponse" }).where(eq(maintenanceConversations.id, conversationId));
