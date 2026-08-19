@@ -525,6 +525,12 @@ export const maintenanceConversations = pgTable("maintenance_conversations", {
   // ("demain matin", une date...), pas de format imposé au technicien.
   dateVenue: text("date_venue"),
   lastMessageId: text("last_message_id"),
+  // Relance automatique si le technicien ne répond pas (statut "en_cours" ou "confirme" sans
+  // nouvelle depuis STALE_TIMEOUT_MS) — même principe que la cascade ménage/cuisine
+  // (cascadeStaleRequests dans staff.ts). Kamel, 2026-08-19 : "l'agent doit créer des relances au
+  // technicien si pas de réponse".
+  relanceCount: integer("relance_count").default(0).notNull(),
+  lastRelanceAt: timestamp("last_relance_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

@@ -15,7 +15,7 @@ import {
   updateStaffPosition,
 } from "@/lib/whatsapp-agent/staff";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
-import { isKnownTechnicianPhone, handleMaintenanceMessage } from "@/lib/maintenance-ai";
+import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
 
 export const maxDuration = 60;
 
@@ -210,6 +210,7 @@ export async function POST(req: NextRequest) {
     // elle-même l'envoi de la réponse (texte + voix) et la persistance audio.
     if (isTechnician) {
       await handleMaintenanceMessage(from, message.id, text, audioBuffer);
+      await relanceStaleMaintenanceConversations();
       return NextResponse.json({ ok: true });
     }
 
@@ -217,6 +218,7 @@ export async function POST(req: NextRequest) {
     // ici plutôt qu'avant le bloc ci-dessus pour ne jamais risquer de réattribuer la propre
     // demande de l'expéditeur pile au moment où il y répond.
     await cascadeStaleRequests();
+    await relanceStaleMaintenanceConversations();
 
     const { db, existing } = await loadConversation(from);
 

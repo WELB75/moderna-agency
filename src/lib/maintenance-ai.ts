@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { put } from "@vercel/blob";
-import { eq, and, or, desc } from "drizzle-orm";
+import { eq, and, or, lt, desc, sql } from "drizzle-orm";
 import type { MessageParam, Tool, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { interventions, technicians, villas, domaines, maintenanceConversations } from "@/db/schema";
@@ -526,4 +526,61 @@ export async function handleMaintenanceMessage(
     .where(eq(maintenanceConversations.id, conversation.id));
 
   await sendAndPersist(conversation.interventionId, phone, reply);
+}
+
+const STALE_TIMEOUT_MS = 60 * 60 * 1000; // 1h — même seuil que cascadeStaleRequests (staff.ts)
+const MAX_RELANCES = 2;
+
+// Relance un technicien qui n'a pas répondu depuis STALE_TIMEOUT_MS — soit au message d'ouverture
+// (statut "en_cours"), soit après avoir accepté sans donner de date (statut "confirme"). Après
+// MAX_RELANCES sans réponse, abandonne et prévient Kamel pour qu'il réassigne manuellement — même
+// principe que cascadeStaleRequests côté ménage/cuisine. Déclenché à chaque message entrant sur
+// le webhook (trafic fréquent) + un cron quotidien en filet de sécurité pour les périodes creuses.
+// Kamel, 2026-08-19 : "l'agent doit créer des relances au technicien si pas de réponse".
+export async function relanceStaleMaintenanceConversations(): Promise<void> {
+  const db = getDb();
+  const cutoff = new Date(Date.now() - STALE_TIMEOUT_MS);
+
+  const stale = await db
+    .select({
+      id: maintenanceConversations.id,
+      interventionId: maintenanceConversations.interventionId,
+      phone: maintenanceConversations.phone,
+      statut: maintenanceConversations.statut,
+      relanceCount: maintenanceConversations.relanceCount,
+      titre: interventions.titre,
+      villaNom: villas.nom,
+      villaNumero: villas.numero,
+    })
+    .from(maintenanceConversations)
+    .innerJoin(interventions, eq(interventions.id, maintenanceConversations.interventionId))
+    .leftJoin(villas, eq(villas.id, interventions.villaId))
+    .where(
+      and(
+        or(eq(maintenanceConversations.statut, "en_cours"), eq(maintenanceConversations.statut, "confirme")),
+        lt(sql`coalesce(${maintenanceConversations.lastRelanceAt}, ${maintenanceConversations.updatedAt})`, cutoff)
+      )
+    );
+
+  for (const row of stale) {
+    const villa = villaLabel(row.villaNom, row.villaNumero);
+
+    if (row.relanceCount >= MAX_RELANCES) {
+      await db.update(maintenanceConversations).set({ statut: "sans_reponse" }).where(eq(maintenanceConversations.id, row.id));
+      await notifyKamelMaintenance(
+        `"${row.titre}" (${villa}) : le technicien n'a jamais répondu malgré ${MAX_RELANCES} relances — à réassigner toi-même.`
+      );
+      continue;
+    }
+
+    const relance =
+      row.statut === "confirme"
+        ? "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي. واش قدرتي تعطيني فوقاش غادي تجي؟"
+        : "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي السابقة. واش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك.";
+    await sendAndPersist(row.interventionId, row.phone, relance);
+    await db
+      .update(maintenanceConversations)
+      .set({ relanceCount: row.relanceCount + 1, lastRelanceAt: new Date() })
+      .where(eq(maintenanceConversations.id, row.id));
+  }
 }

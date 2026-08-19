@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cascadeStaleRequests } from "@/lib/whatsapp-agent/staff";
+import { relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
 
 export const maxDuration = 60;
 
-// Filet de sécurité : le webhook WhatsApp déclenche déjà cascadeStaleRequests() à chaque message
-// entrant (trafic fréquent en pratique), mais une période sans aucun message (nuit, weekend
-// calme) laisserait une demande périmée bloquée jusqu'au prochain message. Ce cron quotidien
-// couvre ces périodes creuses.
+// Filet de sécurité : le webhook WhatsApp déclenche déjà cascadeStaleRequests() /
+// relanceStaleMaintenanceConversations() à chaque message entrant (trafic fréquent en pratique),
+// mais une période sans aucun message (nuit, weekend calme) laisserait une demande périmée
+// bloquée jusqu'au prochain message. Ce cron quotidien couvre ces périodes creuses.
 function isAuthorized(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return true;
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
   await cascadeStaleRequests();
+  await relanceStaleMaintenanceConversations();
   return NextResponse.json({ ok: true });
 }
 
