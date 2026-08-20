@@ -40,10 +40,7 @@ export function EditGuestPhoneButton({ reservationId, guestPhone }: { reservatio
       <PopoverTrigger asChild>
         <button
           type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
+          onClick={(e) => e.stopPropagation()}
           className="shrink-0 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           aria-label="Corriger le numéro de téléphone"
           title="Corriger le numéro"
