@@ -24,6 +24,7 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
       langue: gendarmerieForms.langue,
       completedAt: gendarmerieForms.completedAt,
       villaId: gendarmerieForms.villaId,
+      reservationId: gendarmerieForms.reservationId,
       villaNom: villas.nom,
       villaNumero: villas.numero,
       checkIn: reservations.checkIn,
@@ -80,11 +81,11 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
           </p>
           <div className="flex items-center gap-2 print:hidden">
             <Logo size={28} />
-            {form.statut === "complete" && form.villaId ? (
+            {form.statut === "complete" && form.reservationId ? (
               <CopyLinkButton
-                path={`/securite/villa/${form.villaId}`}
+                path={`/securite/villa/${form.reservationId}`}
                 label="Copier le lien sécurité"
-                successMessage="Lien copié — envoie-le une fois à la sécurité, il reste toujours à jour."
+                successMessage="Lien copié — propre à ce séjour, ne montrera jamais les occupants suivants."
               />
             ) : null}
             <PrintButton />

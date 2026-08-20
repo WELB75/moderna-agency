@@ -10,7 +10,7 @@ export function SecurityMessageButton({
   guestName,
   villaNom,
   villaNumero,
-  villaId,
+  reservationId,
   checkIn,
   prominent,
 }: {
@@ -18,12 +18,14 @@ export function SecurityMessageButton({
   guestName: string;
   villaNom: string;
   villaNumero: string;
-  villaId: string;
+  reservationId: string;
   checkIn: Date;
   prominent?: boolean;
 }) {
   function handleClick() {
-    const link = `${window.location.origin}/securite/villa/${villaId}`;
+    // Lien propre à cette réservation (pas un lien permanent par villa) : un ancien lien ne
+    // doit jamais pouvoir montrer les occupants d'un séjour suivant — Kamel, 2026-08-20.
+    const link = `${window.location.origin}/securite/villa/${reservationId}`;
     const message = buildSecurityMessage(guestName, villaNom, villaNumero, link, checkIn);
     window.open(toWhatsAppUrl(securityPhone, message), "_blank");
   }

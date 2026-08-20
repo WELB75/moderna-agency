@@ -169,6 +169,105 @@ export async function getVillaSecurityData(villaId: string): Promise<VillaSecuri
   return buildVillaSecurityData(db, villa);
 }
 
+// Lien propre à CHAQUE réservation (pas un lien permanent par villa qui affiche "les derniers
+// occupants connus") : quelqu'un qui a reçu ce lien pour un séjour ne doit jamais pouvoir
+// revenir dessus plus tard et voir les occupants d'un séjour suivant à la même villa. Kamel,
+// 2026-08-20 : "j'ai encore hamza ici ! les liens doivent toujours etre different... ils
+// peuvent revenir sur les anciens liens et voir les locataires". Un vieux lien ne montre donc
+// plus jamais que les occupants de SA PROPRE réservation, figés, même après le départ.
+export async function getReservationSecurityData(reservationId: string): Promise<VillaSecurityData | null> {
+  const db = getDb();
+  const [reservation] = await db
+    .select({
+      id: reservations.id,
+      villaId: reservations.villaId,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      nbAdultes: reservations.nbAdultes,
+      nbEnfants: reservations.nbEnfants,
+    })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!reservation || !reservation.villaId) return null;
+
+  const [villa] = await db
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero })
+    .from(villas)
+    .where(eq(villas.id, reservation.villaId))
+    .limit(1);
+  if (!villa) return null;
+
+  const forms = await db
+    .select({
+      id: gendarmerieForms.id,
+      reservationId: gendarmerieForms.reservationId,
+      createdAt: gendarmerieForms.createdAt,
+      enfantsPassportUrls: gendarmerieForms.enfantsPassportUrls,
+    })
+    .from(gendarmerieForms)
+    .where(and(eq(gendarmerieForms.villaId, villa.id), eq(gendarmerieForms.statut, "complete")))
+    .orderBy(desc(gendarmerieForms.completedAt));
+
+  // Fiche groupée liée directement à cette réservation, ou fiches individuelles (un Bulletin
+  // par adulte) créées pendant sa fenêtre de séjour — jamais celles d'une autre réservation.
+  const formesReservation = forms.filter((f) => f.reservationId === reservation.id);
+  const formesIndividuelles = forms.filter(
+    (f) => !f.reservationId && f.createdAt >= reservation.checkIn && f.createdAt <= reservation.checkOut
+  );
+  const formesAdultes = formesIndividuelles.length > 0 ? formesIndividuelles : formesReservation;
+  const formesEnfants = [...formesReservation, ...formesIndividuelles];
+
+  const adultOccupants =
+    formesAdultes.length > 0
+      ? await db
+          .select({
+            id: gendarmerieOccupants.id,
+            nom: gendarmerieOccupants.nom,
+            prenom: gendarmerieOccupants.prenom,
+            nationalite: gendarmerieOccupants.nationalite,
+            photoPieceUrl: gendarmerieOccupants.photoPieceUrl,
+          })
+          .from(gendarmerieOccupants)
+          .where(
+            inArray(
+              gendarmerieOccupants.formId,
+              formesAdultes.map((f) => f.id)
+            )
+          )
+          .orderBy(gendarmerieOccupants.createdAt)
+      : [];
+
+  const enfantsVus = new Set<string>();
+  const enfantsOccupants = formesEnfants.flatMap((f) =>
+    (f.enfantsPassportUrls ?? [])
+      .filter((url) => {
+        if (enfantsVus.has(url)) return false;
+        enfantsVus.add(url);
+        return true;
+      })
+      .map((url, i) => ({
+        id: `${f.id}-enfant-${i}`,
+        nom: "Enfant",
+        prenom: null,
+        nationalite: null,
+        photoPieceUrl: url,
+      }))
+  );
+
+  return {
+    villaId: villa.id,
+    villaNom: villa.nom,
+    villaNumero: villa.numero,
+    arrivee: format(new Date(reservation.checkIn), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr }),
+    depart: format(new Date(reservation.checkOut), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr }),
+    nbAdultes: reservation.nbAdultes,
+    nbEnfants: reservation.nbEnfants ?? 0,
+    occupants: [...adultOccupants, ...enfantsOccupants],
+    arriveeAujourdhui: isSameDay(new Date(reservation.checkIn), nowInMorocco()),
+  };
+}
+
 export async function getSecuriteDomaines(): Promise<{ id: string; nom: string }[]> {
   const db = getDb();
   const rows = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines);

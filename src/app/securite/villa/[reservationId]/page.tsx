@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation";
 import { Logo } from "@/components/app/logo";
 import { VillaSecurityBlock } from "@/components/app/villa-security-block";
-import { getVillaSecurityData } from "@/lib/security-data";
+import { getReservationSecurityData } from "@/lib/security-data";
 import { ShieldCheck } from "lucide-react";
 
-// Lien général et permanent par villa : montre toujours la fiche la plus récente
-// remplie pour ce logement, sans avoir à renvoyer un nouveau lien à chaque arrivée.
-export default async function SecuriteVillaPage({ params }: { params: Promise<{ villaId: string }> }) {
-  const { villaId } = await params;
-  const data = await getVillaSecurityData(villaId);
+// Lien propre à cette réservation précise (voir getReservationSecurityData) : jamais de "dernier
+// séjour connu" d'un autre client, même une fois ce séjour terminé. Kamel, 2026-08-20.
+export default async function SecuriteReservationPage({ params }: { params: Promise<{ reservationId: string }> }) {
+  const { reservationId } = await params;
+  const data = await getReservationSecurityData(reservationId);
 
   if (!data) notFound();
 
@@ -20,9 +20,7 @@ export default async function SecuriteVillaPage({ params }: { params: Promise<{ 
           <ShieldCheck className="h-4 w-4" />
           Contrôle sécurité — accès domaine
         </div>
-        <p className="text-xs text-muted-foreground">
-          Ce lien affiche toujours les derniers occupants enregistrés pour cette villa.
-        </p>
+        <p className="text-xs text-muted-foreground">Ce lien concerne uniquement ce séjour.</p>
       </div>
 
       <VillaSecurityBlock data={data} />
