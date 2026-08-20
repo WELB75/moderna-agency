@@ -7,6 +7,14 @@
     {
       "path": "/api/staff-requests/sweep",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/staff-requests/sweep",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/staff-requests/sweep",
+      "schedule": "0 14 * * *"
     }
   ]
 }

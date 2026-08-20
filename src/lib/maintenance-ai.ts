@@ -12,11 +12,10 @@ import { categorieLabel } from "@/lib/intervention-categorie";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
 import { repairMessageHistory } from "@/lib/whatsapp-agent/agent";
-
 // Même numéro que staff.ts (OBSERVER_PHONE) : Kamel reçoit un compte-rendu à chaque étape clé de
 // l'agent maintenance, et c'est vers lui que l'agent redirige dès que la conversation dérive sur
 // l'argent/un devis — jamais négocié par l'IA elle-même. Kamel, 2026-08-18.
-const KAMEL_PHONE = "+33672516297";
+import { KAMEL_PHONE } from "@/lib/kamel-phone";
 
 const client = new Anthropic();
 
@@ -528,15 +527,18 @@ export async function handleMaintenanceMessage(
   await sendAndPersist(conversation.interventionId, phone, reply);
 }
 
-const STALE_TIMEOUT_MS = 60 * 60 * 1000; // 1h — même seuil que cascadeStaleRequests (staff.ts)
-const MAX_RELANCES = 2;
+// 5h : assez court pour ne rater ni le créneau du matin ni celui de l'après-midi (crons dédiés
+// dans vercel.json, 8h et 14h UTC), assez long pour qu'un même créneau ne redéclenche pas
+// plusieurs relances même si le webhook (trafic fréquent) tombe pile dans la même fenêtre.
+const STALE_TIMEOUT_MS = 5 * 60 * 60 * 1000;
 
-// Relance un technicien qui n'a pas répondu depuis STALE_TIMEOUT_MS — soit au message d'ouverture
-// (statut "en_cours"), soit après avoir accepté sans donner de date (statut "confirme"). Après
-// MAX_RELANCES sans réponse, abandonne et prévient Kamel pour qu'il réassigne manuellement — même
-// principe que cascadeStaleRequests côté ménage/cuisine. Déclenché à chaque message entrant sur
-// le webhook (trafic fréquent) + un cron quotidien en filet de sécurité pour les périodes creuses.
-// Kamel, 2026-08-19 : "l'agent doit créer des relances au technicien si pas de réponse".
+// Relance un technicien qui n'a pas répondu — soit au message d'ouverture (statut "en_cours"),
+// soit après avoir accepté sans donner de date (statut "confirme"). Continue matin et après-midi
+// SANS limite jusqu'à ce qu'il réponde (plus de plafond d'abandon automatique) — Kamel,
+// 2026-08-20 : "relance les le matin et apres midi jusqu'à ce qu'il réponde". Un compte-rendu
+// part vers Kamel à chaque relance, pour qu'il reste informé en continu (il n'en recevait pas
+// assez tôt sur les dispatches manuels — voir notifyTechnicianAssignment, un chemin différent qui
+// ne passe pas par cette conversation IA).
 export async function relanceStaleMaintenanceConversations(): Promise<void> {
   const db = getDb();
   const cutoff = new Date(Date.now() - STALE_TIMEOUT_MS);
@@ -566,14 +568,6 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
   for (const row of stale) {
     const villa = villaLabel(row.villaNom, row.villaNumero);
 
-    if (row.relanceCount >= MAX_RELANCES) {
-      await db.update(maintenanceConversations).set({ statut: "sans_reponse" }).where(eq(maintenanceConversations.id, row.id));
-      await notifyKamelMaintenance(
-        `"${row.titre}" (${villa}) : le technicien n'a jamais répondu malgré ${MAX_RELANCES} relances — à réassigner toi-même.`
-      );
-      continue;
-    }
-
     const relance =
       row.statut === "confirme"
         ? "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي. واش قدرتي تعطيني فوقاش غادي تجي؟"
@@ -582,9 +576,11 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
     // Ajoutée au transcript (pas seulement à l'audio) pour rester visible dans l'onglet
     // "Techniciens (maintenance)" de /agent-ia, comme le reste de la conversation.
     const messages = [...((row.messages as MessageParam[]) ?? []), { role: "assistant" as const, content: [{ type: "text" as const, text: relance }] }];
+    const relanceCount = row.relanceCount + 1;
     await db
       .update(maintenanceConversations)
-      .set({ relanceCount: row.relanceCount + 1, lastRelanceAt: new Date(), messages })
+      .set({ relanceCount, lastRelanceAt: new Date(), messages })
       .where(eq(maintenanceConversations.id, row.id));
+    await notifyKamelMaintenance(`"${row.titre}" (${villa}) : toujours pas de réponse du technicien — relance n°${relanceCount} envoyée.`);
   }
 }

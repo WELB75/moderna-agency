@@ -10,6 +10,7 @@ import type { Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { getBaseUrl } from "@/lib/base-url";
+import { KAMEL_PHONE } from "@/lib/kamel-phone";
 
 // Dès qu'un problème décrit ET au moins une photo sont réunis sur une intervention SANS
 // technicien déjà choisi à la main, on laisse l'IA proposer elle-même le technicien le plus
@@ -188,6 +189,10 @@ async function notifyTechnicianAssignment(technicianId: string, titre: string) {
     tech.telephone,
     `Nouvelle intervention assignée / تم تكليفك بمهمة جديدة : "${titre}". Suivi ici / تابع هنا : ${link}`
   );
+  // Kamel, 2026-08-20 : "j'ai pas eu de compte rendu... par rapport à Metafroid" — cette
+  // affectation manuelle ne passe pas par la conversation IA (voir maintenance-ai.ts), qui a ses
+  // propres compte-rendus ; celle-ci n'en avait aucun jusqu'ici.
+  await sendWhatsAppText(KAMEL_PHONE, `"${titre}" : message envoyé à ${tech.nom} (assignation manuelle).`);
 }
 
 export async function setInterventionEtape(interventionId: string, etape: Etape) {
