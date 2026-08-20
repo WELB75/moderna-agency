@@ -17,6 +17,7 @@ import { StatusChip } from "@/components/app/status-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
+import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
 import {
   LogIn,
   LogOut,
@@ -118,6 +119,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 carte. Composant client à part : ReservationRowCard est rendu côté serveur, qui
                 ne peut pas passer de onClick directement à un élément. */}
             {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
+            <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
             {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
             {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
           </div>

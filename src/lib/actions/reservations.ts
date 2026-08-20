@@ -134,6 +134,26 @@ export async function markCautionRecue(reservationId: string) {
   revalidatePath("/villas");
 }
 
+// Le sync iCal (voir ical/sync.ts) n'écrase plus jamais guestPhone sur une réservation
+// existante — volontaire (Superhote exporte souvent un numéro local ambigu "0X..." qui
+// écrasait une correction déjà faite à la main), mais ça laissait aucun moyen de corriger le
+// numéro ensuite : une correction faite côté Superhote ne remonte donc jamais ici. Kamel,
+// 2026-08-20 : "j'ai corrigé sur super hote mais il est toujours marocain dans notre système".
+export async function updateGuestPhone(reservationId: string, phone: string) {
+  await auth.protect();
+  if (!reservationId) throw new Error("Réservation introuvable.");
+
+  const db = getDb();
+  await db
+    .update(reservations)
+    .set({ guestPhone: phone.trim() || null, updatedAt: new Date() })
+    .where(eq(reservations.id, reservationId));
+
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+  revalidatePath(`/reservations/${reservationId}`);
+}
+
 export async function updateOperationalInfo(formData: FormData) {
   await auth.protect();
 
