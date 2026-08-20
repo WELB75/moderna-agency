@@ -527,18 +527,19 @@ export async function handleMaintenanceMessage(
   await sendAndPersist(conversation.interventionId, phone, reply);
 }
 
-// 5h : assez court pour ne rater ni le créneau du matin ni celui de l'après-midi (crons dédiés
-// dans vercel.json, 8h et 14h UTC), assez long pour qu'un même créneau ne redéclenche pas
-// plusieurs relances même si le webhook (trafic fréquent) tombe pile dans la même fenêtre.
-const STALE_TIMEOUT_MS = 5 * 60 * 60 * 1000;
+// 1h30 : plus court que l'écart minimal entre deux créneaux de relance (9h/11h/14h/16h dans
+// vercel.json, 2h d'écart le plus serré), pour ne rater aucun des 4 créneaux — mais assez long
+// pour qu'un même créneau ne redéclenche pas plusieurs relances même si le webhook (trafic
+// fréquent) tombe pile dans la même fenêtre.
+const STALE_TIMEOUT_MS = 90 * 60 * 1000;
 
 // Relance un technicien qui n'a pas répondu — soit au message d'ouverture (statut "en_cours"),
-// soit après avoir accepté sans donner de date (statut "confirme"). Continue matin et après-midi
-// SANS limite jusqu'à ce qu'il réponde (plus de plafond d'abandon automatique) — Kamel,
-// 2026-08-20 : "relance les le matin et apres midi jusqu'à ce qu'il réponde". Un compte-rendu
-// part vers Kamel à chaque relance, pour qu'il reste informé en continu (il n'en recevait pas
-// assez tôt sur les dispatches manuels — voir notifyTechnicianAssignment, un chemin différent qui
-// ne passe pas par cette conversation IA).
+// soit après avoir accepté sans donner de date (statut "confirme"). 4 fois par jour (9h, 11h,
+// 14h, 16h), SANS limite jusqu'à ce qu'il réponde (pas de plafond d'abandon automatique) — Kamel,
+// 2026-08-20 : "une le matin à 9h une à 11h, une autre à 14h et une autre à 16h [...] dans le cas
+// où ils ne répondent pas". Un compte-rendu part vers Kamel à chaque relance, pour qu'il reste
+// informé en continu (il n'en recevait pas assez tôt sur les dispatches manuels — voir
+// notifyTechnicianAssignment, un chemin différent qui ne passe pas par cette conversation IA).
 export async function relanceStaleMaintenanceConversations(): Promise<void> {
   const db = getDb();
   const cutoff = new Date(Date.now() - STALE_TIMEOUT_MS);
