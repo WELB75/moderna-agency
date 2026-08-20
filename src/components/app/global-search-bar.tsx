@@ -26,6 +26,14 @@ export function GlobalSearchBar() {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const containerRef = useRef<HTMLDivElement>(null);
+  const glassRef = useRef<HTMLDivElement>(null);
+
+  // Reflet qui suit le curseur — en ref/style direct pour rester fluide sans re-render React.
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    glassRef.current?.style.setProperty("--mx", `${((e.clientX - rect.left) / rect.width) * 100}%`);
+    glassRef.current?.style.setProperty("--my", `${((e.clientY - rect.top) / rect.height) * 100}%`);
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -54,15 +62,23 @@ export function GlobalSearchBar() {
   return (
     <div ref={containerRef} className="relative">
       <div
+        ref={glassRef}
+        onPointerMove={handlePointerMove}
+        style={{ "--mx": "50%", "--my": "0%" } as React.CSSProperties}
         className={
-          "flex items-center gap-4 rounded-3xl px-6 py-5 shadow-[0_8px_30px_rgb(0,0,0,0.25)] ring-1 ring-white/15 backdrop-saturate-150 transition-[backdrop-filter,background-color] duration-300 ease-out " +
+          "relative flex items-center gap-4 overflow-hidden rounded-3xl px-6 py-5 shadow-[0_8px_30px_rgb(0,0,0,0.25)] ring-1 ring-white/15 backdrop-saturate-150 transition-[backdrop-filter,background-color] duration-300 ease-out " +
           (open && query ? "bg-black/85 backdrop-blur-3xl" : "bg-black/70 backdrop-blur-2xl")
         }
       >
+        {/* Reflet qui suit le curseur, façon verre liquide. */}
+        <div
+          className="pointer-events-none absolute inset-0 opacity-50 mix-blend-overlay"
+          style={{ background: "radial-gradient(320px circle at var(--mx) var(--my), white, transparent 55%)" }}
+        />
         {isPending ? (
-          <Loader2 className="h-6 w-6 shrink-0 animate-spin text-white/70" />
+          <Loader2 className="relative z-10 h-6 w-6 shrink-0 animate-spin text-white/70" />
         ) : (
-          <Search className="h-6 w-6 shrink-0 text-white/70" />
+          <Search className="relative z-10 h-6 w-6 shrink-0 text-white/70" />
         )}
         <input
           value={query}
@@ -72,7 +88,7 @@ export function GlobalSearchBar() {
           }}
           onFocus={() => setOpen(true)}
           placeholder="Rechercher..."
-          className="w-full min-w-0 bg-transparent text-2xl font-semibold tracking-tight text-white outline-none placeholder:font-normal placeholder:text-white/50 sm:text-3xl"
+          className="relative z-10 w-full min-w-0 bg-transparent text-2xl font-semibold tracking-tight text-white outline-none placeholder:font-normal placeholder:text-white/50 sm:text-3xl"
         />
         {query ? (
           <button
@@ -82,9 +98,16 @@ export function GlobalSearchBar() {
               setResults([]);
             }}
             aria-label="Effacer la recherche"
+            className="relative z-10"
           >
             <X className="h-6 w-6 text-white/70" />
           </button>
+        ) : null}
+        {isPending ? (
+          <div
+            className="search-shimmer-sweep pointer-events-none absolute inset-y-0 left-0 w-1/3"
+            style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent)" }}
+          />
         ) : null}
       </div>
 
@@ -96,8 +119,12 @@ export function GlobalSearchBar() {
             <p className="p-4 text-base text-muted-foreground">Aucun résultat pour « {query} ».</p>
           ) : (
             <ul>
-              {results.map((r) => (
-                <li key={`${r.type}-${r.id}`} className="border-b border-border/50 last:border-b-0">
+              {results.map((r, i) => (
+                <li
+                  key={`${r.type}-${r.id}`}
+                  className="search-item-in border-b border-border/50 last:border-b-0"
+                  style={{ animationDelay: `${i * 25}ms` }}
+                >
                   <Link
                     href={r.href}
                     onClick={() => setOpen(false)}

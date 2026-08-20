@@ -117,6 +117,43 @@
   --sidebar-ring: oklch(0.6 0 0);
 }
 
+/* Recherche globale — habillage "verre liquide" (voir GlobalSearchOverlay / GlobalSearchBar) :
+   anneau lumineux qui tourne lentement autour du panneau, reflet qui suit le curseur, effet de
+   balayage pendant la recherche. Volontairement en niveaux de gris (blanc/noir), jamais de
+   couleur — Kamel garde une charte strictement monochrome partout ailleurs dans l'app. */
+@keyframes search-ring-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes search-shimmer-sweep {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+@keyframes search-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.search-ring-spin {
+  animation: search-ring-spin 7s linear infinite;
+}
+.search-shimmer-sweep {
+  animation: search-shimmer-sweep 1.6s ease-in-out infinite;
+}
+.search-item-in {
+  animation: search-item-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
