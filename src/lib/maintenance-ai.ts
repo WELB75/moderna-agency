@@ -16,6 +16,7 @@ import { repairMessageHistory } from "@/lib/whatsapp-agent/agent";
 // l'agent maintenance, et c'est vers lui que l'agent redirige dès que la conversation dérive sur
 // l'argent/un devis — jamais négocié par l'IA elle-même. Kamel, 2026-08-18.
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
+import { setInterventionEtapePublic } from "@/lib/actions/interventions";
 
 const client = new Anthropic();
 
@@ -236,7 +237,7 @@ async function translateProblemToDarija(titre: string, probleme: string | null):
 
 function buildOpeningMessage(villa: string, titre: string, probleme: string | null): string {
   const detail = probleme ? ` (${probleme})` : "";
-  return `السلام عليكم،\n\nكاين مشكل ف${villa} : ${titre}${detail}.\n\nواش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك.\n\nموديرنا أجونسي`;
+  return `السلام عليكم،\n\nكاين مشكل ف${villa} : ${titre}${detail}.\n\nواش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك. وملي تخلص الخدمة، عافاك خبرنا باش نكونو عارفين بلي كملات.\n\nموديرنا أجونسي`;
 }
 
 // Point d'entrée déclenché depuis createIntervention/addInterventionAttachments (voir
@@ -330,6 +331,11 @@ const tools: Tool[] = [
     description: "Le technicien évoque un prix, un devis, un paiement ou toute question d'argent. Appelle ceci immédiatement, sans jamais discuter toi-même du montant.",
     input_schema: { type: "object", properties: {} },
   },
+  {
+    name: "signaler_mission_terminee",
+    description: "Le technicien confirme que la mission est terminée et le problème réglé (même après être passé sans le dire spontanément). Appelle ceci dès qu'il dit clairement que c'est fait.",
+    input_schema: { type: "object", properties: {} },
+  },
 ];
 
 async function loadInterventionContext(interventionId: string) {
@@ -354,6 +360,9 @@ Règles :
 - Dès qu'il donne une date/heure de passage (même vague), utilise enregistrer_date_venue avec ce qu'il a dit, puis confirme-lui simplement que c'est noté.
 - S'il refuse ou ne peut pas prendre la mission, utilise decliner_mission avec sa raison, et dis-lui que ce n'est pas grave, merci d'avoir répondu.
 - Dès que le prix, un devis, un paiement ou de l'argent est évoqué de quelque façon que ce soit, utilise IMMÉDIATEMENT signaler_sujet_argent, et réponds-lui que l'équipe va le recontacter directement pour ça — ne discute jamais toi-même d'un montant, même approximatif.
+- Dès qu'il dit clairement que la mission est terminée / le problème est réglé (même s'il ne l'annonce pas spontanément et qu'il faut le lui demander), utilise signaler_mission_terminee, puis remercie-le brièvement.
+- Juste après avoir enregistré une date de passage (enregistrer_date_venue), rappelle-lui aussi dans ta réponse de te dire une fois que c'est réglé.
+- Si le technicien te répond après avoir déjà donné une date de passage, sans dire clairement si c'est réglé ou non, demande-lui directement si c'est bon.
 - Si le message ne correspond à aucun de ces cas (question générale, salutation...), réponds naturellement sans appeler d'outil.`;
 }
 
@@ -456,6 +465,10 @@ async function runMaintenanceAgentTurn(
         } else if (block.name === "signaler_sujet_argent") {
           await db.update(maintenanceConversations).set({ statut: "escalade" }).where(eq(maintenanceConversations.id, conversationId));
           await notifyKamelMaintenance(`🚨 "${context?.titre}" (${villa}) : le technicien parle d'argent/devis — contacte-le directement, l'IA n'a pas négocié.`);
+        } else if (block.name === "signaler_mission_terminee") {
+          await db.update(maintenanceConversations).set({ statut: "termine" }).where(eq(maintenanceConversations.id, conversationId));
+          await setInterventionEtapePublic(interventionId, "termine");
+          await notifyKamelMaintenance(`✅ "${context?.titre}" (${villa}) : le technicien confirme que la mission est terminée.`);
         } else {
           result = { erreur: "Outil inconnu" };
         }
@@ -495,9 +508,16 @@ export async function handleMaintenanceMessage(
     .where(
       and(
         eq(maintenanceConversations.technicianId, technician.id),
-        // "confirme" = mission acceptée, en attente de la date de passage — toujours une
-        // conversation active, pas seulement "en_cours" (avant confirmer_mission).
-        or(eq(maintenanceConversations.statut, "en_cours"), eq(maintenanceConversations.statut, "confirme"))
+        // "confirme" = mission acceptée, en attente de la date de passage ; "planifie" = date
+        // donnée, technicien en route ou déjà passé — toujours une conversation active tant que le
+        // technicien n'a pas confirmé que c'est terminé (sinon son message "c'est réglé" une fois
+        // la date donnée tombait dans le cas "aucune conversation" ci-dessous et était ignoré).
+        // Kamel, 2026-08-21 : "des fois ils vont corriger le souci mais sans te le dire".
+        or(
+          eq(maintenanceConversations.statut, "en_cours"),
+          eq(maintenanceConversations.statut, "confirme"),
+          eq(maintenanceConversations.statut, "planifie")
+        )
       )
     )
     .orderBy(desc(maintenanceConversations.updatedAt))

@@ -3,7 +3,7 @@ import { desc, eq, asc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { inventoryChecklists, villas, procedureTemplates, domaines, products, domaineStock, villaStock } from "@/db/schema";
+import { inventoryChecklists, villas, procedureTemplates, domaines, products, domaineStock, villaStock, usureReferences } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProcedureCard } from "@/components/app/procedure-card";
 import { DomaineStockSection } from "@/components/app/domaine-stock-section";
 import { VillaStockPanel } from "@/components/app/villa-stock-panel";
+import { UsureReferenceTable } from "@/components/app/usure-reference-table";
 import { filtrerDomainesActifs, idsDomainesActifs } from "@/lib/domaines-actifs";
-import { ClipboardCheck, ListChecks, Plus, Boxes } from "lucide-react";
+import { ClipboardCheck, ListChecks, Plus, Boxes, ShieldAlert } from "lucide-react";
 
 export default async function InventairePage() {
   const db = getDb();
@@ -55,6 +56,7 @@ export default async function InventairePage() {
   ).filter((c) => !c.villaId || villaIdsActifs.has(c.villaId));
 
   const procedures = await db.select().from(procedureTemplates).orderBy(asc(procedureTemplates.ordre));
+  const usureRefs = await db.select().from(usureReferences).orderBy(asc(usureReferences.ordre));
 
   const allProducts = await db.select().from(products).orderBy(asc(products.nom));
   const allDomaineStock = await db.select().from(domaineStock);
@@ -95,6 +97,10 @@ export default async function InventairePage() {
           <TabsTrigger value="procedures" className="shrink-0">
             <ListChecks className="h-4 w-4" />
             Procédures
+          </TabsTrigger>
+          <TabsTrigger value="grille-usure" className="shrink-0">
+            <ShieldAlert className="h-4 w-4" />
+            Grille d&apos;usure
           </TabsTrigger>
         </TabsList>
 
@@ -153,6 +159,10 @@ export default async function InventairePage() {
               procedure={{ id: p.id, titre: p.titre, description: p.description, etapes: p.etapes ?? [] }}
             />
           ))}
+        </TabsContent>
+
+        <TabsContent value="grille-usure">
+          <UsureReferenceTable references={usureRefs} />
         </TabsContent>
 
         <TabsContent value="stock" className="space-y-6">

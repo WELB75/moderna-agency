@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { eq, asc } from "drizzle-orm";
+import { eq, asc, and, lt, desc } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -9,8 +9,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ChecklistItemRow } from "@/components/app/checklist-item-row";
+import { SortieItemRow } from "@/components/app/sortie-item-row";
+import { CompareWithEntreeButton } from "@/components/app/compare-with-entree-button";
 import { FinalizeChecklist } from "@/components/app/finalize-checklist";
 import { deleteChecklist } from "@/lib/actions/inventaire";
+
+const CLASSIFICATION_LABELS: Record<string, string> = {
+  usure_normale: "Usure normale",
+  degat_facturable: "Dégât facturable",
+  a_arbitrer_moderna: "À arbitrer avec Moderna",
+};
+
+const PRISE_EN_CHARGE_LABELS: Record<string, string> = {
+  proprietaire: "Propriétaire",
+  moderna: "Moderna",
+  locataire: "Locataire",
+  a_definir: "À définir",
+};
 
 export default async function ChecklistDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,6 +42,8 @@ export default async function ChecklistDetailPage({ params }: { params: Promise<
       agentSignatureUrl: inventoryChecklists.agentSignatureUrl,
       completedAt: inventoryChecklists.completedAt,
       createdAt: inventoryChecklists.createdAt,
+      comparedAt: inventoryChecklists.comparedAt,
+      reservationId: inventoryChecklists.reservationId,
       villaId: villas.id,
       villaNom: villas.nom,
       villaNumero: villas.numero,
@@ -52,6 +69,61 @@ export default async function ChecklistDetailPage({ params }: { params: Promise<
   }
 
   const problemsCount = items.filter((i) => i.status === "probleme").length;
+
+  // Pour un checklist de sortie : retrouve l'état des lieux d'entrée correspondant (même villa +
+  // même réservation si connue, sinon le dernier entrée avant cette sortie), pour afficher les
+  // photos en vis-à-vis — même logique de rapprochement que compareChecklistWithEntree côté serveur.
+  let entreePhotosByKey = new Map<string, string[]>();
+  let hasEntree = false;
+  if (checklist.type === "sortie" && checklist.villaId) {
+    let entree = undefined as { id: string } | undefined;
+    if (checklist.reservationId) {
+      [entree] = await db
+        .select({ id: inventoryChecklists.id })
+        .from(inventoryChecklists)
+        .where(
+          and(
+            eq(inventoryChecklists.villaId, checklist.villaId),
+            eq(inventoryChecklists.type, "entree"),
+            eq(inventoryChecklists.reservationId, checklist.reservationId)
+          )
+        )
+        .orderBy(desc(inventoryChecklists.createdAt))
+        .limit(1);
+    }
+    if (!entree) {
+      [entree] = await db
+        .select({ id: inventoryChecklists.id })
+        .from(inventoryChecklists)
+        .where(
+          and(
+            eq(inventoryChecklists.villaId, checklist.villaId),
+            eq(inventoryChecklists.type, "entree"),
+            lt(inventoryChecklists.createdAt, checklist.createdAt)
+          )
+        )
+        .orderBy(desc(inventoryChecklists.createdAt))
+        .limit(1);
+    }
+    hasEntree = Boolean(entree);
+    if (entree) {
+      const entreeItems = await db.select().from(inventoryItems).where(eq(inventoryItems.checklistId, entree.id));
+      entreePhotosByKey = new Map(entreeItems.map((i) => [`${i.categorie}::${i.libelle}`, i.photoUrls ?? []]));
+    }
+  }
+
+  const classificationCounts = new Map<string, number>();
+  const montantParPriseEnCharge = new Map<string, number>();
+  for (const item of items) {
+    if (item.usureClassification === "a_definir") continue;
+    classificationCounts.set(item.usureClassification, (classificationCounts.get(item.usureClassification) ?? 0) + 1);
+    if (item.usureClassification === "degat_facturable" && item.montantEstime) {
+      montantParPriseEnCharge.set(
+        item.priseEnCharge,
+        (montantParPriseEnCharge.get(item.priseEnCharge) ?? 0) + Number(item.montantEstime)
+      );
+    }
+  }
 
   return (
     <div className="space-y-6 pb-8">
@@ -87,25 +159,67 @@ export default async function ChecklistDetailPage({ params }: { params: Promise<
         </Card>
       )}
 
+      {checklist.type === "sortie" && (
+        <Card>
+          <CardContent className="space-y-3 py-4">
+            <CompareWithEntreeButton checklistId={checklist.id} hasEntree={hasEntree} comparedAt={checklist.comparedAt} />
+            {classificationCounts.size > 0 && (
+              <div className="flex flex-wrap gap-2 text-sm">
+                {[...classificationCounts.entries()].map(([classification, count]) => (
+                  <Badge key={classification} variant="outline">
+                    {CLASSIFICATION_LABELS[classification] ?? classification} : {count}
+                  </Badge>
+                ))}
+                {[...montantParPriseEnCharge.entries()].map(([priseEnCharge, montant]) => (
+                  <Badge key={priseEnCharge} variant="secondary">
+                    {PRISE_EN_CHARGE_LABELS[priseEnCharge] ?? priseEnCharge} : {montant.toLocaleString("fr-FR")} DH
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {[...groups.entries()].map(([categorie, groupItems]) => (
         <Card key={categorie}>
           <CardHeader>
             <CardTitle className="text-base">{categorie}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {groupItems.map((item) => (
-              <ChecklistItemRow
-                key={item.id}
-                item={{
-                  id: item.id,
-                  libelle: item.libelle,
-                  status: item.status,
-                  commentaire: item.commentaire,
-                  photoUrls: item.photoUrls ?? [],
-                }}
-                readOnly={readOnly}
-              />
-            ))}
+            {groupItems.map((item) =>
+              checklist.type === "sortie" ? (
+                <SortieItemRow
+                  key={item.id}
+                  item={{
+                    id: item.id,
+                    libelle: item.libelle,
+                    status: item.status,
+                    commentaire: item.commentaire,
+                    photoUrls: item.photoUrls ?? [],
+                    compareStatus: item.compareStatus,
+                    compareExplication: item.compareExplication,
+                    usureClassification: item.usureClassification,
+                    priseEnCharge: item.priseEnCharge,
+                    montantEstime: item.montantEstime,
+                  }}
+                  entreePhotoUrls={entreePhotosByKey.get(`${item.categorie}::${item.libelle}`) ?? []}
+                  readOnly={readOnly}
+                />
+              ) : (
+                <ChecklistItemRow
+                  key={item.id}
+                  item={{
+                    id: item.id,
+                    libelle: item.libelle,
+                    status: item.status,
+                    commentaire: item.commentaire,
+                    photoUrls: item.photoUrls ?? [],
+                  }}
+                  readOnly={readOnly}
+                />
+              )
+            )}
           </CardContent>
         </Card>
       ))}

@@ -6,6 +6,7 @@ import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { inventoryChecklists, inventoryItems, checklistItemTemplates } from "@/db/schema";
 import { DEFAULT_CHECKLIST_ITEMS } from "@/lib/inventory-defaults";
+import { compareChecklistWithEntree } from "@/lib/damage-comparison-ai";
 
 export async function createChecklist(formData: FormData) {
   await auth.protect();
@@ -121,6 +122,40 @@ export async function finalizeChecklist(input: {
 
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${input.checklistId}`);
+}
+
+export async function runDamageComparison(checklistId: string) {
+  await auth.protect();
+  const result = await compareChecklistWithEntree(checklistId);
+  revalidatePath(`/inventaire/${checklistId}`);
+  return result;
+}
+
+export async function updateItemClassification(
+  itemId: string,
+  classification: "a_definir" | "usure_normale" | "degat_facturable" | "a_arbitrer_moderna"
+) {
+  await auth.protect();
+  const db = getDb();
+  await db.update(inventoryItems).set({ usureClassification: classification }).where(eq(inventoryItems.id, itemId));
+}
+
+export async function updateItemPriseEnCharge(
+  itemId: string,
+  priseEnCharge: "a_definir" | "proprietaire" | "moderna" | "locataire"
+) {
+  await auth.protect();
+  const db = getDb();
+  await db.update(inventoryItems).set({ priseEnCharge }).where(eq(inventoryItems.id, itemId));
+}
+
+export async function updateItemMontantEstime(itemId: string, montant: string) {
+  await auth.protect();
+  const db = getDb();
+  await db
+    .update(inventoryItems)
+    .set({ montantEstime: montant.trim() || null })
+    .where(eq(inventoryItems.id, itemId));
 }
 
 export async function deleteChecklist(checklistId: string) {

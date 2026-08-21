@@ -37,6 +37,26 @@ export const itemStatusEnum = pgEnum("item_status", [
   "probleme",
 ]);
 
+export const itemCompareStatusEnum = pgEnum("item_compare_status", [
+  "non_analyse", // pas de photo côté sortie, ou comparaison pas encore lancée
+  "rien_a_signaler",
+  "difference_detectee",
+]);
+
+export const usureClassificationEnum = pgEnum("usure_classification", [
+  "a_definir",
+  "usure_normale",
+  "degat_facturable",
+  "a_arbitrer_moderna", // règles de garantie Moderna pas encore clarifiées pour ce cas
+]);
+
+export const priseEnChargeEnum = pgEnum("prise_en_charge", [
+  "a_definir",
+  "proprietaire",
+  "moderna",
+  "locataire",
+]);
+
 export const procedureTypeEnum = pgEnum("procedure_type", [
   "checkin",
   "checkout",
@@ -249,6 +269,22 @@ export const checklistItemTemplates = pgTable("checklist_item_templates", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Grille de référence usure vs dégât, par catégorie/type d'objet (ex. "Literie / linge",
+// "Peinture / murs"...) — pas par item individuel, pas de suivi de date d'installation par objet.
+// Sert de contexte texte au moteur de comparaison IA (src/lib/damage-comparison-ai.ts) et de
+// tableau de référence affiché au staff pour trancher usure normale vs dégât facturable. Les
+// valeurs par défaut sont indicatives, à ajuster une fois les règles de garantie clarifiées avec
+// Moderna.
+export const usureReferences = pgTable("usure_references", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  typeObjet: text("type_objet").notNull(),
+  dureeVieAttendueMois: integer("duree_vie_attendue_mois"),
+  criteres: text("criteres"),
+  ordre: integer("ordre").default(0).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const inventoryChecklists = pgTable("inventory_checklists", {
   id: uuid("id").defaultRandom().primaryKey(),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }).notNull(),
@@ -262,6 +298,9 @@ export const inventoryChecklists = pgTable("inventory_checklists", {
   agentUserId: text("agent_user_id"),
   notesGenerales: text("notes_generales"),
   completedAt: timestamp("completed_at", { withTimezone: true }),
+  // Date du dernier passage de l'analyse IA de comparaison entrée/sortie (checklists "sortie"
+  // uniquement) — null tant que "Comparer avec l'état d'entrée" n'a pas été lancé.
+  comparedAt: timestamp("compared_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
@@ -275,6 +314,14 @@ export const inventoryItems = pgTable("inventory_items", {
   commentaire: text("commentaire"),
   photoUrls: jsonb("photo_urls").$type<string[]>().default([]),
   ordre: integer("ordre").default(0).notNull(),
+  // Colonnes suivantes utilisées uniquement pour les items d'un checklist "sortie", remplies par
+  // le moteur de comparaison IA (src/lib/damage-comparison-ai.ts) et éditables ensuite à la main.
+  compareStatus: itemCompareStatusEnum("compare_status").default("non_analyse").notNull(),
+  compareExplication: text("compare_explication"),
+  entreeItemId: uuid("entree_item_id").references((): AnyPgColumn => inventoryItems.id, { onDelete: "set null" }),
+  usureClassification: usureClassificationEnum("usure_classification").default("a_definir").notNull(),
+  priseEnCharge: priseEnChargeEnum("prise_en_charge").default("a_definir").notNull(),
+  montantEstime: numeric("montant_estime", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -518,7 +565,7 @@ export const maintenanceConversations = pgTable("maintenance_conversations", {
   phone: text("phone").notNull(),
   messages: jsonb("messages").$type<unknown[]>().default([]).notNull(),
   statut: text("statut")
-    .$type<"en_cours" | "confirme" | "planifie" | "escalade" | "sans_reponse">()
+    .$type<"en_cours" | "confirme" | "planifie" | "escalade" | "sans_reponse" | "termine">()
     .default("en_cours")
     .notNull(),
   // Rempli par l'outil enregistrer_date_venue une fois la mission confirmée — texte libre
