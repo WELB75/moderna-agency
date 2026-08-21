@@ -9,6 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/telegram-webhook",
   "/api/staff-requests/sweep",
   "/api/maintenance/dispatch",
+  "/api/elevenlabs/(.*)", // Server Tools appelés par l'agent vocal ElevenLabs (Jamila) — protégés par leur propre secret bearer, voir elevenlabs-tools-auth.ts
   "/icon",
   "/favicon.ico",
   "/i/(.*)",
