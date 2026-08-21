@@ -49,12 +49,13 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
-  Home,
-  Users,
+  DoorOpen,
+  DoorClosed,
+  BrushCleaning,
   ChefHat,
   Wallet,
   AlertTriangle,
-  Clock,
+  Hourglass,
   FileWarning,
   type LucideIcon,
 } from "lucide-react";
@@ -577,27 +578,42 @@ function StatTile({
   color: "emerald" | "amber" | "sky" | "red" | "slate";
   href?: string;
 }) {
-  const colorClasses: Record<typeof color, string> = {
-    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    red: "bg-red-500/10 text-red-600 dark:text-red-400",
-    slate: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+  // Bulle d'icône façon "verre" : dégradé doux + liseré translucide de la même teinte plutôt
+  // qu'un simple aplat à 10 % d'opacité — donne un vrai effet de profondeur/relief au lieu d'une
+  // pastille plate. Kamel a demandé un rendu "Apple glass", 2026-08-21.
+  const iconBubbleClasses: Record<typeof color, string> = {
+    emerald: "bg-gradient-to-br from-emerald-400/30 to-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-400",
+    amber: "bg-gradient-to-br from-amber-400/30 to-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 dark:text-amber-400",
+    sky: "bg-gradient-to-br from-sky-400/30 to-sky-500/10 text-sky-600 ring-1 ring-sky-500/20 dark:text-sky-400",
+    red: "bg-gradient-to-br from-red-400/30 to-red-500/10 text-red-600 ring-1 ring-red-500/20 dark:text-red-400",
+    slate: "bg-gradient-to-br from-slate-400/25 to-slate-500/10 text-slate-600 ring-1 ring-slate-500/15 dark:text-slate-400",
   };
   const content = (
-    <Card className={href ? "h-full transition-colors hover:border-primary/50" : "h-full"}>
-      <CardContent className="flex items-center gap-3 py-4">
-        <div className={cn("shrink-0 rounded-full p-2", colorClasses[color])}>
-          <Icon className="h-5 w-5" />
+    <div
+      className={cn(
+        "h-full rounded-2xl border border-white/60 bg-white/55 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_-16px_rgba(15,23,42,0.25)] backdrop-blur-xl transition-all",
+        "dark:border-white/10 dark:bg-white/5 dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_10px_30px_-16px_rgba(0,0,0,0.6)]",
+        href && "hover:-translate-y-0.5 hover:border-white/80 hover:shadow-[0_1px_2px_rgba(15,23,42,0.06),0_16px_36px_-16px_rgba(15,23,42,0.3)] dark:hover:border-white/20"
+      )}
+    >
+      <div className="flex items-center gap-3 px-4 py-4">
+        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", iconBubbleClasses[color])}>
+          <Icon className="h-5 w-5" strokeWidth={2} />
         </div>
         <div className="min-w-0">
-          <p className="text-2xl font-semibold leading-none">{value}</p>
+          <p className="text-2xl font-semibold leading-none tracking-tight">{value}</p>
           <p className="truncate text-sm text-muted-foreground">{label}</p>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
-  return href ? <Link href={href}>{content}</Link> : content;
+  return href ? (
+    <Link href={href} className="block h-full">
+      {content}
+    </Link>
+  ) : (
+    content
+  );
 }
 
 function MetricsHeader({
@@ -631,10 +647,10 @@ function MetricsHeader({
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
       <StatTile icon={LogIn} value={checkInsAujourdhui} label="Check-in aujourd'hui" color="emerald" />
       <StatTile icon={LogOut} value={checkOutsAujourdhui} label="Check-out aujourd'hui" color="amber" />
-      <StatTile icon={Home} value={villasOccupees} label="Villas occupées" color="sky" href="/villas" />
-      <StatTile icon={Home} value={villasLibres} label="Villas libres" color="emerald" href="/villas" />
-      <StatTile icon={Users} value={menageLibre} label="Ménage disponible" color="emerald" href="/personnel" />
-      <StatTile icon={Users} value={menageOccupe} label="Ménage occupée" color="amber" href="/personnel" />
+      <StatTile icon={DoorClosed} value={villasOccupees} label="Villas occupées" color="sky" href="/villas" />
+      <StatTile icon={DoorOpen} value={villasLibres} label="Villas libres" color="emerald" href="/villas" />
+      <StatTile icon={BrushCleaning} value={menageLibre} label="Ménage disponible" color="emerald" href="/personnel" />
+      <StatTile icon={BrushCleaning} value={menageOccupe} label="Ménage occupée" color="amber" href="/personnel" />
       <StatTile icon={ChefHat} value={cuisineLibre} label="Cuisine disponible" color="emerald" href="/personnel" />
       <StatTile icon={ChefHat} value={cuisineOccupe} label="Cuisine occupée" color="amber" href="/personnel" />
       {soldesCaisse.length > 0 ? (
@@ -659,7 +675,7 @@ function MetricsHeader({
         href="/interventions"
       />
       <StatTile
-        icon={Clock}
+        icon={Hourglass}
         value={sollicitationsEnAttente}
         label="Personnel en attente"
         color={sollicitationsEnAttente > 0 ? "amber" : "slate"}
