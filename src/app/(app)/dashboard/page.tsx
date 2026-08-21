@@ -60,7 +60,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
-import { domaineEstActif } from "@/lib/domaines-actifs";
+import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { getUnreadChatCount } from "@/lib/actions/chat";
 import {
   montantMenageDu,
@@ -322,6 +322,7 @@ export default async function DashboardPage({
     .from(villas)
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .orderBy(asc(villas.nom));
+  const allVillasGerees = allVillas.filter((v) => villaEstGeree(v.nom));
 
   // Occupation réelle = check-in validé sur place mais check-out pas encore validé (pas juste
   // la période de la réservation) : reflète qui a vraiment les clés en ce moment, pas le calendrier.
@@ -342,11 +343,11 @@ export default async function DashboardPage({
     );
   const occupiedVillaIds = new Set(activeNow.map((r) => r.villaId));
   const occupantByVillaId = new Map(activeNow.filter((r) => r.villaId).map((r) => [r.villaId as string, r]));
-  const villasLibres = allVillas.filter((v) => !occupiedVillaIds.has(v.id));
+  const villasLibres = allVillasGerees.filter((v) => !occupiedVillaIds.has(v.id));
   const villasLibresKamel = villasLibres.filter((v) => v.domaineNom === "Domaine Moderna II");
 
   // Plan du domaine confirmé par Kamel : le champ "numero" correspond à la position 1-17 sur le terrain.
-  const modernaIIPlanVillas: PlanVilla[] = allVillas
+  const modernaIIPlanVillas: PlanVilla[] = allVillasGerees
     .filter((v) => v.domaineNom === "Domaine Moderna II")
     .map((v) => {
       const occupant = occupantByVillaId.get(v.id);
@@ -374,7 +375,7 @@ export default async function DashboardPage({
 
   // --- Chiffres du jour (tête de page) -------------------------------------------------------
 
-  const villasOccupeesKamel = allVillas.filter((v) => v.domaineNom === "Domaine Moderna II" && occupiedVillaIds.has(v.id));
+  const villasOccupeesKamel = allVillasGerees.filter((v) => v.domaineNom === "Domaine Moderna II" && occupiedVillaIds.has(v.id));
 
   // Ménage/cuisine "occupée aujourd'hui" : même logique de fenêtre de travail que le dispatch
   // automatique (voir dayAfter/moment dans whatsapp-agent/staff.ts) — ménage "depart"/"unique" ne

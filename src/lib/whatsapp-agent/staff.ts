@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { and, avg, eq, gt, gte, inArray, isNotNull, lt, ne, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas, domaines } from "@/db/schema";
-import { domaineEstActif } from "@/lib/domaines-actifs";
+import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 
 // Note neutre attribuée à une candidate sans aucune note pour l'instant — ni pénalisée (en
@@ -300,7 +300,7 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     .leftJoin(domaines, eq(domaines.id, villas.domaineId))
     .where(eq(reservations.id, reservationId))
     .limit(1);
-  if (!domaineEstActif(resa?.domaineNom)) return;
+  if (!domaineEstActif(resa?.domaineNom) || !villaEstGeree(job.villaNom)) return;
   const villaText = villaLabel(job.villaNom, job.villaNumero);
 
   // Certaines personnes sont fixes sur une villa donnée, payées directement par le propriétaire
