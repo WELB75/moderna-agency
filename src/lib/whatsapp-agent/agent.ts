@@ -17,16 +17,40 @@ const client = new Anthropic();
 // 2026-08-09 : un client bloqué à l'idée de réserver "sans avoir vu des photos et une présentation
 // claire avec les équipements" — l'agent doit pouvoir répondre directement au lieu de dire qu'il
 // transmet à l'équipe.
-async function buildVillasPromptList(): Promise<string> {
+async function loadVillasExtra() {
   const db = getDb();
   const rows = await db.select({ id: villas.id, description: villas.description, photoUrl: villas.photoUrl }).from(villas);
-  const byId = new Map(rows.map((r) => [r.id, r]));
+  return new Map(rows.map((r) => [r.id, r]));
+}
+
+async function buildVillasPromptList(): Promise<string> {
+  const byId = await loadVillasExtra();
   return VILLAS.map((v) => {
     const extra = byId.get(v.id);
     const description = extra?.description ? `\n  Description complète : ${extra.description.replace(/\s+/g, " ").trim()}` : "";
     const photo = extra?.photoUrl ? `\n  Photo : ${extra.photoUrl}` : "";
     return `${v.nom} (${v.blurb}) — caution ${v.caution}€, frais de ménage ${v.menage}€${description}${photo}`;
   }).join("\n- ");
+}
+
+// Même catalogue que buildVillasPromptList, en JSON structuré au lieu d'un texte de prompt —
+// utilisé par la route /api/elevenlabs/villas pour que l'agent vocal Jamila (ElevenLabs) ait accès
+// au même catalogue à jour que l'agent WhatsApp texte, sans re-saisie manuelle. Kamel, 2026-08-21.
+export async function listVillasCatalog() {
+  const byId = await loadVillasExtra();
+  return VILLAS.map((v) => {
+    const extra = byId.get(v.id);
+    return {
+      nom: v.nom,
+      type: v.type,
+      blurb: v.blurb,
+      prixNuit: v.prixNuit,
+      caution: v.caution,
+      menage: v.menage,
+      description: extra?.description ?? null,
+      photoUrl: extra?.photoUrl ?? null,
+    };
+  });
 }
 
 const tools: Tool[] = [
@@ -79,6 +103,18 @@ const tools: Tool[] = [
   },
 ];
 
+// "new Date('2026-09-10')" pointe minuit UTC, pas l'heure réelle de check-in/check-out (15h/11h,
+// même convention que partout ailleurs dans l'app — voir beds24/sync.ts). Sans ça, deux bugs
+// silencieux : (1) une réservation WhatsApp démarrant le jour même du départ d'un client précédent
+// est vue comme "en conflit" (minuit < 11h) alors que 15h > 11h ne l'est pas ; (2) le
+// dédoublonnage par date exacte dans ical/sync.ts (villaId+checkIn+checkOut) échoue quand
+// Superhote nous renvoie la même résa avec de vraies heures, créant une résa fantôme en double.
+// Trouvé le 2026-08-21 en tracant deux "doublons" (Villa Gaspard, Lina cosy) qui n'en étaient pas.
+function toDateTime(dateOnly: string, hour: number): Date {
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  return new Date(Date.UTC(year, month - 1, day, hour, 0, 0));
+}
+
 // Un client peut donner une date absolue déjà passée (ex. "janvier 2026" alors qu'on est en août
 // 2026) sans que ce soit une expression relative que le modèle sait naturellement faire glisser à
 // l'année suivante ("21 juillet" → l'an prochain si déjà passé). Filet de sécurité déterministe :
@@ -91,7 +127,7 @@ function pastDateError(dateArrivee: string): { erreur: string } | null {
   return null;
 }
 
-async function checkAvailability(villaNom: string, dateArrivee: string, dateDepart: string) {
+export async function checkAvailability(villaNom: string, dateArrivee: string, dateDepart: string) {
   const villa = VILLAS.find((v) => v.nom.toLowerCase() === villaNom.toLowerCase());
   if (!villa) return { erreur: `Villa "${villaNom}" non reconnue dans la liste.` };
   const pastError = pastDateError(dateArrivee);
@@ -104,8 +140,8 @@ async function checkAvailability(villaNom: string, dateArrivee: string, dateDepa
       and(
         eq(reservations.villaId, villa.id),
         ne(reservations.status, "annulee"),
-        lt(reservations.checkIn, new Date(dateDepart)),
-        gt(reservations.checkOut, new Date(dateArrivee))
+        lt(reservations.checkIn, toDateTime(dateDepart, 11)),
+        gt(reservations.checkOut, toDateTime(dateArrivee, 15))
       )
     )
     .orderBy(reservations.checkIn);
@@ -166,7 +202,7 @@ function toInternationalPhone(telephone: unknown, countryIso: string): { value: 
   return { value: `+${dial}${local}`, valid: true };
 }
 
-async function createBooking(input: Record<string, unknown>) {
+export async function createBooking(input: Record<string, unknown>) {
   const pastError = pastDateError(String(input.dateArrivee));
   if (pastError) return pastError;
 
@@ -210,8 +246,8 @@ async function createBooking(input: Record<string, unknown>) {
         guestName,
         guestPhone: phone.value,
         guestEmail: String(input.email ?? ""),
-        checkIn: new Date(String(input.dateArrivee)),
-        checkOut: new Date(String(input.dateDepart)),
+        checkIn: toDateTime(String(input.dateArrivee), 15),
+        checkOut: toDateTime(String(input.dateDepart), 11),
         guestsCount,
         nbAdultes: Number(input.nombreAdultes ?? 0),
         nbEnfants: Number(input.nombreEnfants ?? 0),
