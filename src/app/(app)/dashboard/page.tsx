@@ -1,6 +1,18 @@
 import Link from "next/link";
-import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
-import { format, isSameDay, isPast, isToday, isTomorrow, startOfDay, endOfDay, addDays, differenceInCalendarDays } from "date-fns";
+import { and, gte, lte, lt, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
+import {
+  format,
+  isSameDay,
+  isPast,
+  isToday,
+  isTomorrow,
+  startOfDay,
+  startOfMonth,
+  subMonths,
+  endOfDay,
+  addDays,
+  differenceInCalendarDays,
+} from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import {
@@ -14,6 +26,9 @@ import {
   personnel,
   personnelAffectations,
   clients,
+  interventions,
+  staffAssignmentRequests,
+  cashEntries,
 } from "@/db/schema";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,8 +42,24 @@ import { MenuGrid } from "@/components/app/menu-grid";
 import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
-import { LogIn, LogOut, Wrench, ChevronLeft, ChevronRight, MoreVertical } from "lucide-react";
+import {
+  LogIn,
+  LogOut,
+  Wrench,
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical,
+  Home,
+  Users,
+  ChefHat,
+  Wallet,
+  AlertTriangle,
+  Clock,
+  FileWarning,
+  type LucideIcon,
+} from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { domaineEstActif } from "@/lib/domaines-actifs";
 import { getUnreadChatCount } from "@/lib/actions/chat";
 import {
   montantMenageDu,
@@ -340,6 +371,109 @@ export default async function DashboardPage({
     .orderBy(desc(superhoteSyncLog.startedAt))
     .limit(1);
 
+  // --- Chiffres du jour (tête de page) -------------------------------------------------------
+
+  const villasOccupeesKamel = allVillas.filter((v) => v.domaineNom === "Domaine Moderna II" && occupiedVillaIds.has(v.id));
+
+  // Ménage/cuisine "occupée aujourd'hui" : même logique de fenêtre de travail que le dispatch
+  // automatique (voir dayAfter/moment dans whatsapp-agent/staff.ts) — ménage "depart"/"unique" ne
+  // travaille que le jour du check-out, ménage "sejour" et cuisine travaillent du lendemain du
+  // check-in jusqu'au check-out inclus.
+  const affectationsAujourdhui = await db
+    .select({
+      personnelId: personnelAffectations.personnelId,
+      role: personnel.role,
+      moment: personnelAffectations.moment,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+    })
+    .from(personnelAffectations)
+    .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
+    .innerJoin(reservations, eq(personnelAffectations.reservationId, reservations.id))
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .where(
+      and(
+        ne(reservations.status, "annulee"),
+        eq(domaines.nom, "Domaine Moderna II"),
+        lte(reservations.checkIn, endOfDay(now)),
+        gte(reservations.checkOut, startOfDay(now))
+      )
+    );
+  const todayStart = startOfDay(now);
+  function travailleAujourdhui(row: { role: string; moment: string | null; checkIn: Date; checkOut: Date }): boolean {
+    const checkIn = new Date(row.checkIn);
+    const checkOut = new Date(row.checkOut);
+    if (row.role === "menage" && row.moment !== "sejour") return isSameDay(checkOut, now);
+    const debutTravail = startOfDay(addDays(checkIn, 1));
+    return todayStart >= debutTravail && todayStart <= startOfDay(checkOut);
+  }
+  const menageOccupeIds = new Set(
+    affectationsAujourdhui.filter((r) => r.role === "menage" && travailleAujourdhui(r)).map((r) => r.personnelId)
+  );
+  const cuisineOccupeIds = new Set(
+    affectationsAujourdhui.filter((r) => r.role === "cuisine" && travailleAujourdhui(r)).map((r) => r.personnelId)
+  );
+  const menageActif = activePersonnel.filter((p) => p.role === "menage");
+  const cuisineActif = activePersonnel.filter((p) => p.role === "cuisine");
+  const menageOccupeCount = menageActif.filter((p) => menageOccupeIds.has(p.id)).length;
+  const cuisineOccupeCount = cuisineActif.filter((p) => cuisineOccupeIds.has(p.id)).length;
+
+  const interventionsUrgentesEnCours = await db
+    .select({ id: interventions.id })
+    .from(interventions)
+    .where(and(inArray(interventions.urgence, ["haute", "critique"]), ne(interventions.etape, "termine")));
+
+  const sollicitationsEnAttente = await db
+    .select({ id: staffAssignmentRequests.id })
+    .from(staffAssignmentRequests)
+    .innerJoin(reservations, eq(staffAssignmentRequests.reservationId, reservations.id))
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .where(and(eq(staffAssignmentRequests.statut, "en_recherche"), eq(domaines.nom, "Domaine Moderna II")));
+
+  const checkInsAujourdhui = modernaIIUpcoming.filter((r) => isSameDay(new Date(r.checkIn), now));
+  const checkOutsAujourdhui = modernaIIUpcoming.filter((r) => isSameDay(new Date(r.checkOut), now));
+  const fichesPoliceManquantes = checkInsAujourdhui.filter((r) => r.ficheStatut !== "complete");
+
+  // Argent physiquement disponible en caisse société (espèces) sur la période comptable en cours
+  // (même découpage du 11 au 10 que la page Caisse, voir JOUR_DEBUT_PERIODE_CAISSE) — pas tout
+  // l'historique, juste ce qui reste dispo pour la période active.
+  const JOUR_DEBUT_PERIODE_CAISSE = 11;
+  const ancrePeriodeCaisse = startOfMonth(now.getDate() >= JOUR_DEBUT_PERIODE_CAISSE ? now : subMonths(now, 1));
+  const debutPeriodeCaisse = new Date(ancrePeriodeCaisse.getFullYear(), ancrePeriodeCaisse.getMonth(), JOUR_DEBUT_PERIODE_CAISSE);
+  const finPeriodeCaisseExclusive = new Date(
+    ancrePeriodeCaisse.getFullYear(),
+    ancrePeriodeCaisse.getMonth() + 1,
+    JOUR_DEBUT_PERIODE_CAISSE
+  );
+  const especesSocieteCaisse = (
+    await db
+      .select({
+        type: cashEntries.type,
+        caisse: cashEntries.caisse,
+        financePar: cashEntries.financePar,
+        moyenPaiement: cashEntries.moyenPaiement,
+        montant: cashEntries.montant,
+        devise: cashEntries.devise,
+        domaineNom: domaines.nom,
+      })
+      .from(cashEntries)
+      .leftJoin(villas, eq(cashEntries.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(and(gte(cashEntries.createdAt, debutPeriodeCaisse), lt(cashEntries.createdAt, finPeriodeCaisseExclusive)))
+  ).filter((e) => domaineEstActif(e.domaineNom) && e.caisse === "societe" && e.moyenPaiement === "especes");
+  const devisesCaisse = Array.from(new Set(especesSocieteCaisse.map((e) => e.devise)));
+  const soldesCaisse = devisesCaisse.map((devise) => {
+    const enDevise = especesSocieteCaisse.filter((e) => e.devise === devise);
+    const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+    const totalDepenseSociete = enDevise
+      .filter((e) => e.type === "depense" && e.financePar === "societe")
+      .reduce((s, e) => s + Number(e.montant), 0);
+    const totalRestitution = enDevise.filter((e) => e.type === "restitution").reduce((s, e) => s + Number(e.montant), 0);
+    return { devise, solde: totalRemise - totalDepenseSociete - totalRestitution };
+  });
+
   return (
     <div className="w-full max-w-full space-y-6 overflow-x-hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -406,8 +540,138 @@ export default async function DashboardPage({
         <MenuGrid unreadChatCount={unreadChatCount} />
       </div>
 
+      <MetricsHeader
+        checkInsAujourdhui={checkInsAujourdhui.length}
+        checkOutsAujourdhui={checkOutsAujourdhui.length}
+        villasOccupees={villasOccupeesKamel.length}
+        villasLibres={villasLibresKamel.length}
+        menageLibre={menageActif.length - menageOccupeCount}
+        menageOccupe={menageOccupeCount}
+        cuisineLibre={cuisineActif.length - cuisineOccupeCount}
+        cuisineOccupe={cuisineOccupeCount}
+        soldesCaisse={soldesCaisse}
+        interventionsUrgentes={interventionsUrgentesEnCours.length}
+        sollicitationsEnAttente={sollicitationsEnAttente.length}
+        fichesPoliceManquantes={fichesPoliceManquantes.length}
+      />
       <VillasLibresCard villas={villasLibresKamel} planVillas={modernaIIPlanVillas} />
       <PersonPanel reservations={modernaIIUpcoming} maintenance={modernaIIMaintenance} days={days} now={now} />
+    </div>
+  );
+}
+
+// Chiffres du jour, recalculés à chaque chargement — regroupe tout ce qui était auparavant
+// dispersé (check-in/check-out) avec les indicateurs opérationnels qui n'avaient encore aucune
+// vue d'ensemble (personnel dispo, caisse, interventions urgentes, sollicitations en attente,
+// fiches police manquantes). Kamel, 2026-08-21.
+function StatTile({
+  icon: Icon,
+  value,
+  label,
+  color,
+  href,
+}: {
+  icon: LucideIcon;
+  value: string | number;
+  label: string;
+  color: "emerald" | "amber" | "sky" | "red" | "slate";
+  href?: string;
+}) {
+  const colorClasses: Record<typeof color, string> = {
+    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    red: "bg-red-500/10 text-red-600 dark:text-red-400",
+    slate: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+  };
+  const content = (
+    <Card className={href ? "h-full transition-colors hover:border-primary/50" : "h-full"}>
+      <CardContent className="flex items-center gap-3 py-4">
+        <div className={cn("shrink-0 rounded-full p-2", colorClasses[color])}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-2xl font-semibold leading-none">{value}</p>
+          <p className="truncate text-sm text-muted-foreground">{label}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+  return href ? <Link href={href}>{content}</Link> : content;
+}
+
+function MetricsHeader({
+  checkInsAujourdhui,
+  checkOutsAujourdhui,
+  villasOccupees,
+  villasLibres,
+  menageLibre,
+  menageOccupe,
+  cuisineLibre,
+  cuisineOccupe,
+  soldesCaisse,
+  interventionsUrgentes,
+  sollicitationsEnAttente,
+  fichesPoliceManquantes,
+}: {
+  checkInsAujourdhui: number;
+  checkOutsAujourdhui: number;
+  villasOccupees: number;
+  villasLibres: number;
+  menageLibre: number;
+  menageOccupe: number;
+  cuisineLibre: number;
+  cuisineOccupe: number;
+  soldesCaisse: { devise: string; solde: number }[];
+  interventionsUrgentes: number;
+  sollicitationsEnAttente: number;
+  fichesPoliceManquantes: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <StatTile icon={LogIn} value={checkInsAujourdhui} label="Check-in aujourd'hui" color="emerald" />
+      <StatTile icon={LogOut} value={checkOutsAujourdhui} label="Check-out aujourd'hui" color="amber" />
+      <StatTile icon={Home} value={villasOccupees} label="Villas occupées" color="sky" href="/villas" />
+      <StatTile icon={Home} value={villasLibres} label="Villas libres" color="emerald" href="/villas" />
+      <StatTile icon={Users} value={menageLibre} label="Ménage disponible" color="emerald" href="/personnel" />
+      <StatTile icon={Users} value={menageOccupe} label="Ménage occupée" color="amber" href="/personnel" />
+      <StatTile icon={ChefHat} value={cuisineLibre} label="Cuisine disponible" color="emerald" href="/personnel" />
+      <StatTile icon={ChefHat} value={cuisineOccupe} label="Cuisine occupée" color="amber" href="/personnel" />
+      {soldesCaisse.length > 0 ? (
+        soldesCaisse.map((s) => (
+          <StatTile
+            key={s.devise}
+            icon={Wallet}
+            value={`${s.solde.toLocaleString("fr-FR")} ${s.devise}`}
+            label="Caisse disponible"
+            color={s.solde < 0 ? "red" : "slate"}
+            href="/caisse"
+          />
+        ))
+      ) : (
+        <StatTile icon={Wallet} value="0" label="Caisse disponible" color="slate" href="/caisse" />
+      )}
+      <StatTile
+        icon={AlertTriangle}
+        value={interventionsUrgentes}
+        label="Interventions urgentes"
+        color={interventionsUrgentes > 0 ? "red" : "slate"}
+        href="/interventions"
+      />
+      <StatTile
+        icon={Clock}
+        value={sollicitationsEnAttente}
+        label="Personnel en attente"
+        color={sollicitationsEnAttente > 0 ? "amber" : "slate"}
+        href="/agent-ia"
+      />
+      <StatTile
+        icon={FileWarning}
+        value={fichesPoliceManquantes}
+        label="Fiches police manquantes"
+        color={fichesPoliceManquantes > 0 ? "red" : "slate"}
+        href="/securite"
+      />
     </div>
   );
 }
@@ -464,36 +728,8 @@ function PersonPanel({
   days: Date[];
   now: Date;
 }) {
-  const checkInsToday = personReservations.filter((r) => isSameDay(new Date(r.checkIn), now));
-  const checkOutsToday = personReservations.filter((r) => isSameDay(new Date(r.checkOut), now));
-
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400">
-              <LogIn className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold leading-none">{checkInsToday.length}</p>
-              <p className="text-sm text-muted-foreground">Check-in aujourd&apos;hui</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
-              <LogOut className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-2xl font-semibold leading-none">{checkOutsToday.length}</p>
-              <p className="text-sm text-muted-foreground">Check-out aujourd&apos;hui</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {days.map((day) => {
         const dayCheckIns = personReservations.filter((r) => isSameDay(new Date(r.checkIn), day));
         const dayCheckOuts = personReservations.filter((r) => isSameDay(new Date(r.checkOut), day));
