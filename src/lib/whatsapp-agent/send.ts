@@ -2,17 +2,26 @@ import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
 
 // Point d'entrée unique pour l'envoi WhatsApp — auparavant dupliqué dans staff.ts et
 // whatsapp-webhook/route.ts (deux copies identiques de sendWhatsAppText).
-export async function sendWhatsAppText(to: string, body: string) {
+// Renvoie true/false selon que Meta a accepté le message (statut HTTP), pour que les appelants
+// qui l'annoncent comme fait à Kamel (ex. relanceStaleMaintenanceConversations) puissent distinguer
+// un vrai échec d'un envoi réussi — auparavant, un échec ne finissait que dans les logs serveur
+// (jamais vus par Kamel) et le compte-rendu WhatsApp disait "envoyée" même si ça avait raté.
+// Kamel, 2026-08-22 : "tu es sur que l'agent envoie bien des messages aux personnes concerné ?"
+export async function sendWhatsAppText(to: string, body: string): Promise<boolean> {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  if (!accessToken || !phoneNumberId) return;
+  if (!accessToken || !phoneNumberId) return false;
 
   const res = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to: to.replace("+", ""), type: "text", text: { body } }),
   });
-  if (!res.ok) console.error("Échec envoi texte WhatsApp:", res.status, await res.text());
+  if (!res.ok) {
+    console.error("Échec envoi texte WhatsApp:", res.status, await res.text());
+    return false;
+  }
+  return true;
 }
 
 // Upload d'un fichier vers la médiathèque WhatsApp (nécessaire avant de pouvoir l'envoyer comme
@@ -65,7 +74,9 @@ export async function sendWhatsAppVoice(to: string, text: string) {
 }
 
 // Texte + note vocale en parallèle — pour le personnel ménage/cuisine, dont certaines personnes
-// ne savent pas lire (Kamel, 2026-08-08). Le texte part toujours ; la voix est best-effort.
-export async function sendWhatsAppTextAndVoice(to: string, body: string) {
-  await Promise.all([sendWhatsAppText(to, body), sendWhatsAppVoice(to, body)]);
+// ne savent pas lire (Kamel, 2026-08-08). Le texte part toujours ; la voix est best-effort (son
+// échec n'affecte jamais le true/false renvoyé, qui reflète uniquement l'envoi du texte).
+export async function sendWhatsAppTextAndVoice(to: string, body: string): Promise<boolean> {
+  const [textOk] = await Promise.all([sendWhatsAppText(to, body), sendWhatsAppVoice(to, body)]);
+  return textOk;
 }

@@ -169,10 +169,11 @@ async function persistAudioAttachment(interventionId: string, buffer: Buffer, la
 // Génère la voix ElevenLabs pour un message sortant de l'agent maintenance, l'envoie au
 // technicien ET la conserve comme pièce jointe de l'intervention (Kamel, 2026-08-18 : garder
 // l'historique en audio, pas seulement à l'écrit).
-async function sendAndPersist(interventionId: string, phone: string, text: string): Promise<void> {
-  await sendWhatsAppTextAndVoice(phone, text);
+async function sendAndPersist(interventionId: string, phone: string, text: string): Promise<boolean> {
+  const ok = await sendWhatsAppTextAndVoice(phone, text);
   const audio = await textToSpeech(text);
   if (audio) await persistAudioAttachment(interventionId, audio, "agent");
+  return ok;
 }
 
 // Envoie les liens Maps/Waze du domaine dès que le technicien confirme la mission, pour qu'il
@@ -295,10 +296,12 @@ export async function initiateMaintenanceRequest(interventionId: string): Promis
     .set({ messages: [{ role: "assistant", content: [{ type: "text", text: opening }] }] })
     .where(eq(maintenanceConversations.id, conversation.id));
 
-  await sendAndPersist(interventionId, technician.telephone, opening);
+  const sent = await sendAndPersist(interventionId, technician.telephone, opening);
 
   await notifyKamelMaintenance(
-    `Intervention "${intervention.titre}" (${villa}) proposée à ${technician.nom} (${technician.fonction}).`
+    sent
+      ? `Intervention "${intervention.titre}" (${villa}) proposée à ${technician.nom} (${technician.fonction}).`
+      : `⚠️ Intervention "${intervention.titre}" (${villa}) : échec de l'envoi du message à ${technician.nom} (${technician.fonction}) — vérifie son numéro (${technician.telephone}) ou contacte-le directement.`
   );
 }
 
@@ -593,7 +596,7 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
       row.statut === "confirme"
         ? "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي. واش قدرتي تعطيني فوقاش غادي تجي؟"
         : "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي السابقة. واش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك.";
-    await sendAndPersist(row.interventionId, row.phone, relance);
+    const sent = await sendAndPersist(row.interventionId, row.phone, relance);
     // Ajoutée au transcript (pas seulement à l'audio) pour rester visible dans l'onglet
     // "Techniciens (maintenance)" de /agent-ia, comme le reste de la conversation.
     const messages = [...((row.messages as MessageParam[]) ?? []), { role: "assistant" as const, content: [{ type: "text" as const, text: relance }] }];
@@ -602,6 +605,13 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
       .update(maintenanceConversations)
       .set({ relanceCount, lastRelanceAt: new Date(), messages })
       .where(eq(maintenanceConversations.id, row.id));
-    await notifyKamelMaintenance(`"${row.titre}" (${villa}) : toujours pas de réponse du technicien — relance n°${relanceCount} envoyée.`);
+    // Distingue un vrai échec d'envoi (WhatsApp/Meta a refusé le message) d'une relance
+    // effectivement envoyée mais sans réponse — avant, les deux cas donnaient le même message
+    // "envoyée", donc un échec réel restait invisible pour Kamel. Kamel, 2026-08-22.
+    await notifyKamelMaintenance(
+      sent
+        ? `"${row.titre}" (${villa}) : toujours pas de réponse du technicien — relance n°${relanceCount} envoyée.`
+        : `⚠️ "${row.titre}" (${villa}) : échec d'envoi de la relance n°${relanceCount} au technicien (${row.phone}) — le message n'est pas parti, contacte-le par un autre moyen.`
+    );
   }
 }
