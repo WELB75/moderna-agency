@@ -16,6 +16,7 @@ import {
 } from "@/lib/whatsapp-agent/staff";
 import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
 import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
+import { KAMEL_PHONE } from "@/lib/kamel-phone";
 
 export const maxDuration = 60;
 
@@ -111,7 +112,22 @@ export async function POST(req: NextRequest) {
     const value = change?.value;
     const message = value?.messages?.[0];
 
-    // Pas un message entrant (ex. accusé de statut "delivered"/"read") — rien à faire.
+    // Accusés de statut ("sent"/"delivered"/"read"/"failed") plutôt qu'un message entrant — jusque
+    // là entièrement ignorés, donc un échec réel de livraison (ex. re-engagement WhatsApp après
+    // 24h, numéro invalide...) restait invisible : l'appelant qui avait envoyé le message pensait
+    // que c'était bon puisque Meta avait renvoyé 200 à l'envoi. On ne remonte que les "failed" à
+    // Kamel — "sent"/"delivered"/"read" n'ont rien d'actionnable. Kamel, 2026-08-22 : "il reçoit
+    // rien du tout ! c'est pas normal".
+    const statuses = value?.statuses;
+    if (Array.isArray(statuses)) {
+      for (const s of statuses) {
+        if (s?.status !== "failed") continue;
+        const err = s.errors?.[0];
+        const reason = err ? `${err.title ?? err.message ?? "raison inconnue"}${err.code ? ` (code ${err.code})` : ""}` : "raison inconnue";
+        await sendWhatsAppText(KAMEL_PHONE, `⚠️ Message WhatsApp non livré à +${s.recipient_id} — ${reason}.`).catch(() => {});
+      }
+    }
+
     if (!message) return NextResponse.json({ ok: true });
 
     // Texte et messages vocaux sont gérés ; les autres types (image, localisation...) reçoivent
