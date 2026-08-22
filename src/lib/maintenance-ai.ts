@@ -9,7 +9,7 @@ import { interventions, technicians, villas, domaines, maintenanceConversations 
 import { loadImageBuffer } from "@/lib/fetch-image-buffer";
 import { getBaseUrl } from "@/lib/base-url";
 import { categorieLabel } from "@/lib/intervention-categorie";
-import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
+import { sendWhatsAppText, sendWhatsAppTextAndVoice, sendWhatsAppTemplate } from "@/lib/whatsapp-agent/send";
 import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
 import { repairMessageHistory } from "@/lib/whatsapp-agent/agent";
 // Même numéro que staff.ts (OBSERVER_PHONE) : Kamel reçoit un compte-rendu à chaque étape clé de
@@ -241,6 +241,17 @@ function buildOpeningMessage(villa: string, titre: string, probleme: string | nu
   return `السلام عليكم،\n\nكاين مشكل ف${villa} : ${titre}${detail}.\n\nواش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك. وملي تخلص الخدمة، عافاك خبرنا باش نكونو عارفين بلي كملات.\n\nموديرنا أجونسي`;
 }
 
+// Contenu de la variable {{1}} du modèle WhatsApp approuvé "moderna_nouvelle_mission" — même
+// information que dans buildOpeningMessage, sans la formule d'appel/signature qui fait partie du
+// texte fixe du modèle.
+function buildProblemDetail(villa: string, titre: string, probleme: string | null): string {
+  const detail = probleme ? ` (${probleme})` : "";
+  return `ف${villa} : ${titre}${detail}.`;
+}
+
+const OPENING_TEMPLATE_NAME = "moderna_nouvelle_mission";
+const OPENING_TEMPLATE_LANG = "ar";
+
 // Point d'entrée déclenché depuis createIntervention/addInterventionAttachments (voir
 // interventions.ts) dès qu'un problème décrit + une photo sont présents et qu'aucune conversation
 // n'existe déjà pour cette intervention (idempotent, même garde que initiateStaffRequest).
@@ -296,7 +307,14 @@ export async function initiateMaintenanceRequest(interventionId: string): Promis
     .set({ messages: [{ role: "assistant", content: [{ type: "text", text: opening }] }] })
     .where(eq(maintenanceConversations.id, conversation.id));
 
-  const sent = await sendAndPersist(interventionId, technician.telephone, opening);
+  // Premier contact avec ce technicien : la fenêtre de conversation WhatsApp n'est pas encore
+  // ouverte (il ne nous a jamais écrit), donc un texte libre serait accepté par l'API (200) mais
+  // jamais livré en pratique — il faut passer par un modèle approuvé par Meta. Le texte complet
+  // ci-dessus reste stocké dans l'historique pour l'affichage dans /agent-ia ; seul le mécanisme
+  // d'envoi change. Pas de note vocale ici pour la même raison (elle serait bloquée aussi).
+  // Kamel, 2026-08-22 : "meme les autres technicien... ils reçoivent pas".
+  const problemeDetail = buildProblemDetail(villa, darija.titre, darija.probleme);
+  const sent = await sendWhatsAppTemplate(technician.telephone, OPENING_TEMPLATE_NAME, OPENING_TEMPLATE_LANG, [problemeDetail]);
 
   await notifyKamelMaintenance(
     sent
@@ -576,6 +594,7 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
       relanceCount: maintenanceConversations.relanceCount,
       messages: maintenanceConversations.messages,
       titre: interventions.titre,
+      probleme: interventions.probleme,
       villaNom: villas.nom,
       villaNumero: villas.numero,
     })
@@ -592,11 +611,23 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
   for (const row of stale) {
     const villa = villaLabel(row.villaNom, row.villaNumero);
 
-    const relance =
-      row.statut === "confirme"
-        ? "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي. واش قدرتي تعطيني فوقاش غادي تجي؟"
-        : "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي السابقة. واش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك.";
-    const sent = await sendAndPersist(row.interventionId, row.phone, relance);
+    let relance: string;
+    let sent: boolean;
+    if (row.statut === "confirme") {
+      // Il a déjà répondu au moins une fois (accepté la mission) : la fenêtre de conversation
+      // WhatsApp est ouverte, le texte libre passe normalement.
+      relance = "سلام، غير كنبغي نتأكد بلي وصلاتك رسالتي. واش قدرتي تعطيني فوقاش غادي تجي؟";
+      sent = await sendAndPersist(row.interventionId, row.phone, relance);
+    } else {
+      // "en_cours" : toujours aucune réponse, donc toujours pas de fenêtre ouverte — un texte
+      // libre serait à nouveau accepté par l'API (200) mais jamais livré, exactement comme le
+      // tout premier message. On repasse par le même modèle approuvé plutôt qu'une simple relance
+      // texte. Kamel, 2026-08-22.
+      const darija = await translateProblemToDarija(row.titre, row.probleme);
+      const problemeDetail = buildProblemDetail(villa, darija.titre, darija.probleme);
+      relance = buildOpeningMessage(villa, darija.titre, darija.probleme);
+      sent = await sendWhatsAppTemplate(row.phone, OPENING_TEMPLATE_NAME, OPENING_TEMPLATE_LANG, [problemeDetail]);
+    }
     // Ajoutée au transcript (pas seulement à l'audio) pour rester visible dans l'onglet
     // "Techniciens (maintenance)" de /agent-ia, comme le reste de la conversation.
     const messages = [...((row.messages as MessageParam[]) ?? []), { role: "assistant" as const, content: [{ type: "text" as const, text: relance }] }];

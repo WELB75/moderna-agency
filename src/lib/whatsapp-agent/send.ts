@@ -24,6 +24,44 @@ export async function sendWhatsAppText(to: string, body: string): Promise<boolea
   return true;
 }
 
+// Premier message à un contact qui n'a jamais écrit à l'agence : WhatsApp interdit le texte libre
+// dans ce cas (accepté par l'API avec un 200, mais jamais livré en pratique) — seul un modèle de
+// message pré-approuvé par Meta peut ouvrir la conversation. Une fois que la personne répond,
+// tous les messages suivants peuvent redevenir du texte libre (sendWhatsAppText), la fenêtre de
+// conversation est ouverte. Kamel, 2026-08-22 : "meme les autres technicien... ils reçoivent pas".
+export async function sendWhatsAppTemplate(
+  to: string,
+  templateName: string,
+  languageCode: string,
+  bodyParams: string[]
+): Promise<boolean> {
+  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (!accessToken || !phoneNumberId) return false;
+
+  const res = await fetch(`https://graph.facebook.com/v25.0/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: to.replace("+", ""),
+      type: "template",
+      template: {
+        name: templateName,
+        language: { code: languageCode },
+        components: bodyParams.length
+          ? [{ type: "body", parameters: bodyParams.map((text) => ({ type: "text", text })) }]
+          : [],
+      },
+    }),
+  });
+  if (!res.ok) {
+    console.error("Échec envoi template WhatsApp:", res.status, await res.text());
+    return false;
+  }
+  return true;
+}
+
 // Upload d'un fichier vers la médiathèque WhatsApp (nécessaire avant de pouvoir l'envoyer comme
 // message) — symétrique de downloadWhatsAppMedia côté entrant dans whatsapp-webhook/route.ts.
 async function uploadWhatsAppMedia(buffer: Buffer, mimeType: string): Promise<string | null> {
