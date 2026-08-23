@@ -249,11 +249,12 @@ function buildProblemDetail(villa: string, titre: string, probleme: string | nul
   return `ف${villa} : ${titre}${detail}.`;
 }
 
-// "moderna_nouvelle_mission" a été automatiquement reclassé "Marketing" par Meta ("sollicitation"
-// plutôt que message de service) — cette version reformule le message comme une notification à un
-// technicien déjà partenaire de l'agence plutôt qu'une offre de mission, pour rester en catégorie
-// Utilitaire. Kamel, 2026-08-22.
-const OPENING_TEMPLATE_NAME = "moderna_intervention_technicien";
+// "moderna_nouvelle_mission" avait d'abord été reclassé "Marketing" par Meta, puis repassé
+// "Utilitaire" après un second examen (23/08) — c'est ce modèle qu'on utilise, plus adapté qu'une
+// catégorie Marketing (moins de risque politique/qualité de compte sur la durée). L'alternative
+// "moderna_intervention_technicien" (reformulée, approuvée en Marketing) reste créée en secours si
+// jamais celui-ci était de nouveau reclassé. Kamel, 2026-08-23.
+const OPENING_TEMPLATE_NAME = "moderna_nouvelle_mission";
 const OPENING_TEMPLATE_LANG = "ar";
 
 // Point d'entrée déclenché depuis createIntervention/addInterventionAttachments (voir
