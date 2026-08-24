@@ -122,6 +122,13 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(statuses)) {
       for (const s of statuses) {
         if (s?.status !== "failed") continue;
+        // Ne jamais tenter de notifier Kamel d'un échec qui le concerne LUI-MÊME comme
+        // destinataire — ce serait circulaire (on essaierait de le prévenir par le canal même qui
+        // vient d'échouer) et ça ne fait qu'ajouter des tentatives d'envoi sur une paire déjà
+        // limitée par Meta (rate limit 131056), aggravant le blocage au lieu de le signaler. Trouvé
+        // le 2026-08-24 : une rafale de "pair rate limit hit" provoquée par ces notifications
+        // elles-mêmes échouant en boucle vers le numéro de Kamel.
+        if (String(s.recipient_id) === KAMEL_PHONE.replace("+", "")) continue;
         const err = s.errors?.[0];
         const reason = err ? `${err.title ?? err.message ?? "raison inconnue"}${err.code ? ` (code ${err.code})` : ""}` : "raison inconnue";
         await sendWhatsAppText(KAMEL_PHONE, `⚠️ Message WhatsApp non livré à +${s.recipient_id} — ${reason}.`).catch(() => {});
