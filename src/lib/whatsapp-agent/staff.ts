@@ -3,7 +3,16 @@ import { and, avg, eq, gt, gte, inArray, isNotNull, lt, ne, sql } from "drizzle-
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, staffAssignmentRequests, reservations, chatMessages, villas, domaines } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
-import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
+import { sendWhatsAppText, sendWhatsAppTextAndVoice, sendWhatsAppTemplate } from "@/lib/whatsapp-agent/send";
+
+// Modèle approuvé pour la toute première offre envoyée à une candidate — un texte libre serait
+// accepté par l'API Meta (200) mais jamais livré tant qu'elle ne nous a jamais écrit (même souci
+// que pour les techniciens, voir maintenance-ai.ts). On l'utilise systématiquement pour l'offre
+// initiale (candidate nouvelle ou déjà connue) plutôt que d'essayer de déterminer si sa fenêtre de
+// conversation est ouverte — une fois qu'elle répond, tout redevient du texte libre normalement.
+// Kamel, 2026-08-24.
+const OFFER_TEMPLATE_NAME = "moderna_nouvelle_offre";
+const OFFER_TEMPLATE_LANG = "ar";
 
 // Note neutre attribuée à une candidate sans aucune note pour l'instant — ni pénalisée (en
 // dessous d'une candidate moyenne) ni avantagée (au-dessus d'une bonne candidate déjà prouvée).
@@ -203,13 +212,19 @@ function formatDateDarija(dateStr: string): string {
 // vocabulaire des dates/chiffres. Kamel, 2026-08-08 : "meme dans la transcription écrite faut que
 // ce soit en darija en realité" — la voix ne peut pas sonner marocain si le texte lu, lui, est en
 // arabe classique.
-function buildOfferMessage(job: Job): string {
+// Partie variable de l'offre (sans salutation/consigne/signature, qui font partie du texte fixe
+// du modèle "moderna_nouvelle_offre" — voir OFFER_TEMPLATE_NAME).
+function buildOfferDetail(job: Job): string {
   const villa = villaLabel(job.villaNom, job.villaNumero);
   if (job.role === "menage") {
-    return `السلام عليكم،\n\nواش تقدري تنظفي ${villa} ${formatDateDarija(job.dateDebut)} (نهار خروج الضيوف)؟\n\nجاوبيني بـ "واخا" ولا "لا" عافاك.\n\nموديرنا أجونسي`;
+    return `واش تقدري تنظفي ${villa} ${formatDateDarija(job.dateDebut)} (نهار خروج الضيوف)؟`;
   }
   const repas = job.avecDejeuner ? "الفطور والغدا" : "الفطور غير";
-  return `السلام عليكم،\n\nواش تقدري تطيبي ف${villa} من ${formatDateDarija(job.dateDebut)} حتى ${formatDateDarija(job.dateFin)}؟ (${repas})\n\nجاوبيني بـ "واخا" ولا "لا" عافاك.\n\nموديرنا أجونسي`;
+  return `واش تقدري تطيبي ف${villa} من ${formatDateDarija(job.dateDebut)} حتى ${formatDateDarija(job.dateFin)}؟ (${repas})`;
+}
+
+function buildOfferMessage(job: Job): string {
+  return `السلام عليكم،\n\n${buildOfferDetail(job)}\n\nجاوبيني بـ "واخا" ولا "لا" عافاك.\n\nموديرنا أجونسي`;
 }
 
 // Retourne jusqu'à `limit` candidates disponibles (mieux notées en premier), pour une sollicitation
@@ -370,7 +385,11 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     candidatsEssayes: candidates.map((c) => c.id),
     historique: candidates.map((c) => ({ at: new Date().toISOString(), type: "offre" as const, candidatNom: c.nom, texte: offre })),
   });
-  await Promise.all([...candidates.map((c) => sendWhatsAppTextAndVoice(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
+  const offreDetail = buildOfferDetail(job);
+  await Promise.all([
+    ...candidates.map((c) => sendWhatsAppTemplate(c.telephone!, OFFER_TEMPLATE_NAME, OFFER_TEMPLATE_LANG, [offreDetail])),
+    sendWhatsAppText(OBSERVER_PHONE, offre),
+  ]);
 }
 
 // Rétro-compatibilité : ancien nom utilisé par l'agent de réservation pour la cuisine.
@@ -557,7 +576,11 @@ async function broadcastNewBatch(
       updatedAt: new Date(),
     })
     .where(eq(staffAssignmentRequests.id, request.requestId));
-  await Promise.all([...candidates.map((c) => sendWhatsAppTextAndVoice(c.telephone!, offre)), sendWhatsAppText(OBSERVER_PHONE, offre)]);
+  const offreDetail = buildOfferDetail(job);
+  await Promise.all([
+    ...candidates.map((c) => sendWhatsAppTemplate(c.telephone!, OFFER_TEMPLATE_NAME, OFFER_TEMPLATE_LANG, [offreDetail])),
+    sendWhatsAppText(OBSERVER_PHONE, offre),
+  ]);
 }
 
 // Relance automatique : un batch entier qui ne répond ni "oui" ni "non" dans le délai imparti est
