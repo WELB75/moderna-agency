@@ -597,12 +597,18 @@ function StatTile({
         href && "hover:-translate-y-0.5 hover:border-white/80 hover:shadow-[0_1px_2px_rgba(15,23,42,0.06),0_16px_36px_-16px_rgba(15,23,42,0.3)] dark:hover:border-white/20"
       )}
     >
-      <div className="flex items-center gap-3 px-4 py-4">
-        <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-full", iconBubbleClasses[color])}>
-          <Icon className="h-5 w-5" strokeWidth={2} />
+      {/* Empilé (icône puis texte) en mobile pour laisser toute la largeur de la colonne au
+          chiffre — l'agencement icône+texte côte à côte faisait chevaucher les valeurs longues
+          ("13 500 MAD") dans les colonnes étroites à 2 par ligne. Repasse à côte à côte dès `sm`,
+          où les colonnes sont plus larges. Kamel, 2026-08-24. */}
+      <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-4">
+        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10", iconBubbleClasses[color])}>
+          <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2} />
         </div>
         <div className="min-w-0">
-          <p className="text-2xl font-semibold leading-none tracking-tight">{value}</p>
+          <p className="truncate text-xl font-semibold leading-tight tracking-tight tabular-nums sm:text-2xl sm:leading-none">
+            {value}
+          </p>
           <p className="truncate text-sm text-muted-foreground">{label}</p>
         </div>
       </div>
