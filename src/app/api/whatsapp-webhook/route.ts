@@ -121,6 +121,11 @@ export async function POST(req: NextRequest) {
     const statuses = value?.statuses;
     if (Array.isArray(statuses)) {
       for (const s of statuses) {
+        // Trace de tous les statuts (pas seulement "failed") — jusque-là aucune visibilité sur
+        // "sent"/"delivered"/"read", donc impossible de savoir si Meta confirme la livraison réelle
+        // d'un message accepté (200) ou reste simplement muet dessus. Diagnostic temporaire, Kamel
+        // 2026-08-24 : "creuse car rien reçu" (note vocale à Imed, aucune erreur nulle part).
+        console.log(`Statut WhatsApp: id=${s?.id} status=${s?.status} recipient=${s?.recipient_id}`);
         if (s?.status !== "failed") continue;
         // Ne jamais tenter de notifier Kamel d'un échec qui le concerne LUI-MÊME comme
         // destinataire — ce serait circulaire (on essaierait de le prévenir par le canal même qui
