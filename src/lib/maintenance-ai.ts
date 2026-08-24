@@ -236,8 +236,26 @@ async function translateProblemToDarija(titre: string, probleme: string | null):
   }
 }
 
+// Le titre et la description d'une intervention se recopient parfois presque mot pour mot (saisis
+// par la même personne au même moment) — sans ça, le message technicien répétait deux fois quasi
+// la même phrase (vu sur "L'air de la climatisation... (L'air de la climatisation...)" pour Coach).
+// Similarité par recouvrement de mots plutôt qu'égalité stricte, pour capter les variantes proches
+// (ex. une lettre en plus/en moins) et pas seulement les doublons parfaits. Kamel, 2026-08-24.
+function isRedundant(a: string, b: string): boolean {
+  const wordsA = new Set(a.trim().split(/\s+/).filter(Boolean));
+  const wordsB = new Set(b.trim().split(/\s+/).filter(Boolean));
+  if (wordsA.size === 0 || wordsB.size === 0) return false;
+  const common = [...wordsA].filter((w) => wordsB.has(w)).length;
+  const union = new Set([...wordsA, ...wordsB]).size;
+  return common / union > 0.6;
+}
+
+function buildProblemeDetail(titre: string, probleme: string | null): string {
+  return probleme && !isRedundant(titre, probleme) ? ` (${probleme})` : "";
+}
+
 function buildOpeningMessage(villa: string, titre: string, probleme: string | null): string {
-  const detail = probleme ? ` (${probleme})` : "";
+  const detail = buildProblemeDetail(titre, probleme);
   return `السلام عليكم،\n\nكاين مشكل ف${villa} : ${titre}${detail}.\n\nواش تقدر تتكلف بهاد المهمة؟ جاوبني عافاك. وملي تخلص الخدمة، عافاك خبرنا باش نكونو عارفين بلي كملات.\n\nموديرنا أجونسي`;
 }
 
@@ -245,8 +263,7 @@ function buildOpeningMessage(villa: string, titre: string, probleme: string | nu
 // information que dans buildOpeningMessage, sans la formule d'appel/signature qui fait partie du
 // texte fixe du modèle.
 function buildProblemDetail(villa: string, titre: string, probleme: string | null): string {
-  const detail = probleme ? ` (${probleme})` : "";
-  return `ف${villa} : ${titre}${detail}.`;
+  return `ف${villa} : ${titre}${buildProblemeDetail(titre, probleme)}.`;
 }
 
 // "moderna_nouvelle_mission" avait d'abord été reclassé "Marketing" par Meta, puis repassé
