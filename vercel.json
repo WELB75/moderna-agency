@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/ical/sync",
-      "schedule": "0 5 * * *"
+      "schedule": "*/15 * * * *"
     },
     {
       "path": "/api/staff-requests/sweep",
