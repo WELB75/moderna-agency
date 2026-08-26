@@ -214,3 +214,20 @@ export async function updateVillaIcalUrl(formData: FormData) {
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
+
+// Liens iCal natifs Airbnb/Booking.com (gratuits, sans channel manager) — voir runDirectPlatformSync.
+export async function updateVillaDirectIcalUrls(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const airbnbIcalUrl = String(formData.get("airbnbIcalUrl") ?? "").trim();
+  const bookingIcalUrl = String(formData.get("bookingIcalUrl") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ airbnbIcalUrl: airbnbIcalUrl || null, bookingIcalUrl: bookingIcalUrl || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  revalidatePath("/villas");
+  revalidatePath(`/villas/${villaId}`);
+}

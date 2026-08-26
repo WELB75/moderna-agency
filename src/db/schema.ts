@@ -151,6 +151,11 @@ export const villas = pgTable(
     portailAuteurs: jsonb("portail_auteurs").$type<string[]>().default([]),
     lienProprietaireToken: uuid("lien_proprietaire_token").defaultRandom().notNull(), // token du lien public /p/[token] consulté par le propriétaire
     icalUrl: text("ical_url"), // lien iCal Superhote pour synchroniser les réservations de cette villa
+    // Liens iCal natifs Airbnb/Booking.com (fournis gratuitement par chaque plateforme depuis les
+    // paramètres de synchronisation de l'annonce), pour se passer de tout channel manager — Kamel,
+    // 2026-08-26 : "je veux sortir de super hote définitivement".
+    airbnbIcalUrl: text("airbnb_ical_url"),
+    bookingIcalUrl: text("booking_ical_url"),
     // Renseignés uniquement une fois la villa migrée vers Beds24 (remplacement progressif de
     // Superhote) : tant que beds24RoomId est vide, la villa continue de fonctionner comme
     // aujourd'hui (iCal Superhote), sans aucun effet de la synchro Beds24.

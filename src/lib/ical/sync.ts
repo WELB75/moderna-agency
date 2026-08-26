@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { villas, reservations, superhoteSyncLog, ignoredBookings } from "@/db/schema";
-import { parseIcs } from "@/lib/ical/parse";
+import { parseIcs, parseGenericIcs } from "@/lib/ical/parse";
 import { nowInMorocco } from "@/lib/now";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
@@ -175,6 +175,109 @@ export async function runIcalSync(): Promise<
       .catch(() => {});
     return { success: false, error: message };
   }
+}
+
+// Synchronisation directe avec les flux iCal natifs Airbnb/Booking.com (gratuits, fournis par
+// chaque plateforme depuis les paramètres de l'annonce) — remplace le besoin d'un channel manager
+// pour le seul objectif qui compte ici : éviter les doubles réservations. Volontairement séparée
+// de runIcalSync (format Superhote) : pas de nom/email/téléphone voyageur dans ces flux (anonymisés
+// par les deux plateformes), donc pas de logique d'enrichissement à partager.
+export async function runDirectPlatformSync(): Promise<{
+  success: true;
+  bookingsSynced: number;
+  bookingsCancelled: number;
+}> {
+  const db = getDb();
+  const now = nowInMorocco();
+  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[] = [];
+  const cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[] = [];
+  let totalSynced = 0;
+  let totalCancelled = 0;
+
+  const targets = await db
+    .select({
+      id: villas.id,
+      nom: villas.nom,
+      numero: villas.numero,
+      airbnbIcalUrl: villas.airbnbIcalUrl,
+      bookingIcalUrl: villas.bookingIcalUrl,
+    })
+    .from(villas);
+
+  for (const villa of targets) {
+    for (const plat of [
+      { key: "airbnb" as const, label: "Réservation Airbnb", canal: "Airbnb.com", url: villa.airbnbIcalUrl },
+      { key: "booking" as const, label: "Réservation Booking.com", canal: "Booking.com", url: villa.bookingIcalUrl },
+    ]) {
+      if (!plat.url) continue;
+
+      const res = await fetch(plat.url, { cache: "no-store" });
+      if (!res.ok) {
+        console.error(`Échec lecture iCal ${plat.key} pour ${villa.nom}:`, res.status);
+        continue;
+      }
+      const events = parseGenericIcs(await res.text());
+      const seenIds: string[] = [];
+
+      for (const event of events) {
+        const stableId = `${plat.key}:${event.uid}`;
+        seenIds.push(stableId);
+
+        const existing = await db
+          .select({ id: reservations.id })
+          .from(reservations)
+          .where(eq(reservations.superhoteBookingId, stableId))
+          .limit(1);
+
+        const values = {
+          villaId: villa.id,
+          superhoteBookingId: stableId,
+          guestName: plat.label,
+          checkIn: event.start,
+          checkOut: event.end,
+          canal: plat.canal,
+          status: "confirmee" as const,
+          source: plat.key,
+          rawData: { summary: event.summary },
+          updatedAt: new Date(),
+        };
+
+        if (existing.length > 0) {
+          await db
+            .update(reservations)
+            .set({ checkIn: values.checkIn, checkOut: values.checkOut, status: values.status, updatedAt: values.updatedAt })
+            .where(eq(reservations.id, existing[0].id));
+        } else {
+          const [inserted] = await db.insert(reservations).values(values).returning({ id: reservations.id });
+          newBookings.push({ villaNom: villa.nom, guestName: plat.label, checkIn: event.start, checkOut: event.end });
+          try {
+            await initiateMenageRequest(inserted.id, villa.nom, villa.numero, event.end.toISOString().slice(0, 10));
+          } catch (err) {
+            console.error("Échec initiation demande ménage (sync directe):", err);
+          }
+        }
+        totalSynced += 1;
+      }
+
+      const cancelledFilter = and(
+        eq(reservations.villaId, villa.id),
+        eq(reservations.source, plat.key),
+        eq(reservations.status, "confirmee"),
+        gte(reservations.checkOut, now),
+        ...(seenIds.length > 0 ? [notInArray(reservations.superhoteBookingId, seenIds)] : [])
+      );
+      const cancelled = await db
+        .update(reservations)
+        .set({ status: "annulee", updatedAt: new Date() })
+        .where(cancelledFilter)
+        .returning({ guestName: reservations.guestName, checkIn: reservations.checkIn });
+      totalCancelled += cancelled.length;
+      cancelled.forEach((c) => cancelledBookings.push({ villaNom: villa.nom, guestName: c.guestName, checkIn: c.checkIn }));
+    }
+  }
+
+  await notifySyncChanges(newBookings, cancelledBookings);
+  return { success: true, bookingsSynced: totalSynced, bookingsCancelled: totalCancelled };
 }
 
 async function notifySyncChanges(

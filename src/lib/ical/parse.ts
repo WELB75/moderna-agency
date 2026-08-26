@@ -114,6 +114,62 @@ function parseSuperhoteDescription(description: string): SuperhoteDescriptionInf
   return info;
 }
 
+export type GenericIcalEvent = {
+  uid: string;
+  summary: string | null;
+  start: Date;
+  end: Date;
+};
+
+// Flux iCal natifs Airbnb/Booking.com (fournis gratuitement à tout hôte, sans channel manager) :
+// contrairement à l'export Superhote, ils ne contiennent ni nom, ni email, ni téléphone du
+// voyageur (anonymisés par les deux plateformes) — juste des dates bloquées. Suffisant pour éviter
+// les doubles réservations, pas pour identifier qui vient ; on récupère l'identité du voyageur nous-
+// mêmes au moment où il nous écrit sur WhatsApp (redirection post-réservation).
+export function parseGenericIcs(raw: string): GenericIcalEvent[] {
+  const lines = unfoldLines(raw);
+  const events: GenericIcalEvent[] = [];
+
+  let current: Partial<Record<"UID" | "SUMMARY" | "DTSTART" | "DTEND", string>> | null = null;
+
+  for (const line of lines) {
+    if (line.startsWith("BEGIN:VEVENT")) {
+      current = {};
+      continue;
+    }
+    if (line.startsWith("END:VEVENT")) {
+      if (current?.DTSTART && current?.DTEND) {
+        const start = parseIcsDate(current.DTSTART);
+        const end = parseIcsDate(current.DTEND);
+        if (start && end) {
+          events.push({
+            uid: current.UID?.trim() || `${current.DTSTART}-${current.DTEND}`,
+            summary: current.SUMMARY ? unescapeIcsText(current.SUMMARY.trim()) : null,
+            start,
+            end,
+          });
+        }
+      }
+      current = null;
+      continue;
+    }
+    if (!current) continue;
+
+    const separatorIndex = line.indexOf(":");
+    if (separatorIndex === -1) continue;
+    const rawKey = line.slice(0, separatorIndex);
+    const value = line.slice(separatorIndex + 1);
+    const key = rawKey.split(";")[0].toUpperCase();
+
+    if (key === "UID") current.UID = value;
+    else if (key === "SUMMARY") current.SUMMARY = value;
+    else if (key === "DTSTART") current.DTSTART = value;
+    else if (key === "DTEND") current.DTEND = value;
+  }
+
+  return events;
+}
+
 export function parseIcs(raw: string): IcalEvent[] {
   const lines = unfoldLines(raw);
   const events: IcalEvent[] = [];

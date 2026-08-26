@@ -1,28 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, gte, ne } from "drizzle-orm";
+import { and, eq, gte, ne, notInArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { reservations } from "@/db/schema";
 
-// Export iCal des réservations Moderna Agency (source "whatsapp-ia" ou "manuel") pour qu'un
-// logement Superhote puisse les importer comme calendrier de blocage — évite les doubles
-// réservations sans passer par le tunnel de paiement Stripe qu'exige leur API create-booking
-// (confirmé par leur support le 2026-08-03, cf mémoire du projet : cet endpoint ne peut pas
-// servir à créer une réservation sans un vrai paiement carte). Volontairement exclu : les
-// réservations source="superhote" (déjà importées depuis Superhote via l'autre sens du sync,
-// villas.icalUrl) — les réexporter créerait un doublon dans leur propre calendrier.
+// Export iCal des réservations Moderna Agency pour que Superhote (legacy), Airbnb ou Booking.com
+// puissent l'importer comme calendrier de blocage — évite les doubles réservations sans passer par
+// aucun channel manager (Kamel, 2026-08-26 : "je veux sortir de super hote définitivement").
 //
-// Format confirmé par le support Superhote (2026-08-03) : à l'import, seuls DTSTART/DTEND,
-// l'UID (→ code de confirmation) et le SUMMARY (→ prénom/nom, scindé sur " - ") sont exploités
-// de façon structurée. Le DESCRIPTION, lui, est copié TEL QUEL dans le champ Notes de la
-// réservation (aucune étiquette/convention à respecter) — d'où son usage ici : les demandes
-// spécifiques du client (cuisinière, lit bébé...), pas des champs structurés qui ne seraient de
-// toute façon pas reconnus (email/téléphone/nb voyageurs restent ignorés, nb adultes est même
-// forcé à 0 côté Superhote quoi qu'on envoie).
+// Paramètre ?for=airbnb|booking : exclut la source qui reçoit l'export, pour ne jamais réexporter
+// une plateforme vers elle-même (ses propres réservations sont déjà bloquées chez elle), tout en
+// propageant bien les réservations Airbnb vers Booking.com et inversement. Sans ce paramètre
+// (usage historique Superhote), on exclut toutes les sources déjà synchronisées depuis l'extérieur.
 //
-// ⚠️ Important, à répercuter à l'équipe : la synchro iCal supprime puis recrée les réservations
-// à chaque passage. Toute note ajoutée à la main dans Superhote sur une réservation issue de cet
-// export sera donc écrasée à la synchro suivante — le DESCRIPTION de ce flux doit rester la seule
-// source de vérité pour ces réservations-là.
+// Note historique Superhote (legacy, format confirmé par leur support le 2026-08-03) : à l'import,
+// seuls DTSTART/DTEND, l'UID (→ code de confirmation) et le SUMMARY (→ prénom/nom, scindé sur
+// " - ") sont exploités de façon structurée ; le DESCRIPTION est copié tel quel dans leurs Notes.
+// Sans effet connu sur l'import Airbnb/Booking.com (ils ignorent simplement les champs non gérés).
 function toIcsDate(d: Date) {
   return d.toISOString().slice(0, 10).replace(/-/g, "");
 }
@@ -49,6 +42,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
   const { villaId } = await params;
   const db = getDb();
 
+  const forPlatform = req.nextUrl.searchParams.get("for");
+  const excludedSources =
+    forPlatform === "airbnb" || forPlatform === "booking" ? ["superhote", forPlatform] : ["superhote", "airbnb", "booking"];
+
   const rows = await db
     .select({
       id: reservations.id,
@@ -62,7 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
       and(
         eq(reservations.villaId, villaId),
         ne(reservations.status, "annulee"),
-        ne(reservations.source, "superhote"),
+        notInArray(reservations.source, excludedSources),
         gte(reservations.checkOut, new Date())
       )
     )

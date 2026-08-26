@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
+import { CreatePaymentLinkDialog } from "@/components/app/create-payment-link-dialog";
 import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
@@ -39,7 +40,7 @@ import {
 import { VillaProprietaire } from "@/components/app/villa-proprietaire";
 import { ContactsSection } from "@/components/app/contacts-section";
 import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-button";
-import { VillaIcalUrl } from "@/components/app/villa-ical-url";
+import { VillaIcalUrl, VillaDirectIcalUrls } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
@@ -80,6 +81,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       portailAuteurs: villas.portailAuteurs,
       lienProprietaireToken: villas.lienProprietaireToken,
       icalUrl: villas.icalUrl,
+      airbnbIcalUrl: villas.airbnbIcalUrl,
+      bookingIcalUrl: villas.bookingIcalUrl,
       superhoteListingId: villas.superhoteListingId,
       domaineId: villas.domaineId,
       domaineNom: domaines.nom,
@@ -305,6 +308,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
 
       <VillaIcalUrl villaId={villa.id} icalUrl={villa.icalUrl} />
 
+      <VillaDirectIcalUrls villaId={villa.id} airbnbIcalUrl={villa.airbnbIcalUrl} bookingIcalUrl={villa.bookingIcalUrl} />
+
       <VillaPhotoUploader villaId={villa.id} photoUrl={villa.photoUrl} />
 
       {villa.description ? (
@@ -353,7 +358,10 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Réservations</CardTitle>
-          <AddReservationDialog villaId={villa.id} />
+          <div className="flex gap-1.5">
+            <CreatePaymentLinkDialog villaId={villa.id} />
+            <AddReservationDialog villaId={villa.id} />
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {upcomingReservations.length === 0 ? (

@@ -5,6 +5,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/ical/sync-direct",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/staff-requests/sweep",
       "schedule": "0 6 * * *"
     },
