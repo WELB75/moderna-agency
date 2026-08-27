@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { navItems } from "@/components/app/nav-items";
+import { navItems, isNavItemActive } from "@/components/app/nav-items";
 import {
   Sheet,
   SheetContent,
@@ -17,13 +17,12 @@ const PRIMARY_COUNT = 4;
 
 export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
 
   const primaryItems = navItems.slice(0, PRIMARY_COUNT);
   const overflowItems = navItems.slice(PRIMARY_COUNT);
-  const isOverflowActive = overflowItems.some(
-    (item) => pathname === item.href || pathname.startsWith(item.href + "/")
-  );
+  const isOverflowActive = overflowItems.some((item) => isNavItemActive(pathname, searchParams, item.href));
   const overflowHasUnread = unreadChatCount > 0 && overflowItems.some((item) => item.href === "/chat");
 
   return (
@@ -34,7 +33,7 @@ export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number })
       >
         <ul className="flex items-stretch justify-around">
           {primaryItems.map((item) => {
-            const active = pathname === item.href || pathname.startsWith(item.href + "/");
+            const active = isNavItemActive(pathname, searchParams, item.href);
             const Icon = item.icon;
             const badgeCount = item.href === "/chat" ? unreadChatCount : 0;
             return (
@@ -94,7 +93,7 @@ export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number })
             style={{ paddingBottom: "max(env(safe-area-inset-bottom), 1.5rem)" }}
           >
             {overflowItems.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(item.href + "/");
+              const active = isNavItemActive(pathname, searchParams, item.href);
               const Icon = item.icon;
               const badgeCount = item.href === "/chat" ? unreadChatCount : 0;
               return (

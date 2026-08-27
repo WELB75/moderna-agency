@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { navItems } from "@/components/app/nav-items";
+import { navItems, isNavItemActive } from "@/components/app/nav-items";
 import { Logo } from "@/components/app/logo";
 
 // Verre dépoli clair, cohérent avec le reste de l'app (Card, ReservationRowCard) — jamais de
@@ -12,6 +12,7 @@ import { Logo } from "@/components/app/logo";
 // vraiment un truc liquid glass, donc continuité partout".
 export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <aside className="hidden w-64 shrink-0 flex-col bg-white/45 text-foreground shadow-[8px_0_30px_rgba(0,0,0,0.06)] ring-1 ring-white/60 backdrop-blur-2xl backdrop-saturate-150 md:flex print:hidden dark:bg-white/8 dark:ring-white/10">
@@ -22,7 +23,7 @@ export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(item.href + "/");
+          const active = isNavItemActive(pathname, searchParams, item.href);
           const Icon = item.icon;
           const badgeCount = item.href === "/chat" ? unreadChatCount : 0;
           return (
