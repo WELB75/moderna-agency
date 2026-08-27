@@ -2,7 +2,7 @@ import { and, eq, isNotNull, gte, notInArray } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, superhoteSyncLog, ignoredBookings } from "@/db/schema";
+import { villas, reservations, superhoteSyncLog, ignoredBookings, staffAssignmentRequests } from "@/db/schema";
 import { parseIcs, parseGenericIcs } from "@/lib/ical/parse";
 import { nowInMorocco } from "@/lib/now";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
@@ -218,6 +218,13 @@ export async function runDirectPlatformSync(): Promise<{
       }
       const events = parseGenericIcs(await res.text());
       const seenIds: string[] = [];
+      // Une modification de réservation (ex. arrivée décalée d'un jour) fait qu'Airbnb/Booking.com
+      // régénère un nouvel UID pour le même séjour : notre sync le lit comme "annulée + nouvelle",
+      // ce qui perdrait sinon une éventuelle confirmation ménage/cuisine déjà obtenue. On relie les
+      // deux via le départ (rarement modifié), voir report ci-dessous après la réconciliation.
+      // Kamel, 2026-08-27 : découvert quand Nouhaila avait confirmé sur la réservation devenue
+      // "annulée", pendant que la nouvelle continuait à solliciter du monde.
+      const insertedByCheckout = new Map<string, string>();
 
       for (const event of events) {
         const stableId = `${plat.key}:${event.uid}`;
@@ -249,6 +256,7 @@ export async function runDirectPlatformSync(): Promise<{
             .where(eq(reservations.id, existing[0].id));
         } else {
           const [inserted] = await db.insert(reservations).values(values).returning({ id: reservations.id });
+          insertedByCheckout.set(event.end.toISOString().slice(0, 10), inserted.id);
           newBookings.push({ villaNom: villa.nom, guestName: plat.label, checkIn: event.start, checkOut: event.end });
           try {
             await initiateMenageRequest(inserted.id, villa.nom, villa.numero, event.end.toISOString().slice(0, 10));
@@ -270,9 +278,28 @@ export async function runDirectPlatformSync(): Promise<{
         .update(reservations)
         .set({ status: "annulee", updatedAt: new Date() })
         .where(cancelledFilter)
-        .returning({ guestName: reservations.guestName, checkIn: reservations.checkIn });
+        .returning({ id: reservations.id, guestName: reservations.guestName, checkIn: reservations.checkIn, checkOut: reservations.checkOut });
       totalCancelled += cancelled.length;
       cancelled.forEach((c) => cancelledBookings.push({ villaNom: villa.nom, guestName: c.guestName, checkIn: c.checkIn }));
+
+      for (const c of cancelled) {
+        const replacementId = insertedByCheckout.get(c.checkOut.toISOString().slice(0, 10));
+        if (!replacementId) continue;
+        const confirmedRequests = await db
+          .select({ role: staffAssignmentRequests.role, personnelConfirmeId: staffAssignmentRequests.personnelConfirmeId })
+          .from(staffAssignmentRequests)
+          .where(and(eq(staffAssignmentRequests.reservationId, c.id), eq(staffAssignmentRequests.statut, "confirme")));
+        for (const req of confirmedRequests) {
+          if (!req.personnelConfirmeId) continue;
+          await db
+            .insert(staffAssignmentRequests)
+            .values({ reservationId: replacementId, role: req.role, statut: "confirme", personnelConfirmeId: req.personnelConfirmeId })
+            .onConflictDoUpdate({
+              target: [staffAssignmentRequests.reservationId, staffAssignmentRequests.role],
+              set: { statut: "confirme", personnelConfirmeId: req.personnelConfirmeId, updatedAt: new Date() },
+            });
+        }
+      }
     }
   }
 
