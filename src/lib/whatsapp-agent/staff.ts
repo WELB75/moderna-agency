@@ -286,7 +286,14 @@ async function findAvailableCandidates(
 // main dans Personnel) ou qu'une demande est déjà en cours/traitée pour ce couple
 // réservation+rôle, ne fait rien (permet d'appeler cette fonction depuis plusieurs points
 // d'entrée — création manuelle, sync iCal, agent WhatsApp — sans risquer un double envoi).
+// Pause complète des sollicitations WhatsApp au personnel (ménage/cuisine) — Kamel, 2026-08-27 :
+// "y'a de plus envoyer de messages pour l'instant aux femmes de ménage... on va tout
+// reconfigurer de zéro". Coupe la source (nouvelles offres + cascades), pas les réponses aux
+// messages déjà reçus. À retirer une fois le système reconfiguré.
+const STAFF_MESSAGING_PAUSED = true;
+
 export async function initiateStaffRequest(reservationId: string, job: Job) {
+  if (STAFF_MESSAGING_PAUSED) return;
   const db = getDb();
 
   const dejaAffecte = await db
@@ -537,6 +544,7 @@ async function broadcastNewBatch(
   villaNumero: string | null,
   extraHistoriqueEntries: HistoriqueEntry[]
 ): Promise<void> {
+  if (STAFF_MESSAGING_PAUSED) return;
   const db = getDb();
   const excludeIds = request.candidatsEssayes as string[];
   const job = buildJobFromRequest(request, villaNom, villaNumero);
@@ -589,6 +597,7 @@ async function broadcastNewBatch(
 // (trafic fréquent en pratique) et par un cron quotidien de secours pour les périodes creuses
 // (voir /api/staff-requests/sweep).
 export async function cascadeStaleRequests(): Promise<void> {
+  if (STAFF_MESSAGING_PAUSED) return;
   const stale = await findStaleRequests();
   for (const request of stale) {
     const db = getDb();

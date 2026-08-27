@@ -20,6 +20,12 @@ import { setInterventionEtapePublic } from "@/lib/actions/interventions";
 
 const client = new Anthropic();
 
+// Pause complète des sollicitations WhatsApp aux techniciens — Kamel, 2026-08-27 : "y'a de plus
+// envoyer de messages pour l'instant... au Technicien... on va tout reconfigurer de zéro". Coupe
+// la source (nouveau dispatch + relances), pas les réponses aux conversations déjà en cours. Voir
+// la même pause côté ménage/cuisine dans whatsapp-agent/staff.ts. À retirer une fois reconfiguré.
+const TECHNICIAN_MESSAGING_PAUSED = true;
+
 function mimeTypeToClaudeMedia(mimeType: string): "image/jpeg" | "image/png" | "image/gif" | "image/webp" {
   if (mimeType === "image/png" || mimeType === "image/gif" || mimeType === "image/webp") return mimeType;
   return "image/jpeg";
@@ -278,6 +284,7 @@ const OPENING_TEMPLATE_LANG = "ar";
 // interventions.ts) dès qu'un problème décrit + une photo sont présents et qu'aucune conversation
 // n'existe déjà pour cette intervention (idempotent, même garde que initiateStaffRequest).
 export async function initiateMaintenanceRequest(interventionId: string): Promise<void> {
+  if (TECHNICIAN_MESSAGING_PAUSED) return;
   const db = getDb();
 
   const [already] = await db
@@ -604,6 +611,7 @@ const STALE_TIMEOUT_MS = 90 * 60 * 1000;
 // informé en continu (il n'en recevait pas assez tôt sur les dispatches manuels — voir
 // notifyTechnicianAssignment, un chemin différent qui ne passe pas par cette conversation IA).
 export async function relanceStaleMaintenanceConversations(): Promise<void> {
+  if (TECHNICIAN_MESSAGING_PAUSED) return;
   const db = getDb();
   const cutoff = new Date(Date.now() - STALE_TIMEOUT_MS);
 
