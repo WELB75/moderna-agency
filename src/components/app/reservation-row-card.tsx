@@ -92,6 +92,9 @@ export type ReservationRow = {
 // deux cas le numéro en pastille pour rester le repère principal (c'est lui qu'on cherche sur le
 // terrain, pas le nom). Sans photo, le cercle porte directement le numéro en grand plutôt qu'une
 // icône générique, qui n'apprendrait rien.
+//
+// 64px et non 40 — Kamel, 2026-08-28 : "augmente la taille de ces cercles avec image je veux que
+// ça se voit". Le fichier demandé fait le double (128px) pour rester net sur écran Retina.
 function VillaVignette({
   photoUrl,
   numero,
@@ -110,17 +113,17 @@ function VillaVignette({
         <Image
           src={photoUrl}
           alt={label}
-          width={40}
-          height={40}
-          className="h-10 w-10 rounded-full border border-border object-cover"
+          width={128}
+          height={128}
+          className="h-16 w-16 rounded-full border border-border object-cover shadow-sm"
         />
       ) : (
-        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted text-sm font-bold">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full border border-border bg-muted text-xl font-bold">
           {numero ?? (type === "appartement" ? "A" : "V")}
         </span>
       )}
       {photoUrl && numero ? (
-        <span className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-foreground px-1 text-[10px] font-bold text-background">
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-6 min-w-6 items-center justify-center rounded-full border-2 border-background bg-foreground px-1.5 text-xs font-bold text-background">
           {numero}
         </span>
       ) : null}
