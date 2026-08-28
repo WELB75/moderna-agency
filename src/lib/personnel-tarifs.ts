@@ -1,4 +1,5 @@
-import { differenceInCalendarDays } from "date-fns";
+import { differenceInCalendarDays, startOfDay } from "date-fns";
+import { nowInMorocco } from "@/lib/now";
 
 // L'exemption "payé par le propriétaire" est propre à certaines personnes précises pour une
 // villa donnée (ex. Khaoula pour la Villa Sofya, Aisha pour la Villa Wimiliim), pas à toute la
@@ -29,14 +30,27 @@ export function montantMenageDu(faitAt: Date | null, nbJours: number | null = nu
 
 // La cuisine est due au check-out du client (son séjour, donc son besoin de cuisine, est
 // terminé) — pas avant, même si elle a été affectée à l'avance.
+//
+// Exception, Kamel 2026-08-28 : "khadija a fait qu'un jour donc je l'ai deja payer" — quand
+// plusieurs personnes se partagent les jours d'une même réservation (voir
+// planning-jours-affectation.ts), celle qui a fini SA part n'a pas à attendre que le CLIENT
+// parte pour être payée : `finTravaillePersonneSiPartagee` (sa propre date de fin, seulement
+// quand elle partage avec quelqu'un d'autre) débloque le paiement dès que cette date est
+// atteinte, indépendamment du check-out du séjour. Le cas normal (une seule personne sur toute
+// la mission) n'est pas concerné : il continue d'exiger le check-out validé, comme avant.
 export function montantCuisineDu(
   nbJours: number | null,
   checkIn: Date,
   checkOut: Date,
   checkoutValideAt: Date | null,
-  avecDejeuner: boolean
+  avecDejeuner: boolean,
+  finTravaillePersonneSiPartagee: Date | null = null,
+  now: Date = nowInMorocco()
 ): number {
-  if (!checkoutValideAt) return 0;
+  const dejaTermine =
+    checkoutValideAt !== null ||
+    (finTravaillePersonneSiPartagee !== null && startOfDay(finTravaillePersonneSiPartagee) <= startOfDay(now));
+  if (!dejaTermine) return 0;
   const jours = nbJours ?? Math.max(1, differenceInCalendarDays(checkOut, checkIn));
   const tarifJour = avecDejeuner ? TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER : TARIF_CUISINE_PETIT_DEJEUNER;
   return jours * tarifJour;

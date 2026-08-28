@@ -6,6 +6,8 @@ import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, cashEntries, reservations, villas } from "@/db/schema";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
+import { finTravailleSiPartagee } from "@/lib/planning-jours-affectation";
+import { nowInMorocco } from "@/lib/now";
 
 export async function createPersonnel(formData: FormData) {
   await auth.protect();
@@ -208,10 +210,32 @@ export async function markAffectationPaidSolo(affectationId: string): Promise<{ 
     .limit(1);
   if (!r) return { ok: false, message: "Réservation introuvable." };
 
-  const montant =
-    p.role === "menage"
-      ? montantMenageDu(a.faitAt, a.nbJours)
-      : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
+  let montant: number;
+  if (p.role === "menage") {
+    montant = montantMenageDu(a.faitAt, a.nbJours);
+  } else {
+    // Sa propre date de fin SI elle partage les jours de cette réservation avec quelqu'un
+    // d'autre (voir montantCuisineDu) — permet de la payer dès sa part terminée, sans attendre
+    // le check-out de tout le séjour. Kamel, 2026-08-28 : "khadija a fait qu'un jour donc je
+    // l'ai deja payer".
+    const memeGroupe = (
+      await db
+        .select({ id: personnelAffectations.id, personnelId: personnelAffectations.personnelId, moment: personnelAffectations.moment, nbJours: personnelAffectations.nbJours, createdAt: personnelAffectations.createdAt })
+        .from(personnelAffectations)
+        .where(eq(personnelAffectations.reservationId, a.reservationId))
+    ).filter((s) => s.moment === a.moment);
+    const memeGroupePersonnelIds = [...new Set(memeGroupe.map((s) => s.personnelId))];
+    const memeGroupePersonnel =
+      memeGroupePersonnelIds.length > 0
+        ? await db.select({ id: personnel.id, role: personnel.role }).from(personnel).where(inArray(personnel.id, memeGroupePersonnelIds))
+        : [];
+    const roleParPersonnelId = new Map(memeGroupePersonnel.map((mp) => [mp.id, mp.role]));
+    const memeGroupeCuisine = memeGroupe
+      .filter((s) => (roleParPersonnelId.get(s.personnelId) ?? "menage") === "cuisine")
+      .map((s) => ({ id: s.id, reservationId: a.reservationId, role: "cuisine" as const, moment: s.moment, nbJours: s.nbJours, createdAt: s.createdAt }));
+    const finTravaillePersonne = finTravailleSiPartagee(memeGroupeCuisine, a.id, new Date(r.checkIn), new Date(r.checkOut));
+    montant = montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner, finTravaillePersonne, nowInMorocco());
+  }
   if (montant <= 0) {
     return { ok: false, message: "Rien à payer pour l'instant (check-out pas encore validé, ou ménage pas confirmé fait)." };
   }

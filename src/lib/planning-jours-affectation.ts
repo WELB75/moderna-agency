@@ -52,6 +52,21 @@ export function plagesJoursParAffectation(
   return plages;
 }
 
+// Sa propre date de fin de travail SI elle partage les jours de cette mission avec quelqu'un
+// d'autre (sinon null — le cas normal n'est pas concerné, voir montantCuisineDu dans
+// personnel-tarifs.ts). `memeGroupe` doit déjà être filtré sur la même réservation + rôle +
+// moment (y compris l'affectation elle-même).
+export function finTravailleSiPartagee(
+  memeGroupe: AffectationPourPlage[],
+  affectationId: string,
+  checkIn: Date,
+  checkOut: Date
+): Date | null {
+  if (memeGroupe.length <= 1) return null;
+  const plages = plagesJoursParAffectation(memeGroupe, checkIn, checkOut);
+  return plages.get(affectationId)?.fin ?? null;
+}
+
 // Regroupe par (reservationId, role, moment) — même granularité que l'index unique
 // personnel_affectations_unique_idx — et calcule la plage de chacune en une passe, pour appeler
 // une seule fois par réservation plutôt que de re-trier à chaque jour de la semaine affichée.
