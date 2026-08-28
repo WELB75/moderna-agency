@@ -85,7 +85,11 @@ export function AddPlanningEntryDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button type="button" size="sm" className="gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          className="gap-1.5 rounded-full bg-orange-600 text-white shadow-[0_1px_2px_rgba(0,0,0,0.06)] hover:bg-orange-500"
+        >
           <Plus className="h-4 w-4" />
           Ajouter
         </Button>

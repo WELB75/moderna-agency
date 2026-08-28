@@ -1,5 +1,4 @@
 import { MessageCircle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toWhatsAppUrl } from "@/lib/phone";
 import { matchesSearch } from "@/lib/text-match";
 import { cn } from "@/lib/utils";
@@ -20,6 +19,10 @@ type StaffMerged = {
   occupeAujourdhui: boolean;
 };
 
+function initiale(nom: string): string {
+  return nom.trim().charAt(0).toUpperCase() || "?";
+}
+
 // Panneau "qui est libre, comment la joindre" sous le planning du lien public — Kamel,
 // 2026-08-08 : "en un seul clic qu'on a le WhatsApp on peut la contacter". Le badge
 // libre/occupée reflète uniquement aujourd'hui — quelqu'un d'occupé aujourd'hui reste contactable
@@ -32,8 +35,12 @@ type StaffMerged = {
 // Kamel, 2026-08-10 (le patron) : "en bas les contact whatsapp fais un seul bloc avec les badges
 // [...] comme ca on voit pas deux fois les memes prenoms" — une personne qui fait les deux
 // métiers a 2 fiches personnel distinctes en base (une par rôle, voir personnel.role dans
-// db/schema.ts), donc regroupé ici par nom en une seule pastille par personne, avec un badge M
-// et/ou C selon ses rôles (même langage visuel que la grille du planning ci-dessus).
+// db/schema.ts), donc regroupé ici par nom en une seule pastille par personne.
+//
+// Refonte 2026-08-28 (identité visuelle) : carte plate remplacée par des "fiches contact" avec
+// avatar à initiale — même langage visuel que les lignes du planning ci-dessus (voir
+// public-planning-grid.tsx). Ne réutilise plus le composant Card partagé, câblé sur --radius:0
+// pour rester cohérent avec le reste de l'app.
 export function PublicStaffAvailability({ staff, query = "" }: { staff: StaffAvailability[]; query?: string }) {
   const parNom = new Map<string, StaffMerged>();
   for (const s of staff) {
@@ -56,57 +63,57 @@ export function PublicStaffAvailability({ staff, query = "" }: { staff: StaffAva
   const filtrees = query ? personnes.filter((p) => matchesSearch(p.nom, query)) : personnes;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">Personnel</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {filtrees.length === 0 ? (
-          <p className="text-xs text-muted-foreground">
-            {query ? "Aucun résultat." : "Personne d'actif pour l'instant."}
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {filtrees.map((p) => (
-              <div
-                key={p.id}
-                className="flex shrink-0 items-center gap-1.5 rounded-full border bg-muted/30 py-1 pl-1.5 pr-1 text-xs"
-              >
-                {p.roles.has("menage") ? (
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">
-                    M
-                  </span>
-                ) : null}
-                {p.roles.has("cuisine") ? (
-                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">
-                    C
-                  </span>
-                ) : null}
+    <div className="rounded-[20px] bg-white p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.04] sm:p-4 dark:bg-white/[0.03] dark:ring-white/[0.06]">
+      {filtrees.length === 0 ? (
+        <p className="text-xs text-muted-foreground">{query ? "Aucun résultat." : "Personne d'actif pour l'instant."}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {filtrees.map((p) => (
+            <div
+              key={p.id}
+              className="flex shrink-0 items-center gap-2 rounded-full bg-black/[0.025] py-1 pl-1 pr-2.5 dark:bg-white/[0.04]"
+            >
+              <div className="relative shrink-0">
+                <div
+                  className={cn(
+                    "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold",
+                    p.roles.has("menage") && !p.roles.has("cuisine") && "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300",
+                    p.roles.has("cuisine") && !p.roles.has("menage") && "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+                    p.roles.has("menage") && p.roles.has("cuisine") && "bg-gradient-to-br from-orange-100 to-violet-100 text-foreground dark:from-orange-500/15 dark:to-violet-500/15"
+                  )}
+                >
+                  {initiale(p.nom)}
+                </div>
                 <span
-                  className={cn("h-1.5 w-1.5 shrink-0 rounded-full", p.occupeAujourdhui ? "bg-red-500" : "bg-green-500")}
+                  className={cn(
+                    "absolute -bottom-1 -right-1 h-2.5 w-2.5 rounded-full ring-2 ring-white dark:ring-[#1e1e1e]",
+                    p.occupeAujourdhui ? "bg-red-500" : "bg-emerald-500"
+                  )}
                   aria-hidden
                 />
-                <span className="font-medium">{p.nom}</span>
-                <span className={cn("text-[10px]", p.occupeAujourdhui ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400")}>
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-xs font-semibold">{p.nom}</span>
+                <span className={cn("text-[10px] font-medium", p.occupeAujourdhui ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
                   {p.occupeAujourdhui ? "Occupée" : "Libre"}
                 </span>
-                {p.telephone ? (
-                  <a
-                    href={toWhatsAppUrl(p.telephone)}
-                    target="_blank"
-                    rel="noreferrer"
-                    title={p.telephone}
-                    aria-label={`WhatsApp ${p.nom}`}
-                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400"
-                  >
-                    <MessageCircle className="h-3 w-3" />
-                  </a>
-                ) : null}
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              {p.telephone ? (
+                <a
+                  href={toWhatsAppUrl(p.telephone)}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={p.telephone}
+                  aria-label={`WhatsApp ${p.nom}`}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

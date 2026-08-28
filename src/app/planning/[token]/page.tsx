@@ -137,51 +137,57 @@ export default async function PublicPlanningPage({
   }));
 
   return (
-    <div className="mx-auto min-h-screen w-full min-w-0 max-w-5xl space-y-6 overflow-x-hidden p-4 sm:p-8">
-      <div className="flex flex-col items-center gap-2 pb-2 text-center">
-        <Logo size={48} />
-        <h1 className="text-lg font-semibold tracking-tight">Planning équipe — Ménage &amp; cuisine</h1>
-        <p className="text-xs text-muted-foreground">Domaine Moderna II · Domaine Zaraba · Noria</p>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
-          <Link
-            href={planningHref(token, subWeeks(debutSemaine, 1))}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Semaine précédente"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Link>
-          <p className="min-w-48 px-1.5 text-center text-sm font-medium capitalize">
-            {format(debutSemaine, "d MMM", { locale: fr })} → {format(finSemaine, "d MMM yyyy", { locale: fr })}
-          </p>
-          <Link
-            href={planningHref(token, addWeeks(debutSemaine, 1))}
-            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Semaine suivante"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+    // Identité visuelle propre à ce lien public (vu par le personnel), volontairement différente
+    // du reste de l'app strictement monochrome/plate — voir le commentaire de refonte 2026-08-28
+    // en tête de public-planning-grid.tsx. Fond chaleureux plutôt que le --background gris neutre
+    // partagé, appliqué seulement ici (cette page n'a pas de layout/sidebar partagé).
+    <div className="min-h-screen w-full min-w-0 overflow-x-hidden bg-[#FBF7F1] dark:bg-[#17130f]">
+      <div className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-8">
+        <div className="flex flex-col items-center gap-2 pb-2 text-center">
+          <Logo size={48} />
+          <h1 className="text-lg font-semibold tracking-tight">Planning équipe — Ménage &amp; cuisine</h1>
+          <p className="text-xs text-muted-foreground">Domaine Moderna II · Domaine Zaraba · Noria</p>
         </div>
-        {!isSameDay(debutSemaine, startOfWeek(now, { weekStartsOn: 1 })) ? (
-          <Link href={`/planning/${token}`} className="text-sm text-primary underline-offset-4 hover:underline">
-            Cette semaine
-          </Link>
-        ) : null}
+
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <div className="inline-flex items-center rounded-full bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.04] dark:bg-white/[0.04] dark:ring-white/[0.06]">
+            <Link
+              href={planningHref(token, subWeeks(debutSemaine, 1))}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
+              aria-label="Semaine précédente"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+            <p className="min-w-48 px-1.5 text-center text-sm font-medium capitalize">
+              {format(debutSemaine, "d MMM", { locale: fr })} → {format(finSemaine, "d MMM yyyy", { locale: fr })}
+            </p>
+            <Link
+              href={planningHref(token, addWeeks(debutSemaine, 1))}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
+              aria-label="Semaine suivante"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
+          {!isSameDay(debutSemaine, startOfWeek(now, { weekStartsOn: 1 })) ? (
+            <Link href={`/planning/${token}`} className="text-sm font-medium text-orange-600 underline-offset-4 hover:underline dark:text-orange-400">
+              Cette semaine
+            </Link>
+          ) : null}
+        </div>
+
+        <PublicPlanningGrid
+          jours={joursOrdonnes.map((date) => ({ date, entries: planningPourJour(date) }))}
+          now={now}
+          token={token}
+          menageOptions={menageOptions}
+          cuisineOptions={cuisineOptions}
+          reservationOptions={reservationOptions}
+          staff={staffAvailability}
+        />
+
+        <p className="pt-4 text-center text-xs text-muted-foreground">Lien de planning Moderna Agency — à ne partager qu&apos;en interne.</p>
       </div>
-
-      <PublicPlanningGrid
-        jours={joursOrdonnes.map((date) => ({ date, entries: planningPourJour(date) }))}
-        now={now}
-        token={token}
-        menageOptions={menageOptions}
-        cuisineOptions={cuisineOptions}
-        reservationOptions={reservationOptions}
-        staff={staffAvailability}
-      />
-
-      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de planning Moderna Agency — à ne partager qu&apos;en interne.</p>
     </div>
   );
 }

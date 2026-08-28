@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { Select as SelectPrimitive } from "radix-ui";
 import { Search, X, Loader2, ChevronDown, MessageCircle, Check } from "lucide-react";
 import { SelectContent, SelectItem } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import {
   reassignPlanningAffectation,
   removePlanningAffectation,
@@ -43,25 +42,24 @@ type JourPlanning = { date: Date; entries: PublicPlanningEntry[] };
 type Option = { id: string; nom: string };
 
 // Grille éditable du lien public /planning/[token]. Historique des demandes qui ont façonné
-// cette page (toutes conservées dans la refonte ci-dessous) :
+// cette page (toutes conservées dans les refontes ci-dessous) :
 // - "je veux tout sur une ligne chaque jour [...] on a même pas à descendre" : toute la semaine
 //   reste visible en une seule colonne verticale, sans navigation jour par jour ni clic pour
-//   dérouler — chaque jour est juste une carte qu'on scanne du regard.
-// - "deux badges avec couleurs distinctes M (Ménage) et C (Cuisine)" : conservé, seule touche de
-//   couleur dans une app par ailleurs strictement monochrome (voir globals.css).
-// - "je tape un prénom [...] même les appart" : recherche multi-champs conservée (nom, villa,
-//   appart, client), avec le même champ que le panneau Personnel disponible.
+//   dérouler.
+// - "deux badges avec couleurs distinctes M (Ménage) et C (Cuisine)" : conservé.
+// - "je tape un prénom [...] même les appart" : recherche multi-champs conservée.
 // - "en un seul clic qu'on a le WhatsApp" : conservé.
 //
-// Refonte 2026-08-28 : chaque mission était une pastille compacte où tout (badge, nom modifiable,
-// villa/client, détail, confirmation, retrait) devait tenir sur une ligne qui repliait n'importe
-// comment sur mobile — trop dense pour scanner vite. Remplacé par une ligne en grille stable
-// (badge · contenu · actions) : le nom est toujours la première chose lue, le détail villa/client
-// passe en dessous en plus petit, et les actions (WhatsApp, confirmer, retirer) sont groupées à
-// droite avec des cibles tactiles réelles au lieu d'icônes de 16px. Le clic sur une date qui ne
-// faisait plus rien (l'ancien résumé du jour a été supprimé le 2026-08-10, mais le clic était
-// resté, avec un titre "Voir le résumé de ce jour" mensonger) est retiré : seul "aujourd'hui"
-// reste mis en valeur, de façon permanente et explicite (badge), pas au clic.
+// Refonte 2026-08-28 (structure) : pastille à une seule ligne remplacée par une ligne en grille
+// stable (badge · contenu sur 2 lignes · actions) pour ne plus dépendre d'un repli imprévisible.
+//
+// Refonte 2026-08-28 (identité visuelle) — Kamel : "trop complexe [...] design et logique adapté
+// [...] nouvelle identité pour cette page" — cette page est vue par le personnel (pas seulement
+// par l'admin), contrairement au reste de l'app qui garde volontairement une charte plate et
+// stricte monochrome (voir globals.css). Ici seulement : fond crème chaleureux, cartes arrondies
+// avec un léger relief, avatars à initiales colorées par métier. Les rayons utilisent des valeurs
+// arbitraires (rounded-[..px]) plutôt que l'échelle rounded-lg/xl/2xl de l'app, qui reste câblée
+// sur --radius:0 partout ailleurs — voler cette échelle ici casserait le reste de l'app.
 export function PublicPlanningGrid({
   jours,
   now,
@@ -86,32 +84,23 @@ export function PublicPlanningGrid({
   const optionsPour = (role: "menage" | "cuisine") => (role === "menage" ? menageOptions : cuisineOptions);
 
   return (
-    <div className="min-w-0 space-y-3">
+    <div className="min-w-0 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground sm:text-sm">
-          <span className="flex items-center gap-1.5 text-foreground">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">M</span>
-            Femme de ménage
-          </span>
-          <span className="flex items-center gap-1.5 text-foreground">
-            <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">C</span>
-            Cuisinière
-          </span>
-          <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-amber-500/70 bg-amber-500/20" />
-            À confirmer pour demain
-          </span>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <LegendChip color="orange">M · Femme de ménage</LegendChip>
+          <LegendChip color="violet">C · Cuisinière</LegendChip>
+          <LegendChip color="amber">À confirmer pour demain</LegendChip>
         </div>
 
         <div className="flex items-center gap-2">
           {/* Desktop : champ toujours visible */}
           <div className="relative hidden w-full max-w-56 min-w-0 sm:block">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <input
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Chercher (nom, villa, appart...)"
-              className="w-full min-w-0 border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+              className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-orange-300 dark:border-white/[0.06] dark:bg-white/[0.04]"
             />
             {recherche ? (
               <button
@@ -130,7 +119,7 @@ export function PublicPlanningGrid({
           <div className="sm:hidden">
             {rechercheOuverte ? (
               <div className="relative w-36 min-w-0">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
                 <input
                   autoFocus
                   value={recherche}
@@ -139,7 +128,7 @@ export function PublicPlanningGrid({
                     if (!recherche) setRechercheOuverte(false);
                   }}
                   placeholder="Nom, villa..."
-                  className="w-full min-w-0 border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+                  className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-orange-300 dark:border-white/[0.06] dark:bg-white/[0.04]"
                 />
                 <button
                   type="button"
@@ -158,7 +147,7 @@ export function PublicPlanningGrid({
                 type="button"
                 onClick={() => setRechercheOuverte(true)}
                 aria-label="Chercher"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/[0.06] bg-white text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:text-foreground dark:border-white/[0.06] dark:bg-white/[0.04]"
               >
                 <Search className="h-4 w-4" />
               </button>
@@ -174,7 +163,7 @@ export function PublicPlanningGrid({
         </div>
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-3">
         {jours.map((j) => (
           <DayCard key={j.date.toISOString()} jour={j} now={now} q={q} token={token} optionsPour={optionsPour} />
         ))}
@@ -185,6 +174,29 @@ export function PublicPlanningGrid({
         <PublicStaffAvailability staff={staff} query={q} />
       </div>
     </div>
+  );
+}
+
+function LegendChip({ color, children }: { color: "orange" | "violet" | "amber"; children: React.ReactNode }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        color === "orange" && "bg-orange-500/10 text-orange-700 dark:text-orange-300",
+        color === "violet" && "bg-violet-500/10 text-violet-700 dark:text-violet-300",
+        color === "amber" && "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+      )}
+    >
+      <span
+        className={cn(
+          "h-1.5 w-1.5 shrink-0 rounded-full",
+          color === "orange" && "bg-orange-500",
+          color === "violet" && "bg-violet-500",
+          color === "amber" && "bg-amber-500"
+        )}
+      />
+      {children}
+    </span>
   );
 }
 
@@ -221,14 +233,33 @@ function DayCard({
   return (
     <div
       className={cn(
-        "min-w-0 rounded-lg border p-2.5 sm:p-3",
-        estAujourdhui && "border-foreground/50 bg-muted/25"
+        "min-w-0 rounded-[20px] p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] sm:p-4",
+        estAujourdhui
+          ? "bg-gradient-to-br from-orange-50 to-amber-50 ring-1 ring-orange-200 dark:from-orange-500/[0.07] dark:to-amber-500/[0.04] dark:ring-orange-400/20"
+          : "bg-white ring-1 ring-black/[0.04] dark:bg-white/[0.03] dark:ring-white/[0.06]"
       )}
     >
-      <div className="mb-2 flex items-center gap-2">
-        <p className="text-sm font-medium capitalize">{format(date, "EEEE d MMMM", { locale: fr })}</p>
-        {estAujourdhui ? <Badge>Aujourd&apos;hui</Badge> : null}
-        {!q ? <span className="ml-auto text-xs text-muted-foreground">{triees.length || ""}</span> : null}
+      <div className="mb-3 flex items-center gap-3">
+        <div
+          className={cn(
+            "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-[14px] leading-none text-white",
+            estAujourdhui
+              ? "bg-gradient-to-br from-orange-500 to-amber-500 shadow-[0_2px_8px_rgba(234,88,12,0.35)]"
+              : "bg-foreground/80 dark:bg-white/15"
+          )}
+        >
+          <span className="text-[9px] font-semibold uppercase opacity-80">{format(date, "MMM", { locale: fr })}</span>
+          <span className="text-base font-bold">{format(date, "d")}</span>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold capitalize">{format(date, "EEEE d MMMM", { locale: fr })}</p>
+          {estAujourdhui ? <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Aujourd&apos;hui</p> : null}
+        </div>
+        {!q ? (
+          <span className="ml-auto shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-white/[0.06]">
+            {triees.length}
+          </span>
+        ) : null}
       </div>
 
       {q && triees.length === 0 ? (
@@ -236,9 +267,9 @@ function DayCard({
       ) : triees.length === 0 ? (
         <p className="text-xs text-muted-foreground">Rien de prévu.</p>
       ) : (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {triees.map((e) => (
-            <MissionRow key={e.affectationId} entry={e} token={token} options={optionsPour(e.role)} jour={date} now={now} />
+            <MissionRow key={e.affectationId} entry={e} token={token} options={optionsPour(e.role)} jour={date} now={now} isToday={estAujourdhui} />
           ))}
         </div>
       )}
@@ -296,21 +327,27 @@ const OPTIONS_REPAS: { value: "non" | "oui"; label: string }[] = [
   { value: "oui", label: "P-déj + déj" },
 ];
 
-// Une mission = une ligne en grille stable (badge · contenu sur 2 lignes · actions groupées à
-// droite), au lieu d'une pastille où tout devait tenir sur une seule ligne qui repliait de façon
-// imprévisible sur mobile — voir le commentaire en tête de fichier.
+function initiale(nom: string): string {
+  return nom.trim().charAt(0).toUpperCase() || "?";
+}
+
+// Une mission = une ligne en grille stable (avatar · contenu sur 2 lignes · actions groupées à
+// droite). L'avatar (initiale + pastille de rôle en médaillon) remplace le badge M/C plat pour
+// donner un visage à chaque ligne — voir le commentaire de refonte en tête de fichier.
 function MissionRow({
   entry: e,
   token,
   options,
   jour,
   now,
+  isToday,
 }: {
   entry: PublicPlanningEntry;
   token: string;
   options: Option[];
   jour: Date;
   now: Date;
+  isToday: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   // Kamel, 2026-08-10 : "savoir aussi si par exemple celle prévue demain on valide la veille" —
@@ -318,6 +355,7 @@ function MissionRow({
   // "pas encore confirmé" est vraiment urgent.
   const estDemain = isSameDay(jour, addDays(now, 1));
   const aConfirmer = estDemain && !e.confirmeAt;
+  const ringClass = isToday ? "ring-2 ring-orange-50 dark:ring-[#241a12]" : "ring-2 ring-white dark:ring-[#1e1e1e]";
 
   function handleToggleConfirme() {
     startTransition(async () => {
@@ -380,22 +418,34 @@ function MissionRow({
   return (
     <div
       className={cn(
-        "@container/mission grid min-w-0 grid-cols-[1.25rem_1fr_auto] items-start gap-x-2 rounded-md border-l-4 bg-muted/40 py-1.5 pl-2 pr-1.5",
-        e.role === "menage" ? "border-l-orange-500" : "border-l-violet-500",
-        aConfirmer && "bg-amber-500/10"
+        "@container/mission grid min-w-0 grid-cols-[2.25rem_1fr_auto] items-start gap-x-2.5 rounded-[14px] p-2",
+        aConfirmer ? "bg-amber-500/10" : "bg-black/[0.025] dark:bg-white/[0.04]"
       )}
     >
-      <span
-        className={cn(
-          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white",
-          e.role === "menage" ? "bg-orange-500" : "bg-violet-500"
-        )}
-        title={e.role === "menage" ? "Ménage" : "Cuisine"}
-      >
-        {e.role === "menage" ? "M" : "C"}
-      </span>
+      <div className="relative shrink-0">
+        <div
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold",
+            e.role === "menage"
+              ? "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300"
+              : "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
+          )}
+        >
+          {initiale(e.personnelNom)}
+        </div>
+        <span
+          className={cn(
+            "absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold text-white",
+            ringClass,
+            e.role === "menage" ? "bg-orange-500" : "bg-violet-500"
+          )}
+          title={e.role === "menage" ? "Ménage" : "Cuisine"}
+        >
+          {e.role === "menage" ? "M" : "C"}
+        </span>
+      </div>
 
-      <div className="min-w-0 space-y-0.5 @3xl/mission:flex @3xl/mission:items-baseline @3xl/mission:gap-x-2 @3xl/mission:space-y-0">
+      <div className="min-w-0 space-y-0.5 pt-0.5 @3xl/mission:flex @3xl/mission:items-baseline @3xl/mission:gap-x-2 @3xl/mission:space-y-0">
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
           {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
           <InlineSelect
@@ -406,7 +456,7 @@ function MissionRow({
             className="font-semibold"
           />
           {aConfirmer ? (
-            <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-500/70 dark:text-amber-400">
+            <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
               À confirmer
             </span>
           ) : null}
@@ -423,7 +473,7 @@ function MissionRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div className="flex shrink-0 items-center gap-1 pt-0.5">
         {e.telephone ? (
           <a
             href={toWhatsAppUrl(e.telephone)}
@@ -431,7 +481,7 @@ function MissionRow({
             rel="noreferrer"
             title={e.telephone}
             aria-label={`WhatsApp ${e.personnelNom}`}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-background dark:text-emerald-400"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
           >
             <MessageCircle className="h-3.5 w-3.5" />
           </a>
@@ -443,8 +493,8 @@ function MissionRow({
           className={cn(
             "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
             e.confirmeAt
-              ? "text-emerald-600 hover:bg-background dark:text-emerald-400"
-              : "text-muted-foreground hover:bg-background hover:text-foreground"
+              ? "bg-emerald-500 text-white hover:bg-emerald-500/90"
+              : "text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
           )}
           aria-label={e.confirmeAt ? `Annuler la confirmation de ${e.personnelNom}` : `Confirmer ${e.personnelNom}`}
           title={e.confirmeAt ? `Confirmée le ${format(e.confirmeAt, "d MMM HH:mm", { locale: fr })}` : "Pas encore confirmée — cliquer une fois la personne contactée"}
@@ -455,7 +505,7 @@ function MissionRow({
           type="button"
           onClick={handleRemove}
           disabled={isPending}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
           aria-label={`Retirer ${e.personnelNom}`}
           title="Retirer"
         >
