@@ -168,7 +168,7 @@ export default async function PublicPlanningPage({
           <div className="inline-flex items-center rounded-full bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.04] dark:bg-white/[0.04] dark:ring-white/[0.06]">
             <Link
               href={planningHref(token, subWeeks(debutSemaine, 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
               aria-label="Semaine précédente"
             >
               <ChevronLeft className="h-4 w-4" />
@@ -178,14 +178,14 @@ export default async function PublicPlanningPage({
             </p>
             <Link
               href={planningHref(token, addWeeks(debutSemaine, 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-orange-500/10 hover:text-orange-600 dark:hover:text-orange-400"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
               aria-label="Semaine suivante"
             >
               <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
           {!isSameDay(debutSemaine, startOfWeek(now, { weekStartsOn: 1 })) ? (
-            <Link href={`/planning/${token}`} className="text-sm font-medium text-orange-600 underline-offset-4 hover:underline dark:text-orange-400">
+            <Link href={`/planning/${token}`} className="text-sm font-medium text-[#2B1F33] underline-offset-4 hover:underline dark:text-[#C0AECB]">
               Cette semaine
             </Link>
           ) : null}

@@ -18,6 +18,8 @@ import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
+import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { deleteReservation } from "@/lib/actions/reservations";
 import {
   LogIn,
   LogOut,
@@ -83,6 +85,14 @@ export type ReservationRow = {
   cashAPrevoir: number;
   clientConnu: { nom: string; telephone: string | null; notes: string | null } | null;
 };
+
+// Réservations créées par une synchro automatique de calendrier (voir ical/sync.ts et
+// beds24/sync.ts) — par opposition à celles créées à la main dans l'app ("manuel", "carte",
+// "whatsapp-ia"). Seules les premières peuvent réapparaître après suppression.
+const SOURCES_SYNCHRONISEES = new Set(["superhote", "airbnb", "booking", "beds24"]);
+function estSynchronisee(source: string): boolean {
+  return SOURCES_SYNCHRONISEES.has(source);
+}
 
 // Carte de réservation complète et interactive (ménage/cuisine, validation check-in/out,
 // documents, messages) — utilisée à la fois sur le tableau de bord (groupée par jour) et sur la
@@ -367,11 +377,29 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             </div>
           ) : null}
 
-          <EditReservationTimeDialog
-            reservationId={r.id}
-            checkIn={new Date(r.checkIn)}
-            checkOut={new Date(r.checkOut)}
-          />
+          <div className="flex flex-wrap items-center justify-between gap-1">
+            <EditReservationTimeDialog
+              reservationId={r.id}
+              checkIn={new Date(r.checkIn)}
+              checkOut={new Date(r.checkOut)}
+            />
+            {/* Supprimer un doublon directement depuis la carte — Kamel, 2026-08-28 : "possible
+                d'avoir une icone corbeille afin de supprimer certains doublons ?". Le texte de
+                confirmation prévient quand la réservation vient d'un flux iCal : la supprimer ne
+                la fait disparaître que jusqu'à la prochaine synchro (cron quotidien), qui la
+                recréera tant que le doublon est encore dans le flux — voir ical/sync.ts, qui
+                réinsère tout UID absent en base. Le vrai correctif est alors de retirer l'URL
+                iCal en double sur la fiche de la villa. */}
+            <ConfirmDeleteButton
+              action={deleteReservation.bind(null, r.id)}
+              title="Supprimer cette réservation ?"
+              description={
+                estSynchronisee(r.source)
+                  ? `Réservation importée automatiquement (${r.canal ?? r.source}). La supprimer la retire de l'app, mais la prochaine synchronisation la recréera si elle est toujours présente dans le calendrier ${r.canal ?? r.source}. Pour un vrai doublon qui revient sans cesse, retirer plutôt l'URL iCal en double sur la fiche de la villa. Le ménage/la cuisine affectés à cette réservation sont supprimés avec elle.`
+                  : "Cette réservation et le ménage/la cuisine qui lui sont affectés seront définitivement supprimés."
+              }
+            />
+          </div>
       </div>
     </div>
   );

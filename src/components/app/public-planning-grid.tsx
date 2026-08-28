@@ -100,7 +100,7 @@ export function PublicPlanningGrid({
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Chercher (nom, villa, appart...)"
-              className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-orange-300 dark:border-white/[0.06] dark:bg-white/[0.04]"
+              className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-[#2B1F33]/40 dark:border-white/[0.06] dark:bg-white/[0.04]"
             />
             {recherche ? (
               <button
@@ -128,7 +128,7 @@ export function PublicPlanningGrid({
                     if (!recherche) setRechercheOuverte(false);
                   }}
                   placeholder="Nom, villa..."
-                  className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-orange-300 dark:border-white/[0.06] dark:bg-white/[0.04]"
+                  className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-[#2B1F33]/40 dark:border-white/[0.06] dark:bg-white/[0.04]"
                 />
                 <button
                   type="button"
@@ -235,7 +235,7 @@ function DayCard({
       className={cn(
         "min-w-0 rounded-[20px] p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] sm:p-4",
         estAujourdhui
-          ? "bg-gradient-to-br from-orange-50 to-amber-50 ring-1 ring-orange-200 dark:from-orange-500/[0.07] dark:to-amber-500/[0.04] dark:ring-orange-400/20"
+          ? "bg-[#F2EEF4] ring-1 ring-[#2B1F33]/15 dark:bg-[#2B1F33]/30 dark:ring-[#C0AECB]/20"
           : "bg-white ring-1 ring-black/[0.04] dark:bg-white/[0.03] dark:ring-white/[0.06]"
       )}
     >
@@ -244,8 +244,8 @@ function DayCard({
           className={cn(
             "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-[14px] leading-none text-white",
             estAujourdhui
-              ? "bg-gradient-to-br from-orange-500 to-amber-500 shadow-[0_2px_8px_rgba(234,88,12,0.35)]"
-              : "bg-foreground/80 dark:bg-white/15"
+              ? "bg-[#2B1F33] shadow-[0_2px_8px_rgba(43,31,51,0.30)]"
+              : "bg-[#DCD3C3] text-[#2B1F33] dark:bg-white/10 dark:text-white/80"
           )}
         >
           <span className="text-[9px] font-semibold uppercase opacity-80">{format(date, "MMM", { locale: fr })}</span>
@@ -253,7 +253,7 @@ function DayCard({
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold capitalize">{format(date, "EEEE d MMMM", { locale: fr })}</p>
-          {estAujourdhui ? <p className="text-xs font-medium text-orange-600 dark:text-orange-400">Aujourd&apos;hui</p> : null}
+          {estAujourdhui ? <p className="text-xs font-medium text-[#2B1F33] dark:text-[#C0AECB]">Aujourd&apos;hui</p> : null}
         </div>
         {!q ? (
           <span className="ml-auto shrink-0 rounded-full bg-black/[0.04] px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-white/[0.06]">
@@ -355,7 +355,7 @@ function MissionRow({
   // "pas encore confirmé" est vraiment urgent.
   const estDemain = isSameDay(jour, addDays(now, 1));
   const aConfirmer = estDemain && !e.confirmeAt;
-  const ringClass = isToday ? "ring-2 ring-orange-50 dark:ring-[#241a12]" : "ring-2 ring-white dark:ring-[#1e1e1e]";
+  const ringClass = isToday ? "ring-2 ring-[#F2EEF4] dark:ring-[#241f28]" : "ring-2 ring-white dark:ring-[#1e1e1e]";
 
   function handleToggleConfirme() {
     startTransition(async () => {
