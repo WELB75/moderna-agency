@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
-import { CreatePaymentLinkDialog } from "@/components/app/create-payment-link-dialog";
 import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
@@ -359,7 +358,6 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Réservations</CardTitle>
           <div className="flex gap-1.5">
-            <CreatePaymentLinkDialog villaId={villa.id} />
             <AddReservationDialog villaId={villa.id} />
           </div>
         </CardHeader>
