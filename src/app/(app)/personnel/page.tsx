@@ -47,6 +47,7 @@ import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 import { distanceKm } from "@/lib/geo";
+import { plagesJoursParReservation } from "@/lib/planning-jours-affectation";
 import {
   Users,
   CalendarClock,
@@ -618,6 +619,20 @@ export default async function PersonnelPage({
       ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, planningReservationIds))
       : [];
   const planningReservationById = new Map(planningReservations.map((r) => [r.id, r]));
+  // Quand plusieurs personnes se partagent les jours d'une même réservation (cuisine, ou ménage
+  // "pendant le séjour"), sait désormais QUEL jour revient à QUI au lieu de toutes les montrer
+  // sur tous les jours — voir le commentaire dans planning-jours-affectation.ts.
+  const planningAffectationPlages = plagesJoursParReservation(
+    planningAffectations.map((a) => ({
+      id: a.id,
+      reservationId: a.reservationId,
+      role: personnelById.get(a.personnelId)?.role ?? "menage",
+      moment: a.moment,
+      nbJours: a.nbJours,
+      createdAt: a.createdAt,
+    })),
+    planningReservationById
+  );
 
   type PlanningEntry = {
     affectationId: string;
@@ -638,15 +653,16 @@ export default async function PersonnelPage({
       const r = planningReservationById.get(a.reservationId);
       const p = personnelById.get(a.personnelId);
       if (!r || !p) continue;
-      const checkIn = new Date(r.checkIn);
       const checkOut = new Date(r.checkOut);
-      // Ménage "sejour" (pendant le séjour, à la demande du client) suit la même logique que la
-      // cuisine (plage de jours) ; ménage "depart" (prépare l'arrivée suivante) reste un seul
-      // jour, le check-out — voir personnelAffectationMomentEnum dans schema.ts.
+      // Ménage "sejour" (pendant le séjour, à la demande du client) et cuisine suivent la plage
+      // calculée par personne (voir planning-jours-affectation.ts) ; ménage "depart" (prépare
+      // l'arrivée suivante) reste un seul jour, le check-out — voir personnelAffectationMomentEnum
+      // dans schema.ts.
+      const plage = planningAffectationPlages.get(a.id);
       const concerne =
         p.role === "menage" && a.moment === "depart"
           ? isSameDay(jourDebut, checkOut)
-          : jourDebut >= startOfDay(addDays(checkIn, 1)) && jourDebut <= startOfDay(checkOut);
+          : Boolean(plage) && jourDebut >= plage!.debut && jourDebut <= plage!.fin;
       if (!concerne) continue;
       entries.push({
         affectationId: a.id,

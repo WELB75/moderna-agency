@@ -11,6 +11,7 @@ import { PublicPlanningGrid, type PublicPlanningEntry } from "@/components/app/p
 import { type StaffAvailability } from "@/components/app/public-staff-availability";
 import { isValidPlanningToken } from "@/lib/planning-token";
 import { nowInMorocco } from "@/lib/now";
+import { plagesJoursParReservation } from "@/lib/planning-jours-affectation";
 
 // Lien public d'équipe — Kamel, 2026-08-08 : couvre les 3 domaines (Moderna II, Zaraba, Noria)
 // pendant qu'il gère tout à la place d'Imane, contrairement au reste de l'app qui ne montre
@@ -73,6 +74,20 @@ export default async function PublicPlanningPage({
     reservationIds.length > 0
       ? await db.select().from(personnelAffectations).where(inArray(personnelAffectations.reservationId, reservationIds))
       : [];
+  // Quand plusieurs personnes se partagent les jours d'une même réservation (cuisine, ou ménage
+  // "pendant le séjour"), sait désormais QUEL jour revient à QUI au lieu de toutes les montrer
+  // sur tous les jours — voir le commentaire dans planning-jours-affectation.ts.
+  const planningAffectationPlages = plagesJoursParReservation(
+    planningAffectations.map((a) => ({
+      id: a.id,
+      reservationId: a.reservationId,
+      role: personnelById.get(a.personnelId)?.role ?? "menage",
+      moment: a.moment,
+      nbJours: a.nbJours,
+      createdAt: a.createdAt,
+    })),
+    planningReservationById
+  );
 
   function planningPourJour(jour: Date): PublicPlanningEntry[] {
     const jourDebut = startOfDay(jour);
@@ -81,13 +96,13 @@ export default async function PublicPlanningPage({
       const r = planningReservationById.get(a.reservationId);
       const p = personnelById.get(a.personnelId);
       if (!r) continue;
-      const checkIn = new Date(r.checkIn);
       const checkOut = new Date(r.checkOut);
       const role = p?.role ?? "menage";
+      const plage = planningAffectationPlages.get(a.id);
       const concerne =
         role === "menage" && a.moment === "depart"
           ? isSameDay(jourDebut, checkOut)
-          : jourDebut >= startOfDay(addDays(checkIn, 1)) && jourDebut <= startOfDay(checkOut);
+          : Boolean(plage) && jourDebut >= plage!.debut && jourDebut <= plage!.fin;
       if (!concerne) continue;
       entries.push({
         affectationId: a.id,
