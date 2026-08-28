@@ -27,11 +27,11 @@ export function PlanningRemoveButton({ affectationId, nom }: { affectationId: st
       type="button"
       onClick={handleClick}
       disabled={isPending}
-      className="rounded-full p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
       aria-label={`Retirer ${nom}`}
       title="Retirer"
     >
-      <X className="h-3 w-3" />
+      <X className="h-3.5 w-3.5" />
     </button>
   );
 }
