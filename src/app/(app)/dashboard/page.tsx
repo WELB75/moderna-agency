@@ -108,6 +108,7 @@ export default async function DashboardPage({
       villaNumero: villas.numero,
       villaId: villas.id,
       villaType: villas.type,
+      villaPhotoUrl: villas.photoUrl,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
       codeChambreMaster: villas.codeChambreMaster,

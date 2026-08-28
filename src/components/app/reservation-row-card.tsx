@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { format, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,7 @@ export type ReservationRow = {
   villaNumero: string | null;
   villaId: string | null;
   villaType: "villa" | "appartement" | null;
+  villaPhotoUrl: string | null;
   codeBoitier: string | null;
   codePorteEntree: string | null;
   codeChambreMaster: string | null;
@@ -85,6 +87,46 @@ export type ReservationRow = {
   cashAPrevoir: number;
   clientConnu: { nom: string; telephone: string | null; notes: string | null } | null;
 };
+
+// Vignette ronde d'un logement : sa photo si elle existe, sinon son numéro seul, avec dans les
+// deux cas le numéro en pastille pour rester le repère principal (c'est lui qu'on cherche sur le
+// terrain, pas le nom). Sans photo, le cercle porte directement le numéro en grand plutôt qu'une
+// icône générique, qui n'apprendrait rien.
+function VillaVignette({
+  photoUrl,
+  numero,
+  nom,
+  type,
+}: {
+  photoUrl: string | null;
+  numero: string | null;
+  nom: string | null;
+  type: "villa" | "appartement" | null;
+}) {
+  const label = nom ? `${nom}${numero ? ` (n°${numero})` : ""}` : "Logement non renseigné";
+  return (
+    <span className="relative inline-flex shrink-0" title={label}>
+      {photoUrl ? (
+        <Image
+          src={photoUrl}
+          alt={label}
+          width={40}
+          height={40}
+          className="h-10 w-10 rounded-full border border-border object-cover"
+        />
+      ) : (
+        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted text-sm font-bold">
+          {numero ?? (type === "appartement" ? "A" : "V")}
+        </span>
+      )}
+      {photoUrl && numero ? (
+        <span className="absolute -bottom-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-foreground px-1 text-[10px] font-bold text-background">
+          {numero}
+        </span>
+      ) : null}
+    </span>
+  );
+}
 
 // Réservations créées par une synchro automatique de calendrier (voir ical/sync.ts et
 // beds24/sync.ts) — par opposition à celles créées à la main dans l'app ("manuel", "carte",
@@ -150,11 +192,24 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               </span>
             ) : null}
           </p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
-            <span className="text-sm text-muted-foreground">
-              {r.villaNom
-                ? `${r.villaNom} (${r.villaType === "appartement" ? "appt" : "villa"} n°${r.villaNumero})`
-                : "Logement non renseigné"}
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {/* Vignette ronde + numéro en gros — Kamel, 2026-08-28 : "un petit cercle et à
+                l'intérieur on a la villa en photo qu'on reconnaît direct et aussi le numéro mis
+                en valeur". Le numéro reste lisible même sans photo (il occupe alors le cercle),
+                car c'est lui qui sert de repère sur le terrain. */}
+            <VillaVignette
+              photoUrl={r.villaPhotoUrl}
+              numero={r.villaNumero}
+              nom={r.villaNom}
+              type={r.villaType}
+            />
+            <span className="text-sm font-medium">
+              {r.villaNom ?? "Logement non renseigné"}
+              {r.villaNumero ? (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  {r.villaType === "appartement" ? "appt" : "villa"}
+                </span>
+              ) : null}
             </span>
             {r.villaType === "appartement" && r.numeroImmeuble ? (
               <Badge variant="outline" className="text-xs">
