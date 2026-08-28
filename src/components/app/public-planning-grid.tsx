@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Select as SelectPrimitive } from "radix-ui";
 import { Search, X, Loader2, ChevronDown, MessageCircle, Check } from "lucide-react";
 import { SelectContent, SelectItem } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import {
   reassignPlanningAffectation,
   removePlanningAffectation,
@@ -41,29 +42,26 @@ export type PublicPlanningEntry = {
 type JourPlanning = { date: Date; entries: PublicPlanningEntry[] };
 type Option = { id: string; nom: string };
 
-// Grille éditable du lien public /planning/[token]. Kamel, 2026-08-10 : "je veux tout sur une
-// ligne chaque jour [...] Lundi : ligne de femme de ménage et en dessous ligne de cuisinière
-// [...] on a même pas à descendre on a déjà toutes les infos de la journée" — remplace l'ancien
-// découpage mobile (un jour à la fois, pastilles de navigation) / desktop (7 colonnes, une carte
-// empilée par mission) par UNE seule mise en page : chaque jour est un bloc compact où les
-// missions sont des pastilles qui s'enchaînent et passent à la ligne seulement si besoin — toute
-// la semaine tient sans avoir à cliquer/scroller jour par jour, sur mobile comme sur desktop.
+// Grille éditable du lien public /planning/[token]. Historique des demandes qui ont façonné
+// cette page (toutes conservées dans la refonte ci-dessous) :
+// - "je veux tout sur une ligne chaque jour [...] on a même pas à descendre" : toute la semaine
+//   reste visible en une seule colonne verticale, sans navigation jour par jour ni clic pour
+//   dérouler — chaque jour est juste une carte qu'on scanne du regard.
+// - "deux badges avec couleurs distinctes M (Ménage) et C (Cuisine)" : conservé, seule touche de
+//   couleur dans une app par ailleurs strictement monochrome (voir globals.css).
+// - "je tape un prénom [...] même les appart" : recherche multi-champs conservée (nom, villa,
+//   appart, client), avec le même champ que le panneau Personnel disponible.
+// - "en un seul clic qu'on a le WhatsApp" : conservé.
 //
-// Kamel, 2026-08-10 (le patron) : "une seule colonne, [...] deux badges avec couleurs distinctes
-// M (Ménage) et C (Cuisine), si une femme fait les deux elle a deux badges et si elle fait qu'un
-// elle a un badge" — les deux lignes séparées "Ménage" / "Cuisine" par jour sont remplacées par
-// une seule liste de pastilles ; chaque pastille (= une mission) porte un badge lettré M ou C, une
-// personne qui fait les deux ce jour-là a naturellement deux pastilles adjacentes, chacune avec
-// son badge.
-//
-// Kamel, 2026-08-09 : "je veux qu'on puisse trouver aussi les villa, les femmes de ménages [...]
-// même les apparts" — la recherche filtre sur le nom du personnel, la villa/l'appart (nom,
-// numéro, "villa"/"appartement") et le client, à la fois dans la grille et dans le panneau
-// Personnel disponible (qui partage le même champ de recherche).
-//
-// Kamel, 2026-08-10 (le patron) : "supprime la ligne d'info du jour ca prend trop de place" —
-// le résumé en phrases du jour sélectionné (ex-PlanningInfoDuJour) est retiré ; cliquer une date
-// dans la grille garde juste son effet de surbrillance.
+// Refonte 2026-08-28 : chaque mission était une pastille compacte où tout (badge, nom modifiable,
+// villa/client, détail, confirmation, retrait) devait tenir sur une ligne qui repliait n'importe
+// comment sur mobile — trop dense pour scanner vite. Remplacé par une ligne en grille stable
+// (badge · contenu · actions) : le nom est toujours la première chose lue, le détail villa/client
+// passe en dessous en plus petit, et les actions (WhatsApp, confirmer, retirer) sont groupées à
+// droite avec des cibles tactiles réelles au lieu d'icônes de 16px. Le clic sur une date qui ne
+// faisait plus rien (l'ancien résumé du jour a été supprimé le 2026-08-10, mais le clic était
+// resté, avec un titre "Voir le résumé de ce jour" mensonger) est retiré : seul "aujourd'hui"
+// reste mis en valeur, de façon permanente et explicite (badge), pas au clic.
 export function PublicPlanningGrid({
   jours,
   now,
@@ -83,11 +81,6 @@ export function PublicPlanningGrid({
 }) {
   const [recherche, setRecherche] = useState("");
   const [rechercheOuverte, setRechercheOuverte] = useState(false);
-  const indexAujourdhui = Math.max(
-    0,
-    jours.findIndex((j) => isSameDay(j.date, now))
-  );
-  const [jourActif, setJourActif] = useState(indexAujourdhui);
   const q = recherche.trim();
 
   const optionsPour = (role: "menage" | "cuisine") => (role === "menage" ? menageOptions : cuisineOptions);
@@ -95,12 +88,12 @@ export function PublicPlanningGrid({
   return (
     <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-4 text-sm">
-          <span className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground sm:text-sm">
+          <span className="flex items-center gap-1.5 text-foreground">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">M</span>
             Femme de ménage
           </span>
-          <span className="flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 text-foreground">
             <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-violet-500 text-[10px] font-bold text-white">C</span>
             Cuisinière
           </span>
@@ -165,7 +158,7 @@ export function PublicPlanningGrid({
                 type="button"
                 onClick={() => setRechercheOuverte(true)}
                 aria-label="Chercher"
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground hover:text-foreground"
               >
                 <Search className="h-4 w-4" />
               </button>
@@ -181,18 +174,9 @@ export function PublicPlanningGrid({
         </div>
       </div>
 
-      <div className="space-y-2">
-        {jours.map((j, i) => (
-          <JourRow
-            key={j.date.toISOString()}
-            jour={j}
-            now={now}
-            q={q}
-            token={token}
-            optionsPour={optionsPour}
-            selected={i === jourActif}
-            onSelect={() => setJourActif(i)}
-          />
+      <div className="space-y-2.5">
+        {jours.map((j) => (
+          <DayCard key={j.date.toISOString()} jour={j} now={now} q={q} token={token} optionsPour={optionsPour} />
         ))}
       </div>
 
@@ -216,52 +200,45 @@ function entreeCorrespond(e: PublicPlanningEntry, q: string): boolean {
   return matchesSearch(haystack, q);
 }
 
-function JourRow({
+function DayCard({
   jour: { date, entries },
   now,
   q,
   token,
   optionsPour,
-  selected,
-  onSelect,
 }: {
   jour: JourPlanning;
   now: Date;
   q: string;
   token: string;
   optionsPour: (role: "menage" | "cuisine") => Option[];
-  selected: boolean;
-  onSelect: () => void;
 }) {
   const estAujourdhui = isSameDay(date, now);
   const filtrees = q ? entries.filter((e) => entreeCorrespond(e, q)) : entries;
-  // Ménage toujours avant cuisine dans l'ordre d'affichage (même ordre que l'ancien découpage en
-  // 2 lignes), mais tout dans une seule liste — voir commentaire en tête de fichier.
+  // Ménage toujours avant cuisine dans l'ordre d'affichage.
   const triees = [...filtrees.filter((e) => e.role === "menage"), ...filtrees.filter((e) => e.role === "cuisine")];
 
   return (
-    <div className={cn("min-w-0 rounded-lg border p-2.5", selected && "border-foreground/40 bg-muted/20")}>
-      <button
-        type="button"
-        onClick={onSelect}
-        className={cn(
-          "mb-1.5 text-left text-sm font-medium capitalize hover:underline",
-          selected && "underline",
-          estAujourdhui && "rounded border border-foreground px-1.5 py-0.5"
-        )}
-        title="Voir le résumé de ce jour"
-      >
-        {format(date, "EEEE d MMMM", { locale: fr })}
-      </button>
+    <div
+      className={cn(
+        "min-w-0 rounded-lg border p-2.5 sm:p-3",
+        estAujourdhui && "border-foreground/50 bg-muted/25"
+      )}
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <p className="text-sm font-medium capitalize">{format(date, "EEEE d MMMM", { locale: fr })}</p>
+        {estAujourdhui ? <Badge>Aujourd&apos;hui</Badge> : null}
+        {!q ? <span className="ml-auto text-xs text-muted-foreground">{triees.length || ""}</span> : null}
+      </div>
 
       {q && triees.length === 0 ? (
         <p className="text-xs text-muted-foreground">Aucun résultat.</p>
       ) : triees.length === 0 ? (
-        <p className="text-xs text-muted-foreground">—</p>
+        <p className="text-xs text-muted-foreground">Rien de prévu.</p>
       ) : (
-        <div className="flex min-w-0 flex-wrap gap-1.5">
+        <div className="space-y-1.5">
           {triees.map((e) => (
-            <MissionChip key={e.affectationId} entry={e} token={token} options={optionsPour(e.role)} jour={date} now={now} />
+            <MissionRow key={e.affectationId} entry={e} token={token} options={optionsPour(e.role)} jour={date} now={now} />
           ))}
         </div>
       )}
@@ -319,11 +296,10 @@ const OPTIONS_REPAS: { value: "non" | "oui"; label: string }[] = [
   { value: "oui", label: "P-déj + déj" },
 ];
 
-// Une mission = une pastille compacte tenant sur une seule ligne (badge M/C, nom, villa/client,
-// détail, retirer) — plusieurs pastilles s'enchaînent horizontalement et ne passent à la ligne que
-// lorsque la largeur manque (voir JourRow), au lieu de l'ancienne carte pleine largeur empilée
-// verticalement par jour.
-function MissionChip({
+// Une mission = une ligne en grille stable (badge · contenu sur 2 lignes · actions groupées à
+// droite), au lieu d'une pastille où tout devait tenir sur une seule ligne qui repliait de façon
+// imprévisible sur mobile — voir le commentaire en tête de fichier.
+function MissionRow({
   entry: e,
   token,
   options,
@@ -404,77 +380,88 @@ function MissionChip({
   return (
     <div
       className={cn(
-        // Mobile : la pastille peut passer sur plusieurs lignes (sinon le nom du client/villa
-        // pousse le bouton "retirer" et le ✓ confirmation hors de l'écran, inaccessibles sans
-        // scroller horizontalement). Desktop (sm+) : reprend le format compact sur une seule
-        // ligne que Kamel avait demandé (voir commentaire plus haut dans le fichier).
-        "flex w-full min-w-0 max-w-full flex-wrap items-center gap-1.5 rounded-md border-l-4 bg-muted/40 py-1 pl-2 pr-1 text-xs sm:inline-flex sm:w-auto sm:flex-nowrap sm:whitespace-nowrap",
+        "@container/mission grid min-w-0 grid-cols-[1.25rem_1fr_auto] items-start gap-x-2 rounded-md border-l-4 bg-muted/40 py-1.5 pl-2 pr-1.5",
         e.role === "menage" ? "border-l-orange-500" : "border-l-violet-500",
-        aConfirmer && "ring-1 ring-amber-500/70 bg-amber-500/10"
+        aConfirmer && "bg-amber-500/10"
       )}
     >
       <span
         className={cn(
-          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white",
+          "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white",
           e.role === "menage" ? "bg-orange-500" : "bg-violet-500"
         )}
         title={e.role === "menage" ? "Ménage" : "Cuisine"}
       >
         {e.role === "menage" ? "M" : "C"}
       </span>
-      {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
-      {e.telephone ? (
-        <a
-          href={toWhatsAppUrl(e.telephone)}
-          target="_blank"
-          rel="noreferrer"
-          title={e.telephone}
-          aria-label={`WhatsApp ${e.personnelNom}`}
-          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-background dark:text-emerald-400"
+
+      <div className="min-w-0 space-y-0.5 @3xl/mission:flex @3xl/mission:items-baseline @3xl/mission:gap-x-2 @3xl/mission:space-y-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
+          {isPending ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : null}
+          <InlineSelect
+            value={e.personnelId}
+            options={options.map((o) => ({ value: o.id, label: o.nom }))}
+            onChange={handlePersonnelChange}
+            disabled={isPending}
+            className="font-semibold"
+          />
+          {aConfirmer ? (
+            <span className="rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-500/70 dark:text-amber-400">
+              À confirmer
+            </span>
+          ) : null}
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate @3xl/mission:whitespace-nowrap" title={e.domaineNom ?? undefined}>
+            {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
+          </span>
+          {e.role === "cuisine" ? (
+            <InlineSelect value={e.avecDejeuner ? "oui" : "non"} options={OPTIONS_REPAS} onChange={handleRepasChange} disabled={isPending} />
+          ) : (
+            <InlineSelect value={e.moment === "sejour" ? "sejour" : "depart"} options={OPTIONS_MOMENT} onChange={handleMomentChange} disabled={isPending} />
+          )}
+        </div>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-0.5">
+        {e.telephone ? (
+          <a
+            href={toWhatsAppUrl(e.telephone)}
+            target="_blank"
+            rel="noreferrer"
+            title={e.telephone}
+            aria-label={`WhatsApp ${e.personnelNom}`}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-emerald-600 hover:bg-background dark:text-emerald-400"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+          </a>
+        ) : null}
+        <button
+          type="button"
+          onClick={handleToggleConfirme}
+          disabled={isPending}
+          className={cn(
+            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+            e.confirmeAt
+              ? "text-emerald-600 hover:bg-background dark:text-emerald-400"
+              : "text-muted-foreground hover:bg-background hover:text-foreground"
+          )}
+          aria-label={e.confirmeAt ? `Annuler la confirmation de ${e.personnelNom}` : `Confirmer ${e.personnelNom}`}
+          title={e.confirmeAt ? `Confirmée le ${format(e.confirmeAt, "d MMM HH:mm", { locale: fr })}` : "Pas encore confirmée — cliquer une fois la personne contactée"}
         >
-          <MessageCircle className="h-3 w-3" />
-        </a>
-      ) : null}
-      <InlineSelect
-        value={e.personnelId}
-        options={options.map((o) => ({ value: o.id, label: o.nom }))}
-        onChange={handlePersonnelChange}
-        disabled={isPending}
-        className="font-semibold"
-      />
-      <span className="whitespace-normal text-muted-foreground sm:whitespace-nowrap" title={e.domaineNom ?? undefined}>
-        · {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName} ·
-      </span>
-      {e.role === "cuisine" ? (
-        <InlineSelect value={e.avecDejeuner ? "oui" : "non"} options={OPTIONS_REPAS} onChange={handleRepasChange} disabled={isPending} className="text-muted-foreground" />
-      ) : (
-        <InlineSelect value={e.moment === "sejour" ? "sejour" : "depart"} options={OPTIONS_MOMENT} onChange={handleMomentChange} disabled={isPending} className="text-muted-foreground" />
-      )}
-      <button
-        type="button"
-        onClick={handleToggleConfirme}
-        disabled={isPending}
-        className={cn(
-          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full",
-          e.confirmeAt
-            ? "text-emerald-600 hover:bg-background dark:text-emerald-400"
-            : "text-muted-foreground hover:bg-background hover:text-foreground"
-        )}
-        aria-label={e.confirmeAt ? `Annuler la confirmation de ${e.personnelNom}` : `Confirmer ${e.personnelNom}`}
-        title={e.confirmeAt ? `Confirmée le ${format(e.confirmeAt, "d MMM HH:mm", { locale: fr })}` : "Pas encore confirmée — cliquer une fois la personne contactée"}
-      >
-        <Check className="h-3 w-3" strokeWidth={e.confirmeAt ? 3 : 2} />
-      </button>
-      <button
-        type="button"
-        onClick={handleRemove}
-        disabled={isPending}
-        className="shrink-0 rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
-        aria-label={`Retirer ${e.personnelNom}`}
-        title="Retirer"
-      >
-        <X className="h-3 w-3" />
-      </button>
+          <Check className="h-3.5 w-3.5" strokeWidth={e.confirmeAt ? 3 : 2} />
+        </button>
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={isPending}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+          aria-label={`Retirer ${e.personnelNom}`}
+          title="Retirer"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
