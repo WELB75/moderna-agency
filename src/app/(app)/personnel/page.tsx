@@ -784,10 +784,10 @@ export default async function PersonnelPage({
 
         <TabsContent value="planning" className="space-y-4">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
+            <div className="inline-flex items-center rounded-full bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.04] dark:bg-white/[0.04] dark:ring-white/[0.06]">
               <Link
                 href={planningHref(subWeeks(debutSemaine, 1))}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
                 aria-label="Semaine précédente"
                 title="Semaine précédente"
               >
@@ -798,7 +798,7 @@ export default async function PersonnelPage({
               </p>
               <Link
                 href={planningHref(addWeeks(debutSemaine, 1))}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
                 aria-label="Semaine suivante"
                 title="Semaine suivante"
               >
@@ -806,7 +806,7 @@ export default async function PersonnelPage({
               </Link>
             </div>
             {!isSameDay(debutSemaine, startOfWeek(now, { weekStartsOn: 1 })) ? (
-              <Link href="/personnel?onglet=planning" className="text-sm text-primary underline-offset-4 hover:underline">
+              <Link href="/personnel?onglet=planning" className="text-sm font-medium text-[#2B1F33] underline-offset-4 hover:underline dark:text-[#C0AECB]">
                 Cette semaine
               </Link>
             ) : null}
