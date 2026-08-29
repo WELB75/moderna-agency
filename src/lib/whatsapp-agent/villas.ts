@@ -2,12 +2,14 @@
 // réservable — un client ne doit jamais pouvoir tomber dessus.
 // Tarifs (prixNuit, EUR/nuit) récupérés depuis le calendrier tarifaire Superhote le 01/08/2026 —
 // tarif de base hors variations saisonnières ponctuelles (ex. Villa Lila passe à 690€ certains jours).
-// Ni le prix ni la clé Superhote n'existent dans la table `villas` de la base — d'où cette liste
-// à part, à tenir à jour manuellement si les tarifs changent.
-// ⚠️ Maeva Cosy et Jade Cosy ont été données avec EXACTEMENT la même clé Superhote
-// (propertyKey0pXI0iOjB2BSPOSaNv3m4pXF7) — probablement une erreur de copie sur l'une des deux.
-// Volontairement laissées sans superhoteId (donc bloquées en dry-run côté Superhote) tant que ce
-// n'est pas reconfirmé, pour ne pas risquer de créer une résa sur la mauvaise fiche.
+// Le prix n'existe pas dans la table `villas` de la base — d'où cette liste à part, à tenir à
+// jour manuellement si les tarifs changent. La clé Superhote de chaque logement, elle, est aussi
+// répliquée dans villas.superhoteListingId (backfillée le 2026-08-29 depuis les valeurs
+// ci-dessous, pour que createPaymentSessionCore puisse générer un lien de paiement) — les deux
+// doivent rester synchronisées si une clé change.
+// Maeva Cosy et Jade Cosy avaient un temps été données avec la même clé Superhote (erreur de
+// copie) — reconfirmé séparément par Kamel le 2026-08-29 : propertyKey0pXI0iOjB2BSPOSaNv3m4pXF7
+// est bien Maeva Cosy, propertyKeykYV4MDLBbT9EctkUK9fco4J25 est bien Jade Cosy.
 // caution/menage (EUR) confirmés par Kamel le 2026-08-03 : appartements "cosy" 250€/20€ (la
 // caution de 250€ ne s'applique qu'aux réservations Direct/Booking.com, jamais Airbnb — non
 // pertinent ici puisque l'agent WhatsApp réserve toujours en canal "Direct"). Villas : Gaspard
