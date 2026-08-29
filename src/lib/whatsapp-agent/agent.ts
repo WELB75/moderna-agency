@@ -7,6 +7,8 @@ import { VILLAS } from "./villas";
 import { buildConfirmationEmailHtml, sendConfirmationEmail } from "./email";
 import { initiateCuisineRequest, initiateMenageRequest, dayAfter } from "./staff";
 import { recordStayRating } from "./rating";
+import { createPaymentSessionCore } from "@/lib/superhote/payment-session";
+import { getBaseUrl } from "@/lib/base-url";
 
 const client = new Anthropic();
 
@@ -321,17 +323,36 @@ export async function createBooking(input: Record<string, unknown>) {
     })
   );
 
-  // 2) Superhote : plus de tentative d'écriture directe via create-booking. Leur support a
-  // confirmé (2026-08-03) que cet endpoint est en réalité le moteur de paiement de leur site de
-  // réservation directe — il exige un card_token Stripe valide, un compte Stripe connecté sur le
-  // logement, et un tarif incluant exactement leurs frais de ménage/taxes de séjour. Sans un vrai
-  // tunnel de paiement, il ne peut structurellement jamais aboutir (500 générique sur dates
-  // lointaines libres, faute de gestion d'erreur de leur côté). La solution retenue à la place :
-  // un export iCal des réservations WhatsApp (voir /api/ical/export/[villaId]) que Superhote peut
-  // importer comme calendrier de blocage, pour éviter les doubles réservations sans passer par
-  // Stripe. Voir la mémoire du projet pour le détail de leur réponse.
+  // 2) Superhote : plus de tentative d'écriture directe via create-booking (celui-là exige un
+  // card_token Stripe valide, voir submitBooking). En revanche createPaymentSessionCore n'appelle
+  // que get-availabilities (lecture de prix), jamais create-booking — sans risque de double
+  // écriture. Le vrai create-booking Superhote n'a lieu que si/quand le client paie sur
+  // /payer/[id] (payWithCardToken). Un export iCal des réservations WhatsApp (voir
+  // /api/ical/export/[villaId]) reste le filet de sécurité anti-double-réservation en attendant.
+  // Jamais bloquant pour la réservation Moderna elle-même : une villa sans property_key
+  // Superhote configuré (ou des dates que Superhote refuse) ne doit pas empêcher la confirmation.
+  let paymentLink: string | null = null;
+  try {
+    const session = await createPaymentSessionCore({
+      villaId: villa.id,
+      dateArrivee: String(input.dateArrivee),
+      dateDepart: String(input.dateDepart),
+      prenom: String(input.prenom ?? ""),
+      nom: String(input.nom ?? ""),
+      email: String(input.email ?? ""),
+      telephone: phone.value,
+      paysIso: countryIso,
+      nbAdultes: Number(input.nombreAdultes ?? 0),
+      nbEnfants: Number(input.nombreEnfants ?? 0),
+      devise: "EUR",
+      createdByName: "Agent IA (WhatsApp)",
+    });
+    paymentLink = `${getBaseUrl()}/payer/${session.id}`;
+  } catch (err) {
+    console.error("Échec création session de paiement Stripe/Superhote:", err);
+  }
 
-  return { success: true, modernaBookingId, bookingRef, totalPrice: total, nights: n };
+  return { success: true, modernaBookingId, bookingRef, totalPrice: total, nights: n, paymentLink };
 }
 
 function buildSystemPrompt(today: string, villasPromptList: string) {
@@ -352,7 +373,7 @@ Règles :
 - Une fois ces infos obligatoires réunies (avant la confirmation finale), pose aussi ces questions complémentaires — utiles à l'équipe mais PAS bloquantes, si le client ne répond pas ou dit "non merci" tu continues normalement : besoin d'un lit bébé ; toute autre demande spécifique ; propose activement une femme de ménage supplémentaire pendant le séjour (voir tarif ci-dessous), sur tout logement ; et — UNIQUEMENT si le logement réservé est une vraie villa, jamais un appartement "cosy" — propose aussi activement une cuisinière (et si oui, quels repas : petit-déjeuner seul, ou petit-déjeuner + déjeuner). Ne pose pas ces questions une par une façon interrogatoire — groupe-les naturellement en une ou deux questions, mais propose bien les DEUX services (ménage et cuisine) plutôt que d'attendre que le client les demande de lui-même.
 - La cuisinière n'est un service disponible QUE sur les vraies villas (Gaspard, Azur, Elysée, Tania, Eline, Lila, Wimiliim, Sofya) — jamais sur les appartements "cosy" du domaine Noria. Si un client d'un appartement "cosy" demande une cuisinière, dis-lui poliment que ce service n'est proposé que sur les villas, sans lui en proposer une.
 - Tarifs cuisinière (à communiquer au client s'il en demande une, villa uniquement) : 200 MAD/jour pour le petit-déjeuner seul, 300 MAD/jour pour petit-déjeuner + déjeuner. C'est un coût en plus du loyer de la villa, en dirhams (pas en euros) — précise-le clairement au client pour qu'il sache à quoi s'attendre avant de confirmer.
-- Si un client prend une cuisinière, précise-lui que les courses/produits sont à sa charge (pas inclus dans le tarif de la cuisinière) : il peut soit faire ses courses lui-même, soit demander que notre transporteur s'en charge à sa place (frais de transport en plus). Laisse-lui le choix, ne suppose pas.
+- Si un client prend une cuisinière, précise-lui que les courses/produits sont à sa charge (pas inclus dans le tarif de la cuisinière) : il peut soit faire ses courses lui-même, soit demander que notre transporteur s'en charge à sa place (frais de transport en plus). Laisse-lui le choix, ne suppose pas. Partage aussi la carte des petits-déjeuners/déjeuners proposés par la cuisinière (image) : https://loyak6makvlkxqye.public.blob.vercel-storage.com/welcome/carte-repas-moderna-agency.png
 - Villa Sofya uniquement : une femme de ménage est incluse dans le prix de la villa (contrairement aux autres logements où le ménage de fin de séjour est facturé à part) — la cuisinière, elle, reste en supplément comme partout ailleurs, aux mêmes tarifs.
 - Si un client demande la description détaillée d'un logement (présentation, équipements) ou des photos, tu as la description complète et une photo de couverture pour chaque logement dans la liste ci-dessus — partage-les directement dans ta réponse (le lien photo est public, envoie-le tel quel). Ne dis jamais que tu ne peux pas transmettre ces informations ou que tu dois passer par l'équipe pour ça.
 - Femme de ménage privée pendant le séjour (en plus du ménage de fin de séjour, déjà inclus dans les frais de ménage indiqués ci-dessus) : 300 MAD/jour, en dirhams. Propose-la activement en même temps que la cuisinière (voir plus haut) plutôt que d'attendre que le client la demande, et annonce ce tarif directement — ne dis jamais que tu dois transmettre la demande à l'équipe pour connaître le prix.
@@ -365,6 +386,7 @@ Règles :
 - Juste avant de demander la confirmation finale, redemande une dernière fois s'il y a autre chose de spécifique à noter (même si déjà abordé plus tôt dans la conversation) — pour être sûr de ne rien manquer avant de créer la réservation.
 - N'utilise create_booking qu'une fois TOUTES les infos obtenues ET une confirmation explicite du client ("oui", "c'est bon", "je confirme"...).
 - Une fois la réservation créée, confirme au client avec les dates, la villa, le prix total, **et rappelle le montant de la caution et des frais de ménage de cette villa** (indiqués dans la liste des logements ci-dessus) — précise que la caution est remboursable et sera à régler séparément avant l'arrivée. Précise aussi que l'agence le recontactera pour lui envoyer le contrat de location et la fiche de police (sécurité).
+- L'outil create_booking renvoie aussi paymentLink : s'il est présent, envoie ce lien juste après le récapitulatif, en expliquant que c'est pour régler le séjour en ligne par carte bancaire, paiement sécurisé. S'il est absent (null), ne mentionne aucun lien — dis simplement que l'équipe le recontactera pour le paiement.
 - L'historique de cette conversation peut couvrir plusieurs jours, semaines ou mois — un message annoté "[Reprise après une pause de ...]" signale une reprise après une longue interruption. Dans ce cas, revérifie les informations discutées avant la pause (disponibilité, dates) avant de t'appuyer dessus : la situation a pu changer entre-temps.
 - Si le client donne une note ou un avis sur le ménage/la cuisine de son séjour (spontanément, ou en réponse à une question posée par l'équipe), utilise l'outil note_sejour avec une note de 1 à 5 (déduis un chiffre même si le client s'exprime en mots — "parfait"/"excellent" → 5, "correct"/"bien" → 4, "moyen" → 3, "décevant" → 2, "très mauvais" → 1). Remercie-le brièvement après coup, sans en faire trop.`;
 }

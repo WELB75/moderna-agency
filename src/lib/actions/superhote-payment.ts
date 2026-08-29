@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { superhotePaymentSessions, villas } from "@/db/schema";
-import { getPriceBreakdown, getVillaStripePublicKey, submitBooking } from "@/lib/superhote/client";
+import { getVillaStripePublicKey, submitBooking } from "@/lib/superhote/client";
+import { createPaymentSessionCore } from "@/lib/superhote/payment-session";
 
 // Réservé à l'équipe (page protégée) : crée un lien de paiement à envoyer au client. Le prix est
 // figé ici — get-availabilities est interrogé une seule fois, à la création — pour que le
@@ -29,36 +30,12 @@ export async function createPaymentSession(input: {
 }) {
   await auth.protect();
   const user = await currentUser();
-  const db = getDb();
 
-  const [villa] = await db.select({ superhoteListingId: villas.superhoteListingId }).from(villas).where(eq(villas.id, input.villaId)).limit(1);
-  if (!villa?.superhoteListingId) throw new Error("Cette villa n'a pas de property_key Superhote configuré.");
-
-  const breakdown = await getPriceBreakdown(villa.superhoteListingId, input.dateArrivee, input.dateDepart);
-  if (!breakdown.disponible) throw new Error("Ces dates ne sont pas disponibles selon Superhote.");
-
-  const [session] = await db
-    .insert(superhotePaymentSessions)
-    .values({
-      villaId: input.villaId,
-      propertyKey: villa.superhoteListingId,
-      guestPrenom: input.prenom,
-      guestNom: input.nom,
-      guestEmail: input.email,
-      guestTelephone: input.telephone,
-      guestPays: input.paysIso,
-      dateArrivee: input.dateArrivee,
-      dateDepart: input.dateDepart,
-      nbAdultes: input.nbAdultes,
-      nbEnfants: input.nbEnfants,
-      price: breakdown.price.toFixed(2),
-      cleaning: breakdown.cleaning.toFixed(2),
-      cityTaxes: breakdown.cityTaxes.toFixed(2),
-      devise: input.devise ?? "EUR",
-      createdByUserId: user?.id ?? null,
-      createdByName: user?.fullName ?? user?.username ?? "Équipe",
-    })
-    .returning();
+  const session = await createPaymentSessionCore({
+    ...input,
+    createdByUserId: user?.id ?? null,
+    createdByName: user?.fullName ?? user?.username ?? "Équipe",
+  });
 
   revalidatePath(`/villas/${input.villaId}`);
   return session;
