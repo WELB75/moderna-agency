@@ -197,6 +197,11 @@ export const reservations = pgTable(
     cautionPayee: boolean("caution_payee").default(false).notNull(),
     moyenPaiement: text("moyen_paiement"),
     notesPaiement: text("notes_paiement"),
+    // Empêche de renvoyer le message WhatsApp à la sécurité plusieurs fois pour la même
+    // réservation (une fiche police groupée + un Bulletin Individuel par adulte peuvent tous se
+    // compléter séparément, voir gendarmerie.ts) — posé seulement après un envoi réussi, pour
+    // qu'un échec d'envoi laisse une chance de réessayer à la complétion de fiche suivante.
+    securiteNotifieeAt: timestamp("securite_notifiee_at", { withTimezone: true }),
     // Confirmation manuelle que le check-in/check-out a été effectué sur place (distinct de
     // l'heure prévue) : qui l'a fait et quand.
     checkinValideAt: timestamp("checkin_valide_at", { withTimezone: true }),

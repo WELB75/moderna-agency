@@ -5,8 +5,11 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import sharp from "sharp";
 import { getDb } from "@/db";
-import { gendarmerieForms, gendarmerieOccupants } from "@/db/schema";
+import { gendarmerieForms, gendarmerieOccupants, reservations, villas, domaines } from "@/db/schema";
 import { normalizeIdPhotoBuffer, normalizeIdPhotoDataUrl, loadImageBuffer } from "@/lib/id-photo-normalize";
+import { sendWhatsAppText } from "@/lib/whatsapp-agent/send";
+import { buildSecurityMessage } from "@/lib/message-templates";
+import { getBaseUrl } from "@/lib/base-url";
 
 export type OccupantInput = {
   nom: string;
@@ -98,6 +101,46 @@ export async function createGroupGendarmerieForm(villaId: string, nbAdultes: num
   return form;
 }
 
+// Envoie automatiquement le lien de la fiche police (une fois complète et signée) au numéro
+// WhatsApp de la sécurité du domaine — seulement configuré pour Domaine Moderna II à ce jour
+// (voir security-data.ts). Ne s'applique qu'aux fiches rattachées à une vraie réservation (pas
+// les Bulletins Individuels générés seuls depuis Documents, sans contexte de séjour). Jamais
+// bloquant pour la complétion de la fiche elle-même si l'envoi échoue.
+async function notifySecurityIfNeeded(reservationId: string | null) {
+  if (!reservationId) return;
+  try {
+    const db = getDb();
+    const [reservation] = await db
+      .select({
+        villaId: reservations.villaId,
+        guestName: reservations.guestName,
+        checkIn: reservations.checkIn,
+        securiteNotifieeAt: reservations.securiteNotifieeAt,
+      })
+      .from(reservations)
+      .where(eq(reservations.id, reservationId))
+      .limit(1);
+    if (!reservation || reservation.securiteNotifieeAt || !reservation.villaId) return;
+
+    const [villa] = await db
+      .select({ nom: villas.nom, numero: villas.numero, securitePhone: domaines.securitePhone })
+      .from(villas)
+      .leftJoin(domaines, eq(domaines.id, villas.domaineId))
+      .where(eq(villas.id, reservation.villaId))
+      .limit(1);
+    if (!villa?.securitePhone) return;
+
+    const link = `${getBaseUrl()}/securite/villa/${reservationId}`;
+    const message = buildSecurityMessage(reservation.guestName, villa.nom, villa.numero, link, reservation.checkIn);
+    const sent = await sendWhatsAppText(villa.securitePhone, message);
+    if (sent) {
+      await db.update(reservations).set({ securiteNotifieeAt: new Date() }).where(eq(reservations.id, reservationId));
+    }
+  } catch (err) {
+    console.error("Échec notification sécurité (fiche police):", err);
+  }
+}
+
 // Volontairement sans auth.protect() : le client remplit via le lien public /g/[id],
 // sans se connecter.
 export async function submitGendarmerieOccupants(
@@ -151,6 +194,8 @@ export async function submitGendarmerieOccupants(
     .update(gendarmerieForms)
     .set({ statut: "complete", langue, enfantsPassportUrls: normalizedEnfantsPassportUrls, completedAt: new Date() })
     .where(eq(gendarmerieForms.id, formId));
+
+  await notifySecurityIfNeeded(form.reservationId);
 
   revalidatePath("/villas");
   revalidatePath(`/g/${formId}`);
@@ -235,6 +280,8 @@ export async function signGendarmerieOccupants(
     .update(gendarmerieForms)
     .set({ statut: "complete", langue, completedAt: new Date() })
     .where(eq(gendarmerieForms.id, formId));
+
+  await notifySecurityIfNeeded(form.reservationId);
 
   revalidatePath("/villas");
   revalidatePath(`/g/${formId}`);
