@@ -1,14 +1,6 @@
 {
   "crons": [
     {
-      "path": "/api/ical/sync",
-      "schedule": "0 5 * * *"
-    },
-    {
-      "path": "/api/ical/sync-direct",
-      "schedule": "5 5 * * *"
-    },
-    {
       "path": "/api/staff-requests/sweep",
       "schedule": "0 6 * * *"
     },

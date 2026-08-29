@@ -1,0 +1,28 @@
+name: iCal sync (15 min)
+
+# Remplace les crons Vercel natifs pour /api/ical/sync et /api/ical/sync-direct (voir vercel.json)
+# — le plan Vercel Hobby limite les crons à 1 exécution/jour, ce qui laissait jusqu'à 24h de
+# décalage entre une réservation faite sur Airbnb/Booking.com et son blocage côté Moderna. Les
+# workflows GitHub Actions planifiés n'ont pas cette limite et sont gratuits (repo privé : bien
+# sous le quota de 2000 minutes/mois pour ~2900 exécutions/mois de quelques secondes chacune).
+# Kamel, 2026-08-29 : "trouve un moyen de le faire en 15 min gratuitement".
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync legacy Superhote
+        run: |
+          curl -fsS -X POST --max-time 50 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://moderna-agency.vercel.app/api/ical/sync"
+      - name: Sync Airbnb/Booking.com direct
+        run: |
+          curl -fsS -X POST --max-time 50 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://moderna-agency.vercel.app/api/ical/sync-direct"
