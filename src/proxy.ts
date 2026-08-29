@@ -5,7 +5,6 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/ical/sync",
   "/api/ical/sync-direct",
-  "/api/debug/stripe-key-mode",
   "/api/ical/export/(.*)",
   "/api/whatsapp-webhook",
   "/api/telegram-webhook",
