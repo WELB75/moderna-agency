@@ -76,6 +76,10 @@ export type ReservationRow = {
   checkoutValideAt: Date | null;
   checkoutValidePar: string | null;
   aRelancer: boolean;
+  messageArriveeEnvoyeAt: Date | null;
+  messageBienvenueEnvoyeAt: Date | null;
+  messageLocalisationEnvoyeAt: Date | null;
+  messageSecuriteEnvoyeAt: Date | null;
   ficheStatut: "complete" | "en_attente" | null;
   ficheId: string | null;
   contratStatut: "signe" | "en_attente" | null;
@@ -383,11 +387,13 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                   ficheId={r.ficheId}
                   ficheComplete={r.ficheStatut === "complete"}
                   repasInclus={r.repasInclusDansLoyer}
+                  envoyeAt={r.messageArriveeEnvoyeAt}
                 />
               ) : null}
               {r.guestPhone && r.villaNom ? (
                 <WelcomeMessageButton
                   prominent
+                  reservationId={r.id}
                   phone={r.guestPhone}
                   guestName={r.guestName}
                   villaNom={r.villaNom}
@@ -396,16 +402,19 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                   codeBoitier={r.codeBoitier}
                   guideBienvenueUrl={r.guideBienvenueUrl}
                   repasInclus={r.repasInclusDansLoyer}
+                  envoyeAt={r.messageBienvenueEnvoyeAt}
                 />
               ) : null}
               {r.guestPhone && r.domaineMapsUrl ? (
                 <LocationMessageButton
                   prominent
+                  reservationId={r.id}
                   phone={r.guestPhone}
                   guestName={r.guestName}
                   domaineNom={r.domaineNom ?? "domaine"}
                   mapsUrl={r.domaineMapsUrl}
                   wazeUrl={r.domaineWazeUrl}
+                  envoyeAt={r.messageLocalisationEnvoyeAt}
                 />
               ) : null}
               {r.villaId && r.domaineSecuritePhone ? (
@@ -417,6 +426,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                   villaNumero={r.villaNumero ?? "?"}
                   reservationId={r.id}
                   checkIn={new Date(r.checkIn)}
+                  envoyeAt={r.messageSecuriteEnvoyeAt}
                 />
               ) : null}
             </div>

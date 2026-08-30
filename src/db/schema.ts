@@ -213,6 +213,14 @@ export const reservations = pgTable(
     assigneCheckin: text("assigne_checkin"),
     assigneMenage: text("assigne_menage"), // ancien champ texte libre, remplacé par personnelAffectations
     formulaireBienvenueEnvoye: boolean("formulaire_bienvenue_envoye").default(false).notNull(),
+    // Horodatage du dernier clic sur chacun des 4 boutons WhatsApp de la carte check-in — Kamel,
+    // 2026-08-30 : "quand le message de bienvenue, localisation, securité etc sont fait je veux
+    // qu'ils passe en mode fond vert au lieu de fond noir". Simple aide-mémoire visuel (qui a déjà
+    // été contacté sur quoi) : pas de "annuler l'envoi", pas de garantie que le message a été lu.
+    messageArriveeEnvoyeAt: timestamp("message_arrivee_envoye_at", { withTimezone: true }),
+    messageBienvenueEnvoyeAt: timestamp("message_bienvenue_envoye_at", { withTimezone: true }),
+    messageLocalisationEnvoyeAt: timestamp("message_localisation_envoye_at", { withTimezone: true }),
+    messageSecuriteEnvoyeAt: timestamp("message_securite_envoye_at", { withTimezone: true }),
     formulaireCheckinRecu: boolean("formulaire_checkin_recu").default(false).notNull(),
     aRelancer: boolean("a_relancer").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

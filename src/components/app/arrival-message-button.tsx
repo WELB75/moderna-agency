@@ -11,8 +11,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { createGendarmerieForm } from "@/lib/actions/gendarmerie";
+import { marquerMessageEnvoye } from "@/lib/actions/reservations";
 import { toWhatsAppUrl } from "@/lib/phone";
 import { buildArrivalMessage, type MessageLang } from "@/lib/message-templates";
+import { cn } from "@/lib/utils";
 
 // Un seul message, un seul bouton : demande l'horaire d'arrivée et, si la fiche de police
 // n'est pas encore complétée, crée le formulaire si besoin et ajoute son lien dans le même
@@ -29,6 +31,7 @@ export function ArrivalMessageButton({
   ficheComplete,
   repasInclus = false,
   prominent,
+  envoyeAt,
 }: {
   reservationId: string;
   villaId: string;
@@ -40,8 +43,10 @@ export function ArrivalMessageButton({
   ficheComplete: boolean;
   repasInclus?: boolean;
   prominent?: boolean;
+  envoyeAt?: Date | null;
 }) {
   const [id, setId] = useState(ficheId);
+  const [envoye, setEnvoye] = useState(Boolean(envoyeAt));
   const [isPending, startTransition] = useTransition();
 
   function handleClick(lang: MessageLang) {
@@ -66,6 +71,8 @@ export function ArrivalMessageButton({
         const url = toWhatsAppUrl(phone, buildArrivalMessage(guestName, checkIn, now, ficheLink, lang, repasInclus));
         if (win) win.location.href = url;
         else window.open(url, "_blank");
+        setEnvoye(true);
+        marquerMessageEnvoye(reservationId, "arrivee").catch(() => {});
       } catch (err) {
         win?.close();
         toast.error(err instanceof Error ? err.message : "Erreur.");
@@ -81,7 +88,10 @@ export function ArrivalMessageButton({
           variant={prominent ? "default" : "outline"}
           size={prominent ? "default" : "sm"}
           disabled={isPending}
-          className={prominent ? "w-full justify-start rounded-xl py-5" : undefined}
+          className={cn(
+            prominent && "w-full justify-start rounded-xl py-5",
+            envoye && "bg-emerald-600 text-white hover:bg-emerald-600/90 dark:bg-emerald-600 dark:hover:bg-emerald-600/90"
+          )}
         >
           <MessageCircleMore className="h-3.5 w-3.5 shrink-0" />
           {prominent ? <span className="flex-1 text-center">Message d&apos;arrivée</span> : "Message d'arrivée"}

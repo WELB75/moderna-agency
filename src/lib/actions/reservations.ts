@@ -154,6 +154,29 @@ export async function updateGuestPhone(reservationId: string, phone: string) {
   revalidatePath(`/reservations/${reservationId}`);
 }
 
+const CHAMP_PAR_TYPE_MESSAGE = {
+  arrivee: "messageArriveeEnvoyeAt",
+  bienvenue: "messageBienvenueEnvoyeAt",
+  localisation: "messageLocalisationEnvoyeAt",
+  securite: "messageSecuriteEnvoyeAt",
+} as const;
+export type TypeMessageCheckin = keyof typeof CHAMP_PAR_TYPE_MESSAGE;
+
+// Marque un des 4 boutons WhatsApp de la carte check-in comme envoyé — Kamel, 2026-08-30 : "je
+// veux qu'ils passe en mode fond vert au lieu de fond noir". Appelé juste après l'ouverture de
+// WhatsApp (voir chaque bouton), jamais bloquant pour l'envoi lui-même si ça échoue.
+export async function marquerMessageEnvoye(reservationId: string, type: TypeMessageCheckin) {
+  await auth.protect();
+  const db = getDb();
+  await db
+    .update(reservations)
+    .set({ [CHAMP_PAR_TYPE_MESSAGE[type]]: new Date() })
+    .where(eq(reservations.id, reservationId));
+
+  revalidatePath("/dashboard");
+  revalidatePath(`/reservations/${reservationId}`);
+}
+
 export async function updateOperationalInfo(formData: FormData) {
   await auth.protect();
 
