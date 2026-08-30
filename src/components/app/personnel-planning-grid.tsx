@@ -38,6 +38,17 @@ type JourPlanning = { date: Date; entries: PlanningEntry[] };
 // public-planning-grid.tsx : fond crème, cartes arrondies, avatars à initiale, puce calendrier —
 // appliqué seulement à l'intérieur de cet onglet, pas à la page Personnel ni aux autres onglets
 // qui gardent leur charte habituelle.
+//
+// Refonte 2026-08-30 (clarté) — Kamel : "il est pas clair, il est pas fluide, on voit pas bien
+// les détails [...] j'aimerais avoir le numéro des villa [...] le plus important c'est le nom de
+// la personne, ce qu'elle fait [...] essaye de faire ça pro". 7 colonnes forcées sur une seule
+// ligne ne laissaient que ~150px par jour : le nom de la villa (et son numéro, l'info qu'il
+// cherche en premier sur le terrain) était tronqué en "Villa Gaspard ...". Plafonné à 4 colonnes
+// (2 rangées de jours au lieu d'une seule trop compressée) pour avoir la place d'écrire en clair,
+// et réordonné chaque mission dans l'ordre de priorité qu'il a donné : nom en premier et le plus
+// visible, puis ce que fait la personne (ménage de départ / pendant le séjour / formule cuisine)
+// en vrai badge coloré au lieu d'une pastille de 9px à peine lisible, puis villa + numéro en
+// évidence (jamais tronqués) + client.
 export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; now: Date }) {
   const [recherche, setRecherche] = useState("");
   const q = recherche.trim();
@@ -71,7 +82,7 @@ export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; n
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {jours.map(({ date, entries }) => {
           const estAujourdhui = isSameDay(date, now);
           const filtrees = q ? entries.filter((e) => entreeCorrespond(e, q)) : entries;
@@ -85,23 +96,27 @@ export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; n
                   : "bg-white ring-1 ring-black/[0.04] dark:bg-white/[0.03] dark:ring-white/[0.06]"
               )}
             >
-              <div className="mb-2.5 flex items-center gap-2">
+              <div className="mb-3 flex items-center gap-2.5">
                 <div
                   className={cn(
-                    "flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-[12px] leading-none text-white",
+                    "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-[14px] leading-none text-white",
                     estAujourdhui ? "bg-[#2B1F33]" : "bg-[#DCD3C3] text-[#2B1F33] dark:bg-white/10 dark:text-white/80"
                   )}
                 >
-                  <span className="text-[8px] font-semibold uppercase opacity-80">{format(date, "MMM", { locale: fr })}</span>
-                  <span className="text-sm font-bold">{format(date, "d")}</span>
+                  <span className="text-[9px] font-semibold uppercase opacity-80">{format(date, "MMM", { locale: fr })}</span>
+                  <span className="text-base font-bold">{format(date, "d")}</span>
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold capitalize">{format(date, "EEE", { locale: fr })}</p>
-                  {estAujourdhui ? <p className="text-[10px] font-medium text-[#2B1F33] dark:text-[#C0AECB]">Aujourd&apos;hui</p> : null}
+                  <p className="truncate text-sm font-semibold capitalize">{format(date, "EEEE", { locale: fr })}</p>
+                  {estAujourdhui ? (
+                    <p className="text-xs font-medium text-[#2B1F33] dark:text-[#C0AECB]">Aujourd&apos;hui</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">{filtrees.length} mission{filtrees.length > 1 ? "s" : ""}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {filtrees.length === 0 ? (
                   <p className="text-xs text-muted-foreground">{q ? "Aucun résultat." : "Rien de prévu."}</p>
                 ) : (
@@ -145,43 +160,64 @@ function initiale(nom: string): string {
 }
 
 function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
+  const roleClair = e.role === "menage" ? "orange" : "violet";
   return (
-    <div className="flex min-w-0 gap-2 rounded-[14px] bg-black/[0.025] p-2 dark:bg-white/[0.04]">
-      <div className="relative shrink-0">
-        <div
-          className={cn(
-            "flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold",
-            e.role === "menage"
-              ? "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300"
-              : "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
-          )}
-        >
-          {initiale(e.personnelNom)}
+    <div
+      className={cn(
+        "min-w-0 rounded-[14px] border-l-[3px] bg-black/[0.025] p-2.5 dark:bg-white/[0.04]",
+        roleClair === "orange" ? "border-l-orange-500" : "border-l-violet-500"
+      )}
+    >
+      {/* Ordre voulu par Kamel : le nom d'abord (le plus visible), puis ce que fait la personne
+          en vrai badge coloré, puis la villa avec son numéro toujours entier — jamais de
+          troncature sur ces deux informations, c'est ce qu'il cherche en premier sur le terrain. */}
+      <div className="flex items-start justify-between gap-1.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <div
+            className={cn(
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+              roleClair === "orange"
+                ? "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300"
+                : "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
+            )}
+          >
+            {initiale(e.personnelNom)}
+          </div>
+          <span className="min-w-0 truncate text-[15px] font-semibold leading-tight">{e.personnelNom}</span>
         </div>
+        <PlanningRemoveButton affectationId={e.affectationId} nom={e.personnelNom} />
+      </div>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
         <span
           className={cn(
-            "absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[8px] font-bold text-white ring-2 ring-white dark:ring-[#1e1e1e]",
-            e.role === "menage" ? "bg-orange-500" : "bg-violet-500"
+            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+            roleClair === "orange"
+              ? "bg-orange-500/15 text-orange-700 dark:text-orange-300"
+              : "bg-violet-500/15 text-violet-700 dark:text-violet-300"
           )}
         >
-          {e.role === "menage" ? "M" : "C"}
+          {detailLabel(e)}
         </span>
+        {!e.montantVisible ? (
+          <span className="inline-flex items-center rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-white/10">
+            Payé par proprio
+          </span>
+        ) : null}
       </div>
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex items-center justify-between gap-1">
-          <span className="truncate text-xs font-semibold">{e.personnelNom}</span>
-          <PlanningRemoveButton affectationId={e.affectationId} nom={e.personnelNom} />
-        </div>
-        <Link href={`/reservations/${e.reservationId}`} className="block truncate text-[11px] text-muted-foreground hover:text-foreground hover:underline">
-          {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "Villa non renseignée"} · {e.guestName}
-        </Link>
-        <div className="flex flex-wrap items-center gap-1 pt-0.5">
-          <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground dark:bg-white/10">{detailLabel(e)}</span>
-          {!e.montantVisible ? (
-            <span className="rounded-full bg-white px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground dark:bg-white/10">Payé par proprio</span>
-          ) : null}
-        </div>
-      </div>
+
+      <Link
+        href={`/reservations/${e.reservationId}`}
+        className="mt-1.5 flex min-w-0 items-baseline gap-1.5 text-sm text-foreground/80 hover:text-foreground hover:underline"
+      >
+        <span className="min-w-0 truncate font-medium">{e.villaNom ?? "Villa non renseignée"}</span>
+        {e.villaNumero ? (
+          <span className="shrink-0 rounded-md bg-[#2B1F33] px-1.5 py-0.5 text-[11px] font-bold text-white dark:bg-white/15">
+            n°{e.villaNumero}
+          </span>
+        ) : null}
+        <span className="min-w-0 truncate text-muted-foreground">· {e.guestName}</span>
+      </Link>
     </div>
   );
 }
