@@ -99,11 +99,13 @@ export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; n
               <div className="mb-3 flex items-center gap-2.5">
                 <div
                   className={cn(
-                    "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-[14px] leading-none text-white",
-                    estAujourdhui ? "bg-[#2B1F33]" : "bg-[#DCD3C3] text-[#2B1F33] dark:bg-white/10 dark:text-white/80"
+                    "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-[14px] leading-none",
+                    estAujourdhui
+                      ? "bg-[#2B1F33] text-white"
+                      : "border border-black/[0.08] bg-white text-[#2B1F33] dark:border-white/10 dark:bg-white/[0.06] dark:text-white/80"
                   )}
                 >
-                  <span className="text-[9px] font-semibold uppercase opacity-80">{format(date, "MMM", { locale: fr })}</span>
+                  <span className="text-[9px] font-semibold uppercase opacity-70">{format(date, "MMM", { locale: fr })}</span>
                   <span className="text-base font-bold">{format(date, "d")}</span>
                 </div>
                 <div className="min-w-0">
@@ -150,9 +152,18 @@ function entreeCorrespond(e: PlanningEntry, q: string): boolean {
   return matchesSearch(haystack, q);
 }
 
+// Badge principal : le TYPE de mission ("Ménage de départ", "Pendant le séjour", "Cuisine") — la
+// formule de repas de la cuisine (P-déj seul / + déj) passe en badge secondaire, voir
+// formuleRepasLabel, pour ne pas perdre l'info tout en gardant "Cuisine" comme les libellés
+// ménage. Kamel, 2026-08-30 : "cuisine au lieu de petit dej + dej".
 function detailLabel(e: PlanningEntry): string {
-  if (e.role === "cuisine") return e.avecDejeuner ? "Petit-déj + déj" : "Petit-déj seul";
+  if (e.role === "cuisine") return "Cuisine";
   return e.moment === "sejour" ? "Pendant le séjour" : "Ménage de départ";
+}
+
+function formuleRepasLabel(e: PlanningEntry): string | null {
+  if (e.role !== "cuisine") return null;
+  return e.avecDejeuner ? "Petit-déj + déj" : "Petit-déj seul";
 }
 
 function initiale(nom: string): string {
@@ -199,6 +210,11 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
         >
           {detailLabel(e)}
         </span>
+        {formuleRepasLabel(e) ? (
+          <span className="inline-flex items-center rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-white/10">
+            {formuleRepasLabel(e)}
+          </span>
+        ) : null}
         {!e.montantVisible ? (
           <span className="inline-flex items-center rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-white/10">
             Payé par proprio
