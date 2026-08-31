@@ -2,8 +2,9 @@ import { and, asc, eq, gte, isNotNull, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, reservations, cashEntries } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
-import { ajouterMontant, anneeEnd, anneeStart, montantProrata, nuiteesDansLeMois, type MontantParDevise } from "@/lib/logement-stats";
+import { anneeEnd, anneeStart, montantProrata, nuiteesDansLeMois, versEuros } from "@/lib/logement-stats";
 import { StatistiquesTable, type LogementMoisStats, type LogementStatsRow } from "@/components/app/statistiques-table";
+import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 
 export default async function StatistiquesPage({
   searchParams,
@@ -61,13 +62,22 @@ export default async function StatistiquesPage({
   ).filter((d) => d.villaId && villaIds.has(d.villaId));
 
   function moisVide(): LogementMoisStats {
-    return { nuitees: 0, ca: [], encaisse: [], depenses: [], tresorerie: [] };
+    return { nuitees: 0, ca: 0, encaisse: 0, depenses: 0, tresorerie: 0 };
   }
 
   const statsParVilla = new Map<string, LogementMoisStats[]>();
   for (const v of allVillas) {
     statsParVilla.set(v.id, Array.from({ length: 12 }, moisVide));
   }
+
+  // Le loyer/montant payé ne vient jamais automatiquement de Superhote : leur iCal ne transmet
+  // pas les prix (limitation du format), donc ces champs ne se remplissent que par saisie
+  // manuelle ou par l'import du CSV Superhote (qui, lui, couvre tous les canaux — Direct, Airbnb,
+  // Booking.com — pas seulement ce que Kamel encaisse en direct). On compte ici les réservations
+  // sans loyer connu pour prévenir Kamel que le CA affiché est sous-estimé tant qu'il n'a pas
+  // importé un CSV frais couvrant la période.
+  let nbReservationsSansLoyer = 0;
+  let nbReservationsAvecNuitsCetteAnnee = 0;
 
   for (const r of reservationsAnnee) {
     if (!r.villaId) continue;
@@ -77,20 +87,22 @@ export default async function StatistiquesPage({
     const checkOut = new Date(r.checkOut);
     const loyerTotal = r.loyerTotal ? Number(r.loyerTotal) : 0;
     const montantPaye = r.montantPaye ? Number(r.montantPaye) : 0;
+    let aDesNuitsCetteAnnee = false;
     for (let m = 0; m < 12; m++) {
       const nuits = nuiteesDansLeMois(checkIn, checkOut, year, m);
       if (nuits <= 0) continue;
+      aDesNuitsCetteAnnee = true;
       mois[m].nuitees += nuits;
       if (loyerTotal > 0) {
-        mois[m].ca = ajouterMontant(mois[m].ca, r.devisePaiement, montantProrata(loyerTotal, checkIn, checkOut, year, m));
+        mois[m].ca += versEuros(montantProrata(loyerTotal, checkIn, checkOut, year, m), r.devisePaiement);
       }
       if (montantPaye > 0) {
-        mois[m].encaisse = ajouterMontant(
-          mois[m].encaisse,
-          r.devisePaiement,
-          montantProrata(montantPaye, checkIn, checkOut, year, m)
-        );
+        mois[m].encaisse += versEuros(montantProrata(montantPaye, checkIn, checkOut, year, m), r.devisePaiement);
       }
+    }
+    if (aDesNuitsCetteAnnee) {
+      nbReservationsAvecNuitsCetteAnnee++;
+      if (loyerTotal <= 0) nbReservationsSansLoyer++;
     }
   }
 
@@ -99,21 +111,12 @@ export default async function StatistiquesPage({
     const mois = statsParVilla.get(d.villaId);
     if (!mois) continue;
     const m = new Date(d.createdAt).getMonth();
-    mois[m].depenses = ajouterMontant(mois[m].depenses, d.devise, Number(d.montant));
+    mois[m].depenses += versEuros(Number(d.montant), d.devise);
   }
 
-  // Trésorerie = encaissé - dépenses, calculé devise par devise (jamais mélangées : un loyer en
-  // EUR et une dépense en MAD restent deux lignes distinctes, voir la page Caisse).
   for (const mois of statsParVilla.values()) {
     for (const m of mois) {
-      const devises = new Set([...m.encaisse.map((e) => e.devise), ...m.depenses.map((e) => e.devise)]);
-      let tresorerie: MontantParDevise[] = [];
-      for (const devise of devises) {
-        const encaisse = m.encaisse.find((e) => e.devise === devise)?.montant ?? 0;
-        const depense = m.depenses.find((e) => e.devise === devise)?.montant ?? 0;
-        tresorerie = ajouterMontant(tresorerie, devise, encaisse - depense);
-      }
-      m.tresorerie = tresorerie;
+      m.tresorerie = m.encaisse - m.depenses;
     }
   }
 
@@ -131,6 +134,19 @@ export default async function StatistiquesPage({
         <h1 className="text-2xl font-semibold tracking-tight">Statistiques</h1>
         <p className="text-sm text-muted-foreground">Nuitées, chiffre d&apos;affaires, trésorerie et dépenses par logement, mois par mois</p>
       </div>
+
+      {nbReservationsSansLoyer > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <p>
+            <span className="font-medium">{nbReservationsSansLoyer}</span> réservation
+            {nbReservationsSansLoyer > 1 ? "s" : ""} sur {nbReservationsAvecNuitsCetteAnnee} n&apos;
+            {nbReservationsSansLoyer > 1 ? "ont" : "a"} pas de loyer renseigné (le CA affiché est donc sous-estimé) —
+            Superhote ne transmet pas les prix par iCal, quel que soit le canal (Direct, Airbnb, Booking.com) : seul un
+            import du CSV Superhote (Calendriers → Actions → Exporter les réservations) les remplit.
+          </p>
+          <ImportSuperhoteCsvDialog />
+        </div>
+      ) : null}
 
       <StatistiquesTable rows={rows} year={year} />
     </div>

@@ -21,14 +21,13 @@ export function montantProrata(montantTotal: number, checkIn: Date, checkOut: Da
   return montantTotal * (nuitsDansLeMois / totalNuits);
 }
 
-export type MontantParDevise = { devise: string; montant: number };
+// Taux fixe approximatif, juste pour afficher un seul chiffre en euros dans le tableau
+// Statistiques (Kamel, 2026-08-31 : "on va rester en euros [...] c'est pas beau" en réaction au
+// mélange EUR/MAD dans les cellules) — pas destiné à la comptabilité précise.
+const TAUX_MAD_VERS_EUR = 1 / 10.8;
 
-export function ajouterMontant(liste: MontantParDevise[], devise: string, montant: number): MontantParDevise[] {
-  const idx = liste.findIndex((m) => m.devise === devise);
-  if (idx === -1) return [...liste, { devise, montant }];
-  const copie = [...liste];
-  copie[idx] = { devise, montant: copie[idx].montant + montant };
-  return copie;
+export function versEuros(montant: number, devise: string): number {
+  return devise === "MAD" ? montant * TAUX_MAD_VERS_EUR : montant;
 }
 
 export const MOIS_LABELS = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];

@@ -5,14 +5,14 @@ import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { MOIS_LABELS, type MontantParDevise } from "@/lib/logement-stats";
+import { MOIS_LABELS } from "@/lib/logement-stats";
 
 export type LogementMoisStats = {
   nuitees: number;
-  ca: MontantParDevise[];
-  encaisse: MontantParDevise[];
-  depenses: MontantParDevise[];
-  tresorerie: MontantParDevise[];
+  ca: number;
+  encaisse: number;
+  depenses: number;
+  tresorerie: number;
 };
 
 export type LogementStatsRow = {
@@ -41,24 +41,11 @@ const INVERSE_COULEUR: Record<Onglet, boolean> = {
   depenses: true,
 };
 
-function valeurCellule(stats: LogementMoisStats, onglet: Onglet): MontantParDevise[] | number {
+function valeurCellule(stats: LogementMoisStats, onglet: Onglet): number {
   if (onglet === "nuitees") return stats.nuitees;
   if (onglet === "ca") return stats.ca;
   if (onglet === "tresorerie") return stats.tresorerie;
   return stats.depenses;
-}
-
-// Une cellule peut contenir plusieurs devises (loyers en EUR, dépenses en MAD...) — on ne les
-// additionne jamais entre elles (ça n'a aucun sens), mais pour colorer la cellule il faut UN
-// nombre : on prend celle dont le montant absolu est le plus grand.
-function montantDominant(montants: MontantParDevise[]): number {
-  if (montants.length === 0) return 0;
-  return montants.reduce((max, m) => (Math.abs(m.montant) > Math.abs(max) ? m.montant : max), montants[0].montant);
-}
-
-function heatValue(stats: LogementMoisStats, onglet: Onglet): number {
-  const v = valeurCellule(stats, onglet);
-  return typeof v === "number" ? v : montantDominant(v);
 }
 
 // 5 paliers (comme la légende Superhote "Faible ... Élevé") calculés par mois (colonne) sur
@@ -80,11 +67,10 @@ function classeCouleur(value: number, min: number, max: number, inverse: boolean
   return PALIERS[index];
 }
 
-function formatMontants(montants: MontantParDevise[]): string {
-  if (montants.length === 0) return "–";
-  return montants
-    .map((m) => `${Math.round(m.montant).toLocaleString("fr-FR")} ${m.devise === "EUR" ? "€" : m.devise}`)
-    .join(" · ");
+function formatValeur(value: number, onglet: Onglet): string {
+  if (value === 0) return "–";
+  if (onglet === "nuitees") return String(value);
+  return `${Math.round(value).toLocaleString("fr-FR")} €`;
 }
 
 export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; year: number }) {
@@ -93,25 +79,13 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
   // Min/max par colonne (mois), calculés sur l'onglet actif — les couleurs changent donc bien
   // de sens en changeant d'onglet (ex. beaucoup de dépenses en rouge, beaucoup de nuitées en vert).
   const bornesParMois = MOIS_LABELS.map((_, moisIndex) => {
-    const valeurs = rows.map((r) => heatValue(r.mois[moisIndex], onglet));
+    const valeurs = rows.map((r) => valeurCellule(r.mois[moisIndex], onglet));
     return { min: Math.min(...valeurs, 0), max: Math.max(...valeurs, 0) };
   });
 
-  const totauxParMois = MOIS_LABELS.map((_, moisIndex) => {
-    if (onglet === "nuitees") {
-      return rows.reduce((sum, r) => sum + (r.mois[moisIndex].nuitees ?? 0), 0);
-    }
-    let total: MontantParDevise[] = [];
-    for (const r of rows) {
-      const montants = valeurCellule(r.mois[moisIndex], onglet) as MontantParDevise[];
-      for (const m of montants) {
-        const idx = total.findIndex((t) => t.devise === m.devise);
-        if (idx === -1) total = [...total, { ...m }];
-        else total[idx] = { ...total[idx], montant: total[idx].montant + m.montant };
-      }
-    }
-    return total;
-  });
+  const totauxParMois = MOIS_LABELS.map((_, moisIndex) =>
+    rows.reduce((sum, r) => sum + valeurCellule(r.mois[moisIndex], onglet), 0)
+  );
 
   return (
     <div className="space-y-4">
@@ -164,12 +138,11 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
                 </TableCell>
                 {row.mois.map((stats, moisIndex) => {
                   const value = valeurCellule(stats, onglet);
-                  const heat = heatValue(stats, onglet);
                   const { min, max } = bornesParMois[moisIndex];
-                  const couleur = classeCouleur(heat, min, max, INVERSE_COULEUR[onglet]);
+                  const couleur = classeCouleur(value, min, max, INVERSE_COULEUR[onglet]);
                   return (
                     <TableCell key={moisIndex} className={cn("text-right tabular-nums", couleur)}>
-                      {typeof value === "number" ? value : formatMontants(value)}
+                      {formatValeur(value, onglet)}
                     </TableCell>
                   );
                 })}
@@ -179,7 +152,7 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
               <TableCell className="sticky left-0 z-10 bg-background">Total</TableCell>
               {totauxParMois.map((total, i) => (
                 <TableCell key={i} className="text-right tabular-nums">
-                  {typeof total === "number" ? total : formatMontants(total)}
+                  {formatValeur(total, onglet)}
                 </TableCell>
               ))}
             </TableRow>
