@@ -60,6 +60,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       messageBienvenueEnvoyeAt: reservations.messageBienvenueEnvoyeAt,
       messageLocalisationEnvoyeAt: reservations.messageLocalisationEnvoyeAt,
       messageSecuriteEnvoyeAt: reservations.messageSecuriteEnvoyeAt,
+      messageCuisineEnvoyeAt: reservations.messageCuisineEnvoyeAt,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))

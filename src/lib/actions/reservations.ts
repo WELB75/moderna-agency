@@ -159,6 +159,7 @@ const CHAMP_PAR_TYPE_MESSAGE = {
   bienvenue: "messageBienvenueEnvoyeAt",
   localisation: "messageLocalisationEnvoyeAt",
   securite: "messageSecuriteEnvoyeAt",
+  cuisine: "messageCuisineEnvoyeAt",
 } as const;
 export type TypeMessageCheckin = keyof typeof CHAMP_PAR_TYPE_MESSAGE;
 

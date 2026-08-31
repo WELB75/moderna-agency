@@ -9,6 +9,7 @@ import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
 import { WelcomeMessageButton } from "@/components/app/welcome-message-button";
 import { LocationMessageButton } from "@/components/app/location-message-button";
 import { SecurityMessageButton } from "@/components/app/security-message-button";
+import { CuisineCoursesMessageButton } from "@/components/app/cuisine-courses-message-button";
 import { CheckoutMessageButton } from "@/components/app/checkout-message-button";
 import { DepartureMessageButton } from "@/components/app/departure-message-button";
 import { StayRatingButton } from "@/components/app/stay-rating-button";
@@ -80,6 +81,7 @@ export type ReservationRow = {
   messageBienvenueEnvoyeAt: Date | null;
   messageLocalisationEnvoyeAt: Date | null;
   messageSecuriteEnvoyeAt: Date | null;
+  messageCuisineEnvoyeAt: Date | null;
   ficheStatut: "complete" | "en_attente" | null;
   ficheId: string | null;
   contratStatut: "signe" | "en_attente" | null;
@@ -304,6 +306,17 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               options={r.cuisineOptions}
               payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
             />
+            {/* Le message "courses" (comment ça se passe pour les achats) n'a de sens qu'une
+                fois une cuisinière affectée — pas question de le proposer avant, le client n'a
+                peut-être même pas pris ce service. */}
+            {r.cuisineAssignes.length > 0 && r.guestPhone ? (
+              <CuisineCoursesMessageButton
+                reservationId={r.id}
+                phone={r.guestPhone}
+                guestName={r.guestName}
+                envoyeAt={r.messageCuisineEnvoyeAt}
+              />
+            ) : null}
             {/* Distinct du ménage de départ (carte check-out) : ici, une femme de ménage
                 sollicitée PENDANT le séjour à la demande du client — souvent une personne
                 différente de l'équipe de départ. Kamel, 2026-08-06 : "quand le client arrive il

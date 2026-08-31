@@ -221,6 +221,9 @@ export const reservations = pgTable(
     messageBienvenueEnvoyeAt: timestamp("message_bienvenue_envoye_at", { withTimezone: true }),
     messageLocalisationEnvoyeAt: timestamp("message_localisation_envoye_at", { withTimezone: true }),
     messageSecuriteEnvoyeAt: timestamp("message_securite_envoye_at", { withTimezone: true }),
+    // Message courses/cuisinière (bouton distinct, affiché seulement une fois une cuisinière
+    // affectée à la réservation) : mêmes règles que les 4 boutons ci-dessus.
+    messageCuisineEnvoyeAt: timestamp("message_cuisine_envoye_at", { withTimezone: true }),
     formulaireCheckinRecu: boolean("formulaire_checkin_recu").default(false).notNull(),
     aRelancer: boolean("a_relancer").default(false).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
