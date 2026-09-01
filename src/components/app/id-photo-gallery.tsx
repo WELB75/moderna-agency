@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { ChevronLeft, ChevronRight, X, Download } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Download, ZoomIn, IdCard } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type GalleryOccupant = {
   id: string;
@@ -11,6 +12,11 @@ export type GalleryOccupant = {
   photoPieceUrl: string | null;
 };
 
+// Galerie des pièces d'identité pour le contrôle sécurité — présentée telle quelle (lisible sans
+// avoir à cliquer) plutôt qu'en vignettes recadrées serrées : Kamel, 2026-09-01, page destinée à
+// être montrée au ministre de la Défense, "j'aimerais qu'on ait les passeports en taille normal
+// déjà [...] rend ça propre fluide et pro". object-contain (jamais cover) pour ne jamais rogner
+// un bord du document ; le clic garde un agrandissement plein écran pour le détail le plus fin.
 export function IdPhotoGallery({ occupants }: { occupants: GalleryOccupant[] }) {
   const withPhoto = occupants.filter((o) => o.photoPieceUrl);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
@@ -34,34 +40,47 @@ export function IdPhotoGallery({ occupants }: { occupants: GalleryOccupant[] }) 
 
   return (
     <>
-      <div className="flex flex-wrap gap-2">
-        {occupants.map((o) => (
-          <button
-            key={o.id}
-            type="button"
-            onClick={() => o.photoPieceUrl && show(o.id)}
-            className="flex w-20 flex-col items-center gap-1 text-center"
-            disabled={!o.photoPieceUrl}
-          >
-            {o.photoPieceUrl ? (
-              <Image
-                src={o.photoPieceUrl}
-                alt="Pièce d'identité"
-                width={80}
-                height={56}
-                unoptimized
-                className="h-14 w-20 rounded-md border object-cover"
-              />
-            ) : (
-              <div className="flex h-14 w-20 items-center justify-center rounded-md border border-dashed text-[9px] text-amber-600 dark:text-amber-400">
-                Pas de pièce
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        {occupants.map((o) => {
+          const name = [o.prenom, o.nom].filter(Boolean).join(" ") || "Sans nom";
+          return (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => o.photoPieceUrl && show(o.id)}
+              disabled={!o.photoPieceUrl}
+              className={cn(
+                "group flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-left shadow-sm transition-all",
+                o.photoPieceUrl && "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+              )}
+            >
+              <div className="relative aspect-[3/2] w-full shrink-0 bg-muted/40">
+                {o.photoPieceUrl ? (
+                  <>
+                    <Image
+                      src={o.photoPieceUrl}
+                      alt={`Pièce d'identité — ${name}`}
+                      fill
+                      unoptimized
+                      className="object-contain p-1.5"
+                    />
+                    <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/45 text-white opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+                      <ZoomIn className="h-3.5 w-3.5" />
+                    </span>
+                  </>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400">
+                    <IdCard className="h-6 w-6" strokeWidth={1.5} />
+                    <span className="text-xs font-medium">Pas de pièce</span>
+                  </div>
+                )}
               </div>
-            )}
-            <span className="w-full truncate text-[10px] leading-tight">
-              {[o.prenom, o.nom].filter(Boolean).join(" ") || "Sans nom"}
-            </span>
-          </button>
-        ))}
+              <div className="border-t border-border px-3 py-2.5">
+                <p className="truncate text-sm font-semibold leading-tight">{name}</p>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {current ? (
