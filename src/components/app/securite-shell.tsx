@@ -17,7 +17,10 @@ export function SecuriteShell({
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-100 via-white to-white print:bg-white dark:from-slate-950 dark:via-slate-950 dark:to-slate-950">
       <div className="mx-auto max-w-3xl px-4 py-10 sm:px-8 sm:py-14 print:max-w-none print:p-0">
-        <div className="flex flex-col items-center gap-3 pb-8 text-center print:pb-6">
+        {/* Habillage Moderna Agency, jamais mêlé aux fiches officielles imprimées (mêmes règles
+            que /gendarmerie/[id] : à l'impression, seuls les logos Sûreté Nationale/Gendarmerie
+            Royale portés par chaque fiche doivent apparaître). */}
+        <div className="flex flex-col items-center gap-3 pb-8 text-center print:hidden">
           <Logo size={60} />
           <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-primary print:border-none print:bg-transparent">
             <ShieldCheck className="h-3.5 w-3.5" />

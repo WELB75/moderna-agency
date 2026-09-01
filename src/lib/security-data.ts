@@ -10,6 +10,30 @@ import type { VillaSecurityData } from "@/components/app/villa-security-block";
 // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
 const DOMAINES_SECURITE = ["Domaine Moderna II"];
 
+// Tous les champs du Bulletin Individuel (voir FIELD_KEYS dans gendarmerie-i18n.ts) + signature
+// et photo — nécessaires pour imprimer la fiche police officielle de chaque adulte directement
+// depuis le lien sécurité, sans repasser par l'app authentifiée (Kamel, 2026-09-01).
+const CHAMPS_OCCUPANT_ADULTE = {
+  id: gendarmerieOccupants.id,
+  nom: gendarmerieOccupants.nom,
+  prenom: gendarmerieOccupants.prenom,
+  dateNaissance: gendarmerieOccupants.dateNaissance,
+  lieuNaissance: gendarmerieOccupants.lieuNaissance,
+  nationalite: gendarmerieOccupants.nationalite,
+  profession: gendarmerieOccupants.profession,
+  venantDe: gendarmerieOccupants.venantDe,
+  allantA: gendarmerieOccupants.allantA,
+  dateArrivee: gendarmerieOccupants.dateArrivee,
+  domicileHabituel: gendarmerieOccupants.domicileHabituel,
+  typePiece: gendarmerieOccupants.typePiece,
+  numeroPiece: gendarmerieOccupants.numeroPiece,
+  datePiece: gendarmerieOccupants.datePiece,
+  lieuPiece: gendarmerieOccupants.lieuPiece,
+  signatureNom: gendarmerieOccupants.signatureNom,
+  signatureImage: gendarmerieOccupants.signatureImage,
+  photoPieceUrl: gendarmerieOccupants.photoPieceUrl,
+} as const;
+
 async function buildVillaSecurityData(
   db: ReturnType<typeof getDb>,
   villa: { id: string; nom: string; numero: string }
@@ -92,13 +116,7 @@ async function buildVillaSecurityData(
   const adultOccupants =
     formesAdultes.length > 0
       ? await db
-          .select({
-            id: gendarmerieOccupants.id,
-            nom: gendarmerieOccupants.nom,
-            prenom: gendarmerieOccupants.prenom,
-            nationalite: gendarmerieOccupants.nationalite,
-            photoPieceUrl: gendarmerieOccupants.photoPieceUrl,
-          })
+          .select(CHAMPS_OCCUPANT_ADULTE)
           .from(gendarmerieOccupants)
           .where(
             inArray(
@@ -126,6 +144,7 @@ async function buildVillaSecurityData(
         prenom: null,
         nationalite: null,
         photoPieceUrl: url,
+        estEnfant: true as const,
       }))
   );
 
@@ -221,13 +240,7 @@ export async function getReservationSecurityData(reservationId: string): Promise
   const adultOccupants =
     formesAdultes.length > 0
       ? await db
-          .select({
-            id: gendarmerieOccupants.id,
-            nom: gendarmerieOccupants.nom,
-            prenom: gendarmerieOccupants.prenom,
-            nationalite: gendarmerieOccupants.nationalite,
-            photoPieceUrl: gendarmerieOccupants.photoPieceUrl,
-          })
+          .select(CHAMPS_OCCUPANT_ADULTE)
           .from(gendarmerieOccupants)
           .where(
             inArray(
@@ -252,6 +265,7 @@ export async function getReservationSecurityData(reservationId: string): Promise
         prenom: null,
         nationalite: null,
         photoPieceUrl: url,
+        estEnfant: true as const,
       }))
   );
 
