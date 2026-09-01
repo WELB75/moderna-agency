@@ -31,6 +31,7 @@ import {
   cashEntries,
 } from "@/db/schema";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { SyncBeds24Button } from "@/components/app/sync-beds24-button";
@@ -74,6 +75,12 @@ import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 
 const DAYS_AHEAD = 7;
+
+// Domaines affichés en onglets sur l'accueil, dans cet ordre — Moderna II en premier (onglet par
+// défaut, géré par Kamel au quotidien), puis Zaraba et Noria réintégrés depuis leur mise de côté
+// du 2026-07-24 (voir domaines-actifs.ts, qui reste inchangé et ne s'applique qu'aux autres pages
+// comme /caisse). "Bureau Moderna Agency" n'est pas un domaine loué (0 villa) donc pas d'onglet.
+const DASHBOARD_DOMAINES = ["Domaine Moderna II", "Domaine Zaraba", "Noria"];
 
 export default async function DashboardPage({
   searchParams,
@@ -303,8 +310,9 @@ export default async function DashboardPage({
     };
   });
 
-  // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
-  const modernaIIUpcoming = upcomingWithDocs.filter((r) => r.domaineNom === "Domaine Moderna II");
+  const upcomingByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [d, upcomingWithDocs.filter((r) => r.domaineNom === d)])
+  );
 
   const upcomingMaintenance = await db
     .select({
@@ -358,9 +366,13 @@ export default async function DashboardPage({
   const occupiedVillaIds = new Set(activeNow.map((r) => r.villaId));
   const occupantByVillaId = new Map(activeNow.filter((r) => r.villaId).map((r) => [r.villaId as string, r]));
   const villasLibres = allVillasGerees.filter((v) => !occupiedVillaIds.has(v.id));
-  const villasLibresKamel = villasLibres.filter((v) => v.domaineNom === "Domaine Moderna II");
+  const villasLibresByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [d, villasLibres.filter((v) => v.domaineNom === d)])
+  );
 
-  // Plan du domaine confirmé par Kamel : le champ "numero" correspond à la position 1-17 sur le terrain.
+  // Plan du domaine confirmé par Kamel : le champ "numero" correspond à la position 1-17 sur le
+  // terrain — uniquement fiable pour Moderna II (Zaraba/Noria ont des numéros dupliqués ou
+  // inconnus côté données, donc pas de plan pour ces domaines, juste la liste des villas libres).
   const modernaIIPlanVillas: PlanVilla[] = allVillasGerees
     .filter((v) => v.domaineNom === "Domaine Moderna II")
     .map((v) => {
@@ -376,8 +388,15 @@ export default async function DashboardPage({
       };
     })
     .filter((v) => !Number.isNaN(v.position));
+  const planVillasByDomaine = new Map<string, PlanVilla[]>([
+    ["Domaine Moderna II", modernaIIPlanVillas],
+    ["Domaine Zaraba", []],
+    ["Noria", []],
+  ]);
 
-  const modernaIIMaintenance = upcomingMaintenance.filter((m) => m.domaineNom === "Domaine Moderna II");
+  const maintenanceByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [d, upcomingMaintenance.filter((m) => m.domaineNom === d)])
+  );
 
   const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(viewAnchor, i));
 
@@ -389,12 +408,16 @@ export default async function DashboardPage({
 
   // --- Chiffres du jour (tête de page) -------------------------------------------------------
 
-  const villasOccupeesKamel = allVillasGerees.filter((v) => v.domaineNom === "Domaine Moderna II" && occupiedVillaIds.has(v.id));
+  const villasOccupeesByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [d, allVillasGerees.filter((v) => v.domaineNom === d && occupiedVillaIds.has(v.id))])
+  );
 
   // Ménage/cuisine "occupée aujourd'hui" : même logique de fenêtre de travail que le dispatch
   // automatique (voir dayAfter/moment dans whatsapp-agent/staff.ts) — ménage "depart"/"unique" ne
   // travaille que le jour du check-out, ménage "sejour" et cuisine travaillent du lendemain du
-  // check-in jusqu'au check-out inclus.
+  // check-in jusqu'au check-out inclus. Calculée tous domaines confondus (pas par onglet) : le
+  // personnel n'est pas rattaché à un domaine, quelqu'un occupé à Noria n'est pas "disponible"
+  // pour Zaraba — la disponibilité est un fait global, pas un fait par domaine.
   const affectationsAujourdhui = await db
     .select({
       personnelId: personnelAffectations.personnelId,
@@ -406,12 +429,9 @@ export default async function DashboardPage({
     .from(personnelAffectations)
     .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
     .innerJoin(reservations, eq(personnelAffectations.reservationId, reservations.id))
-    .leftJoin(villas, eq(reservations.villaId, villas.id))
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .where(
       and(
         ne(reservations.status, "annulee"),
-        eq(domaines.nom, "Domaine Moderna II"),
         lte(reservations.checkIn, endOfDay(now)),
         gte(reservations.checkOut, startOfDay(now))
       )
@@ -441,16 +461,28 @@ export default async function DashboardPage({
     .where(and(inArray(interventions.urgence, ["haute", "critique"]), ne(interventions.etape, "termine")));
 
   const sollicitationsEnAttente = await db
-    .select({ id: staffAssignmentRequests.id })
+    .select({ id: staffAssignmentRequests.id, domaineNom: domaines.nom })
     .from(staffAssignmentRequests)
     .innerJoin(reservations, eq(staffAssignmentRequests.reservationId, reservations.id))
     .leftJoin(villas, eq(reservations.villaId, villas.id))
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(and(eq(staffAssignmentRequests.statut, "en_recherche"), eq(domaines.nom, "Domaine Moderna II")));
+    .where(eq(staffAssignmentRequests.statut, "en_recherche"));
+  const sollicitationsByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [d, sollicitationsEnAttente.filter((s) => s.domaineNom === d).length])
+  );
 
-  const checkInsAujourdhui = modernaIIUpcoming.filter((r) => isSameDay(new Date(r.checkIn), now));
-  const checkOutsAujourdhui = modernaIIUpcoming.filter((r) => isSameDay(new Date(r.checkOut), now));
-  const fichesPoliceManquantes = checkInsAujourdhui.filter((r) => r.ficheStatut !== "complete");
+  const checkInsAujourdhuiByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [d, upcomingByDomaine.get(d)!.filter((r) => isSameDay(new Date(r.checkIn), now))])
+  );
+  const checkOutsAujourdhuiByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [d, upcomingByDomaine.get(d)!.filter((r) => isSameDay(new Date(r.checkOut), now))])
+  );
+  const fichesPoliceManquantesByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [
+      d,
+      checkInsAujourdhuiByDomaine.get(d)!.filter((r) => r.ficheStatut !== "complete").length,
+    ])
+  );
 
   // Argent physiquement disponible en caisse société (espèces) sur la période comptable en cours
   // (même découpage du 11 au 10 que la page Caisse, voir JOUR_DEBUT_PERIODE_CAISSE) — pas tout
@@ -556,22 +588,46 @@ export default async function DashboardPage({
         <MenuGrid unreadChatCount={unreadChatCount} />
       </div>
 
-      <MetricsHeader
-        checkInsAujourdhui={checkInsAujourdhui.length}
-        checkOutsAujourdhui={checkOutsAujourdhui.length}
-        villasOccupees={villasOccupeesKamel.length}
-        villasLibres={villasLibresKamel.length}
+      {/* Personnel dispo/occupé, caisse et interventions urgentes sont partagés entre domaines
+          (pas rattachés à un seul), donc affichés une fois au-dessus des onglets plutôt que
+          répétés identiquement dans chacun. */}
+      <GlobalMetricsHeader
         menageLibre={menageActif.length - menageOccupeCount}
         menageOccupe={menageOccupeCount}
         cuisineLibre={cuisineActif.length - cuisineOccupeCount}
         cuisineOccupe={cuisineOccupeCount}
         soldesCaisse={soldesCaisse}
         interventionsUrgentes={interventionsUrgentesEnCours.length}
-        sollicitationsEnAttente={sollicitationsEnAttente.length}
-        fichesPoliceManquantes={fichesPoliceManquantes.length}
       />
-      <VillasLibresCard villas={villasLibresKamel} planVillas={modernaIIPlanVillas} />
-      <PersonPanel reservations={modernaIIUpcoming} maintenance={modernaIIMaintenance} days={days} now={now} />
+
+      <Tabs defaultValue="Domaine Moderna II">
+        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
+          {DASHBOARD_DOMAINES.map((d) => (
+            <TabsTrigger key={d} value={d} className="shrink-0">
+              {d}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        {DASHBOARD_DOMAINES.map((d) => (
+          <TabsContent key={d} value={d} className="space-y-6 pt-2">
+            <DomaineMetricsHeader
+              checkInsAujourdhui={checkInsAujourdhuiByDomaine.get(d)!.length}
+              checkOutsAujourdhui={checkOutsAujourdhuiByDomaine.get(d)!.length}
+              villasOccupees={villasOccupeesByDomaine.get(d)!.length}
+              villasLibres={villasLibresByDomaine.get(d)!.length}
+              sollicitationsEnAttente={sollicitationsByDomaine.get(d)!}
+              fichesPoliceManquantes={fichesPoliceManquantesByDomaine.get(d)!}
+            />
+            <VillasLibresCard villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
+            <PersonPanel
+              reservations={upcomingByDomaine.get(d)!}
+              maintenance={maintenanceByDomaine.get(d)!}
+              days={days}
+              now={now}
+            />
+          </TabsContent>
+        ))}
+      </Tabs>
     </div>
   );
 }
@@ -637,39 +693,23 @@ function StatTile({
   );
 }
 
-function MetricsHeader({
-  checkInsAujourdhui,
-  checkOutsAujourdhui,
-  villasOccupees,
-  villasLibres,
+function GlobalMetricsHeader({
   menageLibre,
   menageOccupe,
   cuisineLibre,
   cuisineOccupe,
   soldesCaisse,
   interventionsUrgentes,
-  sollicitationsEnAttente,
-  fichesPoliceManquantes,
 }: {
-  checkInsAujourdhui: number;
-  checkOutsAujourdhui: number;
-  villasOccupees: number;
-  villasLibres: number;
   menageLibre: number;
   menageOccupe: number;
   cuisineLibre: number;
   cuisineOccupe: number;
   soldesCaisse: { devise: string; solde: number }[];
   interventionsUrgentes: number;
-  sollicitationsEnAttente: number;
-  fichesPoliceManquantes: number;
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <StatTile icon={LogIn} value={checkInsAujourdhui} label="Check-in aujourd'hui" color="emerald" />
-      <StatTile icon={LogOut} value={checkOutsAujourdhui} label="Check-out aujourd'hui" color="amber" />
-      <StatTile icon={DoorClosed} value={villasOccupees} label="Villas occupées" color="sky" href="/villas" />
-      <StatTile icon={DoorOpen} value={villasLibres} label="Villas libres" color="emerald" href="/villas" />
       <StatTile icon={BrushCleaning} value={menageLibre} label="Ménage disponible" color="emerald" href="/personnel" />
       <StatTile icon={BrushCleaning} value={menageOccupe} label="Ménage occupée" color="amber" href="/personnel" />
       <StatTile icon={ChefHat} value={cuisineLibre} label="Cuisine disponible" color="emerald" href="/personnel" />
@@ -695,6 +735,33 @@ function MetricsHeader({
         color={interventionsUrgentes > 0 ? "red" : "slate"}
         href="/interventions"
       />
+    </div>
+  );
+}
+
+// Chiffres propres à un domaine (recalculés par onglet) — check-in/out, occupation, sollicitations
+// de personnel et fiches police, contrairement aux chiffres partagés de GlobalMetricsHeader.
+function DomaineMetricsHeader({
+  checkInsAujourdhui,
+  checkOutsAujourdhui,
+  villasOccupees,
+  villasLibres,
+  sollicitationsEnAttente,
+  fichesPoliceManquantes,
+}: {
+  checkInsAujourdhui: number;
+  checkOutsAujourdhui: number;
+  villasOccupees: number;
+  villasLibres: number;
+  sollicitationsEnAttente: number;
+  fichesPoliceManquantes: number;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+      <StatTile icon={LogIn} value={checkInsAujourdhui} label="Check-in aujourd'hui" color="emerald" />
+      <StatTile icon={LogOut} value={checkOutsAujourdhui} label="Check-out aujourd'hui" color="amber" />
+      <StatTile icon={DoorClosed} value={villasOccupees} label="Villas occupées" color="sky" href="/villas" />
+      <StatTile icon={DoorOpen} value={villasLibres} label="Villas libres" color="emerald" href="/villas" />
       <StatTile
         icon={Hourglass}
         value={sollicitationsEnAttente}
@@ -725,10 +792,13 @@ function VillasLibresCard({
       <CardHeader>
         <CardTitle className="text-base">Villas libres en ce moment ({villas.length})</CardTitle>
         {/* Plan du domaine réduit à une icône sur la même ligne que le titre (au lieu d'un bloc
-            "Voir le plan" permanent) — Kamel, 2026-08-17. */}
-        <CardAction>
-          <DomainePlanTrigger villas={planVillas} />
-        </CardAction>
+            "Voir le plan" permanent) — Kamel, 2026-08-17. Uniquement pour Moderna II, seul domaine
+            avec des positions de villas fiables (planVillas vide sinon). */}
+        {planVillas.length > 0 ? (
+          <CardAction>
+            <DomainePlanTrigger villas={planVillas} />
+          </CardAction>
+        ) : null}
       </CardHeader>
       <CardContent>
         {villas.length === 0 ? (
