@@ -16,6 +16,7 @@ import { StayRatingButton } from "@/components/app/stay-rating-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { StatusChip } from "@/components/app/status-chip";
+import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
@@ -29,7 +30,6 @@ import {
   KeyRound,
   DoorClosedLocked,
   BedDouble,
-  FileText,
   FileSignature,
   Wallet,
   UserCheck,
@@ -357,11 +357,11 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               checkout (le message sécurité dit littéralement "nouveau client à venir"). */}
           {isProprietaire || kind !== "in" ? null : (
             <div className="flex flex-wrap gap-1.5">
-              <StatusChip
-                icon={FileText}
-                label="Fiche police"
-                value={r.ficheStatut === "complete" ? "Faite" : r.ficheStatut === "en_attente" ? "En attente" : "Manquante"}
-                done={r.ficheStatut === "complete"}
+              <FichePoliceStatusChip
+                reservationId={r.id}
+                villaId={r.villaId}
+                ficheId={r.ficheId}
+                ficheStatut={r.ficheStatut}
               />
               <StatusChip
                 icon={FileSignature}
