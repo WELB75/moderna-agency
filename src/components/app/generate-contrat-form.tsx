@@ -39,26 +39,47 @@ export function GenerateContratForm({
   domaines,
   villas,
   reservations,
+  defaultVillaId,
+  defaultReservationId,
 }: {
   domaines: LieuDomaine[];
   villas: LieuVilla[];
   reservations?: ContratReservation[];
+  // Pré-sélection venue d'ailleurs dans l'app (ex. le chip "Contrat" d'une réservation sans
+  // contrat encore généré) — évite de refaire à la main la sélection villa + réservation.
+  defaultVillaId?: string;
+  defaultReservationId?: string;
 }) {
+  // Pré-sélection venue d'un lien externe (chip "Contrat" d'une réservation sans contrat encore
+  // généré) : posée directement comme valeur initiale des champs plutôt que via un effet après
+  // montage, pour éviter un rendu supplémentaire et n'avoir qu'un seul jeu de champs à maintenir.
+  const [defaultReservation] = useState(() =>
+    defaultReservationId ? (reservations ?? []).find((r) => r.id === defaultReservationId) : undefined
+  );
+
   const [domaineId, setDomaineId] = useState("");
-  const [villaId, setVillaId] = useState("");
+  const [villaId, setVillaId] = useState(defaultVillaId ?? "");
   const [agenceRepresentant, setAgenceRepresentant] = useState(AGENCE_REPRESENTANT_DEFAUT);
-  const [locataireNom, setLocataireNom] = useState("");
+  const [locataireNom, setLocataireNom] = useState(defaultReservation?.guestName ?? "");
   const [locataireAdresse, setLocataireAdresse] = useState("");
-  const [nbAdultes, setNbAdultes] = useState("1");
-  const [nbEnfants, setNbEnfants] = useState("0");
-  const [dateArrivee, setDateArrivee] = useState("");
-  const [dateDepart, setDateDepart] = useState("");
-  const [devise, setDevise] = useState("DH");
-  const [montantTotal, setMontantTotal] = useState("");
-  const [acompteMontant, setAcompteMontant] = useState("");
-  const [soldeMontant, setSoldeMontant] = useState("");
+  const [nbAdultes, setNbAdultes] = useState(defaultReservation?.nbAdultes ? String(defaultReservation.nbAdultes) : "1");
+  const [nbEnfants, setNbEnfants] = useState(
+    defaultReservation?.nbEnfants !== null && defaultReservation?.nbEnfants !== undefined ? String(defaultReservation.nbEnfants) : "0"
+  );
+  const [dateArrivee, setDateArrivee] = useState(defaultReservation ? format(new Date(defaultReservation.checkIn), "yyyy-MM-dd") : "");
+  const [dateDepart, setDateDepart] = useState(defaultReservation ? format(new Date(defaultReservation.checkOut), "yyyy-MM-dd") : "");
+  const [devise, setDevise] = useState(
+    defaultReservation && ["DH", "EUR", "USD", "GBP"].includes(defaultReservation.devisePaiement) ? defaultReservation.devisePaiement : "DH"
+  );
+  const [montantTotal, setMontantTotal] = useState(defaultReservation?.loyerTotal ?? "");
+  const [acompteMontant, setAcompteMontant] = useState(defaultReservation?.loyerTotal ? (defaultReservation.montantPaye ?? "") : "");
+  const [soldeMontant, setSoldeMontant] = useState(
+    defaultReservation?.loyerTotal
+      ? Math.max(0, Number(defaultReservation.loyerTotal) - Number(defaultReservation.montantPaye ?? 0)).toFixed(2)
+      : ""
+  );
   const [soldeDateLimite, setSoldeDateLimite] = useState("");
-  const [depotGarantieMontant, setDepotGarantieMontant] = useState("");
+  const [depotGarantieMontant, setDepotGarantieMontant] = useState(defaultReservation?.caution ?? "");
   const [depotRestitutionDate, setDepotRestitutionDate] = useState("");
   const [lieuSignature, setLieuSignature] = useState("Marrakech");
   const [avecFichePolice, setAvecFichePolice] = useState(false);

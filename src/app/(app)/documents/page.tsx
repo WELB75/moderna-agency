@@ -33,7 +33,12 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   );
 }
 
-export default async function DocumentsPage() {
+export default async function DocumentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ onglet?: string; villaId?: string; reservationId?: string }>;
+}) {
+  const { onglet, villaId: villaIdPrerempli, reservationId: reservationIdPrerempli } = await searchParams;
   const db = getDb();
 
   const allDomaines = filtrerDomainesActifs(
@@ -174,7 +179,7 @@ export default async function DocumentsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="fiche-police">
+      <Tabs defaultValue={onglet === "contrat" ? "contrat" : onglet === "pieces-identite" ? "pieces-identite" : "fiche-police"}>
         <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
           <TabsTrigger value="fiche-police" className="shrink-0">
             <FileText className="h-4 w-4" />
@@ -238,7 +243,13 @@ export default async function DocumentsPage() {
             <StatCard label="Taux de signature" value={`${contratsTauxSignature}%`} />
           </div>
 
-          <GenerateContratForm domaines={allDomaines} villas={allVillas} reservations={reservationsForContrat} />
+          <GenerateContratForm
+            domaines={allDomaines}
+            villas={allVillas}
+            reservations={reservationsForContrat}
+            defaultVillaId={villaIdPrerempli}
+            defaultReservationId={reservationIdPrerempli}
+          />
 
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

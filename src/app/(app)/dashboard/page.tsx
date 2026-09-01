@@ -177,17 +177,22 @@ export default async function DashboardPage({
   const relatedContrats =
     villaIdsForContrats.length > 0
       ? await db
-          .select({ villaId: contratsLocation.villaId, dateArrivee: contratsLocation.dateArrivee, statut: contratsLocation.statut })
+          .select({
+            id: contratsLocation.id,
+            villaId: contratsLocation.villaId,
+            dateArrivee: contratsLocation.dateArrivee,
+            statut: contratsLocation.statut,
+          })
           .from(contratsLocation)
           .where(inArray(contratsLocation.villaId, villaIdsForContrats))
       : [];
-  const contratStatutByVillaAndDate = new Map<string, "signe" | "en_attente">();
+  const contratByVillaAndDate = new Map<string, { id: string; statut: "signe" | "en_attente" }>();
   for (const c of relatedContrats) {
     if (!c.villaId || !c.dateArrivee) continue;
     const key = `${c.villaId}|${c.dateArrivee}`;
-    const current = contratStatutByVillaAndDate.get(key);
-    if (c.statut === "signe" || current !== "signe") {
-      contratStatutByVillaAndDate.set(key, c.statut === "signe" ? "signe" : "en_attente");
+    const current = contratByVillaAndDate.get(key);
+    if (c.statut === "signe" || current?.statut !== "signe") {
+      contratByVillaAndDate.set(key, { id: c.id, statut: c.statut === "signe" ? "signe" : "en_attente" });
     }
   }
 
@@ -261,7 +266,9 @@ export default async function DashboardPage({
     const ficheStatut = ficheStatutByReservation.get(r.id) ?? null;
     const ficheId = ficheIdByReservation.get(r.id) ?? null;
     const dateKey = r.villaId ? `${r.villaId}|${format(new Date(r.checkIn), "yyyy-MM-dd")}` : null;
-    const contratStatut = dateKey ? (contratStatutByVillaAndDate.get(dateKey) ?? null) : null;
+    const contrat = dateKey ? (contratByVillaAndDate.get(dateKey) ?? null) : null;
+    const contratStatut = contrat?.statut ?? null;
+    const contratId = contrat?.id ?? null;
     const menageSejourAssignes = menageSejourAssignesByReservation.get(r.id) ?? [];
     const menageDepartAssignes = menageDepartAssignesByReservation.get(r.id) ?? [];
     const cuisineAssignes = cuisineAssignesByReservation.get(r.id) ?? [];
@@ -285,6 +292,7 @@ export default async function DashboardPage({
       ficheStatut,
       ficheId,
       contratStatut,
+      contratId,
       menageSejourAssignes,
       menageDepartAssignes,
       cuisineAssignes,

@@ -79,15 +79,18 @@ export default async function ReservationDetailPage({ params }: { params: Promis
   const ficheId = fiche?.id ?? null;
 
   let contratStatut: "signe" | "en_attente" | null = null;
+  let contratId: string | null = null;
   if (r.villaId) {
     const contratsVilla = await db
-      .select({ dateArrivee: contratsLocation.dateArrivee, statut: contratsLocation.statut })
+      .select({ id: contratsLocation.id, dateArrivee: contratsLocation.dateArrivee, statut: contratsLocation.statut })
       .from(contratsLocation)
       .where(eq(contratsLocation.villaId, r.villaId));
     const dateKey = format(new Date(r.checkIn), "yyyy-MM-dd");
     const matching = contratsVilla.filter((c) => c.dateArrivee === dateKey);
     if (matching.length > 0) {
-      contratStatut = matching.some((c) => c.statut === "signe") ? "signe" : "en_attente";
+      const signe = matching.find((c) => c.statut === "signe");
+      contratStatut = signe ? "signe" : "en_attente";
+      contratId = (signe ?? matching[0]).id;
     }
   }
 
@@ -152,6 +155,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     ficheStatut,
     ficheId,
     contratStatut,
+    contratId,
     menageSejourAssignes,
     menageDepartAssignes,
     cuisineAssignes,

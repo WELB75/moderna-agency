@@ -15,8 +15,8 @@ import { DepartureMessageButton } from "@/components/app/departure-message-butto
 import { StayRatingButton } from "@/components/app/stay-rating-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
-import { StatusChip } from "@/components/app/status-chip";
 import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip";
+import { ContratStatusChip } from "@/components/app/contrat-status-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
@@ -30,7 +30,6 @@ import {
   KeyRound,
   DoorClosedLocked,
   BedDouble,
-  FileSignature,
   Wallet,
   UserCheck,
   type LucideIcon,
@@ -85,6 +84,7 @@ export type ReservationRow = {
   ficheStatut: "complete" | "en_attente" | null;
   ficheId: string | null;
   contratStatut: "signe" | "en_attente" | null;
+  contratId: string | null;
   menageSejourAssignes: PersonnelAssigne[];
   menageDepartAssignes: PersonnelAssigne[];
   cuisineAssignes: PersonnelAssigne[];
@@ -363,11 +363,11 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 ficheId={r.ficheId}
                 ficheStatut={r.ficheStatut}
               />
-              <StatusChip
-                icon={FileSignature}
-                label="Contrat"
-                value={r.contratStatut === "signe" ? "Signé" : r.contratStatut === "en_attente" ? "En attente" : "Manquant"}
-                done={r.contratStatut === "signe"}
+              <ContratStatusChip
+                contratId={r.contratId}
+                contratStatut={r.contratStatut}
+                villaId={r.villaId}
+                reservationId={r.id}
               />
             </div>
           )}
