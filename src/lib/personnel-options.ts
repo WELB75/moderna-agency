@@ -1,11 +1,40 @@
+import { isNotNull } from "drizzle-orm";
 import { distanceKm } from "@/lib/geo";
+import { personnelAffectations } from "@/db/schema";
+import type { getDb } from "@/db";
 
 export type PersonnelOption = {
   id: string;
   nom: string;
   notes?: string | null;
   distanceKm?: number | null;
+  qualiteMoyenne?: number | null;
+  qualiteTotal?: number;
 };
+
+export type QualiteMoyenneById = Map<string, { moyenne: number; total: number }>;
+
+// Moyenne long terme de la note qualité (1-5, voir QualiteNoteControl dans
+// personnel-affectation-editor.tsx), calculée une fois pour l'injecter dans le menu de choix
+// ménage/cuisine — repérer aussi les personnes les mieux notées, pas seulement les plus proches.
+// Kamel, 2026-09-04 : "je vois pas la note sur 5" (dans le menu déroulant, à côté du km).
+export async function getQualiteMoyenneById(db: ReturnType<typeof getDb>): Promise<QualiteMoyenneById> {
+  const rows = await db
+    .select({ personnelId: personnelAffectations.personnelId, qualiteNote: personnelAffectations.qualiteNote })
+    .from(personnelAffectations)
+    .where(isNotNull(personnelAffectations.qualiteNote));
+  const sommeById = new Map<string, { somme: number; total: number }>();
+  for (const r of rows) {
+    if (r.qualiteNote === null) continue;
+    const current = sommeById.get(r.personnelId) ?? { somme: 0, total: 0 };
+    current.somme += r.qualiteNote;
+    current.total += 1;
+    sommeById.set(r.personnelId, current);
+  }
+  const result: QualiteMoyenneById = new Map();
+  for (const [id, { somme, total }] of sommeById) result.set(id, { moyenne: somme / total, total });
+  return result;
+}
 
 type PersonnelRow = {
   id: string;
@@ -27,7 +56,8 @@ type DomaineCoords = { latitude: string | number | null; longitude: string | num
 export function buildPersonnelOptions(
   personnelList: PersonnelRow[],
   role: "menage" | "cuisine",
-  domaine: DomaineCoords
+  domaine: DomaineCoords,
+  qualiteById?: QualiteMoyenneById
 ): PersonnelOption[] {
   const domaineLat = domaine?.latitude != null ? Number(domaine.latitude) : null;
   const domaineLng = domaine?.longitude != null ? Number(domaine.longitude) : null;
@@ -41,7 +71,15 @@ export function buildPersonnelOptions(
         lat !== null && lng !== null && domaineLat !== null && domaineLng !== null
           ? distanceKm(lat, lng, domaineLat, domaineLng)
           : null;
-      return { id: p.id, nom: p.nom, notes: p.notes, distanceKm: km };
+      const qualite = qualiteById?.get(p.id) ?? null;
+      return {
+        id: p.id,
+        nom: p.nom,
+        notes: p.notes,
+        distanceKm: km,
+        qualiteMoyenne: qualite?.moyenne ?? null,
+        qualiteTotal: qualite?.total ?? 0,
+      };
     })
     .sort((a, b) => {
       if (a.distanceKm === null && b.distanceKm === null) return a.nom.localeCompare(b.nom);

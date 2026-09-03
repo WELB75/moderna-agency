@@ -73,7 +73,7 @@ import {
 } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
-import { buildPersonnelOptions } from "@/lib/personnel-options";
+import { buildPersonnelOptions, getQualiteMoyenneById } from "@/lib/personnel-options";
 
 const DAYS_AHEAD = 7;
 
@@ -264,10 +264,11 @@ export default async function DashboardPage({
   // buildPersonnelOptions), précalculées pour chaque domaine avant le rendu — plusieurs séjours
   // partagent le même domaine, pas de cache paresseux pendant le rendu.
   const domainesCoords = await db.select({ nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude }).from(domaines);
-  const menageOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "menage", d)]));
-  const cuisineOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "cuisine", d)]));
-  const menageOptionsSansDomaine = buildPersonnelOptions(activePersonnel, "menage", null);
-  const cuisineOptionsSansDomaine = buildPersonnelOptions(activePersonnel, "cuisine", null);
+  const qualiteById = await getQualiteMoyenneById(db);
+  const menageOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "menage", d, qualiteById)]));
+  const cuisineOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "cuisine", d, qualiteById)]));
+  const menageOptionsSansDomaine = buildPersonnelOptions(activePersonnel, "menage", null, qualiteById);
+  const cuisineOptionsSansDomaine = buildPersonnelOptions(activePersonnel, "cuisine", null, qualiteById);
   function menageOptionsFor(domaineNom: string | null) {
     return (domaineNom && menageOptionsByDomaine.get(domaineNom)) || menageOptionsSansDomaine;
   }

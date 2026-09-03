@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { asc, and, ne, gte, lte, eq, inArray, isNull, isNotNull, or } from "drizzle-orm";
+import { asc, and, ne, gte, lte, eq, inArray, isNull, or } from "drizzle-orm";
 import {
   format,
   startOfMonth,
@@ -47,7 +47,7 @@ import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 import { distanceKm } from "@/lib/geo";
-import { buildPersonnelOptions, type PersonnelOption } from "@/lib/personnel-options";
+import { buildPersonnelOptions, getQualiteMoyenneById, type PersonnelOption } from "@/lib/personnel-options";
 import { plagesJoursParReservation } from "@/lib/planning-jours-affectation";
 import {
   Users,
@@ -110,14 +110,24 @@ export default async function PersonnelPage({
   // Options triées par proximité du domaine du séjour concerné (voir buildPersonnelOptions),
   // précalculées pour chaque domaine avant le rendu (pas de cache paresseux pendant le rendu).
   const domainesCoordsRoster = await db.select({ nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude }).from(domaines);
+  // Moyenne long terme de la note qualité (voir QualiteNoteControl dans
+  // personnel-affectation-editor.tsx) — toute la période, pas juste le mois affiché dans
+  // l'onglet Statistiques, puisque c'est une réputation qui se construit sur la durée. Kamel,
+  // 2026-08-09 : "sur le long terme on aura une moyenne pareil pour les cuisinieres". Calculée
+  // ici (avant les options du menu déroulant) pour être réutilisée aussi bien dans le menu de
+  // choix ménage/cuisine que dans le roster ci-dessous.
+  const qualiteById = await getQualiteMoyenneById(db);
+  function moyenneQualite(personnelId: string): { moyenne: number; total: number } | null {
+    return qualiteById.get(personnelId) ?? null;
+  }
   const menageOptionsByDomaine = new Map<string | null, PersonnelOption[]>(
-    domainesCoordsRoster.map((d) => [d.nom, buildPersonnelOptions(allPersonnel, "menage", d)])
+    domainesCoordsRoster.map((d) => [d.nom, buildPersonnelOptions(allPersonnel, "menage", d, qualiteById)])
   );
   const cuisineOptionsByDomaine = new Map<string | null, PersonnelOption[]>(
-    domainesCoordsRoster.map((d) => [d.nom, buildPersonnelOptions(allPersonnel, "cuisine", d)])
+    domainesCoordsRoster.map((d) => [d.nom, buildPersonnelOptions(allPersonnel, "cuisine", d, qualiteById)])
   );
-  const menageOptionsSansDomaine = buildPersonnelOptions(allPersonnel, "menage", null);
-  const cuisineOptionsSansDomaine = buildPersonnelOptions(allPersonnel, "cuisine", null);
+  const menageOptionsSansDomaine = buildPersonnelOptions(allPersonnel, "menage", null, qualiteById);
+  const cuisineOptionsSansDomaine = buildPersonnelOptions(allPersonnel, "cuisine", null, qualiteById);
   function menageOptionsFor(domaineNom: string | null): PersonnelOption[] {
     return (domaineNom && menageOptionsByDomaine.get(domaineNom)) || menageOptionsSansDomaine;
   }
@@ -195,28 +205,6 @@ export default async function PersonnelPage({
       if (distB === null) return -1;
       return distA - distB;
     });
-
-  // Moyenne long terme de la note qualité (ménage de départ / cuisine, voir QualiteNoteControl
-  // dans personnel-affectation-editor.tsx) — toute la période, pas juste le mois affiché dans
-  // l'onglet Statistiques, puisque c'est une réputation qui se construit sur la durée. Kamel,
-  // 2026-08-09 : "sur le long terme on aura une moyenne pareil pour les cuisinieres".
-  const qualiteRows = await db
-    .select({ personnelId: personnelAffectations.personnelId, qualiteNote: personnelAffectations.qualiteNote })
-    .from(personnelAffectations)
-    .where(isNotNull(personnelAffectations.qualiteNote));
-  const qualiteById = new Map<string, { somme: number; total: number }>();
-  for (const q of qualiteRows) {
-    if (q.qualiteNote === null) continue;
-    const current = qualiteById.get(q.personnelId) ?? { somme: 0, total: 0 };
-    current.somme += q.qualiteNote;
-    current.total += 1;
-    qualiteById.set(q.personnelId, current);
-  }
-  function moyenneQualite(personnelId: string): { moyenne: number; total: number } | null {
-    const entry = qualiteById.get(personnelId);
-    if (!entry) return null;
-    return { moyenne: entry.somme / entry.total, total: entry.total };
-  }
 
   // Séparé en deux listes distinctes plutôt qu'une seule "à venir" mélangeant les deux dates :
   // la cuisine se prépare pour une arrivée, le ménage se fait après un départ. On garde une

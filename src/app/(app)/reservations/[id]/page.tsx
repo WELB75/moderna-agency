@@ -7,7 +7,7 @@ import { reservations, villas, domaines, gendarmerieForms, contratsLocation, per
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
-import { buildPersonnelOptions } from "@/lib/personnel-options";
+import { buildPersonnelOptions, getQualiteMoyenneById } from "@/lib/personnel-options";
 import { phonesMatch } from "@/lib/phone";
 import { format } from "date-fns";
 
@@ -134,8 +134,9 @@ export default async function ReservationDetailPage({ params }: { params: Promis
 
   const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom));
   const domaineCoords = { latitude: r.domaineLatitude, longitude: r.domaineLongitude };
-  const menageOptions = buildPersonnelOptions(activePersonnel, "menage", domaineCoords);
-  const cuisineOptions = buildPersonnelOptions(activePersonnel, "cuisine", domaineCoords);
+  const qualiteById = await getQualiteMoyenneById(db);
+  const menageOptions = buildPersonnelOptions(activePersonnel, "menage", domaineCoords, qualiteById);
+  const cuisineOptions = buildPersonnelOptions(activePersonnel, "cuisine", domaineCoords, qualiteById);
 
   const cashAPrevoir = affectations.reduce((sum, a) => {
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) return sum;

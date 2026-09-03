@@ -277,13 +277,16 @@ export function PersonnelAffectationEditor({
             <SelectTrigger className="h-7 w-32 text-xs">
               <SelectValue placeholder="+ Ajouter" />
             </SelectTrigger>
-            {/* Distance au domaine (à vol d'oiseau depuis la dernière position WhatsApp connue)
-                et notes libres affichées sous le nom : aide à repérer la personne la plus proche
-                plutôt que de choisir à l'aveugle dans une liste alphabétique. Le km est aligné à
-                droite (colonne fixe) plutôt que collé au nom : sinon sa position horizontale
-                saute d'une ligne à l'autre selon la longueur du nom. Kamel, 2026-09-04 : "je veux
-                pas de decalage que ce soit en mobile ou version pc". Les options restent triées
-                par proximité (voir buildPersonnelOptions), pas re-triées ici. */}
+            {/* Distance au domaine (à vol d'oiseau depuis la dernière position WhatsApp connue),
+                note qualité moyenne (voir QualiteNoteControl) et notes libres affichées sous le
+                nom : aide à repérer la personne la plus proche / la mieux notée plutôt que de
+                choisir à l'aveugle dans une liste alphabétique. Le km est aligné à droite (colonne
+                fixe) plutôt que collé au nom : sinon sa position horizontale saute d'une ligne à
+                l'autre selon la longueur du nom. Kamel, 2026-09-04 : "je veux pas de decalage que
+                ce soit en mobile ou version pc" puis "je vois pas la note sur 5" — chaque ligne
+                supplémentaire (note, remarque) démarre systématiquement à gauche, sous le nom.
+                Les options restent triées par proximité (voir buildPersonnelOptions), pas
+                re-triées ici. */}
             <SelectContent className="w-72 max-w-72">
               {availableOptions.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
@@ -296,6 +299,13 @@ export function PersonnelAffectationEditor({
                         </span>
                       ) : null}
                     </span>
+                    {o.qualiteMoyenne != null ? (
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Star className="h-3 w-3 shrink-0 fill-current" />
+                        <span className="tabular-nums">{o.qualiteMoyenne.toFixed(1)}/5</span>
+                        <span className="text-muted-foreground/70">({o.qualiteTotal})</span>
+                      </span>
+                    ) : null}
                     {o.notes ? <span className="truncate text-xs text-muted-foreground">{o.notes}</span> : null}
                   </span>
                 </SelectItem>
