@@ -21,6 +21,7 @@ export type Entry = {
   categorie: string | null;
   caisse: string;
   financePar: string;
+  moyenPaiement: string;
   montant: string;
   devise: string;
   description: string | null;
