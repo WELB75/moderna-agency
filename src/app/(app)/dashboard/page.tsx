@@ -73,6 +73,7 @@ import {
 } from "@/lib/personnel-tarifs";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
+import { buildPersonnelOptions } from "@/lib/personnel-options";
 
 const DAYS_AHEAD = 7;
 
@@ -258,8 +259,21 @@ export default async function DashboardPage({
   }
 
   const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom));
-  const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
-  const cuisineOptions = activePersonnel.filter((p) => p.role === "cuisine").map((p) => ({ id: p.id, nom: p.nom }));
+
+  // Coordonnées de chaque domaine (pour trier les options ménage/cuisine par proximité, voir
+  // buildPersonnelOptions), précalculées pour chaque domaine avant le rendu — plusieurs séjours
+  // partagent le même domaine, pas de cache paresseux pendant le rendu.
+  const domainesCoords = await db.select({ nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude }).from(domaines);
+  const menageOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "menage", d)]));
+  const cuisineOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "cuisine", d)]));
+  const menageOptionsSansDomaine = buildPersonnelOptions(activePersonnel, "menage", null);
+  const cuisineOptionsSansDomaine = buildPersonnelOptions(activePersonnel, "cuisine", null);
+  function menageOptionsFor(domaineNom: string | null) {
+    return (domaineNom && menageOptionsByDomaine.get(domaineNom)) || menageOptionsSansDomaine;
+  }
+  function cuisineOptionsFor(domaineNom: string | null) {
+    return (domaineNom && cuisineOptionsByDomaine.get(domaineNom)) || cuisineOptionsSansDomaine;
+  }
 
   // Client connu : rapproché par téléphone (pas par nom, trop instable) — pour retrouver ses
   // habitudes s'il revient sans avoir à ouvrir la page Clients.
@@ -303,8 +317,8 @@ export default async function DashboardPage({
       menageSejourAssignes,
       menageDepartAssignes,
       cuisineAssignes,
-      menageOptions,
-      cuisineOptions,
+      menageOptions: menageOptionsFor(r.domaineNom),
+      cuisineOptions: cuisineOptionsFor(r.domaineNom),
       cashAPrevoir,
       clientConnu,
     };

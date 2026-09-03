@@ -47,6 +47,7 @@ import { domaineEstActif } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 import { distanceKm } from "@/lib/geo";
+import { buildPersonnelOptions, type PersonnelOption } from "@/lib/personnel-options";
 import { plagesJoursParReservation } from "@/lib/planning-jours-affectation";
 import {
   Users,
@@ -104,9 +105,25 @@ export default async function PersonnelPage({
   const allPersonnel = await db.select().from(personnel).orderBy(asc(personnel.nom));
   const menageRoster = allPersonnel.filter((p) => p.role === "menage");
   const cuisineRoster = allPersonnel.filter((p) => p.role === "cuisine");
-  const menageOptions = menageRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
-  const cuisineOptions = cuisineRoster.filter((p) => p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
+
+  // Options triées par proximité du domaine du séjour concerné (voir buildPersonnelOptions),
+  // précalculées pour chaque domaine avant le rendu (pas de cache paresseux pendant le rendu).
+  const domainesCoordsRoster = await db.select({ nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude }).from(domaines);
+  const menageOptionsByDomaine = new Map<string | null, PersonnelOption[]>(
+    domainesCoordsRoster.map((d) => [d.nom, buildPersonnelOptions(allPersonnel, "menage", d)])
+  );
+  const cuisineOptionsByDomaine = new Map<string | null, PersonnelOption[]>(
+    domainesCoordsRoster.map((d) => [d.nom, buildPersonnelOptions(allPersonnel, "cuisine", d)])
+  );
+  const menageOptionsSansDomaine = buildPersonnelOptions(allPersonnel, "menage", null);
+  const cuisineOptionsSansDomaine = buildPersonnelOptions(allPersonnel, "cuisine", null);
+  function menageOptionsFor(domaineNom: string | null): PersonnelOption[] {
+    return (domaineNom && menageOptionsByDomaine.get(domaineNom)) || menageOptionsSansDomaine;
+  }
+  function cuisineOptionsFor(domaineNom: string | null): PersonnelOption[] {
+    return (domaineNom && cuisineOptionsByDomaine.get(domaineNom)) || cuisineOptionsSansDomaine;
+  }
 
   // Onglet Carte : dernière position connue de chaque personne (voir personnel.latitude/
   // longitude dans db/schema.ts, alimenté par un partage de localisation WhatsApp — voir
@@ -761,7 +778,7 @@ export default async function PersonnelPage({
             getDate={(r) => r.checkOut}
             role="menage"
             label="Ménage"
-            options={menageOptions}
+            optionsFor={(item) => menageOptionsFor(item.domaineNom)}
             assignedFor={assignedFor}
             emptyLabel="Aucun départ en attente."
             now={now}
@@ -775,7 +792,7 @@ export default async function PersonnelPage({
             getDate={(r) => r.checkIn}
             role="cuisine"
             label="Cuisine"
-            options={cuisineOptions}
+            optionsFor={(item) => cuisineOptionsFor(item.domaineNom)}
             assignedFor={assignedFor}
             emptyLabel="Aucune arrivée en attente."
             now={now}
@@ -937,6 +954,7 @@ function AffectationSection<
     guestName: string;
     villaNom: string | null;
     villaNumero: string | null;
+    domaineNom: string | null;
     personnelPayeParProprietaireNoms: string[] | null;
   },
 >({
@@ -948,7 +966,7 @@ function AffectationSection<
   getDate,
   role,
   label,
-  options,
+  optionsFor,
   assignedFor,
   emptyLabel,
   now,
@@ -961,7 +979,7 @@ function AffectationSection<
   getDate: (item: T) => Date;
   role: "menage" | "cuisine";
   label: string;
-  options: { id: string; nom: string }[];
+  optionsFor: (item: T) => PersonnelOption[];
   assignedFor: (reservationId: string, role: "menage" | "cuisine") => PersonnelAssigne[];
   emptyLabel: string;
   now: Date;
@@ -989,7 +1007,7 @@ function AffectationSection<
           moment={role === "menage" ? "depart" : "unique"}
           label={label}
           assigned={assignedFor(item.id, role)}
-          options={options}
+          options={optionsFor(item)}
           payeParProprietaireNoms={item.personnelPayeParProprietaireNoms ?? []}
         />
       </div>

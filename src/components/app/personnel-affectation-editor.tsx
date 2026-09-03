@@ -33,6 +33,7 @@ import {
   TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER,
   estPayeParProprietaire,
 } from "@/lib/personnel-tarifs";
+import type { PersonnelOption } from "@/lib/personnel-options";
 
 export type PersonnelAssigne = {
   affectationId: string;
@@ -79,7 +80,7 @@ export function PersonnelAffectationEditor({
   role: "menage" | "cuisine";
   label: string;
   assigned: PersonnelAssigne[];
-  options: { id: string; nom: string }[];
+  options: PersonnelOption[];
   // Noms des personnes dont le ménage/cuisine est payé directement par le propriétaire pour
   // cette villa : aucun montant ni bouton de paiement ne doit apparaître pour elles côté
   // agence. Les autres personnes affectées à la même réservation restent payées normalement.
@@ -276,10 +277,22 @@ export function PersonnelAffectationEditor({
             <SelectTrigger className="h-7 w-32 text-xs">
               <SelectValue placeholder="+ Ajouter" />
             </SelectTrigger>
-            <SelectContent>
+            {/* Distance au domaine (à vol d'oiseau depuis la dernière position WhatsApp connue)
+                et notes libres affichées sous le nom : aide à repérer la personne la plus proche
+                plutôt que de choisir à l'aveugle dans une liste alphabétique. Kamel, 2026-09-03 :
+                "ajoute les notes ici, et nombre de km du domaine en question pour selectionner
+                la femme de ménage". Les options restent triées par proximité (voir
+                buildPersonnelOptions), pas re-triées ici. */}
+            <SelectContent className="max-w-72">
               {availableOptions.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
-                  {o.nom}
+                  <span className="flex min-w-0 flex-col py-0.5 leading-tight">
+                    <span className="truncate">
+                      {o.nom}
+                      {o.distanceKm != null ? ` · ${o.distanceKm.toFixed(1)} km` : ""}
+                    </span>
+                    {o.notes ? <span className="truncate text-xs text-muted-foreground">{o.notes}</span> : null}
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>

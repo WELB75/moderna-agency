@@ -19,6 +19,7 @@ import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
+import type { PersonnelOption } from "@/lib/personnel-options";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
@@ -88,8 +89,8 @@ export type ReservationRow = {
   menageSejourAssignes: PersonnelAssigne[];
   menageDepartAssignes: PersonnelAssigne[];
   cuisineAssignes: PersonnelAssigne[];
-  menageOptions: { id: string; nom: string }[];
-  cuisineOptions: { id: string; nom: string }[];
+  menageOptions: PersonnelOption[];
+  cuisineOptions: PersonnelOption[];
   cashAPrevoir: number;
   clientConnu: { nom: string; telephone: string | null; notes: string | null } | null;
 };

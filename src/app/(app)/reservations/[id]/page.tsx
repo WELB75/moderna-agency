@@ -7,6 +7,7 @@ import { reservations, villas, domaines, gendarmerieForms, contratsLocation, per
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
+import { buildPersonnelOptions } from "@/lib/personnel-options";
 import { phonesMatch } from "@/lib/phone";
 import { format } from "date-fns";
 
@@ -46,6 +47,8 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       domaineMapsUrl: domaines.mapsUrl,
       domaineWazeUrl: domaines.wazeUrl,
       domaineSecuritePhone: domaines.securitePhone,
+      domaineLatitude: domaines.latitude,
+      domaineLongitude: domaines.longitude,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
       caution: reservations.caution,
@@ -130,8 +133,9 @@ export default async function ReservationDetailPage({ params }: { params: Promis
   const cuisineAssignes: PersonnelAssigne[] = affectations.filter((a) => a.role === "cuisine").map(toAssigne);
 
   const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom));
-  const menageOptions = activePersonnel.filter((p) => p.role === "menage").map((p) => ({ id: p.id, nom: p.nom }));
-  const cuisineOptions = activePersonnel.filter((p) => p.role === "cuisine").map((p) => ({ id: p.id, nom: p.nom }));
+  const domaineCoords = { latitude: r.domaineLatitude, longitude: r.domaineLongitude };
+  const menageOptions = buildPersonnelOptions(activePersonnel, "menage", domaineCoords);
+  const cuisineOptions = buildPersonnelOptions(activePersonnel, "cuisine", domaineCoords);
 
   const cashAPrevoir = affectations.reduce((sum, a) => {
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) return sum;
