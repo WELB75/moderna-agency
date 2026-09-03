@@ -58,13 +58,19 @@ export default async function CaisseRapportPage({
   const entriesSociete = entries.filter((e) => e.caisse === "societe");
   const entriesBrahim = entries.filter((e) => e.caisse === "brahim");
 
+  // Cosmétique seulement (les bornes de la requête restent celles de la période comptable
+  // complète, sans quoi une période en cours afficherait "jusqu'au 10" alors qu'on est le 3).
+  const maintenant = new Date();
+  const finPeriodeAffichee = finAffichee > maintenant ? maintenant : finAffichee;
+
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-4 print:p-0">
+    <div className="mx-auto max-w-4xl space-y-6 p-4 print:max-w-none print:p-0">
+      <style>{"@media print { @page { size: A4 landscape; margin: 10mm; } }"}</style>
       <div className="flex items-center justify-between print:hidden">
         <div>
           <p className="font-semibold">Rapport de caisse — comptabilité</p>
           <p className="text-sm text-muted-foreground">
-            {format(debutMois, "d MMM", { locale: fr })} → {format(finAffichee, "d MMM yyyy", { locale: fr })}
+            {format(debutMois, "d MMM", { locale: fr })} → {format(finPeriodeAffichee, "d MMM yyyy", { locale: fr })}
           </p>
         </div>
         <PrintButton />
@@ -75,9 +81,9 @@ export default async function CaisseRapportPage({
         <div className="text-right">
           <p className="text-lg font-semibold">Rapport de caisse</p>
           <p className="text-sm text-muted-foreground">
-            Période du {format(debutMois, "d MMMM", { locale: fr })} au {format(finAffichee, "d MMMM yyyy", { locale: fr })}
+            Période du {format(debutMois, "d MMMM", { locale: fr })} au {format(finPeriodeAffichee, "d MMMM yyyy", { locale: fr })}
           </p>
-          <p className="text-xs text-muted-foreground">Édité le {format(new Date(), "d MMMM yyyy", { locale: fr })}</p>
+          <p className="text-xs text-muted-foreground">Édité le {format(maintenant, "d MMMM yyyy", { locale: fr })}</p>
         </div>
       </div>
 
@@ -91,7 +97,7 @@ function RapportSection({ titre, entries }: { titre: string; entries: Entry[] })
   const devises = entries.length > 0 ? Array.from(new Set(entries.map((e) => e.devise))).sort() : ["MAD"];
 
   return (
-    <div className="space-y-4 break-inside-avoid">
+    <div className="space-y-4">
       <h2 className="text-base font-semibold">{titre}</h2>
       {devises.map((devise) => {
         const enDevise = entries.filter((e) => e.devise === devise);
@@ -115,39 +121,49 @@ function RapportSection({ titre, entries }: { titre: string; entries: Entry[] })
   );
 }
 
+// Largeurs fixes en % (somme = 100) : évite que le tableau dépasse la largeur imprimable — sans
+// ça, le conteneur "overflow-x-auto" (pensé pour le scroll à l'écran) coupe silencieusement les
+// colonnes de droite à l'impression au lieu de les faire défiler, d'où les infos manquantes.
+const COL_WIDTHS = ["8%", "16%", "15%", "10%", "24%", "12%", "15%"];
+
 function MoyenTable({ titre, entries, devise }: { titre: string; entries: Entry[]; devise: string }) {
   if (entries.length === 0) return null;
   return (
-    <div className="space-y-1.5 break-inside-avoid">
-      <p className="text-sm font-medium">{titre}</p>
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full text-xs">
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium break-after-avoid">{titre}</p>
+      <div className="overflow-x-auto rounded-md border print:overflow-visible print:rounded-none print:border-none">
+        <table className="w-full table-fixed text-[11px] print:text-[9px]">
+          <colgroup>
+            {COL_WIDTHS.map((w, i) => (
+              <col key={i} style={{ width: w }} />
+            ))}
+          </colgroup>
           <thead>
-            <tr className="border-b bg-muted/50 text-left">
-              <th className="p-2 font-medium">Date</th>
-              <th className="p-2 font-medium">Type</th>
-              <th className="p-2 font-medium">Bien</th>
-              <th className="p-2 font-medium">Client</th>
-              <th className="p-2 font-medium">Description</th>
-              <th className="p-2 font-medium">Responsable</th>
-              <th className="p-2 text-right font-medium">Montant</th>
+            <tr className="border-b bg-muted/50 text-left print:bg-transparent">
+              <th className="p-2 font-medium print:border-b print:border-black/40 print:p-1">Date</th>
+              <th className="p-2 font-medium print:border-b print:border-black/40 print:p-1">Type</th>
+              <th className="p-2 font-medium print:border-b print:border-black/40 print:p-1">Bien</th>
+              <th className="p-2 font-medium print:border-b print:border-black/40 print:p-1">Client</th>
+              <th className="p-2 font-medium print:border-b print:border-black/40 print:p-1">Description</th>
+              <th className="p-2 font-medium print:border-b print:border-black/40 print:p-1">Responsable</th>
+              <th className="p-2 text-right font-medium print:border-b print:border-black/40 print:p-1">Montant</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((e) => (
-              <tr key={e.id} className="border-b last:border-0">
-                <td className="whitespace-nowrap p-2">{format(new Date(e.createdAt), "d MMM yyyy", { locale: fr })}</td>
-                <td className="whitespace-nowrap p-2">
+              <tr key={e.id} className="break-inside-avoid border-b last:border-0">
+                <td className="whitespace-nowrap p-2 print:p-1">{format(new Date(e.createdAt), "d MMM", { locale: fr })}</td>
+                <td className="p-2 break-words print:p-1">
                   {TYPE_LABELS[e.type] ?? e.type}
                   {e.categorie ? ` · ${CATEGORIE_LABELS[e.categorie] ?? e.categorie}` : ""}
                 </td>
-                <td className="whitespace-nowrap p-2">
+                <td className="p-2 break-words print:p-1">
                   {e.villaNom ? `${e.villaNom} (n°${e.villaNumero})` : "—"}
                 </td>
-                <td className="whitespace-nowrap p-2">{e.guestName ?? "—"}</td>
-                <td className="p-2">{e.description ?? "—"}</td>
-                <td className="whitespace-nowrap p-2">{e.responsable ?? "—"}</td>
-                <td className="whitespace-nowrap p-2 text-right font-medium">
+                <td className="p-2 break-words print:p-1">{e.guestName ?? "—"}</td>
+                <td className="p-2 break-words print:p-1">{e.description ?? "—"}</td>
+                <td className="p-2 break-words print:p-1">{e.responsable ?? "—"}</td>
+                <td className="whitespace-nowrap p-2 text-right font-medium print:p-1">
                   {e.type === "remise" || e.type === "loyer" || e.type === "extra" ? "+" : "-"}
                   {Number(e.montant).toFixed(2)} {devise}
                 </td>
@@ -184,10 +200,10 @@ function TotauxDevise({ entries, devise }: { entries: Entry[]; devise: string })
   ] as const;
 
   return (
-    <div className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border p-3 text-sm sm:grid-cols-4">
+    <div className="grid break-inside-avoid grid-cols-2 gap-x-6 gap-y-1 rounded-md border p-3 text-sm sm:grid-cols-4 print:grid-cols-4 print:p-2 print:text-xs">
       {lignes.map(([label, value]) => (
         <div key={label}>
-          <p className="text-xs text-muted-foreground">{label}</p>
+          <p className="text-xs text-muted-foreground print:text-[9px]">{label}</p>
           <p className="font-semibold">
             {value.toFixed(2)} {devise}
           </p>
