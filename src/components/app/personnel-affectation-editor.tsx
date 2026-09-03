@@ -279,17 +279,22 @@ export function PersonnelAffectationEditor({
             </SelectTrigger>
             {/* Distance au domaine (à vol d'oiseau depuis la dernière position WhatsApp connue)
                 et notes libres affichées sous le nom : aide à repérer la personne la plus proche
-                plutôt que de choisir à l'aveugle dans une liste alphabétique. Kamel, 2026-09-03 :
-                "ajoute les notes ici, et nombre de km du domaine en question pour selectionner
-                la femme de ménage". Les options restent triées par proximité (voir
-                buildPersonnelOptions), pas re-triées ici. */}
-            <SelectContent className="max-w-72">
+                plutôt que de choisir à l'aveugle dans une liste alphabétique. Le km est aligné à
+                droite (colonne fixe) plutôt que collé au nom : sinon sa position horizontale
+                saute d'une ligne à l'autre selon la longueur du nom. Kamel, 2026-09-04 : "je veux
+                pas de decalage que ce soit en mobile ou version pc". Les options restent triées
+                par proximité (voir buildPersonnelOptions), pas re-triées ici. */}
+            <SelectContent className="w-72 max-w-72">
               {availableOptions.map((o) => (
                 <SelectItem key={o.id} value={o.id}>
-                  <span className="flex min-w-0 flex-col py-0.5 leading-tight">
-                    <span className="truncate">
-                      {o.nom}
-                      {o.distanceKm != null ? ` · ${o.distanceKm.toFixed(1)} km` : ""}
+                  <span className="flex w-full min-w-0 flex-col gap-0.5 py-0.5 leading-tight">
+                    <span className="flex w-full items-baseline justify-between gap-3">
+                      <span className="min-w-0 truncate">{o.nom}</span>
+                      {o.distanceKm != null ? (
+                        <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                          {o.distanceKm.toFixed(1)} km
+                        </span>
+                      ) : null}
                     </span>
                     {o.notes ? <span className="truncate text-xs text-muted-foreground">{o.notes}</span> : null}
                   </span>
