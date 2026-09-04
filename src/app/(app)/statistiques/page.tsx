@@ -4,6 +4,7 @@ import { villas, domaines, reservations, cashEntries } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { anneeEnd, anneeStart, montantProrata, nuiteesDansLeMois, versEuros } from "@/lib/logement-stats";
 import { StatistiquesTable, type LogementMoisStats, type LogementStatsRow } from "@/components/app/statistiques-table";
+import { StatistiquesCharts, type PortfolioMoisStats } from "@/components/app/statistiques-charts";
 import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 
 export default async function StatistiquesPage({
@@ -128,6 +129,22 @@ export default async function StatistiquesPage({
     mois: statsParVilla.get(v.id)!,
   }));
 
+  // Vue d'ensemble du portefeuille (CA + taux d'occupation) au-dessus du détail par logement —
+  // le taux d'occupation rapporte les nuitées réellement vendues au nombre de nuits disponibles
+  // ce mois-là (nb de logements gérés × jours du mois), pas juste un compte brut de nuitées.
+  const portfolioMois: PortfolioMoisStats[] = Array.from({ length: 12 }, (_, m) => {
+    const joursDansLeMois = new Date(year, m + 1, 0).getDate();
+    const nuitsDisponibles = allVillas.length * joursDansLeMois;
+    let ca = 0;
+    let nuitees = 0;
+    for (const v of allVillas) {
+      const stats = statsParVilla.get(v.id)![m];
+      ca += stats.ca;
+      nuitees += stats.nuitees;
+    }
+    return { ca, tauxOccupation: nuitsDisponibles > 0 ? (nuitees / nuitsDisponibles) * 100 : 0 };
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -147,6 +164,8 @@ export default async function StatistiquesPage({
           <ImportSuperhoteCsvDialog />
         </div>
       ) : null}
+
+      <StatistiquesCharts mois={portfolioMois} />
 
       <StatistiquesTable rows={rows} year={year} />
     </div>
