@@ -1,5 +1,6 @@
 import { UserButton } from "@clerk/nextjs";
 import { Logo } from "@/components/app/logo";
+import { ThemeToggle } from "@/components/app/theme-toggle";
 
 export function AppHeader() {
   return (
@@ -11,11 +12,14 @@ export function AppHeader() {
         <Logo size={32} />
       </div>
       <div className="hidden md:block" />
-      <UserButton
-        appearance={{
-          elements: { avatarBox: "h-8 w-8 grayscale" },
-        }}
-      />
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
+        <UserButton
+          appearance={{
+            elements: { avatarBox: "h-8 w-8 grayscale" },
+          }}
+        />
+      </div>
     </header>
   );
 }

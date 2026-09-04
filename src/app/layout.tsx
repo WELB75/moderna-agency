@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Fraunces, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
@@ -49,10 +50,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full w-full flex flex-col overflow-x-hidden">
-        <ClerkProvider>
-          {children}
-          <Toaster richColors position="top-center" />
-        </ClerkProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <ClerkProvider>
+            {children}
+            <Toaster richColors position="top-center" />
+          </ClerkProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

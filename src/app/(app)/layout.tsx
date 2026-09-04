@@ -16,7 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           fond plat ne rendent pas grand-chose. Purement visuel, fixe, sans interaction. */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-br from-sky-100 via-white to-indigo-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900"
+        className="pointer-events-none fixed inset-0 -z-10 bg-gradient-to-br from-fuchsia-50 via-white to-violet-100 dark:from-[#1b1633] dark:via-[#120e24] dark:to-[#150f2e]"
       />
       <SidebarNav unreadChatCount={unreadChatCount} />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
