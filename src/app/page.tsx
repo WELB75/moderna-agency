@@ -46,9 +46,9 @@ export default async function HomePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-fuchsia-50 via-white to-violet-50 text-foreground dark:from-[#150f2e] dark:via-[#120e24] dark:to-[#120e24]">
+    <div className="force-light min-h-screen bg-gradient-to-b from-fuchsia-50 via-white to-violet-50 text-foreground">
       {/* Nav */}
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-white/70 backdrop-blur-xl backdrop-saturate-150 dark:bg-black/20">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-white/70 backdrop-blur-xl backdrop-saturate-150">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-6">
           <div className="flex items-center gap-2">
             <Logo size={40} />
@@ -76,12 +76,16 @@ export default async function HomePage() {
 
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-4 pb-20 pt-16 text-center md:px-6 md:pt-24">
-        <span className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-sm dark:bg-white/5">
+        <span className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
           MODERNA AGENCY · MARRAKECH
         </span>
         <h1 className="mx-auto mt-6 max-w-3xl text-4xl leading-tight font-semibold md:text-6xl">
-          La gestion <em className="text-primary not-italic font-heading italic">intelligente</em> de votre villa à
+          La gestion{" "}
+          <em className="bg-gradient-to-r from-violet-600 to-fuchsia-400 bg-clip-text italic text-transparent">
+            intelligente
+          </em>{" "}
+          de votre villa à
           Marrakech
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-base text-muted-foreground md:text-lg">
@@ -102,7 +106,7 @@ export default async function HomePage() {
 
         <div className="mx-auto mt-16 grid max-w-3xl grid-cols-2 gap-4 md:grid-cols-4">
           {stats.map((s) => (
-            <div key={s.label} className="rounded-2xl border border-border bg-white/70 p-4 shadow-sm dark:bg-white/5">
+            <div key={s.label} className="rounded-2xl border border-border bg-white/70 p-4 shadow-sm">
               <p className="font-heading text-2xl font-semibold md:text-3xl">{s.value}</p>
               <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
             </div>

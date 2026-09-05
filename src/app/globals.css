@@ -120,6 +120,31 @@
   --sidebar-ring: #9d8df9;
 }
 
+/* Vitrine publique (page d'accueil "/") : toujours claire, peu importe le mode sombre de l'app —
+   un site marketing calibré sur fond clair, comme millenium-connect.com. Kamel, 2026-09-05 :
+   "la ta tout mis en violet ... c'est pas comme ça". Redéclare les mêmes valeurs que :root pour
+   que les composants partagés (Card, Button, Badge...) qui lisent ces variables restent clairs
+   même sous html.dark, sans dupliquer toute la page en classes littérales. */
+.force-light {
+  --background: #ffffff;
+  --foreground: #1e1b2e;
+  --card: #ffffff;
+  --card-foreground: #1e1b2e;
+  --popover: #ffffff;
+  --popover-foreground: #1e1b2e;
+  --primary: #6d5df6;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f1fd;
+  --secondary-foreground: #2e2559;
+  --muted: #f6f5fa;
+  --muted-foreground: #75708c;
+  --accent: #ede9fe;
+  --accent-foreground: #4c3aa6;
+  --border: #e7e3f5;
+  --input: #e7e3f5;
+  --ring: #6d5df6;
+}
+
 /* Recherche globale — habillage "verre liquide" (voir GlobalSearchOverlay / GlobalSearchBar) :
    anneau lumineux qui tourne lentement autour du panneau, reflet qui suit le curseur, effet de
    balayage pendant la recherche. */
