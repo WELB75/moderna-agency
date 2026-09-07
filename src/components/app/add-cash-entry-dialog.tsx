@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { upload } from "@vercel/blob/client";
 import Image from "next/image";
-import { Plus, Camera, Loader2, X } from "lucide-react";
+import { Plus, Camera, Loader2, X, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,7 +25,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createCashEntry } from "@/lib/actions/caisse";
+import { createCashEntry, analyzeCashReceiptPhotos } from "@/lib/actions/caisse";
 
 const MOYEN_LABELS: Record<string, string> = {
   especes: "Espèces",
@@ -65,8 +65,38 @@ export function AddCashEntryDialog({
   const [reservationId, setReservationId] = useState("");
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [montant, setMontant] = useState("");
+  const [description, setDescription] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Préremplissage IA à partir des photos du reçu (voir analyzeCashReceiptPhotos) — ne fait que
+  // remplir les champs, jamais un enregistrement direct : Kamel relit et corrige si besoin avant
+  // de cliquer "Enregistrer". Kamel, 2026-09-07 : "j'aimerais que l'IA elle puisse vraiment très
+  // bien les analyser [...] on verra avec les tests qu'on va mettre en place".
+  async function handleAnalyze() {
+    if (photoUrls.length === 0) {
+      toast.error("Ajoute d'abord une photo du reçu.");
+      return;
+    }
+    setAnalyzing(true);
+    try {
+      const result = await analyzeCashReceiptPhotos(photoUrls);
+      if (result.montant != null) setMontant(String(result.montant));
+      if (result.description) setDescription(result.description);
+      if (result.villaId) setVillaId(result.villaId);
+      const parts: string[] = [];
+      if (result.montant != null) parts.push(`${result.montant} ${devise}`);
+      if (result.villaLabel) parts.push(result.villaLabel);
+      toast.success(parts.length > 0 ? `Lu : ${parts.join(" · ")}. Vérifie avant d'enregistrer.` : "Lecture faite, mais rien d'exploitable trouvé.");
+      for (const w of result.warnings) toast.warning(w);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de l'analyse IA.");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
 
   function handleReservationChange(id: string) {
     setReservationId(id);
@@ -116,6 +146,8 @@ export function AddCashEntryDialog({
         setReservationId("");
         setFinancePar("societe");
         setCategorie("");
+        setMontant("");
+        setDescription("");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -198,7 +230,16 @@ export function AddCashEntryDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="montant">Montant</Label>
-              <Input id="montant" name="montant" type="number" step="0.01" min="0" required />
+              <Input
+                id="montant"
+                name="montant"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={montant}
+                onChange={(e) => setMontant(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Devise</Label>
@@ -262,6 +303,8 @@ export function AddCashEntryDialog({
               id="description"
               name="description"
               rows={2}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               placeholder={
                 type === "loyer"
                   ? "Ex. Nuitées : 70 000 DH · Cuisine : 20 000 DH · Ménage : 10 000 DH"
@@ -287,16 +330,24 @@ export function AddCashEntryDialog({
                 ))}
               </div>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={uploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-              Ajouter une photo
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                Ajouter une photo
+              </Button>
+              {type === "depense" && photoUrls.length > 0 ? (
+                <Button type="button" variant="outline" size="sm" disabled={analyzing} onClick={handleAnalyze}>
+                  {analyzing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                  Analyser avec l&apos;IA
+                </Button>
+              ) : null}
+            </div>
             <input
               ref={fileInputRef}
               type="file"

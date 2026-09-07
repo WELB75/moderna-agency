@@ -4,7 +4,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { cashEntries } from "@/db/schema";
+import { cashEntries, villas } from "@/db/schema";
+import { analyzeCashReceipt } from "@/lib/caisse-receipt-ai";
 
 export async function createCashEntry(formData: FormData) {
   await auth.protect();
@@ -89,6 +90,38 @@ export async function addCashEntryPhotos(entryId: string, photoUrls: string[]) {
     .where(eq(cashEntries.id, entryId));
 
   revalidatePath("/caisse");
+}
+
+// Préremplissage IA d'une dépense à partir des photos du reçu (voir AddCashEntryDialog) —
+// renvoie les champs extraits pour que Kamel les relise et les corrige si besoin avant
+// d'enregistrer, jamais une écriture directe en caisse. Kamel, 2026-09-07 : "j'aimerais que
+// l'IA elle puisse vraiment très bien les analyser [...] on verra avec les tests".
+export async function analyzeCashReceiptPhotos(photoUrls: string[]) {
+  await auth.protect();
+  const extraction = await analyzeCashReceipt(photoUrls);
+
+  let villaId: string | null = null;
+  let villaLabel: string | null = null;
+  const warnings = [...extraction.warnings];
+
+  if (extraction.villaNumero) {
+    const db = getDb();
+    const [match] = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.numero, extraction.villaNumero)).limit(1);
+    if (match) {
+      villaId = match.id;
+      villaLabel = `${match.nom} (n°${match.numero})`;
+    } else {
+      warnings.push(`Numéro de villa "${extraction.villaNumero}" lu sur le reçu mais introuvable dans la liste des villas.`);
+    }
+  }
+
+  return {
+    montant: extraction.montant,
+    description: extraction.description,
+    villaId,
+    villaLabel,
+    warnings,
+  };
 }
 
 export async function deleteCashEntry(entryId: string) {
