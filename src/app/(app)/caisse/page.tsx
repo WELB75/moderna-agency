@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddCashEntryDialog } from "@/components/app/add-cash-entry-dialog";
+import { BrahimCashActions } from "@/components/app/brahim-cash-actions";
 import { CaisseMouvementsList } from "@/components/app/caisse-mouvements-list";
 import { CaisseStats } from "@/components/app/caisse-stats";
 import { domaineEstActif } from "@/lib/domaines-actifs";
@@ -152,7 +153,7 @@ export default async function CaissePage({
           <CaissePanel entries={carte} villas={allVillas} reservations={recentReservations} moyenPaiement="carte" />
         </TabsContent>
         <TabsContent value="brahim" className="pt-2">
-          <BrahimPanel entries={entriesBrahim} villas={allVillas} reservations={recentReservations} />
+          <BrahimPanel entries={entriesBrahim} villas={allVillas} />
         </TabsContent>
         <TabsContent value="stats" className="pt-2">
           <CaisseStats entries={entriesSociete} />
@@ -247,11 +248,9 @@ function CaissePanel({
 function BrahimPanel({
   entries,
   villas,
-  reservations,
 }: {
   entries: Entry[];
   villas: { id: string; nom: string; numero: string }[];
-  reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
 }) {
   // Toujours afficher au moins les cartes en MAD, même sans mouvement sur la période —
   // pareil que CaissePanel, pour ne pas donner l'impression d'un onglet vide/cassé.
@@ -260,7 +259,7 @@ function BrahimPanel({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-end">
-        <AddCashEntryDialog villas={villas} reservations={reservations} moyenPaiement="especes" lockedCaisse="brahim" />
+        <BrahimCashActions villas={villas} />
       </div>
 
       {devises.map((devise) => {
