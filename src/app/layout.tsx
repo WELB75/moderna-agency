@@ -1,26 +1,15 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans, Fraunces, Geist_Mono } from "next/font/google";
+import { Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
-// Charte violette façon Millenium Connect (Kamel, 2026-09-04 : "meme style que eux stp avec les
-// meme couleurs tout pareil, font etc") : sans moderne pour le corps de texte + serif à empattements
-// pour les titres (voir la règle h1-h3 dans globals.css), au lieu du Jost unique d'avant.
-const bodyFont = Plus_Jakarta_Sans({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-});
-
-const headingFont = Fraunces({
-  variable: "--font-heading-serif",
-  subsets: ["latin"],
-  weight: ["500", "600"],
-  style: ["normal", "italic"],
-});
-
+// Charte façon Stripe (Kamel, 2026-09-08 : "je veux le meme design ui ux que stripe [...]
+// couleurs, police, interface, animation etc") — polices SYSTÈME pour le texte (voir --font-sans
+// dans globals.css, calqué sur docs.stripe.com), plus aucune police à charger depuis Google
+// Fonts : chargement instantané, sans saut visuel ni requête réseau. Geist Mono reste pour le
+// code/mono (--font-mono).
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -46,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${bodyFont.variable} ${headingFont.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full w-full flex flex-col overflow-x-hidden">

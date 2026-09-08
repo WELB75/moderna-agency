@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
-  --font-heading: var(--font-heading-serif), ui-serif, serif;
+  --font-sans:
+    -apple-system, system-ui, "Segoe UI", Roboto, Helvetica Neue, Ubuntu, sans-serif;
+  --font-mono: var(--font-geist-mono), Menlo, Consolas, ui-monospace, monospace;
+  --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -48,101 +49,107 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Charte violette façon Millenium Connect (dégradé rose/violet, cartes arrondies, CTA indigo) —
-   remplace l'ancienne charte strictement monochrome. Kamel, 2026-09-04 : "je veux le meme style
-   qu'eux stp avec les meme couleurs tout pareil". */
+/* Charte façon Stripe (Kamel, 2026-09-08 : "je veux le meme design ui ux que stripe [...]
+   couleurs, police, interface, animation etc") — synthèse de 3 références :
+   stripe.com/fr et stripe.com/payments/elements (violet de marque, cartes plates, CTA en
+   pilule) et docs.stripe.com/stripe-apps/components (base retenue pour l'app : polices système,
+   rayon 6px cohérent, fond blanc, texte ardoise, bordures fines, calme — plus proche d'un outil
+   interne dense en données que les pages marketing). Remplace la charte violette Millenium
+   Connect du 2026-09-04. Pas de vague animée en canvas façon stripe.com : jolie sur une page
+   marketing, mais tournerait en continu sur un outil utilisé toute la journée — contraire à
+   "ultra rapide". Boutons principaux en pilule (voir button.tsx) : seul emprunt direct aux pages
+   marketing, tout le reste vient de la base docs. */
 :root {
   --background: #ffffff;
-  --foreground: #1e1b2e;
+  --foreground: #1a1f36;
   --card: #ffffff;
-  --card-foreground: #1e1b2e;
+  --card-foreground: #1a1f36;
   --popover: #ffffff;
-  --popover-foreground: #1e1b2e;
-  --primary: #6d5df6;
+  --popover-foreground: #1a1f36;
+  --primary: #635bff;
   --primary-foreground: #ffffff;
-  --secondary: #f3f1fd;
-  --secondary-foreground: #2e2559;
-  --muted: #f6f5fa;
-  --muted-foreground: #75708c;
-  --accent: #ede9fe;
-  --accent-foreground: #4c3aa6;
+  --secondary: #f4f7fa;
+  --secondary-foreground: #1a1f36;
+  --muted: #f6f9fc;
+  --muted-foreground: #3c4257;
+  --accent: #e8e9ff;
+  --accent-foreground: #433ad1;
   --destructive: oklch(0.577 0.245 27.325);
-  --border: #e7e3f5;
-  --input: #e7e3f5;
-  --ring: #6d5df6;
-  --chart-1: #6d5df6;
-  --chart-2: #9d8df9;
-  --chart-3: #c9a6f5;
-  --chart-4: #f0a6d8;
-  --chart-5: #fbd1e8;
-  --radius: 0.85rem;
-  --sidebar: #fdfcff;
-  --sidebar-foreground: #1e1b2e;
-  --sidebar-primary: #6d5df6;
+  --border: #e5edf5;
+  --input: #e5edf5;
+  --ring: #635bff;
+  --chart-1: #635bff;
+  --chart-2: #9966ff;
+  --chart-3: #0de4e4;
+  --chart-4: #433ad1;
+  --chart-5: #8b85ff;
+  --radius: 0.375rem;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1f36;
+  --sidebar-primary: #635bff;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f1fd;
-  --sidebar-accent-foreground: #4c3aa6;
-  --sidebar-border: #ece9f7;
-  --sidebar-ring: #6d5df6;
+  --sidebar-accent: #f4f7fa;
+  --sidebar-accent-foreground: #433ad1;
+  --sidebar-border: #e5edf5;
+  --sidebar-ring: #635bff;
 }
 
 .dark {
-  --background: #120e24;
-  --foreground: #edeafb;
-  --card: #1b1633;
-  --card-foreground: #edeafb;
-  --popover: #1b1633;
-  --popover-foreground: #edeafb;
-  --primary: #9d8df9;
-  --primary-foreground: #150f2e;
-  --secondary: #241d42;
-  --secondary-foreground: #edeafb;
-  --muted: #241d42;
-  --muted-foreground: #a79fc7;
-  --accent: #2e2559;
-  --accent-foreground: #d9cffb;
+  --background: #0a0e17;
+  --foreground: #e8ebf5;
+  --card: #131826;
+  --card-foreground: #e8ebf5;
+  --popover: #131826;
+  --popover-foreground: #e8ebf5;
+  --primary: #8b85ff;
+  --primary-foreground: #0a0e17;
+  --secondary: #1c2333;
+  --secondary-foreground: #e8ebf5;
+  --muted: #1c2333;
+  --muted-foreground: #9aa5b8;
+  --accent: #2a2f52;
+  --accent-foreground: #c7c4ff;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: rgba(157, 141, 249, 0.18);
-  --input: rgba(157, 141, 249, 0.2);
-  --ring: #9d8df9;
-  --chart-1: #9d8df9;
-  --chart-2: #c9a6f5;
-  --chart-3: #f0a6d8;
-  --chart-4: #fbd1e8;
-  --chart-5: #6d5df6;
-  --sidebar: #150f2e;
-  --sidebar-foreground: #edeafb;
-  --sidebar-primary: #9d8df9;
-  --sidebar-primary-foreground: #150f2e;
-  --sidebar-accent: #241d42;
-  --sidebar-accent-foreground: #d9cffb;
-  --sidebar-border: rgba(157, 141, 249, 0.14);
-  --sidebar-ring: #9d8df9;
+  --border: rgba(139, 133, 255, 0.16);
+  --input: rgba(139, 133, 255, 0.18);
+  --ring: #8b85ff;
+  --chart-1: #8b85ff;
+  --chart-2: #9966ff;
+  --chart-3: #0de4e4;
+  --chart-4: #c7c4ff;
+  --chart-5: #635bff;
+  --sidebar: #0e1320;
+  --sidebar-foreground: #e8ebf5;
+  --sidebar-primary: #8b85ff;
+  --sidebar-primary-foreground: #0a0e17;
+  --sidebar-accent: #1c2333;
+  --sidebar-accent-foreground: #c7c4ff;
+  --sidebar-border: rgba(139, 133, 255, 0.14);
+  --sidebar-ring: #8b85ff;
 }
 
 /* Vitrine publique (page d'accueil "/") : toujours claire, peu importe le mode sombre de l'app —
-   un site marketing calibré sur fond clair, comme millenium-connect.com. Kamel, 2026-09-05 :
-   "la ta tout mis en violet ... c'est pas comme ça". Redéclare les mêmes valeurs que :root pour
-   que les composants partagés (Card, Button, Badge...) qui lisent ces variables restent clairs
-   même sous html.dark, sans dupliquer toute la page en classes littérales. */
+   un site marketing calibré sur fond clair. Redéclare les mêmes valeurs que :root pour que les
+   composants partagés (Card, Button, Badge...) qui lisent ces variables restent clairs même sous
+   html.dark, sans dupliquer toute la page en classes littérales. */
 .force-light {
   --background: #ffffff;
-  --foreground: #1e1b2e;
+  --foreground: #1a1f36;
   --card: #ffffff;
-  --card-foreground: #1e1b2e;
+  --card-foreground: #1a1f36;
   --popover: #ffffff;
-  --popover-foreground: #1e1b2e;
-  --primary: #6d5df6;
+  --popover-foreground: #1a1f36;
+  --primary: #635bff;
   --primary-foreground: #ffffff;
-  --secondary: #f3f1fd;
-  --secondary-foreground: #2e2559;
-  --muted: #f6f5fa;
-  --muted-foreground: #75708c;
-  --accent: #ede9fe;
-  --accent-foreground: #4c3aa6;
-  --border: #e7e3f5;
-  --input: #e7e3f5;
-  --ring: #6d5df6;
+  --secondary: #f4f7fa;
+  --secondary-foreground: #1a1f36;
+  --muted: #f6f9fc;
+  --muted-foreground: #3c4257;
+  --accent: #e8e9ff;
+  --accent-foreground: #433ad1;
+  --border: #e5edf5;
+  --input: #e5edf5;
+  --ring: #635bff;
 }
 
 /* Recherche globale — habillage "verre liquide" (voir GlobalSearchOverlay / GlobalSearchBar) :
@@ -195,11 +202,5 @@
   }
   body {
     overscroll-behavior-x: none;
-  }
-  /* Titres en serif (Fraunces), corps en sans (Plus Jakarta Sans) — même duo que
-     millenium-connect.com, appliqué globalement plutôt que classe par classe. */
-  h1, h2, h3 {
-    font-family: var(--font-heading);
-    letter-spacing: -0.01em;
   }
 }
