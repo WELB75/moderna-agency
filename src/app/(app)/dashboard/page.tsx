@@ -688,24 +688,22 @@ function StatTile({
     red: "text-red-600 dark:text-red-400",
     slate: "text-muted-foreground",
   };
+  // Kamel, 2026-09-08 : "je suis pas trop fan de ça, tu peux encre plus l'épurée stp ?" — plus
+  // d'ombre, plus d'effet de survol qui soulève la carte, bordure plus discrète, libellé en plus
+  // petit : ce qui reste, c'est le chiffre (l'info), une bordure fine et rien d'autre.
   const content = (
-    <div
-      className={cn(
-        "h-full rounded-2xl border border-border bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-all",
-        href && "hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(50,50,93,0.12)]"
-      )}
-    >
+    <div className={cn("h-full rounded-xl border border-border/60 bg-card transition-colors", href && "hover:bg-muted/30")}>
       {/* Empilé (icône puis texte) en mobile pour laisser toute la largeur de la colonne au
           chiffre — l'agencement icône+texte côte à côte faisait chevaucher les valeurs longues
           ("13 500 MAD") dans les colonnes étroites à 2 par ligne. Repasse à côte à côte dès `sm`,
           où les colonnes sont plus larges. Kamel, 2026-08-24. */}
-      <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-4">
-        <Icon className={cn("h-5 w-5 shrink-0 sm:h-6 sm:w-6", iconTextClasses[color])} strokeWidth={1.75} />
+      <div className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3 sm:px-3.5 sm:py-3">
+        <Icon className={cn("h-4 w-4 shrink-0 sm:h-5 sm:w-5", iconTextClasses[color])} strokeWidth={1.5} />
         <div className="min-w-0">
           <p className="truncate text-xl font-semibold leading-tight tracking-tight tabular-nums sm:text-2xl sm:leading-none">
             {value}
           </p>
-          <p className="truncate text-sm text-muted-foreground">{label}</p>
+          <p className="truncate text-xs text-muted-foreground">{label}</p>
         </div>
       </div>
     </div>
