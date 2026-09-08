@@ -151,9 +151,10 @@ function estSynchronisee(source: string): boolean {
 // fiche dédiée /reservations/[id] (arrivée avec la recherche globale), pour toujours retomber
 // sur exactement la même vue, peu importe d'où on y accède.
 //
-// Habillage "verre dépoli" façon Apple (fond translucide flouté, coins arrondis, ombre douce),
-// validé par Kamel après essai sur l'accueil — 2026-08-16 : "j'aime beaucoup donc fait ça
-// partout maintenant".
+// Carte plate à bordure fine (au lieu du "verre dépoli" flouté du 2026-08-16) — voir Card (ui) et
+// le reste de la charte Stripe du 2026-09-08. Le sens check-in/check-out reste visible (icône +
+// libellé colorés juste en dessous), donc un simple liseré de gauche suffit à le rappeler d'un
+// coup d'œil sans repeindre tout le contour de la carte.
 export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
@@ -163,8 +164,8 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
   return (
     <div
       className={cn(
-        "flex h-full min-w-0 flex-col rounded-2xl border bg-white/55 shadow-[0_8px_30px_rgb(0,0,0,0.08)] backdrop-blur-xl backdrop-saturate-150 transition-opacity dark:bg-white/8",
-        isIn ? "border-emerald-400/40 dark:border-emerald-400/20" : "border-red-400/40 dark:border-red-400/20",
+        "flex h-full min-w-0 flex-col rounded-2xl border border-border border-l-4 bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-opacity",
+        isIn ? "border-l-emerald-500" : "border-l-red-500",
         isDone && "opacity-60"
       )}
     >
@@ -500,7 +501,7 @@ function InlineAlert({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start gap-1.5 border border-border bg-muted/40 px-2 py-1 text-sm">
+    <div className="flex items-start gap-1.5 rounded-md border border-border bg-muted/40 px-2 py-1.5 text-sm">
       <Icon
         className={cn(
           "mt-0.5 h-3.5 w-3.5 shrink-0",
