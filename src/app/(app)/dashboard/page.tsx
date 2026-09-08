@@ -603,21 +603,9 @@ export default async function DashboardPage({
         <MenuGrid unreadChatCount={unreadChatCount} />
       </div>
 
-      {/* Personnel dispo/occupé, caisse et interventions urgentes sont partagés entre domaines
-          (pas rattachés à un seul), donc affichés une fois au-dessus des onglets plutôt que
-          répétés identiquement dans chacun. */}
-      <GlobalMetricsHeader
-        menageLibre={menageActif.length - menageOccupeCount}
-        menageOccupe={menageOccupeCount}
-        cuisineLibre={cuisineActif.length - cuisineOccupeCount}
-        cuisineOccupe={cuisineOccupeCount}
-        soldesCaisse={soldesCaisse}
-        interventionsUrgentes={interventionsUrgentesEnCours.length}
-      />
-
       {/* Le domaine consulté détermine tout ce qui suit (check-in/out, villas libres, planning) —
-          Kamel, 2026-09-08 : "faut que les domaines soit plus mis en avant" : agrandi et en
-          couleur de marque plutôt qu'un simple onglet discret parmi d'autres dans l'app. */}
+          Kamel, 2026-09-08 : "met les domaine en tout premier en haut stp, c'est le plus
+          important" : tout en haut de page, avant même les chiffres partagés. */}
       <div className="space-y-1.5">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Domaine</p>
         <Tabs defaultValue="Domaine Moderna II">
@@ -632,6 +620,20 @@ export default async function DashboardPage({
               </TabsTrigger>
             ))}
           </TabsList>
+
+          {/* Personnel dispo/occupé, caisse et interventions urgentes sont partagés entre
+              domaines (pas rattachés à un seul), donc affichés une fois plutôt que répétés
+              identiquement dans chaque onglet. */}
+          <div className="pt-4">
+            <GlobalMetricsHeader
+              menageLibre={menageActif.length - menageOccupeCount}
+              menageOccupe={menageOccupeCount}
+              cuisineLibre={cuisineActif.length - cuisineOccupeCount}
+              cuisineOccupe={cuisineOccupeCount}
+              soldesCaisse={soldesCaisse}
+              interventionsUrgentes={interventionsUrgentesEnCours.length}
+            />
+          </div>
         {DASHBOARD_DOMAINES.map((d) => (
           <TabsContent key={d} value={d} className="space-y-6 pt-2">
             <DomaineMetricsHeader
@@ -674,16 +676,17 @@ function StatTile({
   color: "emerald" | "amber" | "sky" | "red" | "slate";
   href?: string;
 }) {
-  // Pastille d'icône plate, teinte légère façon Badge Stripe (docs.stripe.com/stripe-apps/
-  // components/badge) — remplace l'ancien dégradé "Apple glass" du 2026-08-21, plus cohérent
-  // avec des cartes plates sans flou. Kamel, 2026-09-08 : "developpe vraiment a fond comme
-  // stripe [...] l'interface utilisateur faut le faire".
-  const iconBubbleClasses: Record<typeof color, string> = {
-    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-    sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
-    red: "bg-red-500/10 text-red-600 dark:text-red-400",
-    slate: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
+  // Icône plate sans pastille de fond, même traitement que les icônes de la sidebar (trait fin,
+  // pas de cercle coloré derrière) — Kamel, 2026-09-08 : "je veux qu'on reste sur le meme theme
+  // que la sidebar de gauche niveau icone etc". La couleur ne reste que sur l'icône elle-même,
+  // et seulement là où elle porte un vrai sens (rouge = alerte) ; "slate" (l'immense majorité)
+  // reprend le même gris que les icônes de nav.
+  const iconTextClasses: Record<typeof color, string> = {
+    emerald: "text-emerald-600 dark:text-emerald-400",
+    amber: "text-amber-600 dark:text-amber-400",
+    sky: "text-sky-600 dark:text-sky-400",
+    red: "text-red-600 dark:text-red-400",
+    slate: "text-muted-foreground",
   };
   const content = (
     <div
@@ -697,9 +700,7 @@ function StatTile({
           ("13 500 MAD") dans les colonnes étroites à 2 par ligne. Repasse à côte à côte dès `sm`,
           où les colonnes sont plus larges. Kamel, 2026-08-24. */}
       <div className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:gap-3 sm:px-4 sm:py-4">
-        <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-10 sm:w-10", iconBubbleClasses[color])}>
-          <Icon className="h-4 w-4 sm:h-5 sm:w-5" strokeWidth={2} />
-        </div>
+        <Icon className={cn("h-5 w-5 shrink-0 sm:h-6 sm:w-6", iconTextClasses[color])} strokeWidth={1.75} />
         <div className="min-w-0">
           <p className="truncate text-xl font-semibold leading-tight tracking-tight tabular-nums sm:text-2xl sm:leading-none">
             {value}
