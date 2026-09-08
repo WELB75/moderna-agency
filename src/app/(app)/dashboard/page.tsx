@@ -664,22 +664,22 @@ function StatTile({
   color: "emerald" | "amber" | "sky" | "red" | "slate";
   href?: string;
 }) {
-  // Bulle d'icône façon "verre" : dégradé doux + liseré translucide de la même teinte plutôt
-  // qu'un simple aplat à 10 % d'opacité — donne un vrai effet de profondeur/relief au lieu d'une
-  // pastille plate. Kamel a demandé un rendu "Apple glass", 2026-08-21.
+  // Pastille d'icône plate, teinte légère façon Badge Stripe (docs.stripe.com/stripe-apps/
+  // components/badge) — remplace l'ancien dégradé "Apple glass" du 2026-08-21, plus cohérent
+  // avec des cartes plates sans flou. Kamel, 2026-09-08 : "developpe vraiment a fond comme
+  // stripe [...] l'interface utilisateur faut le faire".
   const iconBubbleClasses: Record<typeof color, string> = {
-    emerald: "bg-gradient-to-br from-emerald-400/30 to-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/20 dark:text-emerald-400",
-    amber: "bg-gradient-to-br from-amber-400/30 to-amber-500/10 text-amber-600 ring-1 ring-amber-500/20 dark:text-amber-400",
-    sky: "bg-gradient-to-br from-sky-400/30 to-sky-500/10 text-sky-600 ring-1 ring-sky-500/20 dark:text-sky-400",
-    red: "bg-gradient-to-br from-red-400/30 to-red-500/10 text-red-600 ring-1 ring-red-500/20 dark:text-red-400",
-    slate: "bg-gradient-to-br from-slate-400/25 to-slate-500/10 text-slate-600 ring-1 ring-slate-500/15 dark:text-slate-400",
+    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+    red: "bg-red-500/10 text-red-600 dark:text-red-400",
+    slate: "bg-slate-500/10 text-slate-600 dark:text-slate-400",
   };
   const content = (
     <div
       className={cn(
-        "h-full rounded-2xl border border-white/60 bg-white/55 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_10px_30px_-16px_rgba(15,23,42,0.25)] backdrop-blur-xl transition-all",
-        "dark:border-white/10 dark:bg-white/5 dark:shadow-[0_1px_2px_rgba(0,0,0,0.2),0_10px_30px_-16px_rgba(0,0,0,0.6)]",
-        href && "hover:-translate-y-0.5 hover:border-white/80 hover:shadow-[0_1px_2px_rgba(15,23,42,0.06),0_16px_36px_-16px_rgba(15,23,42,0.3)] dark:hover:border-white/20"
+        "h-full rounded-2xl border border-border bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-all",
+        href && "hover:-translate-y-0.5 hover:shadow-[0_4px_14px_rgba(50,50,93,0.12)]"
       )}
     >
       {/* Empilé (icône puis texte) en mobile pour laisser toute la largeur de la colonne au
