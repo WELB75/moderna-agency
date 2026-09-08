@@ -539,37 +539,39 @@ export default async function DashboardPage({
 
   return (
     <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      {/* Une seule ligne de tête : navigateur de semaine + date en ligne (plus dessous), toutes
+          les icônes regroupées à droite — Kamel, 2026-09-08 : "je veux qu'il y ait toutes les
+          icônes listé là en haut [...] la date [...] tu me la mets propre sur le côté à côté de
+          cette semaine [...] raffiner vraiment partout". */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
-              <Link
-                href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Semaine précédente"
-                title="Semaine précédente"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-              <h1 className="px-1.5 text-base font-semibold tracking-tight sm:text-lg">
-                {offsetSemaines === 0 ? "Cette semaine" : `Du ${format(rangeStart, "d MMM", { locale: fr })} au ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
-              </h1>
-              <Link
-                href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Semaine suivante"
-                title="Semaine suivante"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-            {offsetSemaines !== 0 ? (
-              <Link href="/dashboard" className="text-sm text-primary underline-offset-4 hover:underline">
-                Aujourd&apos;hui
-              </Link>
-            ) : null}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
+            <Link
+              href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Semaine précédente"
+              title="Semaine précédente"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Link>
+            <h1 className="px-1.5 text-base font-semibold tracking-tight sm:text-lg">
+              {offsetSemaines === 0 ? "Cette semaine" : `Du ${format(rangeStart, "d MMM", { locale: fr })} au ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
+            </h1>
+            <Link
+              href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
+              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Semaine suivante"
+              title="Semaine suivante"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Link>
           </div>
-          <p className="text-sm text-muted-foreground">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</p>
+          <span className="text-sm text-muted-foreground">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</span>
+          {offsetSemaines !== 0 ? (
+            <Link href="/dashboard" className="text-sm text-primary underline-offset-4 hover:underline">
+              Aujourd&apos;hui
+            </Link>
+          ) : null}
         </div>
 
         {/* Actions de synchro/import : rarement utilisées au quotidien, donc repliées derrière
