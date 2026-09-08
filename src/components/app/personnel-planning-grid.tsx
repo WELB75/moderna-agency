@@ -32,29 +32,19 @@ type JourPlanning = { date: Date; entries: PlanningEntry[] };
 // matchesSearch, colonnes progressives (1 → 2 → 4 → 7) au lieu d'un saut brutal à 768px, détail
 // de mission éclaté en petites étiquettes, cible de retrait agrandie.
 //
-// Refonte 2026-08-29 (identité visuelle) — Kamel, après avoir vu le lien public refait : "oui,
-// même habillage que le lien public" pour cet onglet aussi (choix inverse de la fois d'avant, où
-// il avait demandé de rester cohérent avec Affectations/Carte/Statistiques). Même langage que
-// public-planning-grid.tsx : fond crème, cartes arrondies, avatars à initiale, puce calendrier —
-// appliqué seulement à l'intérieur de cet onglet, pas à la page Personnel ni aux autres onglets
-// qui gardent leur charte habituelle.
-//
-// Refonte 2026-08-30 (clarté) — Kamel : "il est pas clair, il est pas fluide, on voit pas bien
-// les détails [...] j'aimerais avoir le numéro des villa [...] le plus important c'est le nom de
-// la personne, ce qu'elle fait [...] essaye de faire ça pro". 7 colonnes forcées sur une seule
-// ligne ne laissaient que ~150px par jour : le nom de la villa (et son numéro, l'info qu'il
-// cherche en premier sur le terrain) était tronqué en "Villa Gaspard ...". Plafonné à 4 colonnes
-// (2 rangées de jours au lieu d'une seule trop compressée) pour avoir la place d'écrire en clair,
-// et réordonné chaque mission dans l'ordre de priorité qu'il a donné : nom en premier et le plus
-// visible, puis ce que fait la personne (ménage de départ / pendant le séjour / formule cuisine)
-// en vrai badge coloré au lieu d'une pastille de 9px à peine lisible, puis villa + numéro en
-// évidence (jamais tronqués) + client.
+// Refonte 2026-09-08 (façon Stripe) — Kamel : "le planning aussi faut revoir le design en mode
+// stripe stp, écriture plus fine, plus de logique etc". Remplace l'identité "fond crème" du
+// 2026-08-29 (calquée sur le lien public) par la même charte plate que le reste de l'app —
+// cartes blanches à bordure fine, texte en poids normal/medium plutôt que gras partout, plus une
+// seule couleur maison inventée (#2B1F33). La logique de recherche/tri/priorité d'affichage
+// (2026-08-30 : nom d'abord, puis rôle, puis villa jamais tronquée) ne change pas, seul
+// l'habillage visuel est revu.
 export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; now: Date }) {
   const [recherche, setRecherche] = useState("");
   const q = recherche.trim();
 
   return (
-    <div className="space-y-4 rounded-[20px] bg-[#FBF7F1] p-3 dark:bg-[#17130f] sm:p-5">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <LegendChip color="orange">Femme de ménage</LegendChip>
@@ -67,7 +57,7 @@ export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; n
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Chercher (nom, villa, appart...)"
-            className="w-full rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-[#2B1F33]/40 dark:border-white/[0.06] dark:bg-white/[0.04]"
+            className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-3 focus:ring-ring/50"
           />
           {recherche ? (
             <button
@@ -90,28 +80,24 @@ export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; n
             <div
               key={date.toISOString()}
               className={cn(
-                "min-w-0 rounded-[18px] p-3 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]",
-                estAujourdhui
-                  ? "bg-gradient-to-br from-[#2B1F33]/[0.06] to-transparent ring-1 ring-[#2B1F33]/15 dark:from-[#C0AECB]/10 dark:ring-[#C0AECB]/20"
-                  : "bg-white ring-1 ring-black/[0.04] dark:bg-white/[0.03] dark:ring-white/[0.06]"
+                "min-w-0 rounded-2xl border bg-card p-3 shadow-[0_2px_8px_rgba(50,50,93,0.08)]",
+                estAujourdhui ? "border-primary/30 bg-primary/5" : "border-border"
               )}
             >
               <div className="mb-3 flex items-center gap-2.5">
                 <div
                   className={cn(
-                    "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-[14px] leading-none",
-                    estAujourdhui
-                      ? "bg-[#2B1F33] text-white"
-                      : "border border-black/[0.08] bg-white text-[#2B1F33] dark:border-white/10 dark:bg-white/[0.06] dark:text-white/80"
+                    "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg leading-none",
+                    estAujourdhui ? "bg-primary text-primary-foreground" : "border border-border bg-muted text-foreground"
                   )}
                 >
-                  <span className="text-[9px] font-semibold uppercase opacity-70">{format(date, "MMM", { locale: fr })}</span>
-                  <span className="text-base font-bold">{format(date, "d")}</span>
+                  <span className="text-[9px] font-medium uppercase opacity-70">{format(date, "MMM", { locale: fr })}</span>
+                  <span className="text-base font-semibold">{format(date, "d")}</span>
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold capitalize">{format(date, "EEEE", { locale: fr })}</p>
+                  <p className="truncate text-sm font-medium capitalize">{format(date, "EEEE", { locale: fr })}</p>
                   {estAujourdhui ? (
-                    <p className="text-xs font-medium text-[#2B1F33] dark:text-[#C0AECB]">Aujourd&apos;hui</p>
+                    <p className="text-xs font-medium text-primary">Aujourd&apos;hui</p>
                   ) : (
                     <p className="text-xs text-muted-foreground">{filtrees.length} mission{filtrees.length > 1 ? "s" : ""}</p>
                   )}
@@ -175,7 +161,7 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
   return (
     <div
       className={cn(
-        "min-w-0 rounded-[14px] border-l-[3px] bg-black/[0.025] p-2.5 dark:bg-white/[0.04]",
+        "min-w-0 rounded-lg border-l-[3px] bg-muted/40 p-2.5",
         roleClair === "orange" ? "border-l-orange-500" : "border-l-violet-500"
       )}
     >
@@ -186,7 +172,7 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
         <div className="flex min-w-0 items-center gap-2">
           <div
             className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-medium",
               roleClair === "orange"
                 ? "bg-orange-100 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300"
                 : "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300"
@@ -194,7 +180,7 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
           >
             {initiale(e.personnelNom)}
           </div>
-          <span className="min-w-0 truncate text-[15px] font-semibold leading-tight">{e.personnelNom}</span>
+          <span className="min-w-0 truncate text-sm font-medium leading-tight">{e.personnelNom}</span>
         </div>
         <PlanningRemoveButton affectationId={e.affectationId} nom={e.personnelNom} />
       </div>
@@ -202,7 +188,7 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         <span
           className={cn(
-            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+            "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
             roleClair === "orange"
               ? "bg-orange-500/15 text-orange-700 dark:text-orange-300"
               : "bg-violet-500/15 text-violet-700 dark:text-violet-300"
@@ -211,12 +197,12 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
           {detailLabel(e)}
         </span>
         {formuleRepasLabel(e) ? (
-          <span className="inline-flex items-center rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-white/10">
+          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             {formuleRepasLabel(e)}
           </span>
         ) : null}
         {!e.montantVisible ? (
-          <span className="inline-flex items-center rounded-full bg-black/5 px-2 py-0.5 text-xs font-medium text-muted-foreground dark:bg-white/10">
+          <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
             Payé par proprio
           </span>
         ) : null}
@@ -226,9 +212,9 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
         href={`/reservations/${e.reservationId}`}
         className="mt-1.5 flex min-w-0 items-baseline gap-1.5 text-sm text-foreground/80 hover:text-foreground hover:underline"
       >
-        <span className="min-w-0 truncate font-medium">{e.villaNom ?? "Villa non renseignée"}</span>
+        <span className="min-w-0 truncate">{e.villaNom ?? "Villa non renseignée"}</span>
         {e.villaNumero ? (
-          <span className="shrink-0 rounded-md bg-[#2B1F33] px-1.5 py-0.5 text-[11px] font-bold text-white dark:bg-white/15">
+          <span className="shrink-0 rounded-md bg-foreground px-1.5 py-0.5 text-[11px] font-medium text-background">
             n°{e.villaNumero}
           </span>
         ) : null}
