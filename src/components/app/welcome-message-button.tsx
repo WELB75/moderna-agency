@@ -55,11 +55,11 @@ export function WelcomeMessageButton({
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant={prominent ? "default" : "outline"}
+          variant="outline"
           size={prominent ? "default" : "sm"}
           className={cn(
-            prominent && "w-full justify-start rounded-xl py-5",
-            envoye && "bg-emerald-600 text-white hover:bg-emerald-600/90 dark:bg-emerald-600 dark:hover:bg-emerald-600/90"
+            prominent && "w-full justify-start rounded-xl border-primary/30 py-5 text-primary hover:bg-primary/5",
+            envoye && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400"
           )}
         >
           <Sparkles className="h-3.5 w-3.5 shrink-0" />

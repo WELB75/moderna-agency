@@ -34,10 +34,10 @@ export function StayRatingButton({ reservationId, prominent }: { reservationId: 
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
-          variant={prominent ? "default" : "outline"}
+          variant="outline"
           size={prominent ? "default" : "sm"}
           disabled={isPending}
-          className={prominent ? "w-full justify-between rounded-xl py-5" : undefined}
+          className={prominent ? "w-full justify-between rounded-xl border-primary/30 py-5 text-primary hover:bg-primary/5" : undefined}
         >
           <Star className="h-3.5 w-3.5" />
           Note client

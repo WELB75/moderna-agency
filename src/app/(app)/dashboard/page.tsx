@@ -615,14 +615,23 @@ export default async function DashboardPage({
         interventionsUrgentes={interventionsUrgentesEnCours.length}
       />
 
-      <Tabs defaultValue="Domaine Moderna II">
-        <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
-          {DASHBOARD_DOMAINES.map((d) => (
-            <TabsTrigger key={d} value={d} className="shrink-0">
-              {d}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {/* Le domaine consulté détermine tout ce qui suit (check-in/out, villas libres, planning) —
+          Kamel, 2026-09-08 : "faut que les domaines soit plus mis en avant" : agrandi et en
+          couleur de marque plutôt qu'un simple onglet discret parmi d'autres dans l'app. */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Domaine</p>
+        <Tabs defaultValue="Domaine Moderna II">
+          <TabsList className="h-11 w-full flex-nowrap justify-start gap-1 overflow-x-auto bg-muted p-1">
+            {DASHBOARD_DOMAINES.map((d) => (
+              <TabsTrigger
+                key={d}
+                value={d}
+                className="h-9 shrink-0 rounded-md px-4 text-sm font-semibold data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
+              >
+                {d}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         {DASHBOARD_DOMAINES.map((d) => (
           <TabsContent key={d} value={d} className="space-y-6 pt-2">
             <DomaineMetricsHeader
@@ -642,7 +651,8 @@ export default async function DashboardPage({
             />
           </TabsContent>
         ))}
-      </Tabs>
+        </Tabs>
+      </div>
     </div>
   );
 }
@@ -725,10 +735,10 @@ function GlobalMetricsHeader({
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <StatTile icon={BrushCleaning} value={menageLibre} label="Ménage disponible" color="emerald" href="/personnel" />
-      <StatTile icon={BrushCleaning} value={menageOccupe} label="Ménage occupée" color="amber" href="/personnel" />
-      <StatTile icon={ChefHat} value={cuisineLibre} label="Cuisine disponible" color="emerald" href="/personnel" />
-      <StatTile icon={ChefHat} value={cuisineOccupe} label="Cuisine occupée" color="amber" href="/personnel" />
+      <StatTile icon={BrushCleaning} value={menageLibre} label="Ménage disponible" color="slate" href="/personnel" />
+      <StatTile icon={BrushCleaning} value={menageOccupe} label="Ménage occupée" color="slate" href="/personnel" />
+      <StatTile icon={ChefHat} value={cuisineLibre} label="Cuisine disponible" color="slate" href="/personnel" />
+      <StatTile icon={ChefHat} value={cuisineOccupe} label="Cuisine occupée" color="slate" href="/personnel" />
       {soldesCaisse.length > 0 ? (
         soldesCaisse.map((s) => (
           <StatTile
@@ -773,10 +783,10 @@ function DomaineMetricsHeader({
 }) {
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <StatTile icon={LogIn} value={checkInsAujourdhui} label="Check-in aujourd'hui" color="emerald" />
-      <StatTile icon={LogOut} value={checkOutsAujourdhui} label="Check-out aujourd'hui" color="amber" />
-      <StatTile icon={DoorClosed} value={villasOccupees} label="Villas occupées" color="sky" href="/villas" />
-      <StatTile icon={DoorOpen} value={villasLibres} label="Villas libres" color="emerald" href="/villas" />
+      <StatTile icon={LogIn} value={checkInsAujourdhui} label="Check-in aujourd'hui" color="slate" />
+      <StatTile icon={LogOut} value={checkOutsAujourdhui} label="Check-out aujourd'hui" color="slate" />
+      <StatTile icon={DoorClosed} value={villasOccupees} label="Villas occupées" color="slate" href="/villas" />
+      <StatTile icon={DoorOpen} value={villasLibres} label="Villas libres" color="slate" href="/villas" />
       <StatTile
         icon={Hourglass}
         value={sollicitationsEnAttente}
