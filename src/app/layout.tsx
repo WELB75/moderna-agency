@@ -39,7 +39,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full w-full flex flex-col overflow-x-hidden">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        {/* Stripe est clair partout, jamais sombre par défaut — Kamel, 2026-09-08 : "fond clair
+            comme stripe" (en réaction au mode sombre pris automatiquement sur un Mac en dark
+            mode système). defaultTheme="light" fige le clair tant que l'utilisateur ne bascule
+            pas lui-même via le bouton lune/soleil ; enableSystem retiré pour ne plus jamais
+            suivre la préférence système. */}
+        <ThemeProvider attribute="class" defaultTheme="light" disableTransitionOnChange>
           <ClerkProvider>
             {children}
             <Toaster richColors position="top-center" />
