@@ -3,7 +3,7 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { technicians } from "@/db/schema";
+import { technicians, villas } from "@/db/schema";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const { userId } = await auth();
@@ -28,7 +28,21 @@ export async function POST(request: Request): Promise<NextResponse> {
               .where(eq(technicians.accessToken, clientPayload as string))
               .limit(1)
               .then((rows) => rows.length > 0));
-          if (!validTechnician) throw new Error("Non autorisé");
+
+          // Lien minimal "travaux" (/travaux/[token], voir interventions.ts) : même principe que
+          // le technicien ci-dessus, vérifié contre le token propriétaire d'une villa plutôt
+          // qu'un compte. Kamel, 2026-09-09 : "le genre de formulaire scann ia".
+          const isTravauxUpload = pathname.startsWith("travaux/") && Boolean(clientPayload);
+          const validTravauxToken =
+            isTravauxUpload &&
+            (await getDb()
+              .select({ id: villas.id })
+              .from(villas)
+              .where(eq(villas.lienProprietaireToken, clientPayload as string))
+              .limit(1)
+              .then((rows) => rows.length > 0));
+
+          if (!validTechnician && !validTravauxToken) throw new Error("Non autorisé");
         }
 
         return {

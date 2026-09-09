@@ -144,6 +144,62 @@ export async function createIntervention(formData: FormData) {
   revalidatePath("/maintenance");
 }
 
+// Vitrine minimale à 3 onglets (En cours / Catégories / Ajouter) sur /travaux/[token], réservée
+// aux constats/travaux d'une seule villa — Kamel, 2026-09-09 : "je veux pas le calendrier proprio
+// [...] ne laisse que les travaux en cours, l'autre onglet les catégories, et l'autre le genre de
+// formulaire scann ia et c'est tout". Même token que le lien propriétaire complet (/p/[token]),
+// mais volontairement sans auth.protect() ici aussi : portée limitée à la villa que le token
+// désigne, jamais saisie par l'appelant.
+async function villaIdFromToken(token: string): Promise<string> {
+  const db = getDb();
+  const [villa] = await db.select({ id: villas.id }).from(villas).where(eq(villas.lienProprietaireToken, token)).limit(1);
+  if (!villa) throw new Error("Lien invalide.");
+  return villa.id;
+}
+
+export async function analyzeInterventionPhotoByToken(token: string, photoUrl: string) {
+  await villaIdFromToken(token); // valide le token avant d'appeler l'IA (évite un usage à l'aveugle du lien)
+  const extraction = await analyzeInterventionPhoto(photoUrl);
+  return {
+    probleme: extraction.probleme,
+    categorie: (CATEGORIE_KEYS as string[]).includes(extraction.categorie) ? (extraction.categorie as Categorie) : "autre",
+    urgence: (URGENCES as readonly string[]).includes(extraction.urgence) ? (extraction.urgence as Urgence) : "normale",
+    warnings: extraction.warnings,
+  };
+}
+
+export async function createInterventionByToken(
+  token: string,
+  data: { probleme: string; categorie: Categorie; urgence: Urgence; attachmentUrls: string[] }
+) {
+  const villaId = await villaIdFromToken(token);
+  const probleme = data.probleme.trim();
+  if (!probleme) throw new Error("Décris le problème.");
+  const safeUrgence = (URGENCES as readonly string[]).includes(data.urgence) ? data.urgence : "normale";
+  const safeCategorie = (CATEGORIE_KEYS as string[]).includes(data.categorie) ? data.categorie : "autre";
+
+  const db = getDb();
+  const [created] = await db
+    .insert(interventions)
+    .values({
+      titre: probleme,
+      probleme,
+      villaId,
+      urgence: safeUrgence,
+      categorie: safeCategorie,
+      attachmentUrls: data.attachmentUrls,
+      origine: "staff",
+      createdByName: "Équipe (lien travaux)",
+    })
+    .returning({ id: interventions.id });
+
+  await maybeAutoDispatchMaintenance(created.id);
+
+  revalidatePath(`/travaux/${token}`);
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
 // Volontairement sans auth.protect() : le propriétaire crée une demande de travaux
 // depuis son lien public /p/[token], sans connexion. Portée limitée à sa propre villa
 // (villaId déjà connu via le token, pas saisi par l'utilisateur).

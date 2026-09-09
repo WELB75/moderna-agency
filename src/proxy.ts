@@ -11,6 +11,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/telegram-webhook",
   "/api/staff-requests/sweep",
   "/api/maintenance/dispatch",
+  // Autorisation gérée par la route elle-même (compte Clerk, OU token technicien/villa valide en
+  // base) — voir src/app/api/blob/upload/route.ts. Sans cette entrée, auth.protect() bloquait
+  // déjà toute requête non connectée avant même d'atteindre ce contrôle, y compris les envois de
+  // photo par un technicien (/t/[token]) ou depuis /travaux/[token].
+  "/api/blob/upload",
   "/api/elevenlabs/(.*)", // Server Tools appelés par l'agent vocal ElevenLabs (Jamila) — protégés par leur propre secret bearer, voir elevenlabs-tools-auth.ts
   "/icon",
   "/favicon.ico",
@@ -18,6 +23,7 @@ const isPublicRoute = createRouteMatcher([
   "/g/(.*)",
   "/c/(.*)",
   "/p/(.*)",
+  "/travaux/(.*)",
   "/t/(.*)",
   "/r/(.*)",
   "/payer/(.*)",
