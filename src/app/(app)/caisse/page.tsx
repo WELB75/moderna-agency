@@ -88,6 +88,24 @@ export default async function CaissePage({
   const entriesSociete = entries.filter((e) => e.caisse === "societe");
   const entriesBrahim = entries.filter((e) => e.caisse === "brahim");
 
+  // Contrairement à la caisse société (qui se lit mois par mois), l'avance de Brahim est un
+  // solde qui court sans jamais se remettre à zéro au changement de mois — Kamel, 2026-09-09 :
+  // avait donné 2000 MAD fin juillet, et le solde affiché en septembre l'ignorait complètement
+  // parce que les totaux étaient calculés uniquement sur les mouvements du mois sélectionné.
+  // Les cartes de résumé portent donc sur tout l'historique ; seule la liste "Mouvements"
+  // reste filtrée par mois pour rester lisible.
+  const entriesBrahimTout = (
+    await db
+      .select({
+        id: cashEntries.id,
+        type: cashEntries.type,
+        montant: cashEntries.montant,
+        devise: cashEntries.devise,
+      })
+      .from(cashEntries)
+      .where(eq(cashEntries.caisse, "brahim"))
+  );
+
   const especes = entriesSociete.filter((e) => e.moyenPaiement === "especes");
   const virement = entriesSociete.filter((e) => e.moyenPaiement === "virement");
   const carte = entriesSociete.filter((e) => e.moyenPaiement === "carte");
@@ -153,7 +171,7 @@ export default async function CaissePage({
           <CaissePanel entries={carte} villas={allVillas} reservations={recentReservations} moyenPaiement="carte" />
         </TabsContent>
         <TabsContent value="brahim" className="pt-2">
-          <BrahimPanel entries={entriesBrahim} villas={allVillas} />
+          <BrahimPanel entries={entriesBrahim} allEntries={entriesBrahimTout} villas={allVillas} />
         </TabsContent>
         <TabsContent value="stats" className="pt-2">
           <CaisseStats entries={entriesSociete} />
@@ -247,14 +265,16 @@ function CaissePanel({
 // caisse société — demande explicite du patron, un onglet à part entière (2026-08-12).
 function BrahimPanel({
   entries,
+  allEntries,
   villas,
 }: {
   entries: Entry[];
+  allEntries: { id: string; type: string; montant: string; devise: string }[];
   villas: { id: string; nom: string; numero: string }[];
 }) {
   // Toujours afficher au moins les cartes en MAD, même sans mouvement sur la période —
   // pareil que CaissePanel, pour ne pas donner l'impression d'un onglet vide/cassé.
-  const devises = entries.length > 0 ? Array.from(new Set(entries.map((e) => e.devise))).sort() : ["MAD"];
+  const devises = allEntries.length > 0 ? Array.from(new Set(allEntries.map((e) => e.devise))).sort() : ["MAD"];
 
   return (
     <div className="space-y-6">
@@ -263,10 +283,12 @@ function BrahimPanel({
       </div>
 
       {devises.map((devise) => {
-        const enDevise = entries.filter((e) => e.devise === devise);
-        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
-        const totalDepense = enDevise.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
-        const totalRestitution = enDevise
+        // Solde calculé sur tout l'historique (voir commentaire plus haut) : le mois affiché
+        // ne doit servir qu'à filtrer la liste des mouvements, jamais le solde lui-même.
+        const enDeviseTout = allEntries.filter((e) => e.devise === devise);
+        const totalRemise = enDeviseTout.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+        const totalDepense = enDeviseTout.filter((e) => e.type === "depense").reduce((s, e) => s + Number(e.montant), 0);
+        const totalRestitution = enDeviseTout
           .filter((e) => e.type === "restitution")
           .reduce((s, e) => s + Number(e.montant), 0);
         const solde = totalRemise - totalDepense - totalRestitution;
