@@ -200,6 +200,19 @@ export async function createInterventionByToken(
   revalidatePath("/maintenance");
 }
 
+// Corbeille sur /travaux/[token] (voir InterventionPublicCard) — Kamel, 2026-09-09 : "met moi
+// une corbeille pour supprimer certaines tache". Vérifie que la fiche appartient bien à la villa
+// du token avant de supprimer, pour qu'un token ne puisse jamais supprimer la fiche d'une autre
+// villa même en devinant un id.
+export async function deleteInterventionByToken(token: string, interventionId: string) {
+  const villaId = await villaIdFromToken(token);
+  const db = getDb();
+  const [existing] = await db.select({ villaId: interventions.villaId }).from(interventions).where(eq(interventions.id, interventionId)).limit(1);
+  if (!existing || existing.villaId !== villaId) throw new Error("Fiche introuvable.");
+  await db.delete(interventions).where(eq(interventions.id, interventionId));
+  revalidatePath(`/travaux/${token}`);
+}
+
 // Volontairement sans auth.protect() : le propriétaire crée une demande de travaux
 // depuis son lien public /p/[token], sans connexion. Portée limitée à sa propre villa
 // (villaId déjà connu via le token, pas saisi par l'utilisateur).

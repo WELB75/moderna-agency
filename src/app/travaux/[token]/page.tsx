@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InterventionPublicCard } from "@/components/app/intervention-public-card";
 import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
 import { TravauxScanForm } from "@/components/app/travaux-scan-form";
+import { deleteInterventionByToken } from "@/lib/actions/interventions";
 import { computeCategorieStats } from "@/lib/categorie-stats";
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CATEGORIES } from "@/lib/intervention-categorie";
@@ -102,6 +103,7 @@ export default async function TravauxPage({ params }: { params: Promise<{ token:
             commentAuteur={villa.proprietaireNom || "Propriétaire"}
             commentAuteurType="proprietaire"
             commentAuthorOptions={commentAuthorOptions}
+            onDelete={deleteInterventionByToken.bind(null, token, i.id)}
           />
         ))}
       </div>

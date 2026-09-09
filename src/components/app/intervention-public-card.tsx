@@ -10,6 +10,7 @@ import { UrgenceBadge } from "@/components/app/urgence-badge";
 import { CategorieBadge } from "@/components/app/categorie-badge";
 import { InterventionStatusControls } from "@/components/app/intervention-status-controls";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
+import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { Badge } from "@/components/ui/badge";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
 import { cn } from "@/lib/utils";
@@ -63,6 +64,7 @@ export function InterventionPublicCard({
   compact = false,
   validationTitle,
   readOnlyValidation = false,
+  onDelete,
 }: {
   intervention: InterventionPublicData;
   showVillaInfo?: boolean;
@@ -77,6 +79,10 @@ export function InterventionPublicCard({
   // Pour le lien de partage public /i/[id] : seul le propriétaire doit pouvoir valider un
   // devis, pas un tiers à qui ce lien a été transmis.
   readOnlyValidation?: boolean;
+  // Optionnel : corbeille pour supprimer la fiche — seulement passée depuis /travaux/[token]
+  // (Kamel, 2026-09-09 : "met moi une corbeille pour supprimer certaines tache"), jamais depuis
+  // /p/[token] où un propriétaire ne doit pas pouvoir supprimer une fiche.
+  onDelete?: () => Promise<void>;
 }) {
   const currentIndex = INTERVENTION_STEPS.findIndex((s) => s.key === intervention.etape);
   const pct = ((currentIndex + 1) / INTERVENTION_STEPS.length) * 100;
@@ -92,12 +98,21 @@ export function InterventionPublicCard({
         <h3 className="min-w-0 break-words text-xl font-bold uppercase tracking-wide sm:text-2xl">
           {intervention.titre}
         </h3>
-        <CopyLinkButton
-          path={`/i/${intervention.id}`}
-          label="Copier le lien pour partager"
-          successMessage="Lien copié — transmets-le à qui tu veux."
-          iconOnly
-        />
+        <div className="flex shrink-0 items-center gap-1">
+          <CopyLinkButton
+            path={`/i/${intervention.id}`}
+            label="Copier le lien pour partager"
+            successMessage="Lien copié — transmets-le à qui tu veux."
+            iconOnly
+          />
+          {onDelete ? (
+            <ConfirmDeleteButton
+              action={onDelete}
+              title="Supprimer cette fiche ?"
+              description="Cette fiche et son historique (photos, échanges) seront définitivement supprimés."
+            />
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
