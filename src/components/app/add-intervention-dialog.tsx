@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Paperclip, Loader2, X, CheckCircle2 } from "lucide-react";
+import { Plus, Paperclip, Loader2, X, CheckCircle2, Sparkles } from "lucide-react";
 import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createIntervention } from "@/lib/actions/interventions";
+import { createIntervention, analyzeInterventionPhotoUrl } from "@/lib/actions/interventions";
 import { URGENCE_LEVELS, type Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { CategorieIcon } from "@/components/app/categorie-icon";
@@ -45,18 +45,24 @@ export function AddInterventionDialog({
   const [technicianId, setTechnicianId] = useState("");
   const [urgence, setUrgence] = useState<Urgence>("normale");
   const [categorie, setCategorie] = useState<Categorie>("autre");
+  const [probleme, setProbleme] = useState("");
   const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [justCreated, setJustCreated] = useState(false);
   const [isPending, startTransition] = useTransition();
 
+  // Analyse enchaînée dès l'envoi d'une photo — Kamel, 2026-09-09 : "j'ai juste a prendre en
+  // photo, ou video, ou importer" : un seul geste déclenche l'upload puis la lecture IA (comme
+  // pour les reçus de Brahim en caisse), pas un bouton "Analyser" séparé. Les vidéos ne sont pas
+  // analysables par la vision IA (image fixe uniquement) — seule la première photo sert de base.
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
     if (files.length === 0) return;
     setUploading(true);
+    const uploaded: { url: string; name: string }[] = [];
     try {
-      const uploaded: { url: string; name: string }[] = [];
       for (const file of files) {
         const blob = await upload(`interventions/new/${Date.now()}-${file.name}`, file, {
           access: "public",
@@ -67,8 +73,28 @@ export function AddInterventionDialog({
       setAttachments((prev) => [...prev, ...uploaded]);
     } catch {
       toast.error("Échec de l'envoi.");
-    } finally {
       setUploading(false);
+      return;
+    }
+    setUploading(false);
+
+    // Ne remplace jamais un souci déjà tapé à la main — seulement pré-remplir quand le champ est
+    // encore vide, pour ne jamais écraser une description volontaire.
+    const firstPhotoIndex = files.findIndex((f) => f.type.startsWith("image/"));
+    if (firstPhotoIndex === -1 || probleme.trim()) return;
+
+    setAnalyzing(true);
+    try {
+      const result = await analyzeInterventionPhotoUrl(uploaded[firstPhotoIndex].url);
+      if (result.probleme) setProbleme(result.probleme);
+      setCategorie(result.categorie);
+      setUrgence(result.urgence);
+      if (!result.probleme) toast.warning("Problème pas clairement identifiable sur la photo — décris-le toi-même.");
+      for (const w of result.warnings) toast.warning(w);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Échec de l'analyse IA — remplis les champs à la main.");
+    } finally {
+      setAnalyzing(false);
     }
   }
 
@@ -99,6 +125,7 @@ export function AddInterventionDialog({
           setTechnicianId("");
           setUrgence("normale");
           setCategorie("autre");
+          setProbleme("");
           setAttachments([]);
         }, 1100);
       } catch (err) {
@@ -132,7 +159,15 @@ export function AddInterventionDialog({
             <form action={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="probleme">Souci</Label>
-                <Textarea id="probleme" name="probleme" rows={3} placeholder="Ex. Panne électrique dans l'appartement" required />
+                <Textarea
+                  id="probleme"
+                  name="probleme"
+                  rows={3}
+                  value={probleme}
+                  onChange={(e) => setProbleme(e.target.value)}
+                  placeholder="Se remplit après la photo, ou décris-le toi-même"
+                  required
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -230,22 +265,29 @@ export function AddInterventionDialog({
           <div className="space-y-1.5">
             <Label>Photo / vidéo</Label>
             <p className="text-xs text-muted-foreground">
-              Nécessaire (avec le problème décrit) pour que l&apos;IA choisisse elle-même un technicien.
+              Une photo suffit : le souci, la catégorie et l&apos;urgence se remplissent tout seuls (et l&apos;IA choisit
+              un technicien une fois le problème décrit).
             </p>
-            <Button type="button" variant="outline" size="sm" disabled={uploading} asChild>
+            <Button type="button" variant="outline" size="sm" disabled={uploading || analyzing} asChild>
               <label className="cursor-pointer">
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                Ajouter photo / vidéo
+                Prendre / ajouter une photo ou vidéo
                 <input
                   type="file"
                   accept="image/*,video/*"
                   multiple
                   className="hidden"
-                  disabled={uploading}
+                  disabled={uploading || analyzing}
                   onChange={handleFileChange}
                 />
               </label>
             </Button>
+            {analyzing ? (
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Sparkles className="h-3 w-3 animate-pulse" />
+                Analyse de la photo en cours...
+              </p>
+            ) : null}
             {attachments.length > 0 ? (
               <ul className="space-y-1">
                 {attachments.map((a) => (

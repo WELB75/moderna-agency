@@ -9,6 +9,7 @@ import type { Devis } from "@/lib/devis-types";
 import type { Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
+import { analyzeInterventionPhoto } from "@/lib/intervention-photo-ai";
 import { getBaseUrl } from "@/lib/base-url";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
 
@@ -66,6 +67,21 @@ const ETAPE_TIMESTAMP_FIELD: Record<Etape, "signaleAt" | "contacteAt" | "planifi
   en_cours: "debutAt",
   termine: "finAt",
 };
+
+// Préremplissage IA du formulaire "Nouvelle intervention" à partir d'une photo déjà envoyée
+// (voir AddInterventionDialog) — Kamel, 2026-09-09 : "je veux un formulaire propre avec ia j'ai
+// juste a prendre en photo, ou video, ou importer". Renvoie juste des suggestions à relire,
+// jamais une création directe.
+export async function analyzeInterventionPhotoUrl(photoUrl: string) {
+  await auth.protect();
+  const extraction = await analyzeInterventionPhoto(photoUrl);
+  return {
+    probleme: extraction.probleme,
+    categorie: (CATEGORIE_KEYS as string[]).includes(extraction.categorie) ? (extraction.categorie as Categorie) : "autre",
+    urgence: (URGENCES as readonly string[]).includes(extraction.urgence) ? (extraction.urgence as Urgence) : "normale",
+    warnings: extraction.warnings,
+  };
+}
 
 export async function createIntervention(formData: FormData) {
   await auth.protect();
