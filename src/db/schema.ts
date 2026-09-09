@@ -276,6 +276,11 @@ export const cashEntries = pgTable("cash_entries", {
   description: text("description"),
   responsable: text("responsable"), // personne qui a remis/dépensé l'argent (ex. Brahim Jardinier)
   photoUrls: jsonb("photo_urls").$type<string[]>().default([]),
+  // Kamel, 2026-09-09 : "c'est moi qui ai donné l'argent de la caisse à Brahim, donc c'est en
+  // - des 6100 MAD" — une remise à Brahim est de l'argent qui sort réellement de la caisse
+  // société, donc chaque remise crée AUSSI une dépense société liée (même montant), pour que
+  // le solde société en tienne compte. Ce lien permet de supprimer les deux ensemble.
+  linkedEntryId: uuid("linked_entry_id").references((): AnyPgColumn => cashEntries.id, { onDelete: "set null" }),
   createdByUserId: text("created_by_user_id").notNull(),
   createdByName: text("created_by_name"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

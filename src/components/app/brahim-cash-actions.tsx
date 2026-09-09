@@ -24,7 +24,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createCashEntry, analyzeCashReceiptPhotos } from "@/lib/actions/caisse";
+import { createCashEntry, donnerArgentBrahim, analyzeCashReceiptPhotos } from "@/lib/actions/caisse";
 
 // Version simplifiée du formulaire de caisse, réservée à l'onglet Brahim — Kamel, 2026-09-07 :
 // "là je galère depuis tout à l'heure [...] y a trop de choses". Le formulaire générique
@@ -81,20 +81,9 @@ function BrahimRemiseDialog() {
       toast.error("Indique le montant donné.");
       return;
     }
-    const formData = new FormData();
-    formData.set("type", "remise");
-    formData.set("categorie", "");
-    formData.set("caisse", "brahim");
-    formData.set("financePar", "societe");
-    formData.set("moyenPaiement", "especes");
-    formData.set("montant", montant);
-    formData.set("devise", "MAD");
-    formData.set("description", "");
-    formData.set("responsable", "Brahim");
-    formData.set("photoUrls", JSON.stringify(photoUrls));
     startTransition(async () => {
       try {
-        await createCashEntry(formData);
+        await donnerArgentBrahim(montantNum, photoUrls);
         toast.success("Argent donné à Brahim enregistré.");
         setOpen(false);
         setMontant("");

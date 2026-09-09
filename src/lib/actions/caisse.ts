@@ -78,6 +78,63 @@ export async function createCashEntry(formData: FormData) {
   revalidatePath("/caisse");
 }
 
+// Kamel, 2026-09-09 : "c'est moi qui ai donné l'argent de la caisse à Brahim, donc c'est en -
+// des 6100 MAD" — l'argent remis à Brahim sort réellement de la caisse société en espèces, donc
+// chaque remise doit AUSSI apparaître comme une dépense société du même montant, sinon le solde
+// société reste faussement gonflé de tout ce qui a été donné à Brahim. Les deux écritures sont
+// liées (linkedEntryId) pour pouvoir les supprimer ensemble depuis la corbeille.
+export async function donnerArgentBrahim(montant: number, photoUrls: string[]) {
+  await auth.protect();
+  const user = await currentUser();
+  if (!montant || montant <= 0) {
+    throw new Error("Le montant doit être un nombre positif.");
+  }
+
+  const db = getDb();
+  const montantStr = montant.toFixed(2);
+  const createdByUserId = user?.id ?? "inconnu";
+  const createdByName = user?.fullName ?? user?.username ?? "Équipe";
+
+  const [remise] = await db
+    .insert(cashEntries)
+    .values({
+      type: "remise",
+      caisse: "brahim",
+      financePar: "societe",
+      moyenPaiement: "especes",
+      montant: montantStr,
+      devise: "MAD",
+      responsable: "Brahim",
+      photoUrls,
+      createdByUserId,
+      createdByName,
+    })
+    .returning({ id: cashEntries.id });
+
+  const [depenseSociete] = await db
+    .insert(cashEntries)
+    .values({
+      type: "depense",
+      categorie: "coursier",
+      caisse: "societe",
+      financePar: "societe",
+      moyenPaiement: "especes",
+      montant: montantStr,
+      devise: "MAD",
+      description: "Avance donnée à Brahim",
+      responsable: "Brahim",
+      photoUrls,
+      linkedEntryId: remise.id,
+      createdByUserId,
+      createdByName,
+    })
+    .returning({ id: cashEntries.id });
+
+  await db.update(cashEntries).set({ linkedEntryId: depenseSociete.id }).where(eq(cashEntries.id, remise.id));
+
+  revalidatePath("/caisse");
+}
+
 export async function addCashEntryPhotos(entryId: string, photoUrls: string[]) {
   await auth.protect();
   const db = getDb();
@@ -127,6 +184,12 @@ export async function analyzeCashReceiptPhotos(photoUrls: string[]) {
 export async function deleteCashEntry(entryId: string) {
   await auth.protect();
   const db = getDb();
+  // Une remise à Brahim et sa dépense société liée (voir donnerArgentBrahim) doivent disparaître
+  // ensemble — sinon supprimer l'une des deux fausse de nouveau le solde société.
+  const [entry] = await db.select({ linkedEntryId: cashEntries.linkedEntryId }).from(cashEntries).where(eq(cashEntries.id, entryId)).limit(1);
   await db.delete(cashEntries).where(eq(cashEntries.id, entryId));
+  if (entry?.linkedEntryId) {
+    await db.delete(cashEntries).where(eq(cashEntries.id, entry.linkedEntryId));
+  }
   revalidatePath("/caisse");
 }
