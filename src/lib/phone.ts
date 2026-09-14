@@ -9,7 +9,10 @@ export function toWhatsAppUrl(rawPhone: string, message?: string): string {
   } else if (normalized.startsWith("0")) {
     normalized = `+212${normalized.slice(1)}`;
   } else if (!normalized.startsWith("+")) {
-    normalized = `+212${normalized}`;
+    // Un numéro local marocain/français sans le 0 initial tient sur 9 chiffres (ex. "661757246").
+    // Au-delà, le numéro contient déjà un indicatif pays saisi sans le "+" (ex. "33681818100") —
+    // le préfixer avec +212 ajouterait un second indicatif au lieu de corriger le premier.
+    normalized = normalized.length > 9 ? `+${normalized}` : `+212${normalized}`;
   }
 
   const base = `https://wa.me/${normalized.replace(/\D/g, "")}`;
