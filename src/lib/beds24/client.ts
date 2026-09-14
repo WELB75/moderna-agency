@@ -124,11 +124,13 @@ export type Beds24CalendarWrite = {
   calendar: { from: string; to: string; numAvail?: number; price1?: number; minStay?: number }[];
 };
 
-// ATTENTION : price1 et minStay ont été vérifiés fonctionnels (écriture + relecture confirmées
-// contre la propriété test). numAvail est accepté sans erreur (success: true) mais n'a, dans nos
-// tests, jamais changé le statut ouvert/fermé réel d'une date — probablement un réglage par
-// défaut de la propriété test (jamais "ouverte" manuellement dans Beds24) plutôt qu'un bug ici,
-// mais à revérifier avant de compter dessus pour la disponibilité en production.
+// price1, minStay et numAvail sont tous les trois vérifiés fonctionnels (écriture + relecture
+// confirmées contre une vraie propriété connectée à Airbnb, pas juste la propriété test) —
+// numAvail:0/1 bloque/débloque un calendrier sans jamais créer de réservation, donc sans aucun
+// risque sur le taux d'annulation Airbnb (voir maybeDoc "Kamel, 2026-09-14" plus bas dans le repo
+// pour le pourquoi : create-puis-cancel une vraie réservation, elle, DÉCLENCHE la pénalité
+// anti-abus d'Airbnb qui verrouille les dates). C'est donc la méthode à privilégier pour tout
+// futur test de connexion à un channel (Airbnb, Booking.com...), jamais beds24WriteBookings.
 export async function beds24UpdateCalendar(updates: Beds24CalendarWrite[]): Promise<unknown> {
   return beds24Fetch("/inventory/rooms/calendar", { method: "POST", body: updates });
 }
