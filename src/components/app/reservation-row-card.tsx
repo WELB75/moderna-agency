@@ -23,6 +23,7 @@ import type { PersonnelOption } from "@/lib/personnel-options";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { PlatformBadge } from "@/components/app/platform-badge";
 import { deleteReservation } from "@/lib/actions/reservations";
 import {
   LogIn,
@@ -253,7 +254,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 {r.codeChambreMaster}
               </Badge>
             ) : null}
-            {r.canal ? <span className="text-xs text-muted-foreground">· {r.canal}</span> : null}
+            {r.canal ? <PlatformBadge canal={r.canal} /> : null}
           </div>
         </div>
 
