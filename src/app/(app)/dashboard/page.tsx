@@ -81,7 +81,8 @@ const DAYS_AHEAD = 7;
 // défaut, géré par Kamel au quotidien), puis Zaraba et Noria réintégrés depuis leur mise de côté
 // du 2026-07-24 (voir domaines-actifs.ts, qui reste inchangé et ne s'applique qu'aux autres pages
 // comme /caisse). "Bureau Moderna Agency" n'est pas un domaine loué (0 villa) donc pas d'onglet.
-const DASHBOARD_DOMAINES = ["Domaine Moderna II", "Domaine Zaraba", "Noria"];
+// Prestigia ajouté le 2026-09-14 (1er appartement du domaine, Appart. Climatisé vue Piscine & Atlas).
+const DASHBOARD_DOMAINES = ["Domaine Moderna II", "Domaine Zaraba", "Noria", "Prestigia"];
 
 export default async function DashboardPage({
   searchParams,
