@@ -387,8 +387,8 @@ export default async function DashboardPage({
   );
 
   // Plan du domaine confirmé par Kamel : le champ "numero" correspond à la position 1-17 sur le
-  // terrain — uniquement fiable pour Moderna II (Zaraba/Noria ont des numéros dupliqués ou
-  // inconnus côté données, donc pas de plan pour ces domaines, juste la liste des villas libres).
+  // terrain — uniquement fiable pour Moderna II (Zaraba/Noria/Prestigia ont des numéros dupliqués
+  // ou inconnus côté données, donc pas de plan pour ces domaines, juste la liste des villas libres).
   const modernaIIPlanVillas: PlanVilla[] = allVillasGerees
     .filter((v) => v.domaineNom === "Domaine Moderna II")
     .map((v) => {
@@ -408,6 +408,7 @@ export default async function DashboardPage({
     ["Domaine Moderna II", modernaIIPlanVillas],
     ["Domaine Zaraba", []],
     ["Noria", []],
+    ["Prestigia", []],
   ]);
 
   const maintenanceByDomaine = new Map(
