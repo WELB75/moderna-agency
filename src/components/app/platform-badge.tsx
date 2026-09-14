@@ -9,6 +9,22 @@ const AIRBNB_PATH =
 const BOOKING_PATH =
   "M24 0H0v24h24ZM8.575 6.563h2.658c2.108 0 3.473 1.15 3.473 2.898 0 1.15-.575 1.82-.91 2.108l-.287.263.335.192c.815.479 1.318 1.389 1.318 2.395 0 1.988-1.51 3.257-3.857 3.257H7.449V7.713c0-.623.503-1.126 1.126-1.15zm1.7 1.868c-.479.024-.694.264-.694.79v1.893h1.676c.958 0 1.294-.743 1.294-1.365 0-.815-.503-1.318-1.318-1.318zm-.096 4.36c-.407.071-.598.31-.598.79v2.251h1.868c.934 0 1.509-.55 1.509-1.533 0-.934-.599-1.509-1.51-1.509zm7.737 2.394c.743 0 1.341.599 1.341 1.342a1.34 1.34 0 0 1-1.341 1.341 1.355 1.355 0 0 1-1.341-1.341c0-.743.598-1.342 1.34-1.342z";
 
+export type PlatformKey = "airbnb" | "booking" | "direct";
+
+export const PLATFORMS: { key: PlatformKey; label: string; color: string }[] = [
+  { key: "airbnb", label: "Airbnb", color: "#FF5A5F" },
+  { key: "booking", label: "Booking.com", color: "#003A9A" },
+  { key: "direct", label: "En direct", color: "" },
+];
+
+export function platformFromCanal(canal: string): PlatformKey | null {
+  const lower = canal.toLowerCase();
+  if (lower.includes("airbnb")) return "airbnb";
+  if (lower.includes("booking")) return "booking";
+  if (lower.includes("direct")) return "direct";
+  return null;
+}
+
 function BrandIcon({ path, className }: { path: string; className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
@@ -17,53 +33,39 @@ function BrandIcon({ path, className }: { path: string; className?: string }) {
   );
 }
 
+// Icône seule (sans texte ni pastille de couleur) — utilisée par PlatformBadge, et réutilisable
+// telle quelle pour un sélecteur de plateforme plus grand (ex. assistant de création de résa).
+export function PlatformIcon({ platform, className }: { platform: PlatformKey; className?: string }) {
+  if (platform === "airbnb") return <BrandIcon path={AIRBNB_PATH} className={className} />;
+  if (platform === "booking") return <BrandIcon path={BOOKING_PATH} className={className} />;
+  return <Zap className={className} strokeWidth={2} />;
+}
+
 // Kamel, 2026-09-14 : "met le logo airbnb quand c'est airbnb, pareil pour booking, et en direct
 // tu met un logo avec écris En direct" — remplace le simple texte "· Airbnb.com" par un badge
 // avec le logo de la plateforme (couleur de marque), et un badge dédié pour les réservations
 // directes. Se base sur le canal tel qu'enregistré (voir cash_entries/reservations.canal) : la
 // détection est insensible à la casse pour couvrir "Airbnb.com", "Airbnb", etc.
 export function PlatformBadge({ canal, className }: { canal: string; className?: string }) {
-  const lower = canal.toLowerCase();
+  const platform = platformFromCanal(canal);
 
-  if (lower.includes("airbnb")) {
+  if (platform === "airbnb" || platform === "booking") {
+    const meta = PLATFORMS.find((p) => p.key === platform)!;
     return (
       <span
-        className={cn(
-          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white",
-          className
-        )}
-        style={{ backgroundColor: "#FF5A5F" }}
+        className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white", className)}
+        style={{ backgroundColor: meta.color }}
       >
-        <BrandIcon path={AIRBNB_PATH} className="h-3 w-3" />
-        Airbnb
+        <PlatformIcon platform={platform} className="h-3 w-3" />
+        {meta.label}
       </span>
     );
   }
 
-  if (lower.includes("booking")) {
+  if (platform === "direct") {
     return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-white",
-          className
-        )}
-        style={{ backgroundColor: "#003A9A" }}
-      >
-        <BrandIcon path={BOOKING_PATH} className="h-3 w-3" />
-        Booking.com
-      </span>
-    );
-  }
-
-  if (lower.includes("direct")) {
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary",
-          className
-        )}
-      >
-        <Zap className="h-3 w-3" strokeWidth={2} />
+      <span className={cn("inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary", className)}>
+        <PlatformIcon platform="direct" className="h-3 w-3" />
         En direct
       </span>
     );

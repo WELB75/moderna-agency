@@ -358,7 +358,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Réservations</CardTitle>
           <div className="flex gap-1.5">
-            <AddReservationDialog villaId={villa.id} />
+            <AddReservationDialog villaId={villa.id} villaLabel={`${villa.nom} (n°${villa.numero})`} />
           </div>
         </CardHeader>
         <CardContent className="space-y-3">

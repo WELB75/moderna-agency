@@ -17,12 +17,20 @@ export async function createReservation(formData: FormData) {
   const villaId = String(formData.get("villaId") ?? "");
   const guestName = toTitleCase(String(formData.get("guestName") ?? "").trim());
   const guestPhone = String(formData.get("guestPhone") ?? "").trim();
+  const guestEmail = String(formData.get("guestEmail") ?? "").trim();
   const checkIn = String(formData.get("checkIn") ?? "");
   const checkOut = String(formData.get("checkOut") ?? "");
   const nbAdultes = Number(formData.get("nbAdultes") ?? 0) || null;
   const nbEnfants = Number(formData.get("nbEnfants") ?? 0) || null;
   const guestsCount = (nbAdultes ?? 0) + (nbEnfants ?? 0) || null;
   const notes = String(formData.get("notes") ?? "").trim();
+  // Plateforme d'origine (logos Airbnb/Booking/Direct côté wizard, voir platform-badge.tsx) et
+  // prix — optionnels : Kamel, 2026-09-14, l'assistant de création manuelle ne doit pas forcer
+  // à tout remplir d'un coup, ces infos peuvent être complétées après coup.
+  const canal = String(formData.get("canal") ?? "").trim();
+  const loyerTotalRaw = String(formData.get("loyerTotal") ?? "").trim();
+  const devisePaiement = String(formData.get("devisePaiement") ?? "").trim();
+  const moyenPaiement = String(formData.get("moyenPaiement") ?? "").trim();
 
   if (!villaId || !guestName || !checkIn || !checkOut) {
     throw new Error("Villa, nom du client, arrivée et départ sont obligatoires.");
@@ -35,6 +43,7 @@ export async function createReservation(formData: FormData) {
       villaId,
       guestName,
       guestPhone: guestPhone || null,
+      guestEmail: guestEmail || null,
       checkIn: new Date(checkIn),
       checkOut: new Date(checkOut),
       guestsCount,
@@ -42,7 +51,11 @@ export async function createReservation(formData: FormData) {
       nbEnfants,
       notes: notes || null,
       source: "manuel",
+      canal: canal || "Direct",
       status: "confirmee",
+      loyerTotal: loyerTotalRaw || null,
+      devisePaiement: devisePaiement || "EUR",
+      moyenPaiement: moyenPaiement || null,
     })
     .returning({ id: reservations.id });
 
