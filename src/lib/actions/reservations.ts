@@ -70,6 +70,8 @@ export async function createReservation(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
+
+  return { id: reservation.id };
 }
 
 export async function updatePaymentInfo(formData: FormData) {

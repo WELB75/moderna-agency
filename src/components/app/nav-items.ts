@@ -1,7 +1,8 @@
-import { LayoutDashboard, Wallet, ClipboardCheck, Building2, Wrench, ListTodo, User, Users, FileText, ShieldCheck, ChefHat, MessagesSquare, Inbox, Bot, CalendarClock, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Wallet, ClipboardCheck, Building2, Wrench, ListTodo, User, Users, FileText, ShieldCheck, ChefHat, MessagesSquare, Inbox, Bot, CalendarClock, CalendarPlus, BarChart3 } from "lucide-react";
 
 export const navItems = [
   { href: "/dashboard", label: "Accueil", icon: LayoutDashboard },
+  { href: "/reservations/nouvelle", label: "Nouvelle réservation", icon: CalendarPlus },
   { href: "/a-faire", label: "À faire", icon: ListTodo },
   { href: "/chat", label: "Messages", icon: MessagesSquare },
   { href: "/inbox", label: "Boîte de réception", icon: Inbox },
