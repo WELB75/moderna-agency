@@ -9,6 +9,7 @@ import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
 import { beds24GetMessages, type Beds24Message } from "@/lib/beds24/client";
 import { PlatformBadge } from "@/components/app/platform-badge";
+import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -245,6 +246,7 @@ export default async function InboxPage({
                   );
                 })}
               </div>
+              <Beds24ReplyForm reservationId={selectedOta.id} />
             </>
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">

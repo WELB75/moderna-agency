@@ -153,6 +153,13 @@ export async function beds24GetMessages(bookingId: number): Promise<Beds24Messag
   return res.data;
 }
 
+// Kamel, 2026-09-15 : "je veux pouvoir aussi y répondre sur l'app" — l'API précise que l'écriture
+// ne fonctionne que pour une réservation venant d'un canal OTA (Airbnb, Booking.com...), jamais
+// une résa "Direct" créée à la main (qui n'a pas de fil de discussion côté Beds24).
+export async function beds24SendMessage(bookingId: number, message: string): Promise<void> {
+  await beds24Fetch("/bookings/messages", { method: "POST", body: [{ bookingId, message }] });
+}
+
 export type Beds24CalendarDay = {
   roomId: number;
   date: string;
