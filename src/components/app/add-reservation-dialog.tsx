@@ -21,11 +21,13 @@ export function AddReservationDialog({
   villaLabel,
   menageOptions,
   cuisineOptions,
+  villaPriceDefaults,
 }: {
   villaId: string;
   villaLabel?: string;
   menageOptions?: { id: string; nom: string }[];
   cuisineOptions?: { id: string; nom: string }[];
+  villaPriceDefaults?: Record<string, { caution: number; menage: number }>;
 }) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState(0);
@@ -54,6 +56,7 @@ export function AddReservationDialog({
           initialVillaId={villaId}
           menageOptions={menageOptions}
           cuisineOptions={cuisineOptions}
+          villaPriceDefaults={villaPriceDefaults}
           onCreated={() => setOpen(false)}
         />
       </DialogContent>

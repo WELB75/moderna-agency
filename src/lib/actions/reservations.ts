@@ -31,6 +31,8 @@ export async function createReservation(formData: FormData) {
   const loyerTotalRaw = String(formData.get("loyerTotal") ?? "").trim();
   const devisePaiement = String(formData.get("devisePaiement") ?? "").trim();
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "").trim();
+  const cautionRaw = String(formData.get("caution") ?? "").trim();
+  const fraisMenageRaw = String(formData.get("fraisMenage") ?? "").trim();
 
   if (!villaId || !guestName || !checkIn || !checkOut) {
     throw new Error("Villa, nom du client, arrivée et départ sont obligatoires.");
@@ -56,6 +58,8 @@ export async function createReservation(formData: FormData) {
       loyerTotal: loyerTotalRaw || null,
       devisePaiement: devisePaiement || "EUR",
       moyenPaiement: moyenPaiement || null,
+      caution: cautionRaw || null,
+      fraisMenage: fraisMenageRaw || null,
     })
     .returning({ id: reservations.id });
 

@@ -48,6 +48,7 @@ export function AddReservationWizard({
   villaLabel,
   menageOptions,
   cuisineOptions,
+  villaPriceDefaults,
   onCreated,
 }: {
   // Fourni depuis la page globale : la première étape propose de choisir la villa.
@@ -58,6 +59,11 @@ export function AddReservationWizard({
   // Fournis dans les deux cas : si présents, une étape "Personnel" apparaît après la création.
   menageOptions?: { id: string; nom: string }[];
   cuisineOptions?: { id: string; nom: string }[];
+  // Caution/frais de ménage de départ connus par villa (voir whatsapp-agent/villas.ts) — Kamel,
+  // 2026-09-15 : "tu connais les prix normalement, des cautions et des frais de menage (60 euros
+  // si c une villa plein pied, 80 euros pour les villas R+1)". Préremplit dès que la villa est
+  // choisie, toujours modifiable (pas de valeur connue pour les logements les plus récents).
+  villaPriceDefaults?: Record<string, { caution: number; menage: number }>;
   onCreated?: (reservationId: string) => void;
 }) {
   const showVillaStep = !initialVillaId && Boolean(villas);
@@ -92,7 +98,22 @@ export function AddReservationWizard({
   const [loyerTotal, setLoyerTotal] = useState("");
   const [devisePaiement, setDevisePaiement] = useState<(typeof DEVISES)[number]>("EUR");
   const [moyenPaiement, setMoyenPaiement] = useState("");
+  // Préremplis à l'initialisation pour la villa déjà connue (dialogue depuis la fiche villa) ;
+  // mis à jour explicitement au choix du logement dans handleVillaChange pour la page globale, où
+  // la villa n'est pas encore connue au premier rendu — jamais dans un useEffect (setState y
+  // déclencherait un rendu en cascade évitable).
+  const [caution, setCaution] = useState(() => (initialVillaId ? String(villaPriceDefaults?.[initialVillaId]?.caution ?? "") : ""));
+  const [fraisMenage, setFraisMenage] = useState(() => (initialVillaId ? String(villaPriceDefaults?.[initialVillaId]?.menage ?? "") : ""));
   const [notes, setNotes] = useState("");
+
+  function handleVillaChange(newVillaId: string) {
+    setVillaId(newVillaId);
+    const defaults = villaPriceDefaults?.[newVillaId];
+    if (defaults) {
+      setCaution(String(defaults.caution));
+      setFraisMenage(String(defaults.menage));
+    }
+  }
 
   function composePhone() {
     if (indicatif === "autre") return phoneLocal.trim();
@@ -143,6 +164,8 @@ export function AddReservationWizard({
     formData.set("loyerTotal", loyerTotal.trim());
     formData.set("devisePaiement", devisePaiement);
     formData.set("moyenPaiement", moyenPaiement);
+    formData.set("caution", caution.trim());
+    formData.set("fraisMenage", fraisMenage.trim());
     formData.set("notes", notes.trim());
 
     startTransition(async () => {
@@ -197,7 +220,7 @@ export function AddReservationWizard({
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Logement</Label>
-              <Select value={villaId} onValueChange={setVillaId}>
+              <Select value={villaId} onValueChange={handleVillaChange}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Choisir un logement" />
                 </SelectTrigger>
@@ -349,6 +372,16 @@ export function AddReservationWizard({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="caution">Caution</Label>
+                <Input id="caution" type="number" step="0.01" min="0" value={caution} onChange={(e) => setCaution(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fraisMenage">Frais de ménage de départ</Label>
+                <Input id="fraisMenage" type="number" step="0.01" min="0" value={fraisMenage} onChange={(e) => setFraisMenage(e.target.value)} />
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="notes">Demandes particulières</Label>

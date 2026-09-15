@@ -193,6 +193,10 @@ export const reservations = pgTable(
     loyerTotal: numeric("loyer_total", { precision: 10, scale: 2 }),
     montantPaye: numeric("montant_paye", { precision: 10, scale: 2 }),
     caution: numeric("caution", { precision: 10, scale: 2 }),
+    // Frais de ménage de départ facturés au client (distinct de TARIF_MENAGE dans
+    // personnel-tarifs.ts, qui est ce que l'agence PAIE à la femme de ménage en MAD) — Kamel,
+    // 2026-09-15 : "60 euros si c'est une villa plein pied, 80 euros pour les villas R+1".
+    fraisMenage: numeric("frais_menage", { precision: 10, scale: 2 }),
     devisePaiement: text("devise_paiement").default("EUR").notNull(), // devise du loyer/caution (EUR, DH...)
     cautionPayee: boolean("caution_payee").default(false).notNull(),
     moyenPaiement: text("moyen_paiement"),

@@ -39,3 +39,12 @@ export const VILLAS: { id: string; nom: string; type: "villa" | "appartement"; b
   { id: "bf33c8ba-2f65-4a09-bedd-870646fcdd08", nom: "Villa Sofya", type: "villa", blurb: "n°13, Domaine Moderna II — 5 chambres, jusqu'à 10 pers, mobilier Roche Bobois, femme de ménage incluse, barbecue, piscine chauffée", prixNuit: 650, caution: 1000, menage: 80, superhoteId: "propertyKeyKOO2kUkhcSqDaTiwuRRFOV8Yy" },
 ];
 
+
+// Réutilisé par l'assistant de création de réservation (add-reservation-wizard.tsx) pour
+// préremplir caution/frais de ménage dès que la villa est choisie — Kamel, 2026-09-15 : "tu
+// connais les prix normalement". N'a de valeur que pour les logements déjà dans VILLAS
+// ci-dessus ; les plus récents (ex. appartements Prestigia) restent à saisir à la main tant
+// qu'ils n'y sont pas ajoutés.
+export function buildVillaPriceDefaults(): Record<string, { caution: number; menage: number }> {
+  return Object.fromEntries(VILLAS.map((v) => [v.id, { caution: v.caution, menage: v.menage }]));
+}

@@ -4,6 +4,7 @@ import { villas, domaines, personnel } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AddReservationWizard } from "@/components/app/add-reservation-wizard";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
+import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
 
 // Page dédiée accessible depuis la nav (Kamel, 2026-09-14 : "faut le placer dans onglet au
 // dessus de à faire") — même assistant que le dialogue sur la fiche villa, mais avec un
@@ -38,7 +39,12 @@ export default async function NouvelleReservationPage() {
           <CardDescription>Choisis le logement, puis les infos principales — étape par étape.</CardDescription>
         </CardHeader>
         <CardContent>
-          <AddReservationWizard villas={allVillas} menageOptions={personnelMenageOptions} cuisineOptions={personnelCuisineOptions} />
+          <AddReservationWizard
+            villas={allVillas}
+            menageOptions={personnelMenageOptions}
+            cuisineOptions={personnelCuisineOptions}
+            villaPriceDefaults={buildVillaPriceDefaults()}
+          />
         </CardContent>
       </Card>
     </div>

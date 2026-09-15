@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
+import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
 import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
@@ -363,6 +364,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
               villaLabel={`${villa.nom} (n°${villa.numero})`}
               menageOptions={personnelMenageOptions}
               cuisineOptions={personnelCuisineOptions}
+              villaPriceDefaults={buildVillaPriceDefaults()}
             />
           </div>
         </CardHeader>

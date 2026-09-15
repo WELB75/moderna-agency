@@ -35,7 +35,7 @@ function resolveContact(
   const r = reservationsList.find((x) => phonesMatch(x.guestPhone, phone));
   if (r) return { nom: r.guestName, roleLabel: "Client", roleVariant: "client" };
 
-  return { nom: phone, roleLabel: "Numéro inconnu", roleVariant: "inconnu" };
+  return { nom: phone, roleLabel: "WhatsApp", roleVariant: "inconnu" };
 }
 
 const ROLE_BADGE_CLASS: Record<Contact["roleVariant"], string> = {
