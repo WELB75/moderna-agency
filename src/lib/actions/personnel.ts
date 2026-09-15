@@ -82,14 +82,19 @@ export async function addPersonnelAffectation(
 ) {
   await auth.protect();
   const db = getDb();
-  await db
+  const [created] = await db
     .insert(personnelAffectations)
     .values({ reservationId, personnelId, moment })
-    .onConflictDoNothing();
+    .onConflictDoNothing()
+    .returning({ id: personnelAffectations.id });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
   revalidatePath("/dashboard");
+
+  // Peut être absent si onConflictDoNothing a bloqué l'insertion (déjà affecté) — l'appelant ne
+  // s'en sert que pour un miroir client (assistant de réservation), jamais critique.
+  return { id: created?.id ?? null };
 }
 
 export async function removePersonnelAffectation(affectationId: string) {

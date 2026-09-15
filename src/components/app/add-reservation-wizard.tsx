@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { PLATFORMS, PlatformIcon, type PlatformKey } from "@/components/app/platform-badge";
 import { createReservation } from "@/lib/actions/reservations";
-import { PersonnelAffectationEditor } from "@/components/app/personnel-affectation-editor";
+import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { cn } from "@/lib/utils";
 
 // Assistant en plusieurs étapes plutôt qu'un formulaire géant façon Superhote — Kamel,
@@ -74,6 +74,12 @@ export function AddReservationWizard({
   const [step, setStep] = useState(0);
   const [isPending, startTransition] = useTransition();
   const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
+  // Miroir local de ce que PersonnelAffectationEditor affecte réellement en base — sans lui,
+  // l'ajout retombait à vide dès que l'action serveur se terminait (voir onAssignedChange dans
+  // personnel-affectation-editor.tsx). Kamel, 2026-09-15 : "QUAND JE VEUX AJOUTE FEMME DE MENAGE
+  // ET CUISINIERE CA MARCHE PAS".
+  const [menageAssigned, setMenageAssigned] = useState<PersonnelAssigne[]>([]);
+  const [cuisineAssigned, setCuisineAssigned] = useState<PersonnelAssigne[]>([]);
 
   const [villaId, setVillaId] = useState(initialVillaId ?? "");
 
@@ -400,7 +406,8 @@ export function AddReservationWizard({
                   role="menage"
                   moment="depart"
                   label="Ménage"
-                  assigned={[]}
+                  assigned={menageAssigned}
+                  onAssignedChange={setMenageAssigned}
                   options={menageOptions}
                 />
               ) : null}
@@ -409,7 +416,8 @@ export function AddReservationWizard({
                   reservationId={createdReservationId}
                   role="cuisine"
                   label="Cuisine"
-                  assigned={[]}
+                  assigned={cuisineAssigned}
+                  onAssignedChange={setCuisineAssigned}
                   options={cuisineOptions}
                 />
               ) : null}

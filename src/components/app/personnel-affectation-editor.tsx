@@ -75,6 +75,7 @@ export function PersonnelAffectationEditor({
   options,
   payeParProprietaireNoms = [],
   moment = "unique",
+  onAssignedChange,
 }: {
   reservationId: string;
   role: "menage" | "cuisine";
@@ -89,6 +90,13 @@ export function PersonnelAffectationEditor({
   // de fin de séjour, souvent une équipe différente) — la MÊME personne peut être affectée aux
   // deux pour la même réservation. "unique" (défaut) pour la cuisine, sans objet.
   moment?: "sejour" | "depart" | "unique";
+  // Optionnel : miroir de l'état optimiste vers le parent — nécessaire quand `assigned` ne vient
+  // pas d'un rendu serveur revalidé (ex. assistant de création de réservation, où la fiche
+  // n'existe pas encore côté page) : sans lui, l'ajout retombe à la liste vide dès que l'action
+  // serveur se termine, puisque le seul état "réel" que ce composant connaît est le prop figé
+  // passé par le parent. Kamel, 2026-09-15 : "QUAND JE VEUX AJOUTE FEMME DE MENAGE ET CUISINIERE
+  // CA MARCHE PAS" — l'affectation était bien créée en base, seul l'affichage ne suivait pas.
+  onAssignedChange?: (next: PersonnelAssigne[]) => void;
 }) {
   const [isPending, startTransition] = useTransition();
   const [optimisticAssigned, applyOptimistic] = useOptimistic(assigned, (state, action: OptimisticAction) => {
@@ -139,7 +147,29 @@ export function PersonnelAffectationEditor({
     startTransition(async () => {
       applyOptimistic({ type: "add", personnelId, nom: option.nom });
       try {
-        await addPersonnelAffectation(reservationId, personnelId, moment);
+        const result = await addPersonnelAffectation(reservationId, personnelId, moment);
+        // Miroir vers le parent avec le vrai id (jamais l'id optimiste temporaire) — seulement
+        // une fois l'action résolue : le faire pendant que l'action est encore en cours ferait
+        // rejouer "add" par-dessus un nouveau `assigned` qui la contient déjà, dupliquant l'entrée
+        // (clé React en double). Nécessaire uniquement quand `assigned` ne vient pas d'un rendu
+        // serveur revalidé (ex. assistant de création de réservation) — voir onAssignedChange.
+        if (result.id) {
+          onAssignedChange?.([
+            ...assigned,
+            {
+              affectationId: result.id,
+              personnelId,
+              nom: option.nom,
+              telephone: null,
+              faitAt: null,
+              nbJours: null,
+              avecDejeuner: false,
+              payeAt: null,
+              commentaire: null,
+              qualiteNote: null,
+            },
+          ]);
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -151,6 +181,7 @@ export function PersonnelAffectationEditor({
       applyOptimistic({ type: "remove", affectationId });
       try {
         await removePersonnelAffectation(affectationId);
+        onAssignedChange?.(assigned.filter((a) => a.affectationId !== affectationId));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
