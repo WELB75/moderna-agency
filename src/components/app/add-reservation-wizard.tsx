@@ -56,8 +56,15 @@ export function AddReservationWizard({
 
   const [villaId, setVillaId] = useState(initialVillaId ?? "");
 
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
+  // Date et heure en champs séparés plutôt qu'un seul <input type="datetime-local"> — Kamel,
+  // 2026-09-15 : "on peux pas changer l'heure". Un datetime-local entièrement contrôlé par React
+  // (value + onChange à chaque frappe) fait que Chrome réinitialise le segment heure/minute en
+  // cours d'édition (il retombe sur l'heure actuelle) ; deux inputs simples type="date"/"time"
+  // n'ont pas ce problème, et c'est d'ailleurs ce que fait Superhote (Arrivée / Heure d'arrivée).
+  const [checkInDate, setCheckInDate] = useState("");
+  const [checkInTime, setCheckInTime] = useState("15:00");
+  const [checkOutDate, setCheckOutDate] = useState("");
+  const [checkOutTime, setCheckOutTime] = useState("11:00");
   const [nbAdultes, setNbAdultes] = useState("1");
   const [nbEnfants, setNbEnfants] = useState("0");
 
@@ -86,7 +93,7 @@ export function AddReservationWizard({
   const prixStepIndex = voyageurStepIndex + 1;
 
   const villaValid = Boolean(villaId);
-  const sejourValid = Boolean(checkIn && checkOut);
+  const sejourValid = Boolean(checkInDate && checkOutDate);
   const voyageurValid = Boolean(guestName.trim());
 
   function handleNext() {
@@ -109,8 +116,8 @@ export function AddReservationWizard({
     if (!villaValid || !sejourValid || !voyageurValid) return;
     const formData = new FormData();
     formData.set("villaId", villaId);
-    formData.set("checkIn", checkIn);
-    formData.set("checkOut", checkOut);
+    formData.set("checkIn", `${checkInDate}T${checkInTime || "15:00"}`);
+    formData.set("checkOut", `${checkOutDate}T${checkOutTime || "11:00"}`);
     formData.set("nbAdultes", nbAdultes);
     formData.set("nbEnfants", nbEnfants);
     formData.set("canal", canalValue);
@@ -181,14 +188,24 @@ export function AddReservationWizard({
         {step === sejourStepIndex ? (
           <div className="space-y-4">
             {villaLabel ? <p className="text-sm text-muted-foreground">{villaLabel}</p> : null}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-[1fr_auto] gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="checkIn">Arrivée</Label>
-                <Input id="checkIn" type="datetime-local" value={checkIn} onChange={(e) => setCheckIn(e.target.value)} required />
+                <Label htmlFor="checkInDate">Arrivée</Label>
+                <Input id="checkInDate" type="date" value={checkInDate} onChange={(e) => setCheckInDate(e.target.value)} required />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="checkOut">Départ</Label>
-                <Input id="checkOut" type="datetime-local" value={checkOut} onChange={(e) => setCheckOut(e.target.value)} required />
+                <Label htmlFor="checkInTime">Heure</Label>
+                <Input id="checkInTime" type="time" className="w-24" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
+              </div>
+            </div>
+            <div className="grid grid-cols-[1fr_auto] gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="checkOutDate">Départ</Label>
+                <Input id="checkOutDate" type="date" value={checkOutDate} onChange={(e) => setCheckOutDate(e.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="checkOutTime">Heure</Label>
+                <Input id="checkOutTime" type="time" className="w-24" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
