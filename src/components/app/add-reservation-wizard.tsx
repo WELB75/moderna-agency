@@ -43,6 +43,7 @@ const MOYENS_PAIEMENT = [
 ] as const;
 
 export function AddReservationWizard({
+  domaines,
   villas,
   initialVillaId,
   villaLabel,
@@ -51,8 +52,12 @@ export function AddReservationWizard({
   villaPriceDefaults,
   onCreated,
 }: {
-  // Fourni depuis la page globale : la première étape propose de choisir la villa.
-  villas?: { id: string; nom: string; numero: string }[];
+  // Fourni depuis la page globale, avec `villas` — Kamel, 2026-09-15 : "tu met le choix du
+  // domaine deja, ensuite on choisi l'appart ou la villa qui se trouve dans ce domaine". Choisir
+  // le domaine d'abord filtre la liste des logements, plutôt que de tout dérouler d'un coup.
+  domaines?: { id: string; nom: string }[];
+  // Fourni depuis la page globale : la première étape propose de choisir le logement.
+  villas?: { id: string; nom: string; numero: string; domaineId: string | null }[];
   // Fourni depuis la fiche villa : villa déjà fixée, pas de sélecteur à afficher.
   initialVillaId?: string;
   villaLabel?: string;
@@ -82,6 +87,8 @@ export function AddReservationWizard({
   const [cuisineAssigned, setCuisineAssigned] = useState<PersonnelAssigne[]>([]);
 
   const [villaId, setVillaId] = useState(initialVillaId ?? "");
+  const [domaineId, setDomaineId] = useState(() => (initialVillaId ? (villas?.find((v) => v.id === initialVillaId)?.domaineId ?? "") : ""));
+  const villasDuDomaine = domaineId ? villas?.filter((v) => v.domaineId === domaineId) : [];
 
   // Date et heure en champs séparés plutôt qu'un seul <input type="datetime-local"> — Kamel,
   // 2026-09-15 : "on peux pas changer l'heure". Un datetime-local entièrement contrôlé par React
@@ -119,6 +126,13 @@ export function AddReservationWizard({
       setCaution(String(defaults.caution));
       setFraisMenage(String(defaults.menage));
     }
+  }
+
+  function handleDomaineChange(newDomaineId: string) {
+    setDomaineId(newDomaineId);
+    setVillaId("");
+    setCaution("");
+    setFraisMenage("");
   }
 
   function composePhone() {
@@ -224,14 +238,31 @@ export function AddReservationWizard({
       <div className="min-h-64 space-y-4">
         {step === villaStepIndex && villas ? (
           <div className="space-y-4">
+            {domaines ? (
+              <div className="space-y-1.5">
+                <Label>Domaine</Label>
+                <Select value={domaineId} onValueChange={handleDomaineChange}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Choisir un domaine" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {domaines.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.nom}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="space-y-1.5">
               <Label>Logement</Label>
-              <Select value={villaId} onValueChange={handleVillaChange}>
+              <Select value={villaId} onValueChange={handleVillaChange} disabled={Boolean(domaines) && !domaineId}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choisir un logement" />
+                  <SelectValue placeholder={domaines && !domaineId ? "Choisis d'abord un domaine" : "Choisir un logement"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {villas.map((v) => (
+                  {(villasDuDomaine ?? villas).map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.nom} (n°{v.numero})
                     </SelectItem>

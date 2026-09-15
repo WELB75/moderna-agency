@@ -3,7 +3,7 @@ import { getDb } from "@/db";
 import { villas, domaines, personnel } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AddReservationWizard } from "@/components/app/add-reservation-wizard";
-import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
+import { domaineEstActif, villaEstGeree, filtrerDomainesActifs } from "@/lib/domaines-actifs";
 import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
 
 // Page dédiée accessible depuis la nav (Kamel, 2026-09-14 : "faut le placer dans onglet au
@@ -12,9 +12,11 @@ import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
 export default async function NouvelleReservationPage() {
   const db = getDb();
 
+  const allDomaines = filtrerDomainesActifs(await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(asc(domaines.nom)));
+
   const allVillas = (
     await db
-      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineNom: domaines.nom })
+      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId, domaineNom: domaines.nom })
       .from(villas)
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .orderBy(asc(villas.nom))
@@ -40,6 +42,7 @@ export default async function NouvelleReservationPage() {
         </CardHeader>
         <CardContent>
           <AddReservationWizard
+            domaines={allDomaines}
             villas={allVillas}
             menageOptions={personnelMenageOptions}
             cuisineOptions={personnelCuisineOptions}
