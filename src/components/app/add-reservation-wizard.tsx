@@ -212,26 +212,24 @@ export function AddReservationWizard({
     else router.push(`/villas/${villaId}`);
   }
 
-  // Contour animé façon "Apple Intelligence" + barre de progression fine — Kamel, 2026-09-15 :
-  // "j'aimerais bien une petite barre de progression fine [...] et j'aimerais aussi un contour
-  // fin couleur arc en ciel qui est animé [...] comme on voit dans les ia [...] comme apple
-  // intelligence". Même technique que l'anneau lumineux de la recherche globale
-  // (search-ring-spin, globals.css) : un dégradé conique surdimensionné qui tourne derrière un
-  // panneau opaque, laissant dépasser un anneau de ~1px (via p-px) — juste avec un dégradé
-  // multicolore au lieu de blanc/gris.
+  // Barre de progression fine + halo doux façon "Apple Intelligence" — Kamel, 2026-09-15 :
+  // premier essai jugé "pas propre" (contour dur, couleurs trop saturées, épais). Repris en halo
+  // FLOUTÉ derrière une carte plate classique (bordure fine normale, fond opaque intact) plutôt
+  // qu'un contour peint par-dessus : palette pastel douce (bleu/violet/rose/orange clairs),
+  // fort flou (blur-2xl), faible opacité — la carte garde son look plat Stripe habituel, le halo
+  // n'est qu'une lueur ambiante discrète qui tourne lentement derrière.
   const progressPercent = Math.round(((step + 1) / STEPS.length) * 100);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl p-px">
+    <div className="relative">
       <div
         aria-hidden
-        className="search-ring-spin pointer-events-none absolute inset-[-60%]"
+        className="search-ring-spin pointer-events-none absolute inset-[-15%] rounded-3xl opacity-40 blur-2xl"
         style={{
-          background:
-            "conic-gradient(from 0deg, #ff5f6d, #ffc371, #47cf73, #4facfe, #a855f7, #ff5f6d)",
+          background: "conic-gradient(from 0deg, #93c5fd, #c4b5fd, #f9a8d4, #fdba74, #93c5fd)",
         }}
       />
-      <div className="relative space-y-4 rounded-[15px] bg-card p-3">
+      <div className="relative space-y-4 rounded-2xl border border-border bg-card p-4">
         <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
