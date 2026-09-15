@@ -8,7 +8,7 @@ import { whatsappConversations, personnel, technicians, clients, reservations, v
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
 import { beds24GetMessages, type Beds24Message } from "@/lib/beds24/client";
-import { PlatformBadge } from "@/components/app/platform-badge";
+import { PlatformBadge, WhatsAppBadge } from "@/components/app/platform-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +36,14 @@ function resolveContact(
   if (r) return { nom: r.guestName, roleLabel: "Client", roleVariant: "client" };
 
   return { nom: phone, roleLabel: "WhatsApp", roleVariant: "inconnu" };
+}
+
+// Kamel, 2026-09-15 : "en fond vert whatsapp qu'on reconnaisse !" — numéro non identifié
+// (roleVariant "inconnu") a désormais son propre badge vert WhatsApp au lieu du badge gris
+// générique utilisé pour les autres rôles.
+function contactBadge(contact: Contact, className: string) {
+  if (contact.roleVariant === "inconnu") return <WhatsAppBadge className={className} />;
+  return <Badge className={cn(className, ROLE_BADGE_CLASS[contact.roleVariant])}>{contact.roleLabel}</Badge>;
 }
 
 const ROLE_BADGE_CLASS: Record<Contact["roleVariant"], string> = {
@@ -121,7 +129,7 @@ export default async function InboxPage({
       title: c.contact.nom,
       updatedAt: new Date(c.updatedAt),
       preview: c.messages.length > 0 ? previewText(c.messages[c.messages.length - 1].content) : "",
-      badge: <Badge className={cn("shrink-0 text-[10px]", ROLE_BADGE_CLASS[c.contact.roleVariant])}>{c.contact.roleLabel}</Badge>,
+      badge: contactBadge(c.contact, "shrink-0 text-[10px]"),
     })),
     ...otaConversations.map((c) => {
       const last = c.messages[c.messages.length - 1];
@@ -185,9 +193,7 @@ export default async function InboxPage({
             <>
               <div className="flex items-center gap-2 border-b border-border px-5 py-3">
                 <span className="font-medium">{selectedWa.contact.nom}</span>
-                <Badge className={cn("text-[10px]", ROLE_BADGE_CLASS[selectedWa.contact.roleVariant])}>
-                  {selectedWa.contact.roleLabel}
-                </Badge>
+                {contactBadge(selectedWa.contact, "text-[10px]")}
                 <span className="ml-auto text-xs text-muted-foreground">{selectedWa.phone}</span>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-5">
