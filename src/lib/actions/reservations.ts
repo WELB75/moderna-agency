@@ -3,6 +3,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
+import { format } from "date-fns";
 import { getDb } from "@/db";
 import { reservations, villas } from "@/db/schema";
 import { runIcalSync } from "@/lib/ical/sync";
@@ -10,6 +11,7 @@ import { nowInMorocco } from "@/lib/now";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
+import { beds24UpdateCalendar } from "@/lib/beds24/client";
 
 export async function createReservation(formData: FormData) {
   await auth.protect();
@@ -65,11 +67,36 @@ export async function createReservation(formData: FormData) {
 
   // Sollicitation automatique d'une femme de ménage pour le nettoyage de fin de séjour — ne
   // doit jamais faire échouer la création de la réservation elle-même si ça plante.
+  const [villa] = await db.select({ nom: villas.nom, numero: villas.numero, beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, villaId)).limit(1);
   try {
-    const [villa] = await db.select({ nom: villas.nom, numero: villas.numero }).from(villas).where(eq(villas.id, villaId)).limit(1);
     if (villa) await initiateMenageRequest(reservation.id, villa.nom, villa.numero, checkOut.slice(0, 10));
   } catch (err) {
     console.error("Échec initiation demande ménage:", err);
+  }
+
+  // Bloque le calendrier Beds24 (répercuté vers Airbnb/Booking.com si la villa y est connectée)
+  // — Kamel, 2026-09-15 : "pourquoi Superhote ça bloque le calendrier direct et nous non ?". Une
+  // résa "Direct" créée à la main dans l'app n'existe nulle part ailleurs : sans ce blocage, rien
+  // n'empêche une double réservation sur les autres canaux. Jamais pour Airbnb/Booking.com saisis
+  // à la main : cette résa-là existe déjà côté Beds24 (remontée par runBeds24Sync).
+  //
+  // Volontairement un blocage de calendrier (numAvail), PAS une vraie réservation Beds24
+  // (beds24WriteBookings) : créer un objet "réservation confirmée" puis l'annuler plus tard (à la
+  // suppression) déclenche le verrou anti-abus d'Airbnb, qui bloque définitivement les dates
+  // d'une réservation annulée côté hôte — vérifié en pratique à deux reprises le 2026-09-14/15.
+  // Un blocage de calendrier est un geste hôte normal (fermer/rouvrir des dates), sans
+  // réservation associée, donc réversible sans aucun risque.
+  try {
+    if ((canal || "Direct") === "Direct" && villa?.beds24RoomId) {
+      await beds24UpdateCalendar([
+        {
+          roomId: Number(villa.beds24RoomId),
+          calendar: [{ from: checkIn.slice(0, 10), to: checkOut.slice(0, 10), numAvail: 0 }],
+        },
+      ]);
+    }
+  } catch (err) {
+    console.error("Échec blocage calendrier Beds24:", err);
   }
 
   revalidatePath("/dashboard");
@@ -222,7 +249,45 @@ export async function updateOperationalInfo(formData: FormData) {
 export async function deleteReservation(reservationId: string) {
   await auth.protect();
   const db = getDb();
+
+  const [reservation] = await db
+    .select({
+      villaId: reservations.villaId,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      source: reservations.source,
+      canal: reservations.canal,
+    })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+
   await db.delete(reservations).where(eq(reservations.id, reservationId));
+
+  // Rouvre les dates sur le calendrier Beds24 — seulement pour une résa "Direct" créée à la main
+  // dans l'app (voir createReservation, qui bloque le calendrier à la création) : jamais pour une
+  // résa Airbnb/Booking.com remontée par runBeds24Sync, dont la suppression ici n'est qu'un
+  // ménage local, pas une vraie annulation à répercuter. Toujours via numAvail (blocage de
+  // calendrier), jamais via l'annulation d'une réservation Beds24 — voir le commentaire dans
+  // createReservation sur le verrou anti-abus d'Airbnb.
+  if (reservation?.source === "manuel" && reservation.canal === "Direct" && reservation.villaId) {
+    try {
+      const [villa] = await db.select({ beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, reservation.villaId)).limit(1);
+      if (villa?.beds24RoomId) {
+        await beds24UpdateCalendar([
+          {
+            roomId: Number(villa.beds24RoomId),
+            calendar: [
+              { from: format(reservation.checkIn, "yyyy-MM-dd"), to: format(reservation.checkOut, "yyyy-MM-dd"), numAvail: 1 },
+            ],
+          },
+        ]);
+      }
+    } catch (err) {
+      console.error("Échec réouverture calendrier Beds24 après suppression:", err);
+    }
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/villas");
 }
