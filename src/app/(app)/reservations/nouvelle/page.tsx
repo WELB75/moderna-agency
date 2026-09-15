@@ -1,9 +1,9 @@
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, personnel } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AddReservationWizard } from "@/components/app/add-reservation-wizard";
-import { domaineEstActif, villaEstGeree, filtrerDomainesActifs } from "@/lib/domaines-actifs";
+import { villaEstGeree } from "@/lib/domaines-actifs";
 import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
 
 // Page dédiée accessible depuis la nav (Kamel, 2026-09-14 : "faut le placer dans onglet au
@@ -12,15 +12,22 @@ import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
 export default async function NouvelleReservationPage() {
   const db = getDb();
 
-  const allDomaines = filtrerDomainesActifs(await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(asc(domaines.nom)));
+  const allDomainesRaw = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(asc(domaines.nom));
 
+  // Contrairement au reste de l'app, ce sélecteur ne doit PAS suivre DOMAINES_MASQUES (Domaine
+  // Zaraba/Noria masqués ailleurs pour la phase de test "on ne travaille que sur Moderna II") —
+  // Kamel, 2026-09-15, en voyant "Bureau Moderna Agency" (0 villa, un domaine interne) proposé à
+  // la place : "y a domaine moderna 1 et 2 et y a noria et prestigia". Ici on veut TOUS les
+  // domaines qui ont au moins un vrai logement gérable, rien de plus, rien de moins.
   const allVillas = (
     await db
-      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId, domaineNom: domaines.nom })
+      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
       .from(villas)
-      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .orderBy(asc(villas.nom))
-  ).filter((v) => domaineEstActif(v.domaineNom) && villaEstGeree(v.nom));
+  ).filter((v) => villaEstGeree(v.nom));
+
+  const domaineIdsAvecVillas = new Set(allVillas.map((v) => v.domaineId).filter((id): id is string => Boolean(id)));
+  const allDomaines = allDomainesRaw.filter((d) => domaineIdsAvecVillas.has(d.id));
 
   // Même liste plate (sans tri par proximité, la villa n'étant pas encore connue au chargement
   // de la page) que celle utilisée sur la fiche villa — voir personnel-affectation-editor.tsx.
