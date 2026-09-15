@@ -212,9 +212,33 @@ export function AddReservationWizard({
     else router.push(`/villas/${villaId}`);
   }
 
+  // Contour animé façon "Apple Intelligence" + barre de progression fine — Kamel, 2026-09-15 :
+  // "j'aimerais bien une petite barre de progression fine [...] et j'aimerais aussi un contour
+  // fin couleur arc en ciel qui est animé [...] comme on voit dans les ia [...] comme apple
+  // intelligence". Même technique que l'anneau lumineux de la recherche globale
+  // (search-ring-spin, globals.css) : un dégradé conique surdimensionné qui tourne derrière un
+  // panneau opaque, laissant dépasser un anneau de ~1px (via p-px) — juste avec un dégradé
+  // multicolore au lieu de blanc/gris.
+  const progressPercent = Math.round(((step + 1) / STEPS.length) * 100);
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
+    <div className="relative overflow-hidden rounded-2xl p-px">
+      <div
+        aria-hidden
+        className="search-ring-spin pointer-events-none absolute inset-[-60%]"
+        style={{
+          background:
+            "conic-gradient(from 0deg, #ff5f6d, #ffc371, #47cf73, #4facfe, #a855f7, #ff5f6d)",
+        }}
+      />
+      <div className="relative space-y-4 rounded-[15px] bg-card p-3">
+        <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-300 ease-out"
+            style={{ width: `${progressPercent}%` }}
+          />
+        </div>
+        <div className="flex items-center gap-2">
         {STEPS.map((label, i) => (
           <div key={label} className="flex flex-1 items-center gap-2">
             <div
@@ -479,6 +503,7 @@ export function AddReservationWizard({
             {isPending ? "Ajout..." : "Créer la réservation"}
           </Button>
         )}
+        </div>
       </div>
     </div>
   );
