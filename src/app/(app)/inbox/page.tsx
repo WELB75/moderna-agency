@@ -1,11 +1,14 @@
-import { desc } from "drizzle-orm";
+import type { ReactNode } from "react";
+import { desc, isNotNull, eq } from "drizzle-orm";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { whatsappConversations, personnel, technicians, clients, reservations } from "@/db/schema";
+import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
+import { beds24GetMessages, type Beds24Message } from "@/lib/beds24/client";
+import { PlatformBadge } from "@/components/app/platform-badge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -41,75 +44,134 @@ const ROLE_BADGE_CLASS: Record<Contact["roleVariant"], string> = {
   inconnu: "bg-muted text-muted-foreground",
 };
 
+type ListItem = {
+  key: string; // "wa:<phone>" ou "og:<reservationId>" (OTA guest)
+  title: string;
+  updatedAt: Date;
+  preview: string;
+  badge: ReactNode;
+};
+
 // Boîte de réception unifiée : toutes les conversations WhatsApp (clients ET personnel/techniciens,
 // qui partagent la même table whatsapp_conversations) au même endroit, avec le contact identifié
 // automatiquement plutôt qu'un simple numéro. Kamel, 2026-09-04 : "construit l'inbox whatsapp +
 // mail" — le volet mail n'existe pas encore : aucune adresse n'est vérifiée sur Resend
 // aujourd'hui, donc pas d'email entrant à afficher (voir le message envoyé après ce commit).
-// Lecture seule pour l'instant : répondre depuis ici touchera à l'historique que l'agent IA
-// utilise comme contexte de conversation, à traiter séparément avec plus de précaution.
+//
+// Fils Airbnb/Booking.com ajoutés le 2026-09-15 (Kamel, en voyant les messages Airbnb dans
+// Beds24 : "on peux les intégrer dans notre app moderna") — lecture seule pour l'instant, comme
+// pour WhatsApp : répondre touche à un historique utilisé ailleurs comme contexte, à traiter
+// séparément. Ne fonctionne que pour les réservations liées à un canal OTA via Beds24 (pas les
+// résas "Direct", qui n'ont pas de fil de discussion côté Beds24).
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ phone?: string }>;
+  searchParams: Promise<{ conv?: string }>;
 }) {
-  const { phone: selectedPhoneParam } = await searchParams;
+  const { conv: selectedKeyParam } = await searchParams;
   const db = getDb();
 
-  const [conversations, personnelList, techniciensList, clientsList, reservationsList] = await Promise.all([
+  const [conversations, personnelList, techniciensList, clientsList, reservationsList, otaReservations] = await Promise.all([
     db.select().from(whatsappConversations).orderBy(desc(whatsappConversations.updatedAt)),
     db.select({ nom: personnel.nom, telephone: personnel.telephone, role: personnel.role }).from(personnel),
     db.select({ nom: technicians.nom, telephone: technicians.telephone }).from(technicians),
     db.select({ nom: clients.nom, telephone: clients.telephone }).from(clients),
     db.select({ guestName: reservations.guestName, guestPhone: reservations.guestPhone }).from(reservations).orderBy(desc(reservations.checkIn)),
+    db
+      .select({
+        id: reservations.id,
+        guestName: reservations.guestName,
+        canal: reservations.canal,
+        beds24BookingId: reservations.beds24BookingId,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        updatedAt: reservations.updatedAt,
+      })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .where(isNotNull(reservations.beds24BookingId))
+      .orderBy(desc(reservations.checkIn))
+      .limit(30),
   ]);
 
-  const enriched = conversations.map((c) => ({
+  const enrichedWa = conversations.map((c) => ({
     ...c,
     contact: resolveContact(c.phone, personnelList, techniciensList, clientsList, reservationsList),
     messages: c.messages as { role: "user" | "assistant"; content: unknown }[],
   }));
 
-  const selectedPhone = selectedPhoneParam ?? enriched[0]?.phone ?? null;
-  const selected = enriched.find((c) => c.phone === selectedPhone) ?? null;
+  // Un appel API par réservation OTA — en pratique peu nombreuses tant que Beds24 n'est pas
+  // généralisé à toutes les villas. Une erreur individuelle (résa trop ancienne, token expiré...)
+  // ne doit jamais faire disparaître le reste de la boîte de réception.
+  const otaResults = await Promise.allSettled(
+    otaReservations.map((r) => beds24GetMessages(Number(r.beds24BookingId)))
+  );
+  const otaConversations = otaReservations
+    .map((r, i) => {
+      const result = otaResults[i];
+      const messages: Beds24Message[] = result.status === "fulfilled" ? result.value : [];
+      return { ...r, messages: [...messages].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()) };
+    })
+    .filter((c) => c.messages.length > 0);
+
+  const listItems: ListItem[] = [
+    ...enrichedWa.map((c) => ({
+      key: `wa:${c.phone}`,
+      title: c.contact.nom,
+      updatedAt: new Date(c.updatedAt),
+      preview: c.messages.length > 0 ? previewText(c.messages[c.messages.length - 1].content) : "",
+      badge: <Badge className={cn("shrink-0 text-[10px]", ROLE_BADGE_CLASS[c.contact.roleVariant])}>{c.contact.roleLabel}</Badge>,
+    })),
+    ...otaConversations.map((c) => {
+      const last = c.messages[c.messages.length - 1];
+      return {
+        key: `og:${c.id}`,
+        title: c.guestName,
+        updatedAt: new Date(last.time),
+        preview: last.message,
+        badge: <PlatformBadge canal={c.canal ?? "Direct"} className="shrink-0" />,
+      };
+    }),
+  ].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
+  const selectedKey = selectedKeyParam ?? listItems[0]?.key ?? null;
+  const selectedWa = selectedKey?.startsWith("wa:") ? enrichedWa.find((c) => `wa:${c.phone}` === selectedKey) ?? null : null;
+  const selectedOta = selectedKey?.startsWith("og:") ? otaConversations.find((c) => `og:${c.id}` === selectedKey) ?? null : null;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Boîte de réception</h1>
         <p className="text-sm text-muted-foreground">
-          Toutes les conversations WhatsApp (clients, ménage/cuisine, techniciens) au même endroit.
+          Toutes les conversations WhatsApp (clients, ménage/cuisine, techniciens) et Airbnb/Booking.com au même endroit.
         </p>
       </div>
 
       <Card className="flex h-[calc(100vh-15rem)] min-h-[28rem] flex-row overflow-hidden p-0">
         <div className="flex w-full max-w-xs shrink-0 flex-col overflow-y-auto border-r border-border">
-          {enriched.length === 0 ? (
+          {listItems.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Aucune conversation pour l&apos;instant.</p>
           ) : (
-            enriched.map((c) => {
-              const active = c.phone === selectedPhone;
-              const last = c.messages[c.messages.length - 1];
+            listItems.map((item) => {
+              const active = item.key === selectedKey;
               return (
                 <Link
-                  key={c.id}
-                  href={`/inbox?phone=${encodeURIComponent(c.phone)}`}
+                  key={item.key}
+                  href={`/inbox?conv=${encodeURIComponent(item.key)}`}
                   className={cn(
                     "flex flex-col gap-1 border-b border-border px-4 py-3 text-left transition-colors",
                     active ? "bg-accent" : "hover:bg-muted"
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-medium">{c.contact.nom}</span>
+                    <span className="truncate font-medium">{item.title}</span>
                     <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(c.updatedAt), { addSuffix: true, locale: fr })}
+                      {formatDistanceToNow(item.updatedAt, { addSuffix: true, locale: fr })}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Badge className={cn("shrink-0 text-[10px]", ROLE_BADGE_CLASS[c.contact.roleVariant])}>
-                      {c.contact.roleLabel}
-                    </Badge>
-                    <span className="truncate text-xs text-muted-foreground">{last ? previewText(last.content) : ""}</span>
+                    {item.badge}
+                    <span className="truncate text-xs text-muted-foreground">{item.preview}</span>
                   </div>
                 </Link>
               );
@@ -118,21 +180,17 @@ export default async function InboxPage({
         </div>
 
         <div className="flex flex-1 flex-col overflow-hidden">
-          {!selected ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              Sélectionne une conversation.
-            </div>
-          ) : (
+          {selectedWa ? (
             <>
               <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-                <span className="font-medium">{selected.contact.nom}</span>
-                <Badge className={cn("text-[10px]", ROLE_BADGE_CLASS[selected.contact.roleVariant])}>
-                  {selected.contact.roleLabel}
+                <span className="font-medium">{selectedWa.contact.nom}</span>
+                <Badge className={cn("text-[10px]", ROLE_BADGE_CLASS[selectedWa.contact.roleVariant])}>
+                  {selectedWa.contact.roleLabel}
                 </Badge>
-                <span className="ml-auto text-xs text-muted-foreground">{selected.phone}</span>
+                <span className="ml-auto text-xs text-muted-foreground">{selectedWa.phone}</span>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto p-5">
-                {selected.messages.map((m, i) => {
+                {selectedWa.messages.map((m, i) => {
                   const parts = toRenderableParts(m.content);
                   if (parts.length === 0) return null;
                   const fromContact = m.role === "user";
@@ -161,6 +219,37 @@ export default async function InboxPage({
                 })}
               </div>
             </>
+          ) : selectedOta ? (
+            <>
+              <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+                <span className="font-medium">{selectedOta.guestName}</span>
+                <PlatformBadge canal={selectedOta.canal ?? "Direct"} />
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {selectedOta.villaNom} (n°{selectedOta.villaNumero})
+                </span>
+              </div>
+              <div className="flex-1 space-y-3 overflow-y-auto p-5">
+                {selectedOta.messages.map((m) => {
+                  const fromGuest = m.source === "guest";
+                  return (
+                    <div key={m.id} className={cn("flex", fromGuest ? "justify-start" : "justify-end")}>
+                      <div
+                        className={cn(
+                          "max-w-[75%] space-y-1 rounded-2xl px-4 py-2 text-sm",
+                          fromGuest ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
+                        )}
+                      >
+                        <p className="whitespace-pre-wrap">{m.message}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              Sélectionne une conversation.
+            </div>
           )}
         </div>
       </Card>

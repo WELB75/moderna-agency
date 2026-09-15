@@ -1,6 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { villas, domaines } from "@/db/schema";
+import { villas, domaines, personnel } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AddReservationWizard } from "@/components/app/add-reservation-wizard";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
@@ -19,6 +19,12 @@ export default async function NouvelleReservationPage() {
       .orderBy(asc(villas.nom))
   ).filter((v) => domaineEstActif(v.domaineNom) && villaEstGeree(v.nom));
 
+  // Même liste plate (sans tri par proximité, la villa n'étant pas encore connue au chargement
+  // de la page) que celle utilisée sur la fiche villa — voir personnel-affectation-editor.tsx.
+  const allPersonnel = await db.select({ id: personnel.id, nom: personnel.nom, role: personnel.role, actif: personnel.actif }).from(personnel);
+  const personnelMenageOptions = allPersonnel.filter((p) => p.role === "menage" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const personnelCuisineOptions = allPersonnel.filter((p) => p.role === "cuisine" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
@@ -32,7 +38,7 @@ export default async function NouvelleReservationPage() {
           <CardDescription>Choisis le logement, puis les infos principales — étape par étape.</CardDescription>
         </CardHeader>
         <CardContent>
-          <AddReservationWizard villas={allVillas} />
+          <AddReservationWizard villas={allVillas} menageOptions={personnelMenageOptions} cuisineOptions={personnelCuisineOptions} />
         </CardContent>
       </Card>
     </div>

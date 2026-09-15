@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { PLATFORMS, PlatformIcon, type PlatformKey } from "@/components/app/platform-badge";
 import { createReservation } from "@/lib/actions/reservations";
+import { PersonnelAffectationEditor } from "@/components/app/personnel-affectation-editor";
 import { cn } from "@/lib/utils";
 
 // Assistant en plusieurs étapes plutôt qu'un formulaire géant façon Superhote — Kamel,
@@ -24,6 +25,13 @@ import { cn } from "@/lib/utils";
 // tout d'un coup, on valide qq points ensuite on avance etc". Contenu partagé entre le dialogue
 // (villa déjà connue, depuis la fiche villa) et la page dédiée "/reservations/nouvelle" (villa à
 // choisir, accessible directement depuis la nav) — voir add-reservation-dialog.tsx.
+//
+// Étape "Personnel" ajoutée après coup — Kamel, 2026-09-15 : "faut faire un vrai truc pour
+// ajouter facilement femme de ménage, cuisinière (petit dej seul ou petit dej et dejeuner)" au
+// lieu de le décrire en texte libre dans les demandes particulières. Réutilise tel quel
+// PersonnelAffectationEditor (même composant que sur la fiche réservation, "petit-déj
+// seul"/"petit-déj + déjeuner" y est déjà géré) — n'apparaît qu'une fois la réservation créée,
+// puisqu'il faut un reservationId réel pour y rattacher une affectation.
 const STEPS_WITH_VILLA = ["Logement", "Séjour", "Voyageur", "Prix"] as const;
 const STEPS_NO_VILLA = ["Séjour", "Voyageur", "Prix"] as const;
 
@@ -38,6 +46,8 @@ export function AddReservationWizard({
   villas,
   initialVillaId,
   villaLabel,
+  menageOptions,
+  cuisineOptions,
   onCreated,
 }: {
   // Fourni depuis la page globale : la première étape propose de choisir la villa.
@@ -45,14 +55,19 @@ export function AddReservationWizard({
   // Fourni depuis la fiche villa : villa déjà fixée, pas de sélecteur à afficher.
   initialVillaId?: string;
   villaLabel?: string;
+  // Fournis dans les deux cas : si présents, une étape "Personnel" apparaît après la création.
+  menageOptions?: { id: string; nom: string }[];
+  cuisineOptions?: { id: string; nom: string }[];
   onCreated?: (reservationId: string) => void;
 }) {
   const showVillaStep = !initialVillaId && Boolean(villas);
-  const STEPS = showVillaStep ? STEPS_WITH_VILLA : STEPS_NO_VILLA;
+  const showPersonnelStep = Boolean(menageOptions || cuisineOptions);
+  const STEPS = [...(showVillaStep ? STEPS_WITH_VILLA : STEPS_NO_VILLA), ...(showPersonnelStep ? (["Personnel"] as const) : [])];
   const router = useRouter();
 
   const [step, setStep] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const [createdReservationId, setCreatedReservationId] = useState<string | null>(null);
 
   const [villaId, setVillaId] = useState(initialVillaId ?? "");
 
@@ -91,6 +106,7 @@ export function AddReservationWizard({
   const sejourStepIndex = showVillaStep ? 1 : 0;
   const voyageurStepIndex = sejourStepIndex + 1;
   const prixStepIndex = voyageurStepIndex + 1;
+  const personnelStepIndex = showPersonnelStep ? prixStepIndex + 1 : -1;
 
   const villaValid = Boolean(villaId);
   const sejourValid = Boolean(checkInDate && checkOutDate);
@@ -133,12 +149,24 @@ export function AddReservationWizard({
       try {
         const result = await createReservation(formData);
         toast.success("Réservation ajoutée.");
-        if (onCreated) onCreated(result.id);
-        else router.push(`/villas/${villaId}`);
+        if (showPersonnelStep) {
+          setCreatedReservationId(result.id);
+          setStep(personnelStepIndex);
+        } else if (onCreated) {
+          onCreated(result.id);
+        } else {
+          router.push(`/villas/${villaId}`);
+        }
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
     });
+  }
+
+  function handleFinish() {
+    if (!createdReservationId) return;
+    if (onCreated) onCreated(createdReservationId);
+    else router.push(`/villas/${villaId}`);
   }
 
   return (
@@ -328,13 +356,49 @@ export function AddReservationWizard({
             </div>
           </div>
         ) : null}
+
+        {step === personnelStepIndex && createdReservationId ? (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">Réservation créée — affecte le personnel si tu le connais déjà (facultatif).</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {menageOptions ? (
+                <PersonnelAffectationEditor
+                  reservationId={createdReservationId}
+                  role="menage"
+                  moment="depart"
+                  label="Ménage"
+                  assigned={[]}
+                  options={menageOptions}
+                />
+              ) : null}
+              {cuisineOptions ? (
+                <PersonnelAffectationEditor
+                  reservationId={createdReservationId}
+                  role="cuisine"
+                  label="Cuisine"
+                  assigned={[]}
+                  options={cuisineOptions}
+                />
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex items-center justify-between">
-        <Button type="button" variant="ghost" disabled={step === 0} onClick={() => setStep((s) => Math.max(s - 1, 0))}>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={step === 0 || step === personnelStepIndex}
+          onClick={() => setStep((s) => Math.max(s - 1, 0))}
+        >
           Précédent
         </Button>
-        {step < STEPS.length - 1 ? (
+        {step === personnelStepIndex ? (
+          <Button type="button" onClick={handleFinish}>
+            Terminé
+          </Button>
+        ) : step < prixStepIndex ? (
           <Button type="button" onClick={handleNext}>
             Suivant
           </Button>

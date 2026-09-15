@@ -16,7 +16,17 @@ import { AddReservationWizard } from "@/components/app/add-reservation-wizard";
 // Depuis la fiche villa : la villa est déjà connue, l'assistant démarre directement à l'étape
 // "Séjour" (voir add-reservation-wizard.tsx pour la version avec sélecteur de logement, utilisée
 // par la page /reservations/nouvelle accessible depuis la nav).
-export function AddReservationDialog({ villaId, villaLabel }: { villaId: string; villaLabel?: string }) {
+export function AddReservationDialog({
+  villaId,
+  villaLabel,
+  menageOptions,
+  cuisineOptions,
+}: {
+  villaId: string;
+  villaLabel?: string;
+  menageOptions?: { id: string; nom: string }[];
+  cuisineOptions?: { id: string; nom: string }[];
+}) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState(0);
 
@@ -39,7 +49,13 @@ export function AddReservationDialog({ villaId, villaLabel }: { villaId: string;
           <DialogTitle>Ajouter une réservation</DialogTitle>
           <DialogDescription>{villaLabel ?? "Pour les réservations qui ne viennent pas de Superhote."}</DialogDescription>
         </DialogHeader>
-        <AddReservationWizard key={key} initialVillaId={villaId} onCreated={() => setOpen(false)} />
+        <AddReservationWizard
+          key={key}
+          initialVillaId={villaId}
+          menageOptions={menageOptions}
+          cuisineOptions={cuisineOptions}
+          onCreated={() => setOpen(false)}
+        />
       </DialogContent>
     </Dialog>
   );

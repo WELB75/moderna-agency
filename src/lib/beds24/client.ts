@@ -135,6 +135,24 @@ export async function beds24UpdateCalendar(updates: Beds24CalendarWrite[]): Prom
   return beds24Fetch("/inventory/rooms/calendar", { method: "POST", body: updates });
 }
 
+export type Beds24Message = {
+  id: number;
+  bookingId: number;
+  time: string; // ISO
+  read: boolean;
+  message: string;
+  source: "guest" | "host" | "channel" | string;
+};
+
+// Messages voyageur/hôte rattachés à une réservation OTA (Airbnb, Booking.com...) — Kamel,
+// 2026-09-15, après avoir vu les messages Airbnb dans Beds24 : "on peux les intégrer dans notre
+// app moderna". Ne fonctionne que pour les réservations venant d'un canal (pas les résas
+// "Direct" créées à la main, qui n'ont pas de fil de discussion côté Beds24).
+export async function beds24GetMessages(bookingId: number): Promise<Beds24Message[]> {
+  const res = await beds24Fetch<{ data: Beds24Message[] }>("/bookings/messages", { query: { bookingId } });
+  return res.data;
+}
+
 export type Beds24CalendarDay = {
   roomId: number;
   date: string;
