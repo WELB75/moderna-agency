@@ -27,7 +27,7 @@ export function AddReservationDialog({
   villaLabel?: string;
   menageOptions?: { id: string; nom: string }[];
   cuisineOptions?: { id: string; nom: string }[];
-  villaPriceDefaults?: Record<string, { caution: number; menage: number }>;
+  villaPriceDefaults?: Record<string, { caution: number; menage: number; prixNuit: number }>;
 }) {
   const [open, setOpen] = useState(false);
   const [key, setKey] = useState(0);

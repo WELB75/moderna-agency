@@ -42,9 +42,11 @@ export const VILLAS: { id: string; nom: string; type: "villa" | "appartement"; b
 
 // Réutilisé par l'assistant de création de réservation (add-reservation-wizard.tsx) pour
 // préremplir caution/frais de ménage dès que la villa est choisie — Kamel, 2026-09-15 : "tu
-// connais les prix normalement". N'a de valeur que pour les logements déjà dans VILLAS
-// ci-dessus ; les plus récents (ex. appartements Prestigia) restent à saisir à la main tant
-// qu'ils n'y sont pas ajoutés.
-export function buildVillaPriceDefaults(): Record<string, { caution: number; menage: number }> {
-  return Object.fromEntries(VILLAS.map((v) => [v.id, { caution: v.caution, menage: v.menage }]));
+// connais les prix normalement". prixNuit sert lui à calculer le loyer total dès que les dates
+// du séjour sont connues (Kamel : "le loyer total peut pas etre calculer par rapport au donné
+// que l'on a sur le bien ?") — tarif de base hors variations saisonnières, voir l'avertissement
+// en tête de fichier. N'a de valeur que pour les logements déjà dans VILLAS ci-dessus ; les plus
+// récents (ex. appartements Prestigia) restent à saisir à la main tant qu'ils n'y sont pas ajoutés.
+export function buildVillaPriceDefaults(): Record<string, { caution: number; menage: number; prixNuit: number }> {
+  return Object.fromEntries(VILLAS.map((v) => [v.id, { caution: v.caution, menage: v.menage, prixNuit: v.prixNuit }]));
 }

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { differenceInCalendarDays } from "date-fns";
 import { Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -68,7 +69,7 @@ export function AddReservationWizard({
   // 2026-09-15 : "tu connais les prix normalement, des cautions et des frais de menage (60 euros
   // si c une villa plein pied, 80 euros pour les villas R+1)". Préremplit dès que la villa est
   // choisie, toujours modifiable (pas de valeur connue pour les logements les plus récents).
-  villaPriceDefaults?: Record<string, { caution: number; menage: number }>;
+  villaPriceDefaults?: Record<string, { caution: number; menage: number; prixNuit: number }>;
   onCreated?: (reservationId: string) => void;
 }) {
   const showVillaStep = !initialVillaId && Boolean(villas);
@@ -165,6 +166,17 @@ export function AddReservationWizard({
     if (step === voyageurStepIndex && !voyageurValid) {
       toast.error("Le nom du client est obligatoire.");
       return;
+    }
+    // Loyer total calculé depuis le tarif/nuit connu de la villa (voir villaPriceDefaults) dès
+    // qu'on arrive sur l'étape Prix — Kamel, 2026-09-15 : "le loyer total peut pas etre calculer
+    // par rapport au donné que l'on a sur le bien ?". Seulement si le champ est encore vide, pour
+    // ne jamais écraser une valeur déjà saisie (ex. retour en arrière puis re-avance).
+    if (step === voyageurStepIndex && !loyerTotal) {
+      const prixNuit = villaPriceDefaults?.[villaId]?.prixNuit;
+      if (prixNuit && checkInDate && checkOutDate) {
+        const nights = differenceInCalendarDays(new Date(checkOutDate), new Date(checkInDate));
+        if (nights > 0) setLoyerTotal(String(nights * prixNuit));
+      }
     }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }
