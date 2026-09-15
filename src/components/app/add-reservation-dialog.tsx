@@ -12,6 +12,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { AddReservationWizard } from "@/components/app/add-reservation-wizard";
+import type { PersonnelOption } from "@/lib/personnel-options";
 
 // Depuis la fiche villa : la villa est déjà connue, l'assistant démarre directement à l'étape
 // "Séjour" (voir add-reservation-wizard.tsx pour la version avec sélecteur de logement, utilisée
@@ -25,8 +26,8 @@ export function AddReservationDialog({
 }: {
   villaId: string;
   villaLabel?: string;
-  menageOptions?: { id: string; nom: string }[];
-  cuisineOptions?: { id: string; nom: string }[];
+  menageOptions?: PersonnelOption[];
+  cuisineOptions?: PersonnelOption[];
   villaPriceDefaults?: Record<string, { caution: number; menage: number; prixNuit: number }>;
 }) {
   const [open, setOpen] = useState(false);

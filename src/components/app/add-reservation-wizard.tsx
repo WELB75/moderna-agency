@@ -19,6 +19,7 @@ import {
 import { PLATFORMS, PlatformIcon, type PlatformKey } from "@/components/app/platform-badge";
 import { createReservation } from "@/lib/actions/reservations";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
+import type { PersonnelOption } from "@/lib/personnel-options";
 import { cn } from "@/lib/utils";
 
 // Assistant en plusieurs étapes plutôt qu'un formulaire géant façon Superhote — Kamel,
@@ -50,6 +51,8 @@ export function AddReservationWizard({
   villaLabel,
   menageOptions,
   cuisineOptions,
+  menageOptionsByDomaine,
+  cuisineOptionsByDomaine,
   villaPriceDefaults,
   onCreated,
 }: {
@@ -63,8 +66,13 @@ export function AddReservationWizard({
   initialVillaId?: string;
   villaLabel?: string;
   // Fournis dans les deux cas : si présents, une étape "Personnel" apparaît après la création.
-  menageOptions?: { id: string; nom: string }[];
-  cuisineOptions?: { id: string; nom: string }[];
+  // Depuis la fiche villa, le domaine est déjà connu : options triées par proximité toutes
+  // prêtes. Depuis la page globale, le domaine n'est choisi qu'à l'étape 1 : on fournit plutôt
+  // une option list par domaine, et le wizard prend la bonne tranche une fois choisi.
+  menageOptions?: PersonnelOption[];
+  cuisineOptions?: PersonnelOption[];
+  menageOptionsByDomaine?: Record<string, PersonnelOption[]>;
+  cuisineOptionsByDomaine?: Record<string, PersonnelOption[]>;
   // Caution/frais de ménage de départ connus par villa (voir whatsapp-agent/villas.ts) — Kamel,
   // 2026-09-15 : "tu connais les prix normalement, des cautions et des frais de menage (60 euros
   // si c une villa plein pied, 80 euros pour les villas R+1)". Préremplit dès que la villa est
@@ -73,7 +81,7 @@ export function AddReservationWizard({
   onCreated?: (reservationId: string) => void;
 }) {
   const showVillaStep = !initialVillaId && Boolean(villas);
-  const showPersonnelStep = Boolean(menageOptions || cuisineOptions);
+  const showPersonnelStep = Boolean(menageOptions || cuisineOptions || menageOptionsByDomaine || cuisineOptionsByDomaine);
   const STEPS = [...(showVillaStep ? STEPS_WITH_VILLA : STEPS_NO_VILLA), ...(showPersonnelStep ? (["Personnel"] as const) : [])];
   const router = useRouter();
 
@@ -90,6 +98,11 @@ export function AddReservationWizard({
   const [villaId, setVillaId] = useState(initialVillaId ?? "");
   const [domaineId, setDomaineId] = useState(() => (initialVillaId ? (villas?.find((v) => v.id === initialVillaId)?.domaineId ?? "") : ""));
   const villasDuDomaine = domaineId ? villas?.filter((v) => v.domaineId === domaineId) : [];
+  // Kamel, 2026-09-15 : "je veux juste leur nom et tu met les notes ainsi que la distance stp
+  // des domaines" — depuis la page globale, la villa/le domaine n'est connu qu'une fois choisi à
+  // l'étape 1 : on prend la tranche d'options correspondant au domaine actuellement sélectionné.
+  const effectiveMenageOptions = menageOptionsByDomaine ? (menageOptionsByDomaine[domaineId] ?? []) : menageOptions;
+  const effectiveCuisineOptions = cuisineOptionsByDomaine ? (cuisineOptionsByDomaine[domaineId] ?? []) : cuisineOptions;
 
   // Date et heure en champs séparés plutôt qu'un seul <input type="datetime-local"> — Kamel,
   // 2026-09-15 : "on peux pas changer l'heure". Un datetime-local entièrement contrôlé par React
@@ -465,7 +478,7 @@ export function AddReservationWizard({
           <div className="space-y-4">
             <p className="text-xs text-muted-foreground">Réservation créée — affecte le personnel si tu le connais déjà (facultatif).</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {menageOptions ? (
+              {menageOptions || menageOptionsByDomaine ? (
                 <PersonnelAffectationEditor
                   reservationId={createdReservationId}
                   role="menage"
@@ -473,17 +486,19 @@ export function AddReservationWizard({
                   label="Ménage"
                   assigned={menageAssigned}
                   onAssignedChange={setMenageAssigned}
-                  options={menageOptions}
+                  options={effectiveMenageOptions ?? []}
+                  minimal
                 />
               ) : null}
-              {cuisineOptions ? (
+              {cuisineOptions || cuisineOptionsByDomaine ? (
                 <PersonnelAffectationEditor
                   reservationId={createdReservationId}
                   role="cuisine"
                   label="Cuisine"
                   assigned={cuisineAssigned}
                   onAssignedChange={setCuisineAssigned}
-                  options={cuisineOptions}
+                  options={effectiveCuisineOptions ?? []}
+                  minimal
                 />
               ) : null}
             </div>

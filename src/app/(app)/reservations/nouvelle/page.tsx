@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { AddReservationWizard } from "@/components/app/add-reservation-wizard";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
+import { buildPersonnelOptions, getQualiteMoyenneById, type PersonnelOption } from "@/lib/personnel-options";
 
 // Page dédiée accessible depuis la nav (Kamel, 2026-09-14 : "faut le placer dans onglet au
 // dessus de à faire") — même assistant que le dialogue sur la fiche villa, mais avec un
@@ -12,7 +13,10 @@ import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
 export default async function NouvelleReservationPage() {
   const db = getDb();
 
-  const allDomainesRaw = await db.select({ id: domaines.id, nom: domaines.nom }).from(domaines).orderBy(asc(domaines.nom));
+  const allDomainesRaw = await db
+    .select({ id: domaines.id, nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude })
+    .from(domaines)
+    .orderBy(asc(domaines.nom));
 
   // Contrairement au reste de l'app, ce sélecteur ne doit PAS suivre DOMAINES_MASQUES (Domaine
   // Zaraba/Noria masqués ailleurs pour la phase de test "on ne travaille que sur Moderna II") —
@@ -29,11 +33,19 @@ export default async function NouvelleReservationPage() {
   const domaineIdsAvecVillas = new Set(allVillas.map((v) => v.domaineId).filter((id): id is string => Boolean(id)));
   const allDomaines = allDomainesRaw.filter((d) => domaineIdsAvecVillas.has(d.id));
 
-  // Même liste plate (sans tri par proximité, la villa n'étant pas encore connue au chargement
-  // de la page) que celle utilisée sur la fiche villa — voir personnel-affectation-editor.tsx.
-  const allPersonnel = await db.select({ id: personnel.id, nom: personnel.nom, role: personnel.role, actif: personnel.actif }).from(personnel);
-  const personnelMenageOptions = allPersonnel.filter((p) => p.role === "menage" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
-  const personnelCuisineOptions = allPersonnel.filter((p) => p.role === "cuisine" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+  const allPersonnel = await db.select().from(personnel);
+
+  // Options enrichies (distance au domaine, notes, note qualité) pour l'étape "Personnel" de
+  // l'assistant — Kamel, 2026-09-15 : "tu met les notes ainsi que la distance stp des domaines".
+  // Le domaine n'étant choisi qu'à l'étape 1 côté client, on calcule une tranche par domaine ici
+  // et le wizard prend la bonne une fois choisi (voir menageOptionsByDomaine côté composant).
+  const qualiteById = await getQualiteMoyenneById(db);
+  const menageOptionsByDomaine: Record<string, PersonnelOption[]> = {};
+  const cuisineOptionsByDomaine: Record<string, PersonnelOption[]> = {};
+  for (const d of allDomaines) {
+    menageOptionsByDomaine[d.id] = buildPersonnelOptions(allPersonnel, "menage", d, qualiteById);
+    cuisineOptionsByDomaine[d.id] = buildPersonnelOptions(allPersonnel, "cuisine", d, qualiteById);
+  }
 
   return (
     <div className="mx-auto max-w-xl space-y-6">
@@ -51,8 +63,8 @@ export default async function NouvelleReservationPage() {
           <AddReservationWizard
             domaines={allDomaines}
             villas={allVillas}
-            menageOptions={personnelMenageOptions}
-            cuisineOptions={personnelCuisineOptions}
+            menageOptionsByDomaine={menageOptionsByDomaine}
+            cuisineOptionsByDomaine={cuisineOptionsByDomaine}
             villaPriceDefaults={buildVillaPriceDefaults()}
           />
         </CardContent>

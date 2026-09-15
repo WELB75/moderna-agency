@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { AddReservationDialog } from "@/components/app/add-reservation-dialog";
 import { buildVillaPriceDefaults } from "@/lib/whatsapp-agent/villas";
+import { buildPersonnelOptions, getQualiteMoyenneById } from "@/lib/personnel-options";
 import { AddMaintenanceDialog } from "@/components/app/add-maintenance-dialog";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ReservationDates } from "@/components/app/reservation-dates";
@@ -86,6 +87,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       superhoteListingId: villas.superhoteListingId,
       domaineId: villas.domaineId,
       domaineNom: domaines.nom,
+      domaineLatitude: domaines.latitude,
+      domaineLongitude: domaines.longitude,
     })
     .from(villas)
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
@@ -99,6 +102,16 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   const allPersonnel = await db.select().from(personnel).orderBy(asc(personnel.nom));
   const personnelMenageOptions = allPersonnel.filter((p) => p.role === "menage" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
   const personnelCuisineOptions = allPersonnel.filter((p) => p.role === "cuisine" && p.actif).map((p) => ({ id: p.id, nom: p.nom }));
+
+  // Options enrichies (distance au domaine, notes, note qualité) spécifiquement pour l'étape
+  // "Personnel" de l'assistant de réservation — Kamel, 2026-09-15 : "tu met les notes ainsi que
+  // la distance stp des domaines". Distinctes de personnelMenageOptions/personnelCuisineOptions
+  // ci-dessus (utilisées telles quelles depuis longtemps pour les affectations déjà sur cette
+  // page) pour ne rien changer à leur comportement existant.
+  const qualiteById = await getQualiteMoyenneById(db);
+  const villaDomaineCoords = { latitude: villa.domaineLatitude, longitude: villa.domaineLongitude };
+  const wizardMenageOptions = buildPersonnelOptions(allPersonnel, "menage", villaDomaineCoords, qualiteById);
+  const wizardCuisineOptions = buildPersonnelOptions(allPersonnel, "cuisine", villaDomaineCoords, qualiteById);
   const personnelById = new Map(allPersonnel.map((p) => [p.id, p]));
 
   const allVillaReservations = await db
@@ -362,8 +375,8 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             <AddReservationDialog
               villaId={villa.id}
               villaLabel={`${villa.nom} (n°${villa.numero})`}
-              menageOptions={personnelMenageOptions}
-              cuisineOptions={personnelCuisineOptions}
+              menageOptions={wizardMenageOptions}
+              cuisineOptions={wizardCuisineOptions}
               villaPriceDefaults={buildVillaPriceDefaults()}
             />
           </div>

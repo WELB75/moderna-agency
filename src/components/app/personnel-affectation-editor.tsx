@@ -76,6 +76,7 @@ export function PersonnelAffectationEditor({
   payeParProprietaireNoms = [],
   moment = "unique",
   onAssignedChange,
+  minimal = false,
 }: {
   reservationId: string;
   role: "menage" | "cuisine";
@@ -97,6 +98,11 @@ export function PersonnelAffectationEditor({
   // passé par le parent. Kamel, 2026-09-15 : "QUAND JE VEUX AJOUTE FEMME DE MENAGE ET CUISINIERE
   // CA MARCHE PAS" — l'affectation était bien créée en base, seul l'affichage ne suivait pas.
   onAssignedChange?: (next: PersonnelAssigne[]) => void;
+  // Juste le nom + un retrait, sans tarif ni "confirmé fait"/noter/commentaire — Kamel,
+  // 2026-09-15 : "ici je veux juste leur nom", pour l'étape Personnel de l'assistant de
+  // réservation où rien de tout ça n'a de sens avant même le séjour. Sans effet sur les usages
+  // existants (fiche réservation), où minimal reste absent (donc false).
+  minimal?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [optimisticAssigned, applyOptimistic] = useOptimistic(assigned, (state, action: OptimisticAction) => {
@@ -275,7 +281,23 @@ export function PersonnelAffectationEditor({
           propre du tout... faut que tout soit propre symetrique bien proportionné". */}
       <div className="flex flex-col items-start gap-1.5">
         {optimisticAssigned.map((a) =>
-          role === "menage" ? (
+          minimal ? (
+            <div
+              key={a.affectationId}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-background py-1 pl-2.5 pr-1.5 text-sm"
+            >
+              <span className="truncate">{a.nom}</span>
+              <button
+                type="button"
+                onClick={() => handleRemove(a.affectationId)}
+                disabled={isPending}
+                className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                title="Retirer"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : role === "menage" ? (
             <MenageBadge
               key={a.affectationId}
               a={a}
