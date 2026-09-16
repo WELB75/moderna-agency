@@ -132,7 +132,7 @@ type Job = {
   avecDejeuner?: boolean; // cuisine uniquement
 };
 
-function villaLabel(nom: string, numero: string | null): string {
+export function villaLabel(nom: string, numero: string | null): string {
   return numero ? `${nom} (n°${numero})` : nom;
 }
 
@@ -199,7 +199,7 @@ const DARIJA_QUANTIEMES: Record<number, string> = {
   31: "واحد وتلاتين",
 };
 
-function formatDateDarija(dateStr: string): string {
+export function formatDateDarija(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00Z`);
   const jour = DARIJA_JOURS_SEMAINE[d.getUTCDay()];
   const quantieme = DARIJA_QUANTIEMES[d.getUTCDate()] ?? String(d.getUTCDate());
