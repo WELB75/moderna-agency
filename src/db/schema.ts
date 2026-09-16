@@ -290,6 +290,21 @@ export const cashEntries = pgTable("cash_entries", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// Point de réconciliation "on repart de zéro" pour le solde société — Kamel, 2026-09-16 :
+// "j'ai plus rien justement j'ai tout donner, donc on repart de zero car on a calculer jusqu'a
+// présent". Le solde société se recalculait déjà par mois calendaire (11 → 10), mais un mois sans
+// nouvelle remise après un règlement réel entre Kamel et le boss affichait quand même un déficit
+// (les dépenses du mois sans remise en face). Chaque réconciliation marque "à partir d'ici, on
+// repart de 0" pour le moyen de paiement concerné : le solde société ignore tout mouvement
+// antérieur à la dernière réconciliation, quel que soit le mois affiché.
+export const caisseReconciliations = pgTable("caisse_reconciliations", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  moyenPaiement: moyenPaiementCaisseEnum("moyen_paiement").notNull(),
+  resetAt: timestamp("reset_at", { withTimezone: true }).defaultNow().notNull(),
+  createdByName: text("created_by_name"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const checklistItemTemplates = pgTable("checklist_item_templates", {
   id: uuid("id").defaultRandom().primaryKey(),
   villaId: uuid("villa_id").references(() => villas.id, { onDelete: "cascade" }),

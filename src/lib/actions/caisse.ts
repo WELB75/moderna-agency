@@ -4,7 +4,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { cashEntries, villas } from "@/db/schema";
+import { cashEntries, caisseReconciliations, villas } from "@/db/schema";
 import { analyzeCashReceipt } from "@/lib/caisse-receipt-ai";
 
 export async function createCashEntry(formData: FormData) {
@@ -179,6 +179,23 @@ export async function analyzeCashReceiptPhotos(photoUrls: string[]) {
     villaLabel,
     warnings,
   };
+}
+
+// Marque "on repart de zéro" pour le solde société d'un moyen de paiement, sans toucher aux
+// mouvements existants (gardés pour l'historique) — Kamel, 2026-09-16 : après un règlement réel
+// avec le boss, le solde société ne doit plus compter les mouvements antérieurs.
+export async function reconcilierCaisseSociete(moyenPaiement: string) {
+  await auth.protect();
+  if (!["especes", "virement", "carte"].includes(moyenPaiement)) {
+    throw new Error("Moyen de paiement invalide.");
+  }
+  const user = await currentUser();
+  const db = getDb();
+  await db.insert(caisseReconciliations).values({
+    moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",
+    createdByName: user?.fullName ?? user?.username ?? "Équipe",
+  });
+  revalidatePath("/caisse");
 }
 
 export async function deleteCashEntry(entryId: string) {

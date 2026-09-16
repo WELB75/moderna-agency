@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, gte, lte, lt, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
+import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
 import {
   format,
   isSameDay,
@@ -7,8 +7,6 @@ import {
   isToday,
   isTomorrow,
   startOfDay,
-  startOfMonth,
-  subMonths,
   endOfDay,
   addDays,
   differenceInCalendarDays,
@@ -29,6 +27,7 @@ import {
   interventions,
   staffAssignmentRequests,
   cashEntries,
+  caisseReconciliations,
 } from "@/db/schema";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -501,17 +500,16 @@ export default async function DashboardPage({
     ])
   );
 
-  // Argent physiquement disponible en caisse société (espèces) sur la période comptable en cours
-  // (même découpage du 11 au 10 que la page Caisse, voir JOUR_DEBUT_PERIODE_CAISSE) — pas tout
-  // l'historique, juste ce qui reste dispo pour la période active.
-  const JOUR_DEBUT_PERIODE_CAISSE = 11;
-  const ancrePeriodeCaisse = startOfMonth(now.getDate() >= JOUR_DEBUT_PERIODE_CAISSE ? now : subMonths(now, 1));
-  const debutPeriodeCaisse = new Date(ancrePeriodeCaisse.getFullYear(), ancrePeriodeCaisse.getMonth(), JOUR_DEBUT_PERIODE_CAISSE);
-  const finPeriodeCaisseExclusive = new Date(
-    ancrePeriodeCaisse.getFullYear(),
-    ancrePeriodeCaisse.getMonth() + 1,
-    JOUR_DEBUT_PERIODE_CAISSE
-  );
+  // Argent physiquement disponible en caisse société (espèces) depuis la dernière réconciliation
+  // ("on repart de zéro", voir caisseReconciliations) — pas depuis le début du mois calendaire :
+  // Kamel, 2026-09-16, un mois sans nouvelle remise affichait un déficit même après un vrai
+  // règlement des comptes avec le boss où il ne reste plus rien à devoir ni à recevoir.
+  const [derniereReconciliationEspeces] = await db
+    .select({ resetAt: caisseReconciliations.resetAt })
+    .from(caisseReconciliations)
+    .where(eq(caisseReconciliations.moyenPaiement, "especes"))
+    .orderBy(desc(caisseReconciliations.resetAt))
+    .limit(1);
   const especesSocieteCaisse = (
     await db
       .select({
@@ -526,7 +524,11 @@ export default async function DashboardPage({
       .from(cashEntries)
       .leftJoin(villas, eq(cashEntries.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(and(gte(cashEntries.createdAt, debutPeriodeCaisse), lt(cashEntries.createdAt, finPeriodeCaisseExclusive)))
+      .where(
+        derniereReconciliationEspeces
+          ? gte(cashEntries.createdAt, derniereReconciliationEspeces.resetAt)
+          : undefined
+      )
   ).filter((e) => domaineEstActif(e.domaineNom) && e.caisse === "societe" && e.moyenPaiement === "especes");
   const devisesCaisse = Array.from(new Set(especesSocieteCaisse.map((e) => e.devise)));
   const soldesCaisse = devisesCaisse.map((devise) => {

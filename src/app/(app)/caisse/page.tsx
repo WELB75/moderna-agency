@@ -4,7 +4,7 @@ import { fr } from "date-fns/locale";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { getDb } from "@/db";
-import { cashEntries, villas, domaines, reservations } from "@/db/schema";
+import { cashEntries, caisseReconciliations, villas, domaines, reservations } from "@/db/schema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -12,6 +12,7 @@ import { AddCashEntryDialog } from "@/components/app/add-cash-entry-dialog";
 import { BrahimCashActions } from "@/components/app/brahim-cash-actions";
 import { CaisseMouvementsList } from "@/components/app/caisse-mouvements-list";
 import { CaisseStats } from "@/components/app/caisse-stats";
+import { CaisseReconciliationButton } from "@/components/app/caisse-reconciliation-button";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { moisHref, periodeAncre, periodeBounds } from "@/lib/caisse-periode";
 import type { Entry } from "@/lib/caisse-labels";
@@ -106,6 +107,32 @@ export default async function CaissePage({
       .where(eq(cashEntries.caisse, "brahim"))
   );
 
+  // Même logique que ci-dessus, mais pour la caisse société : le solde ("Solde société", "Total
+  // confié", "Total restitué") doit courir depuis la dernière réconciliation ("on repart de
+  // zéro"), pas depuis le début du mois affiché — voir reconcilierCaisseSociete. Kamel,
+  // 2026-09-16 : après un vrai règlement avec le boss, un mois sans nouvelle remise affichait
+  // quand même un déficit à cause des dépenses du mois, alors qu'il ne devait plus rien.
+  const entriesSocieteTout = await db
+    .select({
+      type: cashEntries.type,
+      financePar: cashEntries.financePar,
+      moyenPaiement: cashEntries.moyenPaiement,
+      montant: cashEntries.montant,
+      devise: cashEntries.devise,
+      createdAt: cashEntries.createdAt,
+    })
+    .from(cashEntries)
+    .where(eq(cashEntries.caisse, "societe"));
+
+  const dernieresReconciliations = await db
+    .select({ moyenPaiement: caisseReconciliations.moyenPaiement, resetAt: caisseReconciliations.resetAt })
+    .from(caisseReconciliations)
+    .orderBy(desc(caisseReconciliations.resetAt));
+  const resetAtParMoyen: Record<string, Date> = {};
+  for (const r of dernieresReconciliations) {
+    if (!resetAtParMoyen[r.moyenPaiement]) resetAtParMoyen[r.moyenPaiement] = r.resetAt;
+  }
+
   const especes = entriesSociete.filter((e) => e.moyenPaiement === "especes");
   const virement = entriesSociete.filter((e) => e.moyenPaiement === "virement");
   const carte = entriesSociete.filter((e) => e.moyenPaiement === "carte");
@@ -162,13 +189,34 @@ export default async function CaissePage({
           <TabsTrigger value="stats" className="shrink-0">Statistiques</TabsTrigger>
         </TabsList>
         <TabsContent value="especes" className="pt-2">
-          <CaissePanel entries={especes} villas={allVillas} reservations={recentReservations} moyenPaiement="especes" />
+          <CaissePanel
+            entries={especes}
+            entriesRunningSociete={entriesSocieteTout.filter((e) => e.moyenPaiement === "especes")}
+            resetAt={resetAtParMoyen.especes ?? null}
+            villas={allVillas}
+            reservations={recentReservations}
+            moyenPaiement="especes"
+          />
         </TabsContent>
         <TabsContent value="virement" className="pt-2">
-          <CaissePanel entries={virement} villas={allVillas} reservations={recentReservations} moyenPaiement="virement" />
+          <CaissePanel
+            entries={virement}
+            entriesRunningSociete={entriesSocieteTout.filter((e) => e.moyenPaiement === "virement")}
+            resetAt={resetAtParMoyen.virement ?? null}
+            villas={allVillas}
+            reservations={recentReservations}
+            moyenPaiement="virement"
+          />
         </TabsContent>
         <TabsContent value="carte" className="pt-2">
-          <CaissePanel entries={carte} villas={allVillas} reservations={recentReservations} moyenPaiement="carte" />
+          <CaissePanel
+            entries={carte}
+            entriesRunningSociete={entriesSocieteTout.filter((e) => e.moyenPaiement === "carte")}
+            resetAt={resetAtParMoyen.carte ?? null}
+            villas={allVillas}
+            reservations={recentReservations}
+            moyenPaiement="carte"
+          />
         </TabsContent>
         <TabsContent value="brahim" className="pt-2">
           <BrahimPanel entries={entriesBrahim} allEntries={entriesBrahimTout} villas={allVillas} />
@@ -183,11 +231,17 @@ export default async function CaissePage({
 
 function CaissePanel({
   entries,
+  entriesRunningSociete,
+  resetAt,
   villas,
   reservations,
   moyenPaiement,
 }: {
   entries: Entry[];
+  // Tout l'historique société de ce moyen de paiement (pas juste le mois affiché), pour calculer
+  // le solde depuis la dernière réconciliation — voir commentaire sur caisseReconciliations.
+  entriesRunningSociete: { type: string; financePar: string; montant: string; devise: string; createdAt: Date }[];
+  resetAt: Date | null;
   villas: { id: string; nom: string; numero: string }[];
   reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
   moyenPaiement: "especes" | "virement" | "carte";
@@ -197,6 +251,7 @@ function CaissePanel({
   // période n'a aucun mouvement, on affiche quand même les cartes à 0 (par défaut en MAD) —
   // sinon la section entière disparaît, ce qui donne l'impression que la page est cassée.
   const devises = entries.length > 0 ? Array.from(new Set(entries.map((e) => e.devise))).sort() : ["MAD"];
+  const depuisReconciliation = resetAt ? entriesRunningSociete.filter((e) => e.createdAt >= resetAt) : entriesRunningSociete;
 
   return (
     <div className="space-y-6">
@@ -212,17 +267,22 @@ function CaissePanel({
         // mais distinctes du loyer pur — donc jamais additionnées dans "Total loyers reçus".
         const totalLoyer = enDevise.filter((e) => e.type === "loyer").reduce((s, e) => s + Number(e.montant), 0);
         const totalExtra = enDevise.filter((e) => e.type === "extra").reduce((s, e) => s + Number(e.montant), 0);
-        const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
-        // Seules les dépenses financées par l'avance société comptent contre le solde société —
-        // une dépense payée avec les loyers personnels de Kamel n'est pas une dette de la société
-        // envers lui (voir cashFinanceParEnum dans db/schema.ts), donc exclue de ce calcul.
-        const totalDepenseSociete = enDevise
-          .filter((e) => e.type === "depense" && e.financePar === "societe")
-          .reduce((s, e) => s + Number(e.montant), 0);
         const totalDepenseLoyers = enDevise
           .filter((e) => e.type === "depense" && e.financePar === "loyers_perso")
           .reduce((s, e) => s + Number(e.montant), 0);
-        const totalRestitution = enDevise
+
+        // Solde société : calculé depuis la dernière réconciliation ("on repart de zéro"), pas
+        // depuis le début du mois affiché — sinon un mois sans nouvelle remise affiche un déficit
+        // même quand tout a déjà été réglé avec le boss. Kamel, 2026-09-16.
+        const enDeviseReconcilie = depuisReconciliation.filter((e) => e.devise === devise);
+        const totalRemise = enDeviseReconcilie.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
+        // Seules les dépenses financées par l'avance société comptent contre le solde société —
+        // une dépense payée avec les loyers personnels de Kamel n'est pas une dette de la société
+        // envers lui (voir cashFinanceParEnum dans db/schema.ts), donc exclue de ce calcul.
+        const totalDepenseSociete = enDeviseReconcilie
+          .filter((e) => e.type === "depense" && e.financePar === "societe")
+          .reduce((s, e) => s + Number(e.montant), 0);
+        const totalRestitution = enDeviseReconcilie
           .filter((e) => e.type === "restitution")
           .reduce((s, e) => s + Number(e.montant), 0);
         const soldeSociete = totalRemise - totalDepenseSociete - totalRestitution;
@@ -243,9 +303,17 @@ function CaissePanel({
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Société (confié / dépenses)
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Société (confié / dépenses){" "}
+                  {resetAt ? (
+                    <span className="normal-case text-muted-foreground/80">
+                      · depuis le {format(resetAt, "d MMM yyyy", { locale: fr })}
+                    </span>
+                  ) : null}
+                </p>
+                <CaisseReconciliationButton moyenPaiement={moyenPaiement} />
+              </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <SummaryCard label="Solde société" value={soldeSociete} devise={devise} highlight />
                 <SummaryCard label="Total confié (société)" value={totalRemise} devise={devise} />
