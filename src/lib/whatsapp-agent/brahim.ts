@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
-import { villaLabel, formatDateDarija, dayAfter } from "@/lib/whatsapp-agent/staff";
+import { villaLabel, dayAfter } from "@/lib/whatsapp-agent/staff";
 
 // Brahim (jardinier/coursier) fait les courses la veille de chaque ménage de départ, pour que
 // tout soit prêt avant l'arrivée de la femme de ménage — Kamel, 2026-09-16 : "dans la logique, le
@@ -64,20 +64,22 @@ export async function notifyBrahimCourses(targetDateStr?: string): Promise<{ sen
   if (concerned.length === 0) return { sent: false, villas: [] };
 
   const villaLabels = concerned.map((d) => villaLabel(d.villaNom ?? "Villa", d.villaNumero ?? null));
-  const message = buildBrahimMessage(villaLabels, formatDateDarija(resolvedDateStr));
+  const message = buildBrahimMessage(villaLabels);
   await sendWhatsAppTextAndVoice(BRAHIM_PHONE, message);
   return { sent: true, villas: villaLabels };
 }
 
 // En darija réel, pas arabe littéraire — même règle que le reste des messages personnel/staff
-// (voir buildOfferMessage dans staff.ts).
-function buildBrahimMessage(villaLabels: string[], dateLabel: string): string {
+// (voir buildOfferMessage dans staff.ts). Pas de date explicite dans le texte — Kamel, 2026-09-16 :
+// "il ne faut pas que tu dises la date [...] lui il s'en fiche de ça" — seul "غدا" (demain) compte,
+// vu que le message part toujours la veille du départ (voir notifyBrahimCourses ci-dessus).
+// Demande formulée en oui/non, comme les offres ménage/cuisine — Kamel : "il faut qu'ils répondent
+// par oui ou par non [...] on a une traçabilité qui est bien acceptée".
+function buildBrahimMessage(villaLabels: string[]): string {
   const liste = villaLabels.join("، ");
   const pluriel = villaLabels.length > 1;
-  return (
-    `السلام عليكم إبراهيم،\n\n` +
-    `عافاك دير السوق اليوم، حيت غدا ${dateLabel} كاين خروج ضيوف ف${pluriel ? "هاد الفيلات" : "هاد الفيلا"}: ${liste}. ` +
-    `خاص كلشي يكون واجد قبل ما توصل الخدامة.\n\n` +
-    `موديرنا أجونسي`
-  );
+  const detail = pluriel
+    ? `غدا غادي يخرجو الضيوف من هاد الفيلات: ${liste}. خاصك دير السوق باش يكون كلشي واجد.`
+    : `غدا غادي يخرجو الضيوف من ${liste}. خاصك دير السوق باش يكون كلشي واجد.`;
+  return `السلام عليكم،\n\n${detail}\n\nواش تقدر تدير السوق؟ جاوبنا بـ "واخا" ولا "لا" عافاك.\n\nموديرنا أجونسي`;
 }

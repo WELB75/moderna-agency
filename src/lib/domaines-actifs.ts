@@ -7,11 +7,12 @@ export function domaineEstActif(nom: string | null | undefined): boolean {
 }
 
 // Villas retirées individuellement de la gestion active, contrairement à un domaine entier
-// masqué via DOMAINES_MASQUES ci-dessus — ex. Villa 5, plus gérée par l'agence depuis le
-// 2026-08-21 (Kamel). N'affecte que le suivi opérationnel au jour le jour (plan du domaine,
-// villas libres/occupées, dispatch auto ménage/cuisine) — l'historique (résas, factures...)
-// reste visible ailleurs dans l'app, rien n'est supprimé.
-export const VILLAS_MASQUEES = ["Villa 5"];
+// masqué via DOMAINES_MASQUES ci-dessus. N'affecte que le suivi opérationnel au jour le jour
+// (plan du domaine, villas libres/occupées, dispatch auto ménage/cuisine) — l'historique (résas,
+// factures...) reste visible ailleurs dans l'app, rien n'est supprimé.
+// "Villa 5" (même fiche, numéro 5 dans Domaine Moderna II) a été réactivée et renommée
+// "Villa Naggy" le 2026-09-17 avec sa vraie synchro Superhote — donc retirée d'ici.
+export const VILLAS_MASQUEES: string[] = [];
 
 export function villaEstGeree(nom: string | null | undefined): boolean {
   return !VILLAS_MASQUEES.includes(nom ?? "");
