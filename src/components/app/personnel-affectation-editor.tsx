@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { X, Check, Circle, Coffee, UtensilsCrossed, Star, MessageCircle, StickyNote } from "lucide-react";
+import { X, Check, Circle, Coffee, UtensilsCrossed, Star, MessageCircle, StickyNote, ShoppingBasket } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import {
   markAffectationPaidSolo,
   unmarkAffectationPaid,
   setAffectationQualiteNote,
+  sendBrahimCoursesReminder,
 } from "@/lib/actions/personnel";
 import {
   TARIF_MENAGE,
@@ -271,6 +272,28 @@ export function PersonnelAffectationEditor({
     });
   }
 
+  // Bouton "Prévenir Brahim" — en plus du cron quotidien (voir brahim.ts), pour renvoyer à la
+  // demande (ex. Brahim n'a rien reçu) ou un cas particulier. Pas d'état optimiste ici : ça
+  // n'affecte pas l'affectation elle-même, juste un envoi WhatsApp.
+  const [isNotifyingBrahim, setIsNotifyingBrahim] = useState(false);
+  function handleNotifyBrahim() {
+    setIsNotifyingBrahim(true);
+    startTransition(async () => {
+      try {
+        const result = await sendBrahimCoursesReminder(reservationId);
+        if (result.sent) {
+          toast.success(`Brahim prévenu pour ${result.villa}.`);
+        } else {
+          toast.error("Réservation introuvable ou annulée.");
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Erreur.");
+      } finally {
+        setIsNotifyingBrahim(false);
+      }
+    });
+  }
+
   return (
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">{label}</p>
@@ -325,6 +348,18 @@ export function PersonnelAffectationEditor({
             />
           )
         )}
+        {!minimal && role === "menage" && moment === "depart" && optimisticAssigned.length > 0 ? (
+          <button
+            type="button"
+            onClick={handleNotifyBrahim}
+            disabled={isNotifyingBrahim}
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+            title="Envoyer un rappel de courses à Brahim pour ce départ"
+          >
+            <ShoppingBasket className="h-3.5 w-3.5" />
+            {isNotifyingBrahim ? "Envoi…" : "Prévenir Brahim"}
+          </button>
+        ) : null}
         {availableOptions.length > 0 ? (
           <Select value="" onValueChange={handleAdd} disabled={isPending}>
             <SelectTrigger className="h-7 w-32 text-xs">

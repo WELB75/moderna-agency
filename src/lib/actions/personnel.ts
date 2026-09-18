@@ -8,6 +8,7 @@ import { personnel, personnelAffectations, cashEntries, reservations, villas } f
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { finTravailleSiPartagee } from "@/lib/planning-jours-affectation";
 import { nowInMorocco } from "@/lib/now";
+import { notifyBrahimForReservation } from "@/lib/whatsapp-agent/brahim";
 
 export async function createPersonnel(formData: FormData) {
   await auth.protect();
@@ -95,6 +96,14 @@ export async function addPersonnelAffectation(
   // Peut être absent si onConflictDoNothing a bloqué l'insertion (déjà affecté) — l'appelant ne
   // s'en sert que pour un miroir client (assistant de réservation), jamais critique.
   return { id: created?.id ?? null };
+}
+
+// Bouton "Prévenir Brahim" sur la ligne d'affectation ménage/départ — en plus du cron quotidien
+// (voir src/lib/whatsapp-agent/brahim.ts), pour renvoyer à la demande. Kamel, 2026-09-18 : bouton
+// manuel voulu en plus du cron automatique, pas à sa place.
+export async function sendBrahimCoursesReminder(reservationId: string): Promise<{ sent: boolean; villa: string | null }> {
+  await auth.protect();
+  return notifyBrahimForReservation(reservationId);
 }
 
 export async function removePersonnelAffectation(affectationId: string) {
