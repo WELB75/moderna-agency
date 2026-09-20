@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
-import { whatsappConversations } from "@/db/schema";
+import { whatsappConversations, whatsappOutboundMessages } from "@/db/schema";
 import { runAgentTurn, repairMessageHistory } from "@/lib/whatsapp-agent/agent";
 import {
   findPendingRequestForPhone,
@@ -126,6 +126,23 @@ export async function POST(req: NextRequest) {
         // d'un message accepté (200) ou reste simplement muet dessus. Diagnostic temporaire, Kamel
         // 2026-08-24 : "creuse car rien reçu" (note vocale à Imed, aucune erreur nulle part).
         console.log(`Statut WhatsApp: id=${s?.id} status=${s?.status} recipient=${s?.recipient_id}`);
+        // Report du vrai statut de livraison sur l'envoi journalisé (voir
+        // whatsappOutboundMessages) : c'est le seul moment où Meta dit si le message est
+        // réellement arrivé — l'appel d'envoi, lui, renvoie 200 même quand il ne sera jamais livré.
+        const statutInterne = { sent: "envoye", delivered: "delivre", read: "lu", failed: "echec" } as const;
+        const nouveauStatut = statutInterne[s?.status as keyof typeof statutInterne];
+        if (s?.id && nouveauStatut) {
+          const errStatut = s.errors?.[0];
+          await getDb()
+            .update(whatsappOutboundMessages)
+            .set({
+              statut: nouveauStatut,
+              erreur: errStatut ? `${errStatut.title ?? errStatut.message ?? "raison inconnue"}${errStatut.code ? ` (code ${errStatut.code})` : ""}` : undefined,
+              updatedAt: new Date(),
+            })
+            .where(eq(whatsappOutboundMessages.metaMessageId, String(s.id)))
+            .catch((err) => console.error("Échec mise à jour statut sortant:", err));
+        }
         if (s?.status !== "failed") continue;
         // Ne jamais tenter de notifier Kamel d'un échec qui le concerne LUI-MÊME comme
         // destinataire — ce serait circulaire (on essaierait de le prévenir par le canal même qui

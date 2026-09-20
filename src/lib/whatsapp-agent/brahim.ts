@@ -19,6 +19,11 @@ const BRAHIM_PHONE = "+212666738828";
 const BRAHIM_TEMPLATE_NAME = "moderna_courses_brahim";
 const BRAHIM_TEMPLATE_LANG = "ar";
 
+// Étiquette portée par chaque envoi dans le journal des messages sortants — permet de retrouver
+// l'historique des rappels de courses sans le deviner d'après le texte (voir
+// whatsappOutboundMessages dans db/schema.ts).
+const CONTEXTE = "courses-brahim";
+
 // Appelée par le cron quotidien (/api/brahim-courses/sweep), jamais au moment où l'affectation
 // est saisie dans le planning : cette saisie peut se faire une semaine à l'avance ("elle planifie
 // les femmes de ménage une semaine avant ou autre", Kamel, 2026-09-16), donc seul un balayage
@@ -101,8 +106,8 @@ export async function notifyBrahimForReservation(reservationId: string): Promise
 async function sendBrahimCoursesMessage(villaLabels: string[]): Promise<void> {
   const detail = buildBrahimDetail(villaLabels);
   await Promise.all([
-    sendWhatsAppTemplate(BRAHIM_PHONE, BRAHIM_TEMPLATE_NAME, BRAHIM_TEMPLATE_LANG, [detail]),
-    sendWhatsAppVoice(BRAHIM_PHONE, buildBrahimMessage(detail)),
+    sendWhatsAppTemplate(BRAHIM_PHONE, BRAHIM_TEMPLATE_NAME, BRAHIM_TEMPLATE_LANG, [detail], CONTEXTE),
+    sendWhatsAppVoice(BRAHIM_PHONE, buildBrahimMessage(detail), CONTEXTE),
   ]);
 }
 

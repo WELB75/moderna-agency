@@ -1,4 +1,41 @@
+import { getDb } from "@/db";
+import { whatsappOutboundMessages } from "@/db/schema";
 import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
+
+// Journalise chaque envoi sortant (voir whatsappOutboundMessages dans db/schema.ts) — un HTTP 200
+// de Meta ne prouve pas la livraison, seul l'accusé reçu plus tard par webhook le fait ; on garde
+// donc le wamid pour les rapprocher. Best-effort : une panne d'écriture en base ne doit jamais
+// empêcher un message de partir.
+async function journaliserEnvoi(entry: {
+  destinataire: string;
+  canal: "texte" | "template" | "vocal";
+  contenu: string;
+  contexte?: string;
+  metaMessageId?: string | null;
+  erreur?: string | null;
+}) {
+  try {
+    await getDb()
+      .insert(whatsappOutboundMessages)
+      .values({
+        destinataire: entry.destinataire,
+        canal: entry.canal,
+        contenu: entry.contenu,
+        contexte: entry.contexte ?? null,
+        metaMessageId: entry.metaMessageId ?? null,
+        statut: entry.erreur ? "echec" : "accepte",
+        erreur: entry.erreur ?? null,
+      });
+  } catch (err) {
+    console.error("Échec journalisation envoi WhatsApp:", err);
+  }
+}
+
+// Extrait le wamid de la réponse Meta — clé de rapprochement avec les accusés de statut.
+function extraireMessageId(body: unknown): string | null {
+  const messages = (body as { messages?: { id?: string }[] } | null)?.messages;
+  return messages?.[0]?.id ?? null;
+}
 
 // Point d'entrée unique pour l'envoi WhatsApp — auparavant dupliqué dans staff.ts et
 // whatsapp-webhook/route.ts (deux copies identiques de sendWhatsAppText).
@@ -7,7 +44,7 @@ import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
 // un vrai échec d'un envoi réussi — auparavant, un échec ne finissait que dans les logs serveur
 // (jamais vus par Kamel) et le compte-rendu WhatsApp disait "envoyée" même si ça avait raté.
 // Kamel, 2026-08-22 : "tu es sur que l'agent envoie bien des messages aux personnes concerné ?"
-export async function sendWhatsAppText(to: string, body: string): Promise<boolean> {
+export async function sendWhatsAppText(to: string, body: string, contexte?: string): Promise<boolean> {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!accessToken || !phoneNumberId) return false;
@@ -18,9 +55,12 @@ export async function sendWhatsAppText(to: string, body: string): Promise<boolea
     body: JSON.stringify({ messaging_product: "whatsapp", to: to.replace("+", ""), type: "text", text: { body } }),
   });
   if (!res.ok) {
-    console.error("Échec envoi texte WhatsApp:", res.status, await res.text());
+    const erreur = await res.text();
+    console.error("Échec envoi texte WhatsApp:", res.status, erreur);
+    await journaliserEnvoi({ destinataire: to, canal: "texte", contenu: body, contexte, erreur: `${res.status} ${erreur}` });
     return false;
   }
+  await journaliserEnvoi({ destinataire: to, canal: "texte", contenu: body, contexte, metaMessageId: extraireMessageId(await res.json()) });
   return true;
 }
 
@@ -33,7 +73,8 @@ export async function sendWhatsAppTemplate(
   to: string,
   templateName: string,
   languageCode: string,
-  bodyParams: string[]
+  bodyParams: string[],
+  contexte?: string
 ): Promise<boolean> {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
@@ -55,10 +96,16 @@ export async function sendWhatsAppTemplate(
       },
     }),
   });
+  // Le journal garde le texte réellement reçu (paramètres substitués), pas le nom du modèle : le
+  // corps fixe vit chez Meta, donc sans ça on ne pourrait pas relire ce qui est parti.
+  const contenu = `[${templateName}] ${bodyParams.join(" | ")}`;
   if (!res.ok) {
-    console.error("Échec envoi template WhatsApp:", res.status, await res.text());
+    const erreur = await res.text();
+    console.error("Échec envoi template WhatsApp:", res.status, erreur);
+    await journaliserEnvoi({ destinataire: to, canal: "template", contenu, contexte, erreur: `${res.status} ${erreur}` });
     return false;
   }
+  await journaliserEnvoi({ destinataire: to, canal: "template", contenu, contexte, metaMessageId: extraireMessageId(await res.json()) });
   return true;
 }
 
@@ -87,7 +134,7 @@ async function uploadWhatsAppMedia(buffer: Buffer, mimeType: string): Promise<st
   return data.id ?? null;
 }
 
-async function sendWhatsAppAudio(to: string, mediaId: string) {
+async function sendWhatsAppAudio(to: string, mediaId: string, texteLu: string, contexte?: string) {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!accessToken || !phoneNumberId) return;
@@ -97,24 +144,38 @@ async function sendWhatsAppAudio(to: string, mediaId: string) {
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to: to.replace("+", ""), type: "audio", audio: { id: mediaId } }),
   });
-  if (!res.ok) console.error("Échec envoi audio WhatsApp:", res.status, await res.text());
+  if (!res.ok) {
+    const erreur = await res.text();
+    console.error("Échec envoi audio WhatsApp:", res.status, erreur);
+    await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: texteLu, contexte, erreur: `${res.status} ${erreur}` });
+    return;
+  }
+  await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: texteLu, contexte, metaMessageId: extraireMessageId(await res.json()) });
 }
 
 // Génère la voix (ElevenLabs, darija) et l'envoie comme note vocale. Échoue silencieusement à
 // chaque étape (clé manquante, génération ratée, upload raté) sans jamais lever d'exception —
-// la voix est un complément au texte, jamais un blocant pour l'envoi du message lui-même.
-export async function sendWhatsAppVoice(to: string, text: string) {
+// la voix est un complément au texte, jamais un blocant pour l'envoi du message lui-même. Chaque
+// échec est tout de même journalisé : sans ça, une voix qui ne part jamais reste invisible (c'est
+// exactement ce qui s'est passé avec la note vocale à Brahim, Kamel 2026-09-20).
+export async function sendWhatsAppVoice(to: string, text: string, contexte?: string) {
   const audio = await textToSpeech(text);
-  if (!audio) return;
+  if (!audio) {
+    await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: text, contexte, erreur: "Génération ElevenLabs échouée (clé manquante ou appel en erreur)" });
+    return;
+  }
   const mediaId = await uploadWhatsAppMedia(audio, "audio/mpeg");
-  if (!mediaId) return;
-  await sendWhatsAppAudio(to, mediaId);
+  if (!mediaId) {
+    await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: text, contexte, erreur: "Upload du média WhatsApp échoué" });
+    return;
+  }
+  await sendWhatsAppAudio(to, mediaId, text, contexte);
 }
 
 // Texte + note vocale en parallèle — pour le personnel ménage/cuisine, dont certaines personnes
 // ne savent pas lire (Kamel, 2026-08-08). Le texte part toujours ; la voix est best-effort (son
 // échec n'affecte jamais le true/false renvoyé, qui reflète uniquement l'envoi du texte).
-export async function sendWhatsAppTextAndVoice(to: string, body: string): Promise<boolean> {
-  const [textOk] = await Promise.all([sendWhatsAppText(to, body), sendWhatsAppVoice(to, body)]);
+export async function sendWhatsAppTextAndVoice(to: string, body: string, contexte?: string): Promise<boolean> {
+  const [textOk] = await Promise.all([sendWhatsAppText(to, body, contexte), sendWhatsAppVoice(to, body, contexte)]);
   return textOk;
 }

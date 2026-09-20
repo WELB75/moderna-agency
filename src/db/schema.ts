@@ -9,6 +9,7 @@ import {
   uuid,
   pgEnum,
   uniqueIndex,
+  index,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import type { Devis } from "@/lib/devis-types";
@@ -985,3 +986,45 @@ export const superhotePaymentSessions = pgTable("superhote_payment_sessions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// Journal des messages WhatsApp SORTANTS (texte, modèle Meta, note vocale) — jusque-là il
+// n'existait aucune trace : un envoi ne laissait qu'un console.log Vercel (rétention courte), donc
+// impossible de répondre après coup à "le message de ce matin est-il bien parti ?". Pire, un HTTP
+// 200 de Meta ne veut pas dire livré (cf. erreur 131047, fenêtre de 24h fermée) : le vrai statut
+// n'arrive que plus tard, par webhook. Cette table relie les deux — ce qu'on a envoyé, et ce que
+// Meta en a fait. Kamel, 2026-09-20 : "il faut aussi une traçabilité pour savoir où ça en est et
+// si ça a été envoyé".
+export const whatsappOutboundStatutEnum = pgEnum("whatsapp_outbound_statut", [
+  "accepte", // Meta a répondu 200 à l'appel d'envoi — ne garantit PAS la livraison
+  "envoye", // statut "sent" reçu par webhook
+  "delivre", // "delivered" — arrivé sur le téléphone
+  "lu", // "read"
+  "echec", // "failed", ou refus immédiat de l'API (voir erreur)
+]);
+
+export const whatsappOutboundMessages = pgTable(
+  "whatsapp_outbound_messages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    destinataire: text("destinataire").notNull(), // format international avec "+"
+    // "texte" (texte libre), "template" (modèle approuvé Meta, seul à passer la fenêtre 24h),
+    // "vocal" (note vocale ElevenLabs — jamais possible dans un modèle, donc toujours soumise
+    // à la fenêtre 24h, voir brahim.ts).
+    canal: text("canal").$type<"texte" | "template" | "vocal">().notNull(),
+    // Contenu réellement envoyé : le texte pour "texte"/"template" (paramètre {{1}} inclus), le
+    // texte lu à voix haute pour "vocal" — pour pouvoir relire ce qui est parti, pas juste savoir
+    // qu'il s'est passé quelque chose.
+    contenu: text("contenu").notNull(),
+    // À quoi sert cet envoi ("courses-brahim", "offre-menage"...) — permet de filtrer le journal
+    // par fonctionnalité sans avoir à deviner d'après le texte.
+    contexte: text("contexte"),
+    // Identifiant Meta (wamid...) : clé de rapprochement avec les accusés de statut reçus par
+    // webhook. Null si l'API a refusé l'envoi (voir erreur).
+    metaMessageId: text("meta_message_id"),
+    statut: whatsappOutboundStatutEnum("statut").default("accepte").notNull(),
+    erreur: text("erreur"), // refus immédiat de l'API, ou raison de l'échec de livraison
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("whatsapp_outbound_messages_meta_id_idx").on(t.metaMessageId)]
+);
