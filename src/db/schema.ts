@@ -1006,6 +1006,11 @@ export const whatsappOutboundMessages = pgTable(
   "whatsapp_outbound_messages",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    // La table s'appelle "outbound" pour raisons historiques mais journalise les DEUX sens depuis
+    // le 2026-09-20 : sans les messages entrants, impossible de relire une conversation complète
+    // (Kamel : "je veux un espace où je vois ces échanges vocaux et texte entre Brahim et
+    // l'agent"). "destinataire" porte alors le numéro de l'interlocuteur dans les deux cas.
+    sens: text("sens").$type<"entrant" | "sortant">().default("sortant").notNull(),
     destinataire: text("destinataire").notNull(), // format international avec "+"
     // "texte" (texte libre), "template" (modèle approuvé Meta, seul à passer la fenêtre 24h),
     // "vocal" (note vocale ElevenLabs — jamais possible dans un modèle, donc toujours soumise
@@ -1027,6 +1032,10 @@ export const whatsappOutboundMessages = pgTable(
     // que le destinataire a réécrit — horodate ce rattrapage. Sert aussi de garde-fou : une ligne
     // déjà marquée n'est jamais renvoyée une seconde fois (voir renvoyerVocalEnAttente).
     renvoyeAt: timestamp("renvoye_at", { withTimezone: true }),
+    // Note vocale archivée sur Vercel Blob (dans les deux sens) : WhatsApp/Meta ne conservent pas
+    // les médias durablement, donc sans copie il ne resterait que la transcription. Permet de
+    // réécouter la voix Ghizlane envoyée, et les vocaux reçus du personnel.
+    audioUrl: text("audio_url"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

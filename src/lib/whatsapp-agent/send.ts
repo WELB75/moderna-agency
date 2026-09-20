@@ -14,11 +14,13 @@ async function journaliserEnvoi(entry: {
   contexte?: string;
   metaMessageId?: string | null;
   erreur?: string | null;
+  audioUrl?: string | null;
 }) {
   try {
     await getDb()
       .insert(whatsappOutboundMessages)
       .values({
+        sens: "sortant",
         destinataire: entry.destinataire,
         canal: entry.canal,
         contenu: entry.contenu,
@@ -26,9 +28,54 @@ async function journaliserEnvoi(entry: {
         metaMessageId: entry.metaMessageId ?? null,
         statut: entry.erreur ? "echec" : "accepte",
         erreur: entry.erreur ?? null,
+        audioUrl: entry.audioUrl ?? null,
       });
   } catch (err) {
     console.error("Échec journalisation envoi WhatsApp:", err);
+  }
+}
+
+// Archive une note vocale sur Vercel Blob pour qu'elle reste réécoutable depuis l'app — ni Meta
+// ni WhatsApp ne conservent les médias durablement. Best-effort : un échec d'archivage ne doit
+// jamais empêcher l'envoi du message lui-même.
+export async function archiverAudio(buffer: Buffer, prefixe: string): Promise<string | null> {
+  try {
+    const { put } = await import("@vercel/blob");
+    const blob = await put(`whatsapp-vocaux/${prefixe}-${Date.now()}.mp3`, buffer, {
+      access: "public",
+      contentType: "audio/mpeg",
+    });
+    return blob.url;
+  } catch (err) {
+    console.error("Échec archivage audio:", err);
+    return null;
+  }
+}
+
+// Journalise un message REÇU (texte, ou transcription d'un vocal avec son audio archivé) — sans
+// ça, seule la moitié sortante de chaque conversation était visible.
+export async function journaliserReception(entry: {
+  expediteur: string;
+  canal: "texte" | "vocal";
+  contenu: string;
+  metaMessageId?: string | null;
+  audioUrl?: string | null;
+}) {
+  try {
+    await getDb()
+      .insert(whatsappOutboundMessages)
+      .values({
+        sens: "entrant",
+        destinataire: entry.expediteur,
+        canal: entry.canal,
+        contenu: entry.contenu,
+        metaMessageId: entry.metaMessageId ?? null,
+        // Un message reçu est par définition arrivé : pas d'accusé de livraison à attendre.
+        statut: "delivre",
+        audioUrl: entry.audioUrl ?? null,
+      });
+  } catch (err) {
+    console.error("Échec journalisation réception WhatsApp:", err);
   }
 }
 
@@ -135,7 +182,7 @@ async function uploadWhatsAppMedia(buffer: Buffer, mimeType: string): Promise<st
   return data.id ?? null;
 }
 
-async function sendWhatsAppAudio(to: string, mediaId: string, texteLu: string, contexte?: string) {
+async function sendWhatsAppAudio(to: string, mediaId: string, texteLu: string, contexte?: string, audioUrl?: string | null) {
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!accessToken || !phoneNumberId) return;
@@ -148,10 +195,10 @@ async function sendWhatsAppAudio(to: string, mediaId: string, texteLu: string, c
   if (!res.ok) {
     const erreur = await res.text();
     console.error("Échec envoi audio WhatsApp:", res.status, erreur);
-    await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: texteLu, contexte, erreur: `${res.status} ${erreur}` });
+    await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: texteLu, contexte, erreur: `${res.status} ${erreur}`, audioUrl });
     return;
   }
-  await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: texteLu, contexte, metaMessageId: extraireMessageId(await res.json()) });
+  await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: texteLu, contexte, metaMessageId: extraireMessageId(await res.json()), audioUrl });
 }
 
 // Génère la voix (ElevenLabs, darija) et l'envoie comme note vocale. Échoue silencieusement à
@@ -170,7 +217,8 @@ export async function sendWhatsAppVoice(to: string, text: string, contexte?: str
     await journaliserEnvoi({ destinataire: to, canal: "vocal", contenu: text, contexte, erreur: "Upload du média WhatsApp échoué" });
     return;
   }
-  await sendWhatsAppAudio(to, mediaId, text, contexte);
+  const audioUrl = await archiverAudio(audio, "sortant");
+  await sendWhatsAppAudio(to, mediaId, text, contexte, audioUrl);
 }
 
 // Texte + note vocale en parallèle — pour le personnel ménage/cuisine, dont certaines personnes

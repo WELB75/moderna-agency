@@ -14,7 +14,7 @@ import {
   handleGenericStaffMessage,
   updateStaffPosition,
 } from "@/lib/whatsapp-agent/staff";
-import { sendWhatsAppText, sendWhatsAppTextAndVoice, renvoyerVocalEnAttente } from "@/lib/whatsapp-agent/send";
+import { sendWhatsAppText, sendWhatsAppTextAndVoice, renvoyerVocalEnAttente, journaliserReception, archiverAudio } from "@/lib/whatsapp-agent/send";
 import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
 
@@ -223,6 +223,18 @@ export async function POST(req: NextRequest) {
       await sendReply(message.from, "Je ne peux lire que du texte ou des messages vocaux pour l'instant — pouvez-vous décrire votre demande de cette façon ?");
       return NextResponse.json({ ok: true });
     }
+
+    // Journalise le message reçu (avec son audio archivé s'il était vocal), pour que la
+    // conversation soit relisible des deux côtés dans /agent-ia — jusque-là seuls les envois
+    // étaient tracés, et les messages entrants hors intervention/mission n'étaient conservés
+    // nulle part. Best-effort, ne doit jamais empêcher le traitement du message.
+    await journaliserReception({
+      expediteur: from,
+      canal: wasVoice ? "vocal" : "texte",
+      contenu: text,
+      metaMessageId: message.id ?? null,
+      audioUrl: audioBuffer ? await archiverAudio(audioBuffer, "entrant") : null,
+    }).catch((err) => console.error("Échec journalisation réception:", err));
 
     // Un numéro d'employée en attente de réponse à une proposition de mission est routé vers
     // l'agent de coordination personnel plutôt que l'agent client — deux conversations
