@@ -14,7 +14,7 @@ import {
   handleGenericStaffMessage,
   updateStaffPosition,
 } from "@/lib/whatsapp-agent/staff";
-import { sendWhatsAppText, sendWhatsAppTextAndVoice } from "@/lib/whatsapp-agent/send";
+import { sendWhatsAppText, sendWhatsAppTextAndVoice, renvoyerVocalEnAttente } from "@/lib/whatsapp-agent/send";
 import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
 
@@ -162,6 +162,13 @@ export async function POST(req: NextRequest) {
     // Texte et messages vocaux sont gérés ; les autres types (image, localisation...) reçoivent
     // une réponse de repli plutôt que d'être ignorés silencieusement côté client.
     const from = `+${message.from}`;
+
+    // Ce message entrant vient de rouvrir la fenêtre de 24h de WhatsApp : c'est le seul instant
+    // où une note vocale refusée plus tôt (code 131047) peut enfin être livrée. Indispensable
+    // pour le personnel et Brahim — Kamel, 2026-09-20 : "la plupart des gens ne savent pas lire
+    // l'arabe, c'est donc très important d'ajouter cet audio". Best-effort, avant tout traitement
+    // pour que la voix parte même si la suite échoue.
+    await renvoyerVocalEnAttente(from).catch((err) => console.error("Échec renvoi vocal en attente:", err));
 
     // Un numéro déjà connu comme personnel (ménage/cuisine) ne doit JAMAIS retomber sur l'agent
     // client, quel que soit le message — mauvais registre (agent client parle "hôtel" en

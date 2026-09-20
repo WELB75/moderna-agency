@@ -1,3 +1,4 @@
+import { and, desc, eq, gte, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { whatsappOutboundMessages } from "@/db/schema";
 import { textToSpeech } from "@/lib/whatsapp-agent/elevenlabs";
@@ -178,4 +179,43 @@ export async function sendWhatsAppVoice(to: string, text: string, contexte?: str
 export async function sendWhatsAppTextAndVoice(to: string, body: string, contexte?: string): Promise<boolean> {
   const [textOk] = await Promise.all([sendWhatsAppText(to, body, contexte), sendWhatsAppVoice(to, body, contexte)]);
   return textOk;
+}
+
+// Rattrapage des notes vocales jamais livrées. WhatsApp refuse tout hors-modèle si le
+// destinataire n'a pas écrit depuis 24h (code 131047), et Meta n'autorise pas l'audio dans un
+// modèle approuvé : la voix ne peut donc PAS être garantie au moment de l'envoi. Or c'est le
+// canal qui compte le plus ici — Kamel, 2026-09-20 : "la plupart des gens ne savent pas lire
+// l'arabe, c'est donc très important d'ajouter cet audio".
+// D'où ce rattrapage : le message entrant qui déclenche cet appel vient justement de rouvrir la
+// fenêtre de 24h, c'est donc le seul instant où l'on est sûr que la voix passera. Appelé pour
+// TOUT numéro entrant (personnel, technicien, Brahim), pas seulement Brahim.
+export async function renvoyerVocalEnAttente(phone: string): Promise<void> {
+  const db = getDb();
+  // 48h : au-delà, un rappel de courses ou une offre de mission n'a plus d'intérêt — mieux vaut
+  // ne rien envoyer qu'une consigne périmée.
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+  const [enAttente] = await db
+    .select({ id: whatsappOutboundMessages.id, contenu: whatsappOutboundMessages.contenu, contexte: whatsappOutboundMessages.contexte })
+    .from(whatsappOutboundMessages)
+    .where(
+      and(
+        eq(whatsappOutboundMessages.destinataire, phone),
+        eq(whatsappOutboundMessages.canal, "vocal"),
+        eq(whatsappOutboundMessages.statut, "echec"),
+        isNull(whatsappOutboundMessages.renvoyeAt),
+        gte(whatsappOutboundMessages.createdAt, cutoff)
+      )
+    )
+    .orderBy(desc(whatsappOutboundMessages.createdAt))
+    .limit(1);
+  if (!enAttente) return;
+
+  // Marqué AVANT l'envoi : si le renvoi échoue encore, on ne veut pas réessayer en boucle à
+  // chaque message entrant suivant.
+  await db
+    .update(whatsappOutboundMessages)
+    .set({ renvoyeAt: new Date(), updatedAt: new Date() })
+    .where(eq(whatsappOutboundMessages.id, enAttente.id));
+
+  await sendWhatsAppVoice(phone, enAttente.contenu, enAttente.contexte ?? undefined);
 }

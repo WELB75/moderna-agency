@@ -1023,6 +1023,10 @@ export const whatsappOutboundMessages = pgTable(
     metaMessageId: text("meta_message_id"),
     statut: whatsappOutboundStatutEnum("statut").default("accepte").notNull(),
     erreur: text("erreur"), // refus immédiat de l'API, ou raison de l'échec de livraison
+    // Note vocale non livrée (fenêtre 24h fermée, code 131047) puis renvoyée automatiquement dès
+    // que le destinataire a réécrit — horodate ce rattrapage. Sert aussi de garde-fou : une ligne
+    // déjà marquée n'est jamais renvoyée une seconde fois (voir renvoyerVocalEnAttente).
+    renvoyeAt: timestamp("renvoye_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
