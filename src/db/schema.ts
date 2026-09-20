@@ -12,6 +12,7 @@ import {
   index,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { Devis } from "@/lib/devis-types";
 
 export const cashEntryTypeEnum = pgEnum("cash_entry_type", [
@@ -1039,5 +1040,16 @@ export const whatsappOutboundMessages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("whatsapp_outbound_messages_meta_id_idx").on(t.metaMessageId)]
+  (t) => [
+    index("whatsapp_outbound_messages_meta_id_idx").on(t.metaMessageId),
+    // Garde-fou anti-doublon pour les messages REÇUS : Meta livre ses webhooks "at-least-once" et
+    // renvoie régulièrement le même événement, ce qui faisait répondre l'agent deux fois (constaté
+    // sur Brahim le 2026-09-20, deux réponses identiques à une minute d'intervalle). L'unicité est
+    // posée en base plutôt que vérifiée en JS pour rester atomique même si deux livraisons du même
+    // message arrivent en parallèle : la seconde insertion échoue, donc le second traitement
+    // s'arrête. Partiel (sens = 'entrant') car un envoi raté n'a pas de metaMessageId.
+    uniqueIndex("whatsapp_inbound_meta_id_unique_idx")
+      .on(t.metaMessageId)
+      .where(sql`${t.sens} = 'entrant'`),
+  ]
 );

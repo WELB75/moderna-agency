@@ -54,15 +54,21 @@ export async function archiverAudio(buffer: Buffer, prefixe: string): Promise<st
 
 // Journalise un message REÇU (texte, ou transcription d'un vocal avec son audio archivé) — sans
 // ça, seule la moitié sortante de chaque conversation était visible.
+//
+// Fait aussi office de verrou anti-doublon pour TOUT le webhook : renvoie false si ce message
+// Meta a déjà été journalisé, donc déjà traité. Les webhooks Meta sont "at-least-once" et le même
+// événement revient régulièrement — l'agent répondait alors deux fois (constaté sur Brahim le
+// 2026-09-20). L'unicité étant garantie en base, deux livraisons simultanées ne peuvent pas
+// passer toutes les deux, ce qu'un simple "SELECT puis INSERT" ne garantirait pas.
 export async function journaliserReception(entry: {
   expediteur: string;
   canal: "texte" | "vocal";
   contenu: string;
   metaMessageId?: string | null;
   audioUrl?: string | null;
-}) {
+}): Promise<boolean> {
   try {
-    await getDb()
+    const inserted = await getDb()
       .insert(whatsappOutboundMessages)
       .values({
         sens: "entrant",
@@ -73,9 +79,15 @@ export async function journaliserReception(entry: {
         // Un message reçu est par définition arrivé : pas d'accusé de livraison à attendre.
         statut: "delivre",
         audioUrl: entry.audioUrl ?? null,
-      });
+      })
+      .onConflictDoNothing()
+      .returning({ id: whatsappOutboundMessages.id });
+    return inserted.length > 0;
   } catch (err) {
+    // En cas de panne d'écriture, on laisse passer le message : mieux vaut risquer une réponse en
+    // double que d'ignorer silencieusement la demande de quelqu'un.
     console.error("Échec journalisation réception WhatsApp:", err);
+    return true;
   }
 }
 

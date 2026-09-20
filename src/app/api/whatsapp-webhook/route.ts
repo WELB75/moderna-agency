@@ -227,14 +227,21 @@ export async function POST(req: NextRequest) {
     // Journalise le message reçu (avec son audio archivé s'il était vocal), pour que la
     // conversation soit relisible des deux côtés dans /agent-ia — jusque-là seuls les envois
     // étaient tracés, et les messages entrants hors intervention/mission n'étaient conservés
-    // nulle part. Best-effort, ne doit jamais empêcher le traitement du message.
-    await journaliserReception({
+    // nulle part.
+    //
+    // Sert aussi de verrou anti-doublon UNIVERSEL : Meta relivre régulièrement le même événement,
+    // et jusqu'ici seul l'agent client était protégé — un technicien ou une employée qui écrivait
+    // spontanément recevait deux réponses identiques (constaté sur Brahim le 2026-09-20, la
+    // déduplication de maintenance-ai.ts étant placée après la sortie anticipée "aucune mission en
+    // cours"). Placé ici, ce garde-fou couvre tous les chemins d'un coup.
+    const premierTraitement = await journaliserReception({
       expediteur: from,
       canal: wasVoice ? "vocal" : "texte",
       contenu: text,
       metaMessageId: message.id ?? null,
       audioUrl: audioBuffer ? await archiverAudio(audioBuffer, "entrant") : null,
-    }).catch((err) => console.error("Échec journalisation réception:", err));
+    });
+    if (!premierTraitement) return NextResponse.json({ ok: true, dedup: true });
 
     // Un numéro d'employée en attente de réponse à une proposition de mission est routé vers
     // l'agent de coordination personnel plutôt que l'agent client — deux conversations
