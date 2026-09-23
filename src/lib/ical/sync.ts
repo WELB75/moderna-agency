@@ -10,7 +10,13 @@ import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 
 export async function runIcalSync(): Promise<
-  | { success: true; bookingsSynced: number; villasSynced: number; bookingsCancelled: number }
+  | {
+      success: true;
+      bookingsSynced: number;
+      villasSynced: number;
+      bookingsCancelled: number;
+      failedVillas: { nom: string; reason: string }[];
+    }
   | { success: false; error: string }
 > {
   const db = getDb();
@@ -36,14 +42,25 @@ export async function runIcalSync(): Promise<
   const now = nowInMorocco();
   const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[] = [];
   const cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[] = [];
+  // Un lien mort pour une villa (ex. export régénéré côté Superhote, 404) ne doit pas bloquer la
+  // synchro des autres : on la saute, sans réconciliation (sinon toutes ses réservations à venir
+  // passeraient en annulées), et on la signale nommément.
+  const failedVillas: { nom: string; reason: string }[] = [];
 
   try {
     for (const villa of targets) {
-      const res = await fetch(villa.icalUrl, { cache: "no-store" });
-      if (!res.ok) {
-        throw new Error(`Le lien iCal a répondu ${res.status} pour une villa.`);
+      let raw: string;
+      try {
+        const res = await fetch(villa.icalUrl, { cache: "no-store" });
+        if (!res.ok) {
+          failedVillas.push({ nom: villa.nom, reason: `réponse ${res.status}` });
+          continue;
+        }
+        raw = await res.text();
+      } catch (err) {
+        failedVillas.push({ nom: villa.nom, reason: err instanceof Error ? err.message : "erreur réseau" });
+        continue;
       }
-      const raw = await res.text();
       const events = parseIcs(raw);
       const seenBookingIds: string[] = [];
 
@@ -159,14 +176,30 @@ export async function runIcalSync(): Promise<
 
     await notifySyncChanges(newBookings, cancelledBookings);
 
+    const failureMessage =
+      failedVillas.length > 0
+        ? `Lien iCal en échec : ${failedVillas.map((f) => `${f.nom} (${f.reason})`).join(", ")}.`
+        : null;
+
+    if (failedVillas.length === targets.length) {
+      throw new Error(failureMessage!);
+    }
+
     await db.insert(superhoteSyncLog).values({
       startedAt: now,
       finishedAt: nowInMorocco(),
-      success: true,
+      success: failedVillas.length === 0,
       bookingsSynced: totalSynced,
+      errorMessage: failureMessage,
     });
 
-    return { success: true, bookingsSynced: totalSynced, villasSynced: targets.length, bookingsCancelled: totalCancelled };
+    return {
+      success: true,
+      bookingsSynced: totalSynced,
+      villasSynced: targets.length - failedVillas.length,
+      bookingsCancelled: totalCancelled,
+      failedVillas,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation iCal.";
     await db

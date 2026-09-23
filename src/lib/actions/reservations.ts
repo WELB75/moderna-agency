@@ -439,13 +439,15 @@ export async function triggerIcalSync() {
   const result = await runIcalSync();
   revalidatePath("/dashboard");
   revalidatePath("/villas");
-  return result.success
-    ? {
-        success: true,
-        message:
-          `${result.bookingsSynced} réservation(s) synchronisée(s) (${result.villasSynced} villa(s))` +
-          (result.bookingsCancelled > 0 ? ` · ${result.bookingsCancelled} annulée(s)` : "") +
-          ".",
-      }
-    : { success: false, message: result.error };
+  if (!result.success) return { success: false, message: result.error };
+  const summary =
+    `${result.bookingsSynced} réservation(s) synchronisée(s) (${result.villasSynced} villa(s))` +
+    (result.bookingsCancelled > 0 ? ` · ${result.bookingsCancelled} annulée(s)` : "") +
+    ".";
+  // Synchro partielle : affichée en erreur pour que le lien mort ne passe pas inaperçu.
+  if (result.failedVillas.length > 0) {
+    const failed = result.failedVillas.map((f) => `${f.nom} (${f.reason})`).join(", ");
+    return { success: false, message: `${summary} Lien iCal à mettre à jour : ${failed}.` };
+  }
+  return { success: true, message: summary };
 }
