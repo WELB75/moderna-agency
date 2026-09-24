@@ -12,6 +12,7 @@ import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { analyzeInterventionPhoto } from "@/lib/intervention-photo-ai";
 import { getBaseUrl } from "@/lib/base-url";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
+import { isValidMaintenanceToken } from "@/lib/maintenance-access-token";
 
 // Dès qu'un problème décrit ET au moins une photo sont réunis sur une intervention SANS
 // technicien déjà choisi à la main, on laisse l'IA proposer elle-même le technicien le plus
@@ -550,6 +551,191 @@ export async function deleteDevis(interventionId: string, index: number) {
     .set({ devis: (current.devis ?? []).filter((_, i) => i !== index), updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
 
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+// Actions scopées "espace maintenance" (/m/[token]) : jeton unique partagé (voir
+// maintenance-access-token.ts) plutôt qu'un token par personne — l'équipe entière (technicien,
+// responsable...) y ajoute des photos et fait avancer le statut sans compte Clerk, sur tout le
+// périmètre (toutes villas), contrairement au lien technicien qui reste limité à ses propres
+// interventions assignées. Chaque action revérifie le jeton (jamais confiance dans le seul rendu
+// de la page).
+function requireMaintenanceToken(token: string) {
+  if (!isValidMaintenanceToken(token)) throw new Error("Lien maintenance invalide.");
+}
+
+export async function analyzeInterventionPhotoByMaintenanceToken(token: string, photoUrl: string) {
+  requireMaintenanceToken(token);
+  const extraction = await analyzeInterventionPhoto(photoUrl);
+  return {
+    probleme: extraction.probleme,
+    categorie: (CATEGORIE_KEYS as string[]).includes(extraction.categorie) ? (extraction.categorie as Categorie) : "autre",
+    urgence: (URGENCES as readonly string[]).includes(extraction.urgence) ? (extraction.urgence as Urgence) : "normale",
+    warnings: extraction.warnings,
+  };
+}
+
+export async function createInterventionByMaintenanceToken(token: string, formData: FormData) {
+  requireMaintenanceToken(token);
+
+  const titre = String(formData.get("titre") ?? "").trim();
+  const probleme = String(formData.get("probleme") ?? "").trim();
+  const lieu = String(formData.get("lieu") ?? "").trim();
+  const villaId = String(formData.get("villaId") ?? "").trim() || null;
+  const domaineId = String(formData.get("domaineId") ?? "").trim() || null;
+  const technicianId = String(formData.get("technicianId") ?? "").trim() || null;
+  const urgenceRaw = String(formData.get("urgence") ?? "normale").trim();
+  const urgence = (URGENCES as readonly string[]).includes(urgenceRaw) ? (urgenceRaw as Urgence) : "normale";
+  const categorieRaw = String(formData.get("categorie") ?? "autre").trim();
+  const categorie = (CATEGORIE_KEYS as string[]).includes(categorieRaw) ? (categorieRaw as Categorie) : "autre";
+  let attachmentUrls: string[] = [];
+  try {
+    const raw = String(formData.get("attachmentUrls") ?? "[]");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) attachmentUrls = parsed.filter((u) => typeof u === "string");
+  } catch {
+    attachmentUrls = [];
+  }
+
+  if (!titre) throw new Error("Le souci est obligatoire.");
+
+  const db = getDb();
+  const [created] = await db
+    .insert(interventions)
+    .values({
+      titre,
+      probleme: probleme || null,
+      lieu: lieu || null,
+      villaId,
+      domaineId,
+      technicianId,
+      urgence,
+      categorie,
+      attachmentUrls,
+      origine: "staff",
+      createdByName: "Équipe (espace maintenance)",
+    })
+    .returning({ id: interventions.id });
+
+  if (technicianId) {
+    await notifyTechnicianAssignment(technicianId, titre);
+  } else {
+    await maybeAutoDispatchMaintenance(created.id);
+  }
+
+  revalidatePath(`/m/${token}`);
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+export async function setInterventionEtapeByMaintenanceToken(token: string, interventionId: string, etape: Etape) {
+  requireMaintenanceToken(token);
+  if (!ETAPES.includes(etape)) throw new Error("Étape invalide.");
+
+  const db = getDb();
+  const timestampField = ETAPE_TIMESTAMP_FIELD[etape];
+  await db
+    .update(interventions)
+    .set({ etape, [timestampField]: new Date(), updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+
+  revalidatePath(`/m/${token}`);
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+export async function setInterventionUrgenceByMaintenanceToken(token: string, interventionId: string, urgence: Urgence) {
+  requireMaintenanceToken(token);
+  if (!(URGENCES as readonly string[]).includes(urgence)) throw new Error("Urgence invalide.");
+
+  const db = getDb();
+  await db.update(interventions).set({ urgence, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  if (urgence === "critique") {
+    const [current] = await db
+      .select({ titre: interventions.titre, villaNom: villas.nom, villaNumero: villas.numero })
+      .from(interventions)
+      .leftJoin(villas, eq(interventions.villaId, villas.id))
+      .where(eq(interventions.id, interventionId))
+      .limit(1);
+    if (current) {
+      await notifyStaffWhatsApp(
+        `Intervention passée en CRITIQUE (espace maintenance) : "${current.titre}"${current.villaNom ? ` — ${current.villaNom} (n°${current.villaNumero})` : ""}.`
+      );
+    }
+  }
+
+  revalidatePath(`/m/${token}`);
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+  revalidatePath("/dashboard");
+}
+
+export async function setInterventionCategorieByMaintenanceToken(token: string, interventionId: string, categorie: Categorie) {
+  requireMaintenanceToken(token);
+  if (!(CATEGORIE_KEYS as string[]).includes(categorie)) throw new Error("Catégorie invalide.");
+
+  const db = getDb();
+  await db.update(interventions).set({ categorie, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  revalidatePath(`/m/${token}`);
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+export async function setInterventionTechnicianByMaintenanceToken(
+  token: string,
+  interventionId: string,
+  technicianId: string | null
+) {
+  requireMaintenanceToken(token);
+  const db = getDb();
+  await db.update(interventions).set({ technicianId, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  if (technicianId) {
+    const [current] = await db
+      .select({ titre: interventions.titre })
+      .from(interventions)
+      .where(eq(interventions.id, interventionId))
+      .limit(1);
+    if (current) await notifyTechnicianAssignment(technicianId, current.titre);
+  } else {
+    await maybeAutoDispatchMaintenance(interventionId);
+  }
+
+  revalidatePath(`/m/${token}`);
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+export async function addInterventionAttachmentsByMaintenanceToken(token: string, interventionId: string, urls: string[]) {
+  requireMaintenanceToken(token);
+  const db = getDb();
+  const [existing] = await db.select().from(interventions).where(eq(interventions.id, interventionId)).limit(1);
+  if (!existing) throw new Error("Intervention introuvable.");
+
+  await db
+    .update(interventions)
+    .set({ attachmentUrls: [...(existing.attachmentUrls ?? []), ...urls], updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+
+  await maybeAutoDispatchMaintenance(interventionId);
+
+  revalidatePath(`/m/${token}`);
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
+export async function updateInterventionNotesByMaintenanceToken(token: string, interventionId: string, notes: string) {
+  requireMaintenanceToken(token);
+  const db = getDb();
+  await db
+    .update(interventions)
+    .set({ notes: notes || null, updatedAt: new Date() })
+    .where(eq(interventions.id, interventionId));
+
+  revalidatePath(`/m/${token}`);
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }

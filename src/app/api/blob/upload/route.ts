@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { technicians, villas } from "@/db/schema";
+import { isValidMaintenanceToken } from "@/lib/maintenance-access-token";
 
 export async function POST(request: Request): Promise<NextResponse> {
   const { userId } = await auth();
@@ -42,7 +43,13 @@ export async function POST(request: Request): Promise<NextResponse> {
               .limit(1)
               .then((rows) => rows.length > 0));
 
-          if (!validTechnician && !validTravauxToken) throw new Error("Non autorisé");
+          // Espace maintenance public (/m/[token]) : jeton unique partagé plutôt qu'un token par
+          // technicien ou par villa, portée sur toutes les interventions — voir
+          // maintenance-access-token.ts et interventions.ts (actions "ByMaintenanceToken").
+          const isMaintenanceUpload = pathname.startsWith("interventions/") && Boolean(clientPayload);
+          const validMaintenanceToken = isMaintenanceUpload && isValidMaintenanceToken(clientPayload as string);
+
+          if (!validTechnician && !validTravauxToken && !validMaintenanceToken) throw new Error("Non autorisé");
         }
 
         return {

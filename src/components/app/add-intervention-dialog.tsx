@@ -24,7 +24,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { createIntervention, analyzeInterventionPhotoUrl } from "@/lib/actions/interventions";
+import {
+  createIntervention,
+  createInterventionByMaintenanceToken,
+  analyzeInterventionPhotoUrl,
+  analyzeInterventionPhotoByMaintenanceToken,
+} from "@/lib/actions/interventions";
 import { URGENCE_LEVELS, type Urgence } from "@/lib/intervention-urgence";
 import { CATEGORIES, type Categorie } from "@/lib/intervention-categorie";
 import { CategorieIcon } from "@/components/app/categorie-icon";
@@ -33,11 +38,14 @@ export function AddInterventionDialog({
   villas,
   domaines,
   technicians = [],
+  token,
 }: {
   villas: { id: string; nom: string; numero: string; domaineId: string | null }[];
   domaines: { id: string; nom: string }[];
   technicians?: { id: string; nom: string; fonction: string }[];
   contacts?: { villaId: string | null; domaineId: string | null; nom: string; role: string }[];
+  // Présent uniquement sur l'espace maintenance public (/m/[token]) — voir intervention-card.tsx.
+  token?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [villaId, setVillaId] = useState("");
@@ -67,6 +75,7 @@ export function AddInterventionDialog({
         const blob = await upload(`interventions/new/${Date.now()}-${file.name}`, file, {
           access: "public",
           handleUploadUrl: "/api/blob/upload",
+          clientPayload: token,
         });
         uploaded.push({ url: blob.url, name: file.name });
       }
@@ -85,7 +94,9 @@ export function AddInterventionDialog({
 
     setAnalyzing(true);
     try {
-      const result = await analyzeInterventionPhotoUrl(uploaded[firstPhotoIndex].url);
+      const result = token
+        ? await analyzeInterventionPhotoByMaintenanceToken(token, uploaded[firstPhotoIndex].url)
+        : await analyzeInterventionPhotoUrl(uploaded[firstPhotoIndex].url);
       if (result.probleme) setProbleme(result.probleme);
       setCategorie(result.categorie);
       setUrgence(result.urgence);
@@ -115,7 +126,8 @@ export function AddInterventionDialog({
     formData.set("attachmentUrls", JSON.stringify(attachments.map((a) => a.url)));
     startTransition(async () => {
       try {
-        await createIntervention(formData);
+        if (token) await createInterventionByMaintenanceToken(token, formData);
+        else await createIntervention(formData);
         setJustCreated(true);
         setTimeout(() => {
           setOpen(false);

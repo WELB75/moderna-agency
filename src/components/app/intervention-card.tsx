@@ -35,6 +35,12 @@ import {
   setInterventionUrgence,
   setInterventionCategorie,
   setInterventionTechnician,
+  setInterventionEtapeByMaintenanceToken,
+  setInterventionUrgenceByMaintenanceToken,
+  setInterventionCategorieByMaintenanceToken,
+  setInterventionTechnicianByMaintenanceToken,
+  updateInterventionNotesByMaintenanceToken,
+  addInterventionAttachmentsByMaintenanceToken,
 } from "@/lib/actions/interventions";
 import { cn } from "@/lib/utils";
 import { INTERVENTION_STEPS, INTERVENTION_STEP_TIMESTAMP_KEYS, type Etape } from "@/lib/intervention-steps";
@@ -83,11 +89,16 @@ export function InterventionCard({
   comments = [],
   currentUserName = "Équipe",
   technicians = [],
+  token,
 }: {
   intervention: Intervention;
   comments?: CommentRow[];
   currentUserName?: string;
   technicians?: { id: string; nom: string; fonction: string }[];
+  // Présent uniquement sur l'espace maintenance public (/m/[token], sans compte Clerk) : les
+  // actions passent alors par les variantes "ByMaintenanceToken", revérifiées côté serveur — voir
+  // maintenance-access-token.ts. Suppression et devis restent réservés à l'app interne.
+  token?: string;
 }) {
   const [notes, setNotes] = useState(intervention.notes ?? "");
   const [editingNotes, setEditingNotes] = useState(false);
@@ -98,7 +109,8 @@ export function InterventionCard({
   function handleUrgenceChange(value: string) {
     startTransition(async () => {
       try {
-        await setInterventionUrgence(intervention.id, value as Urgence);
+        if (token) await setInterventionUrgenceByMaintenanceToken(token, intervention.id, value as Urgence);
+        else await setInterventionUrgence(intervention.id, value as Urgence);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -108,7 +120,8 @@ export function InterventionCard({
   function handleCategorieChange(value: string) {
     startTransition(async () => {
       try {
-        await setInterventionCategorie(intervention.id, value as Categorie);
+        if (token) await setInterventionCategorieByMaintenanceToken(token, intervention.id, value as Categorie);
+        else await setInterventionCategorie(intervention.id, value as Categorie);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -118,7 +131,8 @@ export function InterventionCard({
   function handleTechnicianChange(value: string) {
     startTransition(async () => {
       try {
-        await setInterventionTechnician(intervention.id, value || null);
+        if (token) await setInterventionTechnicianByMaintenanceToken(token, intervention.id, value || null);
+        else await setInterventionTechnician(intervention.id, value || null);
         toast.success(value ? "Technicien assigné, notifié par WhatsApp." : "Technicien retiré.");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
@@ -132,7 +146,8 @@ export function InterventionCard({
   function handleEtapeChange(value: string) {
     startTransition(async () => {
       try {
-        await setInterventionEtape(intervention.id, value as Etape);
+        if (token) await setInterventionEtapeByMaintenanceToken(token, intervention.id, value as Etape);
+        else await setInterventionEtape(intervention.id, value as Etape);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -142,7 +157,8 @@ export function InterventionCard({
   function handleSaveNotes() {
     startTransition(async () => {
       try {
-        await updateInterventionNotes(intervention.id, notes);
+        if (token) await updateInterventionNotesByMaintenanceToken(token, intervention.id, notes);
+        else await updateInterventionNotes(intervention.id, notes);
         toast.success("Notes enregistrées.");
         setEditingNotes(false);
       } catch (err) {
@@ -162,10 +178,12 @@ export function InterventionCard({
         const blob = await upload(`interventions/${intervention.id}/${Date.now()}-${file.name}`, file, {
           access: "public",
           handleUploadUrl: "/api/blob/upload",
+          clientPayload: token,
         });
         uploaded.push(blob.url);
       }
-      await addInterventionAttachments(intervention.id, uploaded);
+      if (token) await addInterventionAttachmentsByMaintenanceToken(token, intervention.id, uploaded);
+      else await addInterventionAttachments(intervention.id, uploaded);
       toast.success("Pièce jointe ajoutée.");
     } catch {
       toast.error("Échec de l'envoi.");
@@ -189,11 +207,13 @@ export function InterventionCard({
               successMessage="Lien copié — transmets-le à qui tu veux."
               iconOnly
             />
-            <ConfirmDeleteButton
-              action={deleteIntervention.bind(null, intervention.id)}
-              title="Supprimer cette intervention ?"
-              description="Cette action est irréversible."
-            />
+            {!token ? (
+              <ConfirmDeleteButton
+                action={deleteIntervention.bind(null, intervention.id)}
+                title="Supprimer cette intervention ?"
+                description="Cette action est irréversible."
+              />
+            ) : null}
           </div>
         </div>
 
@@ -362,12 +382,14 @@ export function InterventionCard({
                 <DevisDocument devis={d} />
                 <div className="flex justify-end gap-1 print:hidden">
                   <PrintButton />
-                  <ConfirmDeleteButton
-                    action={deleteDevis.bind(null, intervention.id, i)}
-                    title="Supprimer ce devis ?"
-                    description="Cette action est irréversible."
-                    label="Supprimer"
-                  />
+                  {!token ? (
+                    <ConfirmDeleteButton
+                      action={deleteDevis.bind(null, intervention.id, i)}
+                      title="Supprimer ce devis ?"
+                      description="Cette action est irréversible."
+                      label="Supprimer"
+                    />
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -393,7 +415,7 @@ export function InterventionCard({
             className="hidden"
             onChange={handleFileChange}
           />
-          <AddDevisDialog interventionId={intervention.id} />
+          {!token ? <AddDevisDialog interventionId={intervention.id} /> : null}
         </div>
 
         {(intervention.devis ?? []).length > 0 ? (
