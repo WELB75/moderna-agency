@@ -6,16 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
-import { CategorieFilterView, type CategorieGroup } from "@/components/app/categorie-filter-view";
-import { computeCategorieStats } from "@/lib/categorie-stats";
+import { VillaFilterView, type VillaGroup } from "@/components/app/villa-filter-view";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { deleteTechnician } from "@/lib/actions/technicians";
 import { sortByUrgence } from "@/lib/intervention-urgence";
-import { CATEGORIES } from "@/lib/intervention-categorie";
 import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, idsVillasActives } from "@/lib/domaines-actifs";
-import { Users, ListTodo } from "lucide-react";
+import { Users, ListTodo, Clock, CheckCircle2 } from "lucide-react";
 
 export default async function MaintenancePage() {
   const db = getDb();
@@ -51,6 +49,7 @@ export default async function MaintenancePage() {
         titre: interventions.titre,
         probleme: interventions.probleme,
         lieu: interventions.lieu,
+        villaId: interventions.villaId,
         villaNom: villas.nom,
         villaNumero: villas.numero,
         domaineId: interventions.domaineId,
@@ -82,25 +81,34 @@ export default async function MaintenancePage() {
       .orderBy(desc(interventions.createdAt))
   ).filter((i) => domaineEstActif(i.domaineNom));
 
-  // Regroupe par catégorie : au premier coup d'œil on ne voit que les tuiles de
-  // catégorie, on clique dessus pour tomber sur le détail des tâches.
-  function renderCategorieGroups(list: typeof villaInterventions): CategorieGroup[] {
-    return CATEGORIES.map((c): CategorieGroup | null => {
-      const items = list.filter((i) => i.categorie === c.key);
-      if (items.length === 0) return null;
-      const count = items.filter((i) => i.etape !== "termine").length;
-      return {
-        categorie: c.key,
-        count,
-        content: (
-          <div className="space-y-2">
-            {sortByUrgence(items).map((i) => (
-              <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
-            ))}
-          </div>
-        ),
-      };
-    }).filter((g): g is CategorieGroup => g !== null);
+  // Ce que le boss doit suivre en temps réel : combien reste à traiter, combien est fait.
+  const tachesEnAttente = villaInterventions.filter((i) => i.etape !== "termine");
+  const tachesTerminees = villaInterventions
+    .filter((i) => i.etape === "termine")
+    .sort((a, b) => new Date(b.finAt ?? b.createdAt).getTime() - new Date(a.finAt ?? a.createdAt).getTime());
+
+  // Regroupe les tâches en attente par villa : au premier coup d'œil on voit où
+  // ça se passe, on clique sur une villa pour voir le détail de ses tâches.
+  function renderVillaGroups(list: typeof villaInterventions): VillaGroup[] {
+    const villaIds = [...new Set(list.map((i) => i.villaId).filter((id): id is string => !!id))];
+    return villaIds
+      .map((villaId): VillaGroup => {
+        const items = list.filter((i) => i.villaId === villaId);
+        const { villaNom, villaNumero } = items[0];
+        return {
+          villaId,
+          label: villaNom ? `${villaNom} (n°${villaNumero})` : "Villa inconnue",
+          count: items.length,
+          content: (
+            <div className="space-y-2">
+              {sortByUrgence(items).map((i) => (
+                <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
+              ))}
+            </div>
+          ),
+        };
+      })
+      .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
   }
 
   return (
@@ -180,10 +188,51 @@ export default async function MaintenancePage() {
               </CardContent>
             </Card>
           ) : (
-            <CategorieFilterView
-              groups={renderCategorieGroups(villaInterventions)}
-              stats={computeCategorieStats(villaInterventions)}
-            />
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-md border bg-amber-500/5 border-amber-500/40 px-3 py-3 text-center">
+                  <p className="text-2xl font-semibold leading-none">{tachesEnAttente.length}</p>
+                  <p className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    En attente
+                  </p>
+                </div>
+                <div className="rounded-md border bg-emerald-500/5 border-emerald-500/40 px-3 py-3 text-center">
+                  <p className="text-2xl font-semibold leading-none">{tachesTerminees.length}</p>
+                  <p className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Terminées
+                  </p>
+                </div>
+              </div>
+
+              <Tabs defaultValue="a-faire">
+                <TabsList>
+                  <TabsTrigger value="a-faire">À faire ({tachesEnAttente.length})</TabsTrigger>
+                  <TabsTrigger value="termine">Terminé ({tachesTerminees.length})</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="a-faire" className="space-y-4">
+                  {tachesEnAttente.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Tout est réglé, aucune tâche en attente.
+                    </p>
+                  ) : (
+                    <VillaFilterView groups={renderVillaGroups(tachesEnAttente)} />
+                  )}
+                </TabsContent>
+
+                <TabsContent value="termine" className="space-y-2">
+                  {tachesTerminees.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">Aucune tâche terminée pour l&apos;instant.</p>
+                  ) : (
+                    tachesTerminees.map((i) => (
+                      <InterventionCard key={i.id} intervention={i} technicians={allTechnicians} />
+                    ))
+                  )}
+                </TabsContent>
+              </Tabs>
+            </div>
           )}
         </TabsContent>
       </Tabs>
