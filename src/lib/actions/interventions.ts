@@ -201,6 +201,46 @@ export async function createInterventionByToken(
   revalidatePath("/maintenance");
 }
 
+// Page d'accueil client /bienvenue/[token] — jeton lienClientToken, DISTINCT du lien
+// propriétaire (villaIdFromToken ci-dessus) : ce lien est affiché en QR code dans la villa, donc
+// vu par n'importe qui, il ne doit jamais donner accès à l'espace propriétaire. Portée limitée à
+// un simple signalement (pas de liste des tâches existantes, pas de suppression).
+async function villaIdFromGuestToken(token: string): Promise<string> {
+  const db = getDb();
+  const [villa] = await db.select({ id: villas.id }).from(villas).where(eq(villas.lienClientToken, token)).limit(1);
+  if (!villa) throw new Error("Lien invalide.");
+  return villa.id;
+}
+
+export async function createInterventionByGuestToken(
+  token: string,
+  data: { probleme: string; attachmentUrls: string[] }
+) {
+  const villaId = await villaIdFromGuestToken(token);
+  const probleme = data.probleme.trim();
+  if (!probleme) throw new Error("Décris le problème.");
+
+  const db = getDb();
+  const [created] = await db
+    .insert(interventions)
+    .values({
+      titre: probleme,
+      probleme,
+      villaId,
+      urgence: "normale",
+      categorie: "autre",
+      attachmentUrls: data.attachmentUrls,
+      origine: "client",
+      createdByName: "Client (espace bienvenue)",
+    })
+    .returning({ id: interventions.id });
+
+  await maybeAutoDispatchMaintenance(created.id);
+
+  revalidatePath("/interventions");
+  revalidatePath("/maintenance");
+}
+
 // Corbeille sur /travaux/[token] (voir InterventionPublicCard) — Kamel, 2026-09-09 : "met moi
 // une corbeille pour supprimer certaines tache". Vérifie que la fiche appartient bien à la villa
 // du token avant de supprimer, pour qu'un token ne puisse jamais supprimer la fiche d'une autre

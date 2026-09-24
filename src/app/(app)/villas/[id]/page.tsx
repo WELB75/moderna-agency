@@ -41,6 +41,7 @@ import {
 import { VillaProprietaire } from "@/components/app/villa-proprietaire";
 import { ContactsSection } from "@/components/app/contacts-section";
 import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-button";
+import { GuestAccessButton } from "@/components/app/guest-access-button";
 import { VillaIcalUrl, VillaDirectIcalUrls } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
@@ -81,6 +82,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       proprietaireTelephone: villas.proprietaireTelephone,
       portailAuteurs: villas.portailAuteurs,
       lienProprietaireToken: villas.lienProprietaireToken,
+      lienClientToken: villas.lienClientToken,
       icalUrl: villas.icalUrl,
       airbnbIcalUrl: villas.airbnbIcalUrl,
       bookingIcalUrl: villas.bookingIcalUrl,
@@ -307,6 +309,9 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           doit jamais pouvoir montrer les occupants d'un séjour suivant. Kamel, 2026-08-20. */}
       <div className="flex flex-wrap items-center gap-2">
         <ProprietaireAccessButton villaId={villa.id} token={villa.lienProprietaireToken} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <GuestAccessButton villaId={villa.id} token={villa.lienClientToken} />
       </div>
 
       <ContactsSection

@@ -49,7 +49,20 @@ export async function POST(request: Request): Promise<NextResponse> {
           const isMaintenanceUpload = pathname.startsWith("interventions/") && Boolean(clientPayload);
           const validMaintenanceToken = isMaintenanceUpload && isValidMaintenanceToken(clientPayload as string);
 
-          if (!validTechnician && !validTravauxToken && !validMaintenanceToken) throw new Error("Non autorisé");
+          // Page d'accueil client /bienvenue/[token] : même principe que travaux/[token]
+          // ci-dessus, mais vérifié contre lienClientToken (distinct du lien propriétaire).
+          const isGuestUpload = pathname.startsWith("bienvenue/") && Boolean(clientPayload);
+          const validGuestToken =
+            isGuestUpload &&
+            (await getDb()
+              .select({ id: villas.id })
+              .from(villas)
+              .where(eq(villas.lienClientToken, clientPayload as string))
+              .limit(1)
+              .then((rows) => rows.length > 0));
+
+          if (!validTechnician && !validTravauxToken && !validMaintenanceToken && !validGuestToken)
+            throw new Error("Non autorisé");
         }
 
         return {

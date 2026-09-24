@@ -152,6 +152,10 @@ export const villas = pgTable(
     // on retombe sur [proprietaireNom, "Kamel"].
     portailAuteurs: jsonb("portail_auteurs").$type<string[]>().default([]),
     lienProprietaireToken: uuid("lien_proprietaire_token").defaultRandom().notNull(), // token du lien public /p/[token] consulté par le propriétaire
+    // Token du lien d'accueil client /bienvenue/[token], affiché en QR code dans la villa —
+    // distinct de lienProprietaireToken pour qu'un QR affiché physiquement (donc vu par
+    // n'importe qui) ne donne jamais accès à l'espace propriétaire.
+    lienClientToken: uuid("lien_client_token").defaultRandom().notNull(),
     icalUrl: text("ical_url"), // lien iCal Superhote pour synchroniser les réservations de cette villa
     // Liens iCal natifs Airbnb/Booking.com (fournis gratuitement par chaque plateforme depuis les
     // paramètres de synchronisation de l'annonce), pour se passer de tout channel manager — Kamel,
@@ -169,7 +173,10 @@ export const villas = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("villas_lien_proprietaire_token_idx").on(t.lienProprietaireToken)]
+  (t) => [
+    uniqueIndex("villas_lien_proprietaire_token_idx").on(t.lienProprietaireToken),
+    uniqueIndex("villas_lien_client_token_idx").on(t.lienClientToken),
+  ]
 );
 
 export const reservations = pgTable(
