@@ -52,7 +52,8 @@ export default async function InterventionsPage() {
     .leftJoin(domaines, eq(interventions.domaineId, domaines.id))
     .orderBy(desc(interventions.createdAt));
 
-  // Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
+  // Phase de test : Noria reste mis de côté (voir domaines-actifs.ts) ; Domaine Zaraba (Moderna 1)
+  // réactivé le 2026-09-24.
   const allInterventions = allInterventionsRaw.filter((i) => domaineEstActif(i.domaineNom));
 
   const allDomaines = filtrerDomainesActifs(await db.select().from(domaines).orderBy(asc(domaines.nom)));

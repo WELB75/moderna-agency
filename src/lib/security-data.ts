@@ -7,7 +7,9 @@ import { formatDateFr } from "@/lib/format-date";
 import { nowInMorocco } from "@/lib/now";
 import type { VillaSecurityData } from "@/components/app/villa-security-block";
 
-// Phase de test : on ne travaille que sur le Domaine Moderna II (Zaraba et Noria mis de côté).
+// Restriction propre à la Sécurité (indépendante de domaines-actifs.ts, qui lui a réactivé
+// Domaine Zaraba le 2026-09-24) : on ne gère les fiches police/gendarmerie que sur le Domaine
+// Moderna II pour l'instant.
 const DOMAINES_SECURITE = ["Domaine Moderna II"];
 
 // Tous les champs du Bulletin Individuel (voir FIELD_KEYS dans gendarmerie-i18n.ts) + signature

@@ -311,10 +311,11 @@ export async function initiateStaffRequest(reservationId: string, job: Job) {
     .limit(1);
   if (dejaDemande.length > 0) return;
 
-  // On ne gère au quotidien que le Domaine Moderna II (5 villas) pour l'instant — Noria et
-  // Zaraba sont mis de côté (voir domaines-actifs.ts). Kamel, 2026-08-06 : "envoie que des
-  // messages pour le domaine moderna 2 avec les 5 villas qu'on gere ! le reste on fait pas
-  // pour le moment (noria et zaraba)". Aucune sollicitation WhatsApp, aucune ligne créée.
+  // Historique — Kamel, 2026-08-06 : "envoie que des messages pour le domaine moderna 2 avec les
+  // 5 villas qu'on gere ! le reste on fait pas pour le moment (noria et zaraba)". Domaine Zaraba
+  // (Moderna 1) réactivé dans domaines-actifs.ts le 2026-09-24 — mais STAFF_MESSAGING_PAUSED
+  // ci-dessus bloque de toute façon toute sollicitation, sur tous les domaines, en attendant la
+  // reconfig complète.
   const [resa] = await db
     .select({ villaId: reservations.villaId, domaineNom: domaines.nom })
     .from(reservations)

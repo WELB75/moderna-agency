@@ -1,6 +1,8 @@
-// Phase de test : on ne travaille que sur le Domaine Moderna II. Domaine Zaraba et Noria
-// sont mis de côté (pas supprimés, juste masqués de l'interface) — voir demande du 2026-07-24.
-export const DOMAINES_MASQUES = ["Domaine Zaraba", "Noria"];
+// Phase de test : on ne travaille que sur le Domaine Moderna II. Domaine Zaraba (= "Moderna 1"
+// à l'oral, voir personnel-carte.tsx) a été réactivé le 2026-09-24 — Kamel : "ajoute Moderna 1
+// dans les domaines". Noria reste mis de côté (pas supprimé, juste masqué de l'interface) — voir
+// demande du 2026-07-24.
+export const DOMAINES_MASQUES = ["Noria"];
 
 export function domaineEstActif(nom: string | null | undefined): boolean {
   return !DOMAINES_MASQUES.includes(nom ?? "");
