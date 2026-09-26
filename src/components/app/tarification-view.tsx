@@ -13,10 +13,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Building2, RefreshCw, Search } from "lucide-react";
 import type { TarificationVilla } from "@/lib/pricelabs/sync";
 
-// Taxe appliquée au-dessus du prix PriceLabs pour le devis rapide — Kamel, 2026-09-26 :
-// "ça lui affiche le prix avec Pricelabs plus les 19%".
-const TAUX_TAXE = 0.19;
-
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
   const [villasTarifs, setVillasTarifs] = useState(initialVillas);
   const [search, setSearch] = useState("");
@@ -100,13 +96,16 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
   );
 }
 
-type DevisResultat =
-  | { erreur: string }
-  | { nuits: number; sousTotal: number; taxe: number; total: number };
+type DevisResultat = { erreur: string } | { nuits: number; total: number };
 
 // Sélection d'une villa → prix du jour affiché immédiatement (pas besoin d'ouvrir la fiche
-// villa) + un devis optionnel sur une plage de dates, prix PriceLabs + 19% — Kamel, 2026-09-26 :
-// besoin d'une réponse rapide pour quoter un client au téléphone.
+// villa) + un devis optionnel sur une plage de dates. Le prix PriceLabs est utilisé tel quel,
+// SANS ajouter de marge : la commission Airbnb/Booking (~19%) est déjà intégrée dedans en amont
+// par Kamel au moment de régler le prix net voulu dans PriceLabs (ex. 280€ net → 333€ affiché).
+// Rajouter 19% ici doublerait la commission — comparé à une vraie réservation Airbnb (Villa
+// Tania, 3 nuits x 333€ = 999€), c'est bien ce total brut qui correspond, pas 999 + 19%.
+// Kamel, 2026-09-26, après une capture d'écran Airbnb montrant l'écart : "je crois qu'il faut
+// les retirer".
 function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
   const [villaId, setVillaId] = useState("");
   const [debut, setDebut] = useState("");
@@ -138,9 +137,7 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
     if (manquantes > 0) return { erreur: "Période hors du calendrier de prix disponible (60 jours)." };
     if (indisponibles > 0) return { erreur: `${indisponibles} nuit(s) déjà réservée(s) sur cette période.` };
 
-    const sousTotal = nuits.reduce((s, p) => s + p, 0);
-    const taxe = sousTotal * TAUX_TAXE;
-    return { nuits: nuits.length, sousTotal, taxe, total: sousTotal + taxe };
+    return { nuits: nuits.length, total: nuits.reduce((s, p) => s + p, 0) };
   }, [villa, debut, fin]);
 
   return (
@@ -190,19 +187,9 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
           "erreur" in devis ? (
             <p className="text-sm text-destructive">{devis.erreur}</p>
           ) : (
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between text-muted-foreground">
-                <span>{devis.nuits} nuit(s), sous-total PriceLabs</span>
-                <span>{formatPrix(devis.sousTotal, villa!.currency)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>+ 19%</span>
-                <span>{formatPrix(devis.taxe, villa!.currency)}</span>
-              </div>
-              <div className="flex justify-between border-t pt-1 text-base font-semibold">
-                <span>Total</span>
-                <span>{formatPrix(devis.total, villa!.currency)}</span>
-              </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">{devis.nuits} nuit(s)</span>
+              <span className="text-base font-semibold">{formatPrix(devis.total, villa!.currency)}</span>
             </div>
           )
         ) : null}
