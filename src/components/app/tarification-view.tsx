@@ -96,7 +96,28 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
   );
 }
 
-type DevisResultat = { erreur: string } | { nuits: number; total: number };
+type DevisResultat =
+  | { statut: "invalide"; message: string }
+  | { statut: "indisponible" }
+  | { statut: "disponible"; nuits: number; total: number };
+
+// Même pastille verte/rouge que la carte du personnel (personnel-carte.tsx) — Kamel, 2026-09-26 :
+// "c'est possible aussi d'avoir quand c'est deja pris/réservé ou pas, ce sera encore plus simple".
+function DisponibiliteDot({ statut, label }: { statut: "disponible" | "indisponible" | "inconnu"; label: string }) {
+  const couleur = statut === "disponible" ? "bg-green-500" : statut === "indisponible" ? "bg-red-500" : "bg-muted-foreground/40";
+  const texte =
+    statut === "disponible"
+      ? "text-green-600 dark:text-green-400"
+      : statut === "indisponible"
+        ? "text-red-600 dark:text-red-400"
+        : "text-muted-foreground";
+  return (
+    <span className="flex items-center gap-1.5 text-sm">
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${couleur}`} />
+      <span className={texte}>{label}</span>
+    </span>
+  );
+}
 
 // Sélection d'une villa → prix du jour affiché immédiatement (pas besoin d'ouvrir la fiche
 // villa) + un devis optionnel sur une plage de dates. Le prix PriceLabs est utilisé tel quel,
@@ -123,7 +144,7 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
     if (!villa || !debut || !fin) return null;
     const debutDate = parseISO(debut);
     const finDate = parseISO(fin);
-    if (finDate <= debutDate) return { erreur: "La date de fin doit être après la date de début." };
+    if (finDate <= debutDate) return { statut: "invalide", message: "La date de fin doit être après la date de début." };
 
     const nuits: number[] = [];
     let manquantes = 0;
@@ -134,10 +155,12 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
       else if (jour.unbookable || jour.price == null) indisponibles++;
       else nuits.push(jour.price);
     }
-    if (manquantes > 0) return { erreur: "Période hors du calendrier de prix disponible (60 jours)." };
-    if (indisponibles > 0) return { erreur: `${indisponibles} nuit(s) déjà réservée(s) sur cette période.` };
+    if (manquantes > 0) return { statut: "invalide", message: "Période hors du calendrier de prix disponible (60 jours)." };
+    // Une seule nuit déjà prise suffit à rendre le séjour demandé impossible tel quel — pas la
+    // peine de détailler combien, "elle" a juste besoin de savoir si ça passe ou pas.
+    if (indisponibles > 0) return { statut: "indisponible" };
 
-    return { nuits: nuits.length, total: nuits.reduce((s, p) => s + p, 0) };
+    return { statut: "disponible", nuits: nuits.length, total: nuits.reduce((s, p) => s + p, 0) };
   }, [villa, debut, fin]);
 
   return (
@@ -173,23 +196,35 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
         </div>
 
         {villa ? (
-          <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
-            Prix ce soir —{" "}
+          <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+            <DisponibiliteDot
+              statut={!prixCeSoir ? "inconnu" : prixCeSoir.unbookable || prixCeSoir.price == null ? "indisponible" : "disponible"}
+              label={
+                !prixCeSoir
+                  ? "Pas de prix connu pour ce soir"
+                  : prixCeSoir.unbookable || prixCeSoir.price == null
+                    ? "Réservé ce soir"
+                    : "Disponible ce soir"
+              }
+            />
             {prixCeSoir && !prixCeSoir.unbookable && prixCeSoir.price != null ? (
-              <span className="font-semibold">{formatPrix(prixCeSoir.price, villa.currency)}</span>
-            ) : (
-              <span className="text-muted-foreground">indisponible ce soir</span>
-            )}
+              <span className="text-sm font-semibold">{formatPrix(prixCeSoir.price, villa.currency)}</span>
+            ) : null}
           </div>
         ) : null}
 
         {devis ? (
-          "erreur" in devis ? (
-            <p className="text-sm text-destructive">{devis.erreur}</p>
+          devis.statut === "invalide" ? (
+            <p className="text-sm text-destructive">{devis.message}</p>
+          ) : devis.statut === "indisponible" ? (
+            <DisponibiliteDot statut="indisponible" label="Déjà réservé sur cette période" />
           ) : (
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">{devis.nuits} nuit(s)</span>
-              <span className="text-base font-semibold">{formatPrix(devis.total, villa!.currency)}</span>
+            <div className="space-y-2">
+              <DisponibiliteDot statut="disponible" label="Disponible sur toute la période" />
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">{devis.nuits} nuit(s)</span>
+                <span className="text-base font-semibold">{formatPrix(devis.total, villa!.currency)}</span>
+              </div>
             </div>
           )
         ) : null}
