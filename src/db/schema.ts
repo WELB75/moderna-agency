@@ -167,6 +167,10 @@ export const villas = pgTable(
     // aujourd'hui (iCal Superhote), sans aucun effet de la synchro Beds24.
     beds24PropertyId: text("beds24_property_id"),
     beds24RoomId: text("beds24_room_id"),
+    // Identifiant de l'annonce côté PriceLabs (voir src/lib/pricelabs/), pour l'onglet
+    // Tarification — le "pms" associé (airbnb, bookingcom...) n'a pas besoin d'être stocké ici,
+    // on le retrouve en croisant avec /v1/listings à chaque synchro.
+    pricelabsListingId: text("pricelabs_listing_id"),
     photoUrl: text("photo_url"),
     galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
     superhoteListingId: text("superhote_listing_id"),
@@ -1060,3 +1064,26 @@ export const whatsappOutboundMessages = pgTable(
       .where(sql`${t.sens} = 'entrant'`),
   ]
 );
+
+// Cache serveur des prix PriceLabs (onglet Tarification) — une ligne par villa, réécrite en
+// entier à chaque synchro. Volontairement en base plutôt qu'en mémoire : l'app tourne sur des
+// fonctions serverless sans mémoire partagée entre instances, un cache en mémoire serait donc
+// relu à chaque cold start et ne respecterait pas la fenêtre de rafraîchissement voulue (1-4h) ni
+// les limites de débit PriceLabs (60/min, 1000/h). syncedAt sert aussi à afficher "mis à jour il
+// y a Xh" côté front.
+export const pricelabsPriceCache = pgTable("pricelabs_price_cache", {
+  villaId: uuid("villa_id")
+    .primaryKey()
+    .references(() => villas.id, { onDelete: "cascade" }),
+  currency: text("currency"),
+  minPrice: numeric("min_price", { precision: 10, scale: 2 }),
+  basePrice: numeric("base_price", { precision: 10, scale: 2 }),
+  maxPrice: numeric("max_price", { precision: 10, scale: 2 }),
+  // Calendrier journalier : [{ date: "YYYY-MM-DD", price: number, unbookable: boolean }]
+  days: jsonb("days").$type<{ date: string; price: number | null; unbookable: boolean }[]>().default([]).notNull(),
+  // Dernier message d'erreur PriceLabs (ex. "LISTING_NOT_PRESENT"), jamais la clé API — affiché
+  // tel quel à l'équipe pour comprendre pourquoi une villa n'a pas de prix, sans bloquer les
+  // autres villas dont la synchro a réussi.
+  lastError: text("last_error"),
+  syncedAt: timestamp("synced_at", { withTimezone: true }).defaultNow().notNull(),
+});

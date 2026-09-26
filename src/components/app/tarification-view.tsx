@@ -1,0 +1,156 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import Image from "next/image";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { fr } from "date-fns/locale";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Building2, RefreshCw, Search } from "lucide-react";
+import type { TarificationVilla } from "@/lib/pricelabs/sync";
+
+export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
+  const [villasTarifs, setVillasTarifs] = useState(initialVillas);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const villasFiltrees = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return villasTarifs;
+    return villasTarifs.filter((v) => v.nom.toLowerCase().includes(q) || v.numero.toLowerCase().includes(q));
+  }, [villasTarifs, search]);
+
+  const plusAncienneSynchro = useMemo(() => {
+    const dates = villasTarifs.map((v) => v.syncedAt).filter((d): d is string => Boolean(d));
+    if (dates.length === 0) return null;
+    return dates.reduce((oldest, d) => (new Date(d) < new Date(oldest) ? d : oldest));
+  }, [villasTarifs]);
+
+  async function actualiser() {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/tarification?refresh=1");
+      if (!res.ok) throw new Error();
+      const data = (await res.json()) as { villas: TarificationVilla[] };
+      setVillasTarifs(data.villas);
+    } catch {
+      setLoadError("Prix temporairement indisponibles, réessayez plus tard.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="relative w-full max-w-xs">
+          <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Rechercher une villa..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+        </div>
+        <div className="flex items-center gap-3">
+          {plusAncienneSynchro ? (
+            <p className="text-xs text-muted-foreground">
+              Prix mis à jour {formatDistanceToNow(parseISO(plusAncienneSynchro), { addSuffix: true, locale: fr })}
+            </p>
+          ) : null}
+          <Button variant="outline" size="sm" onClick={actualiser} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Actualiser les prix
+          </Button>
+        </div>
+      </div>
+
+      {loadError ? (
+        <Card>
+          <CardContent className="py-4 text-sm text-destructive">{loadError}</CardContent>
+        </Card>
+      ) : null}
+
+      {villasTarifs.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
+            <Building2 className="h-8 w-8" />
+            <p>Aucune villa reliée à PriceLabs pour l&apos;instant.</p>
+          </CardContent>
+        </Card>
+      ) : villasFiltrees.length === 0 ? (
+        <Card>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucune villa ne correspond à la recherche.</CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {villasFiltrees.map((v) => (
+            <VillaTarifCard key={v.id} villa={v} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VillaTarifCard({ villa }: { villa: TarificationVilla }) {
+  return (
+    <Card className="overflow-hidden py-0">
+      <CardHeader className="flex flex-row items-center gap-3 pt-6">
+        {villa.photoUrl ? (
+          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md">
+            <Image src={villa.photoUrl} alt="" fill sizes="56px" className="object-cover" />
+          </div>
+        ) : (
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-muted">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <CardTitle className="text-base">{villa.nom}</CardTitle>
+            {villa.domaineNom ? (
+              <Badge variant="outline" className="text-xs">
+                {villa.domaineNom}
+              </Badge>
+            ) : null}
+          </div>
+          <p className="text-sm text-muted-foreground">Villa n°{villa.numero}</p>
+        </div>
+        {!villa.error && (villa.minPrice != null || villa.basePrice != null || villa.maxPrice != null) ? (
+          <div className="hidden flex-wrap gap-1.5 sm:flex">
+            {villa.minPrice != null ? <Badge variant="outline">Min {formatPrix(villa.minPrice, villa.currency)}</Badge> : null}
+            {villa.basePrice != null ? <Badge variant="secondary">Base {formatPrix(villa.basePrice, villa.currency)}</Badge> : null}
+            {villa.maxPrice != null ? <Badge variant="outline">Max {formatPrix(villa.maxPrice, villa.currency)}</Badge> : null}
+          </div>
+        ) : null}
+      </CardHeader>
+      <CardContent className="pb-6">
+        {villa.error ? (
+          <p className="text-sm text-destructive">Prix temporairement indisponibles, réessayez plus tard.</p>
+        ) : villa.days.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Pas encore de calendrier de prix pour cette villa.</p>
+        ) : (
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {villa.days.map((d) => (
+              <div
+                key={d.date}
+                className={`flex w-16 shrink-0 flex-col items-center rounded-md border px-1.5 py-2 text-center ${
+                  d.unbookable ? "border-border bg-muted/50 text-muted-foreground" : "border-border"
+                }`}
+              >
+                <span className="text-[11px] text-muted-foreground capitalize">{format(parseISO(d.date), "EEE d MMM", { locale: fr })}</span>
+                <span className={`mt-1 text-sm font-medium ${d.unbookable ? "text-muted-foreground line-through" : ""}`}>
+                  {d.unbookable || d.price == null ? "—" : formatPrix(d.price, villa.currency)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function formatPrix(montant: number, currency: string | null): string {
+  return `${Math.round(montant)} ${currency ?? ""}`.trim();
+}

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Wallet, ClipboardCheck, Building2, Wrench, ListTodo, User, Users, FileText, ShieldCheck, ChefHat, MessagesSquare, Inbox, Bot, CalendarClock, CalendarPlus, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Wallet, ClipboardCheck, Building2, Wrench, ListTodo, User, Users, FileText, ShieldCheck, ChefHat, MessagesSquare, Inbox, Bot, CalendarClock, CalendarPlus, BarChart3, Tag } from "lucide-react";
 
 export const navItems = [
   { href: "/dashboard", label: "Accueil", icon: LayoutDashboard },
@@ -17,6 +17,7 @@ export const navItems = [
   { href: "/securite", label: "Sécurité", icon: ShieldCheck },
   { href: "/caisse", label: "Caisse", icon: Wallet },
   { href: "/statistiques", label: "Statistiques", icon: BarChart3 },
+  { href: "/tarification", label: "Tarification", icon: Tag },
   { href: "/proprietaires", label: "Propriétaires", icon: User },
 ] as const;
 
