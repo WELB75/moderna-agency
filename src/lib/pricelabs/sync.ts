@@ -1,6 +1,6 @@
-import { eq, inArray, isNotNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, ne } from "drizzle-orm";
 import { getDb } from "@/db";
-import { villas, domaines, pricelabsPriceCache } from "@/db/schema";
+import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
 
 const JOURS_CALENDRIER = 60;
@@ -83,22 +83,61 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
   }
 
   const freshRows = staleVillas.length > 0 ? await reloadCache(rows.map((v) => v.id)) : rows;
+  const occupeParVilla = await joursOccupesParVilla(freshRows.map((v) => v.id));
 
-  return freshRows.map((v) => ({
-    id: v.id,
-    nom: v.nom,
-    numero: v.numero,
-    type: v.type,
-    domaineNom: v.domaineNom,
-    photoUrl: v.photoUrl,
-    currency: v.cacheCurrency,
-    minPrice: v.cacheMinPrice ? Number(v.cacheMinPrice) : null,
-    basePrice: v.cacheBasePrice ? Number(v.cacheBasePrice) : null,
-    maxPrice: v.cacheMaxPrice ? Number(v.cacheMaxPrice) : null,
-    days: (v.cacheDays as TarificationVilla["days"] | null) ?? [],
-    syncedAt: v.cacheSyncedAt ? v.cacheSyncedAt.toISOString() : null,
-    error: v.cacheLastError,
-  }));
+  return freshRows.map((v) => {
+    const occupe = occupeParVilla.get(v.id);
+    const days = ((v.cacheDays as TarificationVilla["days"] | null) ?? []).map((d) => ({
+      ...d,
+      unbookable: d.unbookable || Boolean(occupe?.has(d.date)),
+    }));
+    return {
+      id: v.id,
+      nom: v.nom,
+      numero: v.numero,
+      type: v.type,
+      domaineNom: v.domaineNom,
+      photoUrl: v.photoUrl,
+      currency: v.cacheCurrency,
+      minPrice: v.cacheMinPrice ? Number(v.cacheMinPrice) : null,
+      basePrice: v.cacheBasePrice ? Number(v.cacheBasePrice) : null,
+      maxPrice: v.cacheMaxPrice ? Number(v.cacheMaxPrice) : null,
+      days,
+      syncedAt: v.cacheSyncedAt ? v.cacheSyncedAt.toISOString() : null,
+      error: v.cacheLastError,
+    };
+  });
+}
+
+// PriceLabs ne reflète que ce que SA propre connexion au canal (Airbnb...) lui a remonté, qui
+// peut avoir du retard sur une vraie réservation déjà enregistrée dans l'app (via Superhote/iCal,
+// ou saisie manuelle) — vu en pratique le 2026-09-26 : Villa Tania affichée "Disponible ce soir"
+// alors qu'un client (Youness, résa Superhote/Airbnb) y était déjà. `reservations` est la source
+// de vérité utilisée partout ailleurs dans l'app (dashboard, planning...) : on la superpose
+// toujours par-dessus le calendrier PriceLabs, même quand le prix vient du cache.
+async function joursOccupesParVilla(villaIds: string[]): Promise<Map<string, Set<string>>> {
+  const occupeParVilla = new Map<string, Set<string>>();
+  if (villaIds.length === 0) return occupeParVilla;
+
+  const db = getDb();
+  const debutFenetre = new Date();
+  debutFenetre.setUTCHours(0, 0, 0, 0);
+
+  const reservationsActives = await db
+    .select({ villaId: reservations.villaId, checkIn: reservations.checkIn, checkOut: reservations.checkOut })
+    .from(reservations)
+    .where(and(inArray(reservations.villaId, villaIds), ne(reservations.status, "annulee"), gt(reservations.checkOut, debutFenetre)));
+
+  for (const r of reservationsActives) {
+    if (!r.villaId) continue;
+    const set = occupeParVilla.get(r.villaId) ?? new Set<string>();
+    for (const cursor = new Date(r.checkIn); cursor < new Date(r.checkOut); cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+      set.add(cursor.toISOString().slice(0, 10));
+    }
+    occupeParVilla.set(r.villaId, set);
+  }
+
+  return occupeParVilla;
 }
 
 async function reloadCache(villaIds: string[]) {
