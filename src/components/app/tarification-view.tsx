@@ -51,7 +51,7 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative w-full max-w-xs">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Rechercher une villa..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
+          <Input placeholder="Rechercher un logement..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
         </div>
         <div className="flex items-center gap-3">
           {plusAncienneSynchro ? (
@@ -78,12 +78,12 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
             <Building2 className="h-8 w-8" />
-            <p>Aucune villa reliée à PriceLabs pour l&apos;instant.</p>
+            <p>Aucun logement relié à PriceLabs pour l&apos;instant.</p>
           </CardContent>
         </Card>
       ) : villasFiltrees.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucune villa ne correspond à la recherche.</CardContent>
+          <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucun logement ne correspond à la recherche.</CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -148,10 +148,10 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label>Villa</Label>
+            <Label>Logement</Label>
             <Select value={villaId} onValueChange={setVillaId}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choisir une villa" />
+                <SelectValue placeholder="Choisir un logement" />
               </SelectTrigger>
               <SelectContent>
                 {villas.map((v) => (
@@ -220,7 +220,9 @@ function VillaTarifCard({ villa }: { villa: TarificationVilla }) {
               </Badge>
             ) : null}
           </div>
-          <p className="text-sm text-muted-foreground">Villa n°{villa.numero}</p>
+          <p className="text-sm text-muted-foreground">
+            {villa.type === "appartement" ? "Appartement" : "Villa"} n°{villa.numero}
+          </p>
         </div>
         {!villa.error && (villa.minPrice != null || villa.basePrice != null || villa.maxPrice != null) ? (
           <div className="hidden flex-wrap gap-1.5 sm:flex">

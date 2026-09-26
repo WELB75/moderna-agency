@@ -1,7 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, pricelabsPriceCache } from "@/db/schema";
-import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
 
 const JOURS_CALENDRIER = 60;
@@ -24,6 +23,7 @@ export type TarificationVilla = {
   id: string;
   nom: string;
   numero: string;
+  type: "villa" | "appartement";
   domaineNom: string | null;
   photoUrl: string | null;
   currency: string | null;
@@ -42,28 +42,32 @@ export type TarificationVilla = {
 export async function getTarification(options: { force?: boolean } = {}): Promise<TarificationVilla[]> {
   const db = getDb();
 
-  const rows = (
-    await db
-      .select({
-        id: villas.id,
-        nom: villas.nom,
-        numero: villas.numero,
-        photoUrl: villas.photoUrl,
-        pricelabsListingId: villas.pricelabsListingId,
-        domaineNom: domaines.nom,
-        cacheCurrency: pricelabsPriceCache.currency,
-        cacheMinPrice: pricelabsPriceCache.minPrice,
-        cacheBasePrice: pricelabsPriceCache.basePrice,
-        cacheMaxPrice: pricelabsPriceCache.maxPrice,
-        cacheDays: pricelabsPriceCache.days,
-        cacheLastError: pricelabsPriceCache.lastError,
-        cacheSyncedAt: pricelabsPriceCache.syncedAt,
-      })
-      .from(villas)
-      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
-      .where(and(eq(villas.type, "villa")))
-  ).filter((v) => domaineEstActif(v.domaineNom) && villaEstGeree(v.nom) && v.pricelabsListingId);
+  // Villas ET appartements : toute fiche reliée à PriceLabs (pricelabsListingId renseigné)
+  // apparaît, y compris celles d'un domaine masqué ailleurs dans l'app (ex. Noria, mis de côté
+  // opérationnellement) — la tarification reste utile même pour des logements pas gérés au
+  // jour le jour. Le vrai filtre ici est le mapping PriceLabs lui-même, posé à la main par
+  // Kamel : rien ne s'affiche tant qu'il n'a pas relié la fiche.
+  const rows = await db
+    .select({
+      id: villas.id,
+      nom: villas.nom,
+      numero: villas.numero,
+      type: villas.type,
+      photoUrl: villas.photoUrl,
+      pricelabsListingId: villas.pricelabsListingId,
+      domaineNom: domaines.nom,
+      cacheCurrency: pricelabsPriceCache.currency,
+      cacheMinPrice: pricelabsPriceCache.minPrice,
+      cacheBasePrice: pricelabsPriceCache.basePrice,
+      cacheMaxPrice: pricelabsPriceCache.maxPrice,
+      cacheDays: pricelabsPriceCache.days,
+      cacheLastError: pricelabsPriceCache.lastError,
+      cacheSyncedAt: pricelabsPriceCache.syncedAt,
+    })
+    .from(villas)
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
+    .where(isNotNull(villas.pricelabsListingId));
 
   const staleVillas = rows.filter((v) => options.force || estPerimee(v.cacheSyncedAt));
 
@@ -84,6 +88,7 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
     id: v.id,
     nom: v.nom,
     numero: v.numero,
+    type: v.type,
     domaineNom: v.domaineNom,
     photoUrl: v.photoUrl,
     currency: v.cacheCurrency,
@@ -103,6 +108,7 @@ async function reloadCache(villaIds: string[]) {
       id: villas.id,
       nom: villas.nom,
       numero: villas.numero,
+      type: villas.type,
       photoUrl: villas.photoUrl,
       pricelabsListingId: villas.pricelabsListingId,
       domaineNom: domaines.nom,
