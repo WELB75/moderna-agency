@@ -2,14 +2,20 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
-import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { addDays, format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, RefreshCw, Search } from "lucide-react";
 import type { TarificationVilla } from "@/lib/pricelabs/sync";
+
+// Taxe appliquée au-dessus du prix PriceLabs pour le devis rapide — Kamel, 2026-09-26 :
+// "ça lui affiche le prix avec Pricelabs plus les 19%".
+const TAUX_TAXE = 0.19;
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
   const [villasTarifs, setVillasTarifs] = useState(initialVillas);
@@ -64,6 +70,8 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
         </div>
       </div>
 
+      <DevisRapide villas={villasTarifs} />
+
       {loadError ? (
         <Card>
           <CardContent className="py-4 text-sm text-destructive">{loadError}</CardContent>
@@ -89,6 +97,117 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
         </div>
       )}
     </div>
+  );
+}
+
+type DevisResultat =
+  | { erreur: string }
+  | { nuits: number; sousTotal: number; taxe: number; total: number };
+
+// Sélection d'une villa → prix du jour affiché immédiatement (pas besoin d'ouvrir la fiche
+// villa) + un devis optionnel sur une plage de dates, prix PriceLabs + 19% — Kamel, 2026-09-26 :
+// besoin d'une réponse rapide pour quoter un client au téléphone.
+function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
+  const [villaId, setVillaId] = useState("");
+  const [debut, setDebut] = useState("");
+  const [fin, setFin] = useState("");
+
+  const villa = villas.find((v) => v.id === villaId) ?? null;
+
+  const prixCeSoir = useMemo(() => {
+    if (!villa) return null;
+    const aujourdhui = format(new Date(), "yyyy-MM-dd");
+    return villa.days.find((d) => d.date === aujourdhui) ?? null;
+  }, [villa]);
+
+  const devis = useMemo<DevisResultat | null>(() => {
+    if (!villa || !debut || !fin) return null;
+    const debutDate = parseISO(debut);
+    const finDate = parseISO(fin);
+    if (finDate <= debutDate) return { erreur: "La date de fin doit être après la date de début." };
+
+    const nuits: number[] = [];
+    let manquantes = 0;
+    let indisponibles = 0;
+    for (let cursor = debutDate; cursor < finDate; cursor = addDays(cursor, 1)) {
+      const jour = villa.days.find((d) => d.date === format(cursor, "yyyy-MM-dd"));
+      if (!jour) manquantes++;
+      else if (jour.unbookable || jour.price == null) indisponibles++;
+      else nuits.push(jour.price);
+    }
+    if (manquantes > 0) return { erreur: "Période hors du calendrier de prix disponible (60 jours)." };
+    if (indisponibles > 0) return { erreur: `${indisponibles} nuit(s) déjà réservée(s) sur cette période.` };
+
+    const sousTotal = nuits.reduce((s, p) => s + p, 0);
+    const taxe = sousTotal * TAUX_TAXE;
+    return { nuits: nuits.length, sousTotal, taxe, total: sousTotal + taxe };
+  }, [villa, debut, fin]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Devis rapide</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label>Villa</Label>
+            <Select value={villaId} onValueChange={setVillaId}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choisir une villa" />
+              </SelectTrigger>
+              <SelectContent>
+                {villas.map((v) => (
+                  <SelectItem key={v.id} value={v.id}>
+                    {v.nom}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="devis-debut">Du</Label>
+            <Input id="devis-debut" type="date" value={debut} onChange={(e) => setDebut(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="devis-fin">Au</Label>
+            <Input id="devis-fin" type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
+          </div>
+        </div>
+
+        {villa ? (
+          <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+            Prix ce soir —{" "}
+            {prixCeSoir && !prixCeSoir.unbookable && prixCeSoir.price != null ? (
+              <span className="font-semibold">{formatPrix(prixCeSoir.price, villa.currency)}</span>
+            ) : (
+              <span className="text-muted-foreground">indisponible ce soir</span>
+            )}
+          </div>
+        ) : null}
+
+        {devis ? (
+          "erreur" in devis ? (
+            <p className="text-sm text-destructive">{devis.erreur}</p>
+          ) : (
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between text-muted-foreground">
+                <span>{devis.nuits} nuit(s), sous-total PriceLabs</span>
+                <span>{formatPrix(devis.sousTotal, villa!.currency)}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>+ 19%</span>
+                <span>{formatPrix(devis.taxe, villa!.currency)}</span>
+              </div>
+              <div className="flex justify-between border-t pt-1 text-base font-semibold">
+                <span>Total</span>
+                <span>{formatPrix(devis.total, villa!.currency)}</span>
+              </div>
+            </div>
+          )
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
