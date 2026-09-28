@@ -61,18 +61,18 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative w-full max-w-xs">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input placeholder="Rechercher un logement..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {plusAncienneSynchro ? (
             <p className="text-xs text-muted-foreground">
               Prix mis à jour {formatDistanceToNow(parseISO(plusAncienneSynchro), { addSuffix: true, locale: fr })}
             </p>
           ) : null}
-          <Button variant="outline" size="sm" onClick={actualiser} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={actualiser} disabled={loading} className="flex-1 sm:flex-none">
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Actualiser les prix
           </Button>
@@ -99,7 +99,7 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucun logement ne correspond à la recherche.</CardContent>
         </Card>
       ) : (
-        <TarificationCalendarGrid villas={villasFiltrees} onNotesUpdated={handleNotesUpdated} />
+        <TarificationCalendrier villas={villasFiltrees} onNotesUpdated={handleNotesUpdated} />
       )}
     </div>
   );
@@ -255,11 +255,15 @@ const CALENDAR_DAYS = 365;
 
 type ReservationSelectionnee = { villaId: string; villaNom: string } & TarificationReservation;
 
-// Calendrier hôte façon Airbnb : logements en lignes (colonne fixe à gauche), dates en colonnes
-// (défilement horizontal, sélecteur de mois pour sauter directement à une période), barres de
-// réservation superposées aux cellules de prix, cliquables pour un récapitulatif — Kamel,
-// 2026-09-28, captures d'écran Airbnb à l'appui.
-function TarificationCalendarGrid({
+// Point d'entrée commun aux deux mises en page (grille desktop façon Airbnb, liste de cartes en
+// mobile) : un seul état de réservation sélectionnée et un seul dialogue de récapitulatif,
+// partagés entre les deux, pour ne jamais avoir deux popups indépendants qui se désynchronisent.
+// Kamel, 2026-09-29 : "adapte au maximum aussi la version smartphone [...] faut faire la
+// meilleure version mobile du monde" — la grille large à colonnes fixes ne marche juste pas au
+// doigt sur un écran de 380px (colonne des logements qui mange tout l'écran, défilement pénible
+// avec une barre latérale figée) : plutôt qu'une version resserrée de la même grille, le mobile
+// a sa propre mise en page, une carte par logement avec sa bande de jours défilable au pouce.
+function TarificationCalendrier({
   villas,
   onNotesUpdated,
 }: {
@@ -274,6 +278,34 @@ function TarificationCalendarGrid({
     onNotesUpdated(resaSelectionnee.villaId, resaSelectionnee.id, notes);
   }
 
+  return (
+    <>
+      <div className="hidden md:block">
+        <TarificationDesktopGrid villas={villas} onSelectReservation={setResaSelectionnee} />
+      </div>
+      <div className="space-y-3 md:hidden">
+        <TarificationMobileList villas={villas} onSelectReservation={setResaSelectionnee} />
+      </div>
+      <ReservationRecapDialog
+        reservation={resaSelectionnee}
+        onOpenChange={(open) => !open && setResaSelectionnee(null)}
+        onNotesSaved={handleNotesSaved}
+      />
+    </>
+  );
+}
+
+// Calendrier hôte façon Airbnb : logements en lignes (colonne fixe à gauche), dates en colonnes
+// (défilement horizontal, sélecteur de mois pour sauter directement à une période), barres de
+// réservation superposées aux cellules de prix, cliquables pour un récapitulatif — Kamel,
+// 2026-09-28, captures d'écran Airbnb à l'appui.
+function TarificationDesktopGrid({
+  villas,
+  onSelectReservation,
+}: {
+  villas: TarificationVilla[];
+  onSelectReservation: (r: ReservationSelectionnee) => void;
+}) {
   const dateList = useMemo(() => Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(new Date(), i)), []);
   const dateStrings = useMemo(() => dateList.map((d) => format(d, "yyyy-MM-dd")), [dateList]);
   const aujourdhui = dateStrings[0];
@@ -390,18 +422,12 @@ function TarificationCalendarGrid({
               </div>
 
               {villas.map((v) => (
-                <VillaCalendarRow key={v.id} villa={v} dateStrings={dateStrings} onSelectReservation={setResaSelectionnee} />
+                <VillaCalendarRow key={v.id} villa={v} dateStrings={dateStrings} onSelectReservation={onSelectReservation} />
               ))}
             </div>
           </div>
         </div>
       </div>
-
-      <ReservationRecapDialog
-        reservation={resaSelectionnee}
-        onOpenChange={(open) => !open && setResaSelectionnee(null)}
-        onNotesSaved={handleNotesSaved}
-      />
     </Card>
   );
 }
@@ -450,7 +476,7 @@ function VillaCalendarRow({
         );
       })}
 
-      {villa.reservations.map((r, i) => {
+      {reservationsVisibles(villa.reservations, dateStrings).map((r, i) => {
         const { start, end } = barGridColumns(r, dateStrings);
         return (
           <button
@@ -470,6 +496,143 @@ function VillaCalendarRow({
       })}
     </div>
   );
+}
+
+const MOBILE_DAYS = 45;
+const MOBILE_COL_WIDTH = 58;
+const MOBILE_ROW_HEIGHT = 68;
+
+// Une carte par logement, sa propre bande de jours défilable horizontalement au pouce — plus
+// naturel au doigt qu'une grille à colonne latérale figée (voir commentaire sur
+// TarificationCalendrier). Fenêtre volontairement plus courte que le desktop (45 jours contre
+// 365) : reste rapide à faire défiler sur un téléphone, "Devis rapide" et le sélecteur de mois
+// desktop couvrent déjà le besoin de vérifier une date lointaine.
+function TarificationMobileList({
+  villas,
+  onSelectReservation,
+}: {
+  villas: TarificationVilla[];
+  onSelectReservation: (r: ReservationSelectionnee) => void;
+}) {
+  const dateStrings = useMemo(() => Array.from({ length: MOBILE_DAYS }, (_, i) => format(addDays(new Date(), i), "yyyy-MM-dd")), []);
+
+  return (
+    <>
+      {villas.map((v) => (
+        <VillaMobileCard key={v.id} villa={v} dateStrings={dateStrings} onSelectReservation={onSelectReservation} />
+      ))}
+    </>
+  );
+}
+
+function VillaMobileCard({
+  villa,
+  dateStrings,
+  onSelectReservation,
+}: {
+  villa: TarificationVilla;
+  dateStrings: string[];
+  onSelectReservation: (r: ReservationSelectionnee) => void;
+}) {
+  const aujourdhui = dateStrings[0];
+  const dayByDate = useMemo(() => new Map(villa.days.map((d) => [d.date, d])), [villa.days]);
+
+  return (
+    <Card className="overflow-hidden py-0">
+      <CardHeader className="flex flex-row items-center gap-2.5 px-3 py-2.5">
+        {villa.photoUrl ? (
+          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md">
+            <Image src={villa.photoUrl} alt="" fill sizes="36px" className="object-cover" />
+          </div>
+        ) : (
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <CardTitle className="truncate text-sm">{villa.nom}</CardTitle>
+          <p className="truncate text-xs text-muted-foreground">
+            {villa.domaineNom ? `${villa.domaineNom} · ` : ""}
+            {villa.type === "appartement" ? "Appartement" : "Villa"} n°{villa.numero}
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent className="px-0 pt-0 pb-3">
+        {villa.error ? (
+          <p className="px-(--card-spacing) text-xs text-destructive">Prix temporairement indisponibles.</p>
+        ) : (
+          <div className="overflow-x-auto overscroll-x-contain px-(--card-spacing)">
+            <div
+              className="relative grid"
+              style={{
+                height: MOBILE_ROW_HEIGHT,
+                width: MOBILE_COL_WIDTH * dateStrings.length,
+                gridTemplateColumns: `repeat(${dateStrings.length}, ${MOBILE_COL_WIDTH}px)`,
+              }}
+            >
+              {dateStrings.map((date, i) => {
+                const jour = dayByDate.get(date);
+                const bloque = !jour || jour.unbookable || jour.price == null;
+                return (
+                  <div
+                    key={date}
+                    className="flex flex-col items-center justify-center gap-0.5 rounded-md border-r text-[11px]"
+                    style={{
+                      gridColumn: i + 1,
+                      gridRow: 1,
+                      backgroundColor: bloque ? "var(--muted)" : undefined,
+                      backgroundImage: bloque
+                        ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 6px)"
+                        : undefined,
+                    }}
+                  >
+                    <span className="text-[10px] text-muted-foreground uppercase">{format(parseISO(date), "EEE", { locale: fr })}</span>
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full font-medium ${
+                        date === aujourdhui ? "bg-primary text-primary-foreground" : ""
+                      }`}
+                    >
+                      {format(parseISO(date), "d")}
+                    </span>
+                    {!bloque ? <span className="text-[10px] text-muted-foreground">{formatPrix(jour!.price!, villa.currency)}</span> : null}
+                  </div>
+                );
+              })}
+
+              {reservationsVisibles(villa.reservations, dateStrings).map((r, i) => {
+                const { start, end } = barGridColumns(r, dateStrings);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...r })}
+                    className="relative m-0.5 flex items-center rounded-md bg-primary px-1.5 text-[11px] font-medium text-primary-foreground active:bg-primary/85"
+                    style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+                  >
+                    <span className="sticky left-1.5 truncate">
+                      {r.guestName}
+                      {r.enCours ? " · En cours" : ""}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// Un séjour dont le check-in ET le check-out tombent tous les deux hors de la fenêtre affichée ne
+// doit rien dessiner du tout — sans ce filtre, barGridColumns (qui cale sur les bords quand une
+// date est introuvable) ferait apparaître à tort une barre collée au bord gauche pour une
+// réservation en réalité entièrement future. Peu visible avec les 365 jours du desktop (l'écart
+// est rare), mais systématique avec les 45 jours du mobile.
+function reservationsVisibles(reservations: TarificationReservation[], dateStrings: string[]): TarificationReservation[] {
+  const premiereDate = dateStrings[0];
+  const derniereDate = dateStrings[dateStrings.length - 1];
+  return reservations.filter((r) => r.checkIn <= derniereDate && r.checkOut > premiereDate);
 }
 
 function ReservationRecapDialog({
@@ -564,8 +727,10 @@ function ReservationRecapDialog({
 // Les lignes de grille sont 1-indexées : un séjour occupant les indices de jour [startIdx, endIdx[
 // s'étend donc de la ligne startIdx+1 à endIdx+1. Une réservation déjà en cours avant le début de
 // la fenêtre affichée (checkIn introuvable) démarre en butée gauche ; une réservation qui dépasse
-// les 60 jours en cache (checkOut introuvable) s'étend jusqu'en butée droite — comme les barres
-// coupées par le bord de l'écran sur le calendrier hôte Airbnb.
+// la fenêtre affichée (checkOut introuvable) s'étend jusqu'en butée droite — comme les barres
+// coupées par le bord de l'écran sur le calendrier hôte Airbnb. Appeler uniquement après
+// reservationsVisibles ci-dessous, sinon une réservation entièrement hors fenêtre se retrouve
+// calée à tort sur un bord.
 function barGridColumns(r: TarificationReservation, dateStrings: string[]): { start: number; end: number } {
   const startIdx = dateStrings.indexOf(r.checkIn);
   const endIdx = dateStrings.indexOf(r.checkOut);
