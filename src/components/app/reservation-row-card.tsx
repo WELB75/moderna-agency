@@ -22,6 +22,7 @@ import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/
 import type { PersonnelOption } from "@/lib/personnel-options";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
+import { EditNotesButton } from "@/components/app/edit-notes-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PlatformBadge } from "@/components/app/platform-badge";
 import { deleteReservation } from "@/lib/actions/reservations";
@@ -184,6 +185,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 ne peut pas passer de onClick directement à un élément. */}
             {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
             <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
+            <EditNotesButton reservationId={r.id} notes={r.notes} />
             {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
             {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
           </div>

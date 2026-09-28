@@ -200,6 +200,25 @@ export async function updateGuestPhone(reservationId: string, phone: string) {
   revalidatePath(`/reservations/${reservationId}`);
 }
 
+// Note libre sur la réservation (ex. "prévoir un lit bébé") — Kamel, 2026-09-28, relayant une
+// question posée en regardant le calendrier Tarification : "c'est possible d'avoir une note ?
+// pour les lit bébé etc...". Distincte de notesPaiement (qui ne concerne que le règlement).
+export async function updateReservationNotes(reservationId: string, notes: string) {
+  await auth.protect();
+  if (!reservationId) throw new Error("Réservation introuvable.");
+
+  const db = getDb();
+  await db
+    .update(reservations)
+    .set({ notes: notes.trim() || null, updatedAt: new Date() })
+    .where(eq(reservations.id, reservationId));
+
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+  revalidatePath("/tarification");
+  revalidatePath(`/reservations/${reservationId}`);
+}
+
 const CHAMP_PAR_TYPE_MESSAGE = {
   arrivee: "messageArriveeEnvoyeAt",
   bienvenue: "messageBienvenueEnvoyeAt",

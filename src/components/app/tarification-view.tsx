@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Building2, ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
+import { EditNotesButton } from "@/components/app/edit-notes-button";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
@@ -32,6 +33,16 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
     if (dates.length === 0) return null;
     return dates.reduce((oldest, d) => (new Date(d) < new Date(oldest) ? d : oldest));
   }, [villasTarifs]);
+
+  function handleNotesUpdated(villaId: string, reservationId: string, notes: string) {
+    setVillasTarifs((prev) =>
+      prev.map((v) =>
+        v.id !== villaId
+          ? v
+          : { ...v, reservations: v.reservations.map((r) => (r.id === reservationId ? { ...r, notes: notes || null } : r)) }
+      )
+    );
+  }
 
   async function actualiser() {
     setLoading(true);
@@ -88,7 +99,7 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucun logement ne correspond à la recherche.</CardContent>
         </Card>
       ) : (
-        <TarificationCalendarGrid villas={villasFiltrees} />
+        <TarificationCalendarGrid villas={villasFiltrees} onNotesUpdated={handleNotesUpdated} />
       )}
     </div>
   );
@@ -231,19 +242,37 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
   );
 }
 
-const COL_WIDTH = 72;
-const SIDEBAR_WIDTH = 224;
-const ROW_HEIGHT = 56;
+// Colonnes resserrées pour voir davantage de jours sans défiler — Kamel, 2026-09-28 : "c'est
+// possible de baisser un peu la police pour voir tout le mois ?". Un mois entier (jusqu'à 31
+// jours) tient rarement sans défiler du tout sur un écran normal en gardant les prix lisibles
+// (Airbnb lui-même ne montre qu'une poignée de jours à la fois sur sa propre capture) — mais on
+// en affiche nettement plus qu'avant, et le sélecteur de mois + les flèches restent là pour le
+// reste.
+const COL_WIDTH = 46;
+const SIDEBAR_WIDTH = 200;
+const ROW_HEIGHT = 44;
 const CALENDAR_DAYS = 365;
 
-type ReservationSelectionnee = { villaNom: string } & TarificationReservation;
+type ReservationSelectionnee = { villaId: string; villaNom: string } & TarificationReservation;
 
 // Calendrier hôte façon Airbnb : logements en lignes (colonne fixe à gauche), dates en colonnes
 // (défilement horizontal, sélecteur de mois pour sauter directement à une période), barres de
 // réservation superposées aux cellules de prix, cliquables pour un récapitulatif — Kamel,
 // 2026-09-28, captures d'écran Airbnb à l'appui.
-function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
+function TarificationCalendarGrid({
+  villas,
+  onNotesUpdated,
+}: {
+  villas: TarificationVilla[];
+  onNotesUpdated: (villaId: string, reservationId: string, notes: string) => void;
+}) {
   const [resaSelectionnee, setResaSelectionnee] = useState<ReservationSelectionnee | null>(null);
+
+  function handleNotesSaved(notes: string) {
+    if (!resaSelectionnee) return;
+    setResaSelectionnee({ ...resaSelectionnee, notes: notes || null });
+    onNotesUpdated(resaSelectionnee.villaId, resaSelectionnee.id, notes);
+  }
 
   const dateList = useMemo(() => Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(new Date(), i)), []);
   const dateStrings = useMemo(() => dateList.map((d) => format(d, "yyyy-MM-dd")), [dateList]);
@@ -297,15 +326,15 @@ function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
           {villas.map((v) => (
             <div key={v.id} className="flex items-center gap-2 border-b px-3" style={{ height: ROW_HEIGHT }}>
               {v.photoUrl ? (
-                <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded">
-                  <Image src={v.photoUrl} alt="" fill sizes="32px" className="object-cover" />
+                <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded">
+                  <Image src={v.photoUrl} alt="" fill sizes="24px" className="object-cover" />
                 </div>
               ) : (
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted">
-                  <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted">
+                  <Building2 className="h-3 w-3 text-muted-foreground" />
                 </div>
               )}
-              <span className="min-w-0 truncate text-sm font-medium">{v.nom}</span>
+              <span className="min-w-0 truncate text-xs font-medium">{v.nom}</span>
             </div>
           ))}
         </div>
@@ -334,7 +363,7 @@ function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
                 {moisGroupes.map((m) => (
                   <div
                     key={m.label}
-                    className="flex shrink-0 items-center border-r px-2 text-sm font-medium capitalize"
+                    className="flex shrink-0 items-center border-r px-2 text-xs font-medium capitalize"
                     style={{ width: COL_WIDTH * m.count }}
                   >
                     {m.label}
@@ -345,12 +374,12 @@ function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
                 {dateList.map((d, i) => (
                   <div
                     key={dateStrings[i]}
-                    className="flex shrink-0 flex-col items-center justify-center border-r text-xs"
+                    className="flex shrink-0 flex-col items-center justify-center border-r text-[10px]"
                     style={{ width: COL_WIDTH }}
                   >
                     <span className="text-muted-foreground uppercase">{format(d, "EEEEE", { locale: fr })}</span>
                     <span
-                      className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full font-medium ${
+                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full font-medium ${
                         dateStrings[i] === aujourdhui ? "bg-primary text-primary-foreground" : ""
                       }`}
                     >
@@ -368,7 +397,11 @@ function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
         </div>
       </div>
 
-      <ReservationRecapDialog reservation={resaSelectionnee} onOpenChange={(open) => !open && setResaSelectionnee(null)} />
+      <ReservationRecapDialog
+        reservation={resaSelectionnee}
+        onOpenChange={(open) => !open && setResaSelectionnee(null)}
+        onNotesSaved={handleNotesSaved}
+      />
     </Card>
   );
 }
@@ -402,7 +435,7 @@ function VillaCalendarRow({
         return (
           <div
             key={date}
-            className="flex items-start justify-end border-r px-1.5 py-1 text-xs"
+            className="flex items-start justify-end border-r px-1 py-0.5 text-[10px]"
             style={{
               gridColumn: i + 1,
               gridRow: 1,
@@ -423,11 +456,11 @@ function VillaCalendarRow({
           <button
             key={i}
             type="button"
-            onClick={() => onSelectReservation({ villaNom: villa.nom, ...r })}
-            className="relative m-1 flex items-center rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/85"
+            onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...r })}
+            className="relative m-0.5 flex items-center rounded-md bg-primary px-1.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/85"
             style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
           >
-            <span className="sticky left-2 truncate">
+            <span className="sticky left-1.5 truncate">
               {r.guestName}
               {r.montant != null ? ` ${formatMontant(r.montant, r.devise)}` : ""}
               {r.enCours ? " · Séjour en cours" : ""}
@@ -442,9 +475,11 @@ function VillaCalendarRow({
 function ReservationRecapDialog({
   reservation,
   onOpenChange,
+  onNotesSaved,
 }: {
   reservation: ReservationSelectionnee | null;
   onOpenChange: (open: boolean) => void;
+  onNotesSaved: (notes: string) => void;
 }) {
   const nuits = reservation ? differenceInCalendarDays(parseISO(reservation.checkOut), parseISO(reservation.checkIn)) : 0;
 
@@ -504,6 +539,17 @@ function ReservationRecapDialog({
                   <PhoneLink phone={reservation.guestPhone} />
                 </div>
               ) : null}
+              <div className="flex items-start justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Note</span>
+                {reservation.notes ? (
+                  <span className="flex items-start gap-1.5 text-right font-medium">
+                    {reservation.notes}
+                    <EditNotesButton reservationId={reservation.id} notes={reservation.notes} onSaved={onNotesSaved} />
+                  </span>
+                ) : (
+                  <EditNotesButton reservationId={reservation.id} notes={null} variant="add" onSaved={onNotesSaved} />
+                )}
+              </div>
             </div>
             <Button asChild className="w-full">
               <Link href={`/reservations/${reservation.id}`}>Voir la réservation complète</Link>

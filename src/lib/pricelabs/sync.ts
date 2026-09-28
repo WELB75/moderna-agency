@@ -34,6 +34,7 @@ export type TarificationReservation = {
   montantPaye: number | null;
   devise: string;
   canal: string | null;
+  notes: string | null;
   enCours: boolean; // aujourd'hui tombe dans [checkIn, checkOut)
 };
 
@@ -169,6 +170,7 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       montantPaye: reservations.montantPaye,
       devisePaiement: reservations.devisePaiement,
       canal: reservations.canal,
+      notes: reservations.notes,
     })
     .from(reservations)
     .where(
@@ -196,6 +198,7 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       montantPaye: r.montantPaye ? Number(r.montantPaye) : null,
       devise: r.devisePaiement,
       canal: r.canal,
+      notes: r.notes,
       enCours: checkIn <= aujourdhui && aujourdhui < checkOut,
     });
     parVilla.set(r.villaId, list);
