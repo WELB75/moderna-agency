@@ -15,13 +15,17 @@ export function useSetPersonnelTab(): (value: string) => void {
   return setTab;
 }
 
-// Onglet mémorisé dans l'URL (?onglet=...) pour qu'un rafraîchissement de page (F5) reste sur
-// le même onglet au lieu de revenir sur "Équipe" par défaut.
+// Onglet mémorisé dans l'URL (?onglet=... par défaut) pour qu'un rafraîchissement de page (F5)
+// reste sur le même onglet au lieu de revenir sur "Équipe" par défaut. paramName permet d'avoir
+// plusieurs niveaux d'onglets sur une même page sans collision (ex. /chat : ?section= pour le
+// niveau Interne/Boîte de réception/Agent IA, ?onglet= pour les sous-onglets propres à chacun).
 export function PersonnelTabs({
   defaultTab,
+  paramName = "onglet",
   children,
 }: {
   defaultTab: string;
+  paramName?: string;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -30,7 +34,7 @@ export function PersonnelTabs({
 
   function handleChange(nextValue: string) {
     setValue(nextValue);
-    router.replace(`${pathname}?onglet=${nextValue}`, { scroll: false });
+    router.replace(`${pathname}?${paramName}=${nextValue}`, { scroll: false });
   }
 
   return (

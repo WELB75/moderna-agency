@@ -555,7 +555,7 @@ function buildWeeks(villa: TarificationVilla): (string | null)[][] {
   return semaines;
 }
 
-const MOBILE_WEEK_ROW_HEIGHT = 56;
+const MOBILE_WEEK_ROW_HEIGHT = 60;
 
 function VillaMonthCalendar({
   villa,
@@ -621,12 +621,18 @@ function VillaMonthCalendar({
               );
             })}
 
+            {/* Volontairement pas toute la hauteur de la case : le numéro du jour (en haut,
+                rendu juste au-dessus dans la grille des jours) doit rester visible quoi qu'il
+                arrive — Kamel, 2026-09-29, en voyant la barre couvrir le numéro : "laisse les
+                jours apparaitre [...] donc la bande violete reduis la comme ça on voit toujours
+                les jours aussi quoiqu'il arrive". La barre ne prend que le bas de la case, là où
+                le prix se serait affiché pour un jour libre. */}
             {bargsForWeek(semaine, villa.reservations).map(({ start, end, arrondiGauche, arrondiDroite, reservation }) => (
               <button
                 key={reservation.id}
                 type="button"
                 onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...reservation })}
-                className={`relative my-1.5 flex items-center bg-primary px-2 text-xs font-medium text-primary-foreground active:bg-primary/85 ${
+                className={`relative mb-1 flex h-5 items-center self-end bg-primary px-2 text-[11px] font-medium text-primary-foreground active:bg-primary/85 ${
                   arrondiGauche ? "rounded-l-full ml-1" : ""
                 } ${arrondiDroite ? "rounded-r-full mr-1" : ""}`}
                 style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
