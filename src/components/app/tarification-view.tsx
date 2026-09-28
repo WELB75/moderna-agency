@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -498,15 +498,11 @@ function VillaCalendarRow({
   );
 }
 
-const MOBILE_DAYS = 45;
-const MOBILE_COL_WIDTH = 58;
-const MOBILE_ROW_HEIGHT = 68;
-
-// Une carte par logement, sa propre bande de jours défilable horizontalement au pouce — plus
-// naturel au doigt qu'une grille à colonne latérale figée (voir commentaire sur
-// TarificationCalendrier). Fenêtre volontairement plus courte que le desktop (45 jours contre
-// 365) : reste rapide à faire défiler sur un téléphone, "Devis rapide" et le sélecteur de mois
-// desktop couvrent déjà le besoin de vérifier une date lointaine.
+// Vue mois façon appli Airbnb (calendrier d'une seule annonce, semaines en lignes de 7 jours,
+// nom du mois qui reste affiché pendant qu'on descend) plutôt qu'une bande de jours par logement
+// — Kamel, après capture d'écran de l'appli Airbnb : "la version mobile je veux comme airbnb, vue
+// au mois directement". Un sélecteur choisit le logement affiché (comme Airbnb, une annonce à la
+// fois), le calendrier suit en dessous.
 function TarificationMobileList({
   villas,
   onSelectReservation,
@@ -514,114 +510,186 @@ function TarificationMobileList({
   villas: TarificationVilla[];
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
-  const dateStrings = useMemo(() => Array.from({ length: MOBILE_DAYS }, (_, i) => format(addDays(new Date(), i), "yyyy-MM-dd")), []);
+  const [villaId, setVillaId] = useState(villas[0]?.id ?? "");
+  const villa = villas.find((v) => v.id === villaId) ?? villas[0] ?? null;
+  if (!villa) return null;
 
   return (
-    <>
-      {villas.map((v) => (
-        <VillaMobileCard key={v.id} villa={v} dateStrings={dateStrings} onSelectReservation={onSelectReservation} />
-      ))}
-    </>
+    <div className="space-y-3">
+      <Select value={villa.id} onValueChange={setVillaId}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {villas.map((v) => (
+            <SelectItem key={v.id} value={v.id}>
+              {v.nom}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <VillaMonthCalendar villa={villa} onSelectReservation={onSelectReservation} />
+    </div>
   );
 }
 
-function VillaMobileCard({
+// Semaines lundi→dimanche (convention française, comme sur la capture Airbnb "L M M J V S D") :
+// les jours avant aujourd'hui ou après la fin du calendrier de prix chargé (villa.days) restent
+// des cases vides plutôt que d'inventer une date sans prix.
+function buildWeeks(villa: TarificationVilla): (string | null)[][] {
+  if (villa.days.length === 0) return [];
+  const premiereDate = villa.days[0].date;
+  const derniereDate = villa.days[villa.days.length - 1].date;
+  const lundi = startOfWeek(parseISO(premiereDate), { weekStartsOn: 1 });
+  const fin = parseISO(derniereDate);
+
+  const semaines: (string | null)[][] = [];
+  for (let cursor = lundi; cursor <= fin; cursor = addDays(cursor, 7)) {
+    const semaine: (string | null)[] = [];
+    for (let i = 0; i < 7; i++) {
+      const iso = format(addDays(cursor, i), "yyyy-MM-dd");
+      semaine.push(iso >= premiereDate && iso <= derniereDate ? iso : null);
+    }
+    semaines.push(semaine);
+  }
+  return semaines;
+}
+
+const MOBILE_WEEK_ROW_HEIGHT = 56;
+
+function VillaMonthCalendar({
   villa,
-  dateStrings,
   onSelectReservation,
 }: {
   villa: TarificationVilla;
-  dateStrings: string[];
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
-  const aujourdhui = dateStrings[0];
+  const semaines = useMemo(() => semainesAvecMois(buildWeeks(villa)), [villa]);
   const dayByDate = useMemo(() => new Map(villa.days.map((d) => [d.date, d])), [villa.days]);
+  const aujourdhui = villa.days[0]?.date;
+
+  if (villa.error) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-center text-sm text-destructive">Prix temporairement indisponibles, réessayez plus tard.</CardContent>
+      </Card>
+    );
+  }
 
   return (
-    <Card className="overflow-hidden py-0">
-      <CardHeader className="flex flex-row items-center gap-2.5 px-3 py-2.5">
-        {villa.photoUrl ? (
-          <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md">
-            <Image src={villa.photoUrl} alt="" fill sizes="36px" className="object-cover" />
+    <div className="space-y-0 overflow-hidden rounded-2xl border">
+      <div className="sticky top-0 z-10 grid grid-cols-7 border-b bg-background text-center text-[11px] font-medium text-muted-foreground">
+        {["L", "M", "M", "J", "V", "S", "D"].map((jour, i) => (
+          <div key={i} className="py-1.5">
+            {jour}
           </div>
-        ) : (
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <CardTitle className="truncate text-sm">{villa.nom}</CardTitle>
-          <p className="truncate text-xs text-muted-foreground">
-            {villa.domaineNom ? `${villa.domaineNom} · ` : ""}
-            {villa.type === "appartement" ? "Appartement" : "Villa"} n°{villa.numero}
-          </p>
-        </div>
-      </CardHeader>
-      <CardContent className="px-0 pt-0 pb-3">
-        {villa.error ? (
-          <p className="px-(--card-spacing) text-xs text-destructive">Prix temporairement indisponibles.</p>
-        ) : (
-          <div className="overflow-x-auto overscroll-x-contain px-(--card-spacing)">
-            <div
-              className="relative grid"
-              style={{
-                height: MOBILE_ROW_HEIGHT,
-                width: MOBILE_COL_WIDTH * dateStrings.length,
-                gridTemplateColumns: `repeat(${dateStrings.length}, ${MOBILE_COL_WIDTH}px)`,
-              }}
-            >
-              {dateStrings.map((date, i) => {
-                const jour = dayByDate.get(date);
-                const bloque = !jour || jour.unbookable || jour.price == null;
-                return (
-                  <div
-                    key={date}
-                    className="flex flex-col items-center justify-center gap-0.5 rounded-md border-r text-[11px]"
-                    style={{
-                      gridColumn: i + 1,
-                      gridRow: 1,
-                      backgroundColor: bloque ? "var(--muted)" : undefined,
-                      backgroundImage: bloque
-                        ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 6px)"
-                        : undefined,
-                    }}
-                  >
-                    <span className="text-[10px] text-muted-foreground uppercase">{format(parseISO(date), "EEE", { locale: fr })}</span>
-                    <span
-                      className={`flex h-5 w-5 items-center justify-center rounded-full font-medium ${
-                        date === aujourdhui ? "bg-primary text-primary-foreground" : ""
-                      }`}
-                    >
-                      {format(parseISO(date), "d")}
-                    </span>
-                    {!bloque ? <span className="text-[10px] text-muted-foreground">{formatPrix(jour!.price!, villa.currency)}</span> : null}
-                  </div>
-                );
-              })}
+        ))}
+      </div>
 
-              {reservationsVisibles(villa.reservations, dateStrings).map((r, i) => {
-                const { start, end } = barGridColumns(r, dateStrings);
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...r })}
-                    className="relative m-0.5 flex items-center rounded-md bg-primary px-1.5 text-[11px] font-medium text-primary-foreground active:bg-primary/85"
-                    style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+      {semaines.map(({ semaine, moisLabel }, semaineIdx) => (
+        <div key={semaineIdx}>
+          {moisLabel ? (
+            <div className="sticky top-[29px] z-10 border-b bg-background px-3 py-2 text-lg font-semibold capitalize">{moisLabel}</div>
+          ) : null}
+          <div className="relative grid grid-cols-7 border-b" style={{ gridAutoRows: MOBILE_WEEK_ROW_HEIGHT }}>
+            {semaine.map((date, i) => {
+              if (!date) return <div key={i} className="border-r last:border-r-0" style={{ gridColumn: i + 1, gridRow: 1 }} />;
+              const jour = dayByDate.get(date);
+              const bloque = !jour || jour.unbookable || jour.price == null;
+              return (
+                <div
+                  key={date}
+                  className="flex flex-col items-center gap-1 border-r pt-1.5 text-xs last:border-r-0"
+                  style={{
+                    gridColumn: i + 1,
+                    gridRow: 1,
+                    backgroundColor: bloque ? "var(--muted)" : undefined,
+                    backgroundImage: bloque
+                      ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 6px)"
+                      : undefined,
+                  }}
+                >
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full font-medium ${
+                      date === aujourdhui ? "bg-primary text-primary-foreground" : ""
+                    }`}
                   >
-                    <span className="sticky left-1.5 truncate">
-                      {r.guestName}
-                      {r.enCours ? " · En cours" : ""}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+                    {format(parseISO(date), "d")}
+                  </span>
+                  {!bloque ? <span className="text-[11px] text-muted-foreground">{formatPrix(jour!.price!, villa.currency)}</span> : null}
+                </div>
+              );
+            })}
+
+            {bargsForWeek(semaine, villa.reservations).map(({ start, end, arrondiGauche, arrondiDroite, reservation }) => (
+              <button
+                key={reservation.id}
+                type="button"
+                onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...reservation })}
+                className={`relative my-1.5 flex items-center bg-primary px-2 text-xs font-medium text-primary-foreground active:bg-primary/85 ${
+                  arrondiGauche ? "rounded-l-full ml-1" : ""
+                } ${arrondiDroite ? "rounded-r-full mr-1" : ""}`}
+                style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+              >
+                <span className="sticky left-2 truncate">
+                  {reservation.guestName}
+                  {reservation.enCours ? " · En cours" : ""}
+                </span>
+              </button>
+            ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      ))}
+    </div>
   );
+}
+
+// Regroupe les semaines avec, pour chacune, le nom du mois à afficher juste au-dessus si elle
+// est la première à contenir un jour de ce mois-là (null sinon) — calculé une fois en dehors du
+// rendu plutôt qu'avec une variable mutée pendant le .map() de la JSX (le linter React interdit
+// cette réassignation "impure" pendant le rendu).
+function semainesAvecMois(semaines: (string | null)[][]): { semaine: (string | null)[]; moisLabel: string | null }[] {
+  let dernierMoisAffiche = "";
+  return semaines.map((semaine) => {
+    const premierJourReel = semaine.find((d): d is string => d !== null);
+    const moisLabel = premierJourReel ? format(parseISO(premierJourReel), "MMMM yyyy", { locale: fr }) : null;
+    const nouveauMois = moisLabel !== null && moisLabel !== dernierMoisAffiche;
+    if (moisLabel) dernierMoisAffiche = moisLabel;
+    return { semaine, moisLabel: nouveauMois ? moisLabel : null };
+  });
+}
+
+// Un séjour peut chevaucher plusieurs semaines : chaque ligne de semaine ne dessine que le
+// segment de la barre qui tombe dans ses 7 jours, avec un bord arrondi seulement du côté où le
+// séjour commence/finit réellement cette semaine-là (sinon coin carré, pour que le regard
+// comprenne que ça continue sur la semaine suivante) — même logique que barGridColumns/
+// reservationsVisibles pour le desktop, adaptée à une semaine de 7 colonnes au lieu de toute la
+// fenêtre affichée.
+function bargsForWeek(
+  semaine: (string | null)[],
+  reservations: TarificationReservation[]
+): { start: number; end: number; arrondiGauche: boolean; arrondiDroite: boolean; reservation: TarificationReservation }[] {
+  const resultats: { start: number; end: number; arrondiGauche: boolean; arrondiDroite: boolean; reservation: TarificationReservation }[] = [];
+  for (const r of reservations) {
+    let startIdx = -1;
+    let endIdx = -1;
+    for (let i = 0; i < 7; i++) {
+      const d = semaine[i];
+      if (d && d >= r.checkIn && d < r.checkOut) {
+        if (startIdx === -1) startIdx = i;
+        endIdx = i;
+      }
+    }
+    if (startIdx === -1) continue;
+    resultats.push({
+      start: startIdx + 1,
+      end: endIdx + 2,
+      arrondiGauche: semaine[startIdx] === r.checkIn,
+      arrondiDroite: format(addDays(parseISO(semaine[endIdx]!), 1), "yyyy-MM-dd") === r.checkOut,
+      reservation: r,
+    });
+  }
+  return resultats;
 }
 
 // Un séjour dont le check-in ET le check-out tombent tous les deux hors de la fenêtre affichée ne
