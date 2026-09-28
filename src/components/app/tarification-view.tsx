@@ -2,14 +2,17 @@
 
 import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { addDays, format, formatDistanceToNow, parseISO } from "date-fns";
+import Link from "next/link";
+import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Building2, ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
+import { PhoneLink } from "@/components/app/phone-link";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
@@ -150,7 +153,7 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
       else if (jour.unbookable || jour.price == null) indisponibles++;
       else nuits.push(jour.price);
     }
-    if (manquantes > 0) return { statut: "invalide", message: "Période hors du calendrier de prix disponible (60 jours)." };
+    if (manquantes > 0) return { statut: "invalide", message: "Période hors du calendrier de prix disponible (1 an)." };
     // Une seule nuit déjà prise suffit à rendre le séjour demandé impossible tel quel — pas la
     // peine de détailler combien, "elle" a juste besoin de savoir si ça passe ou pas.
     if (indisponibles > 0) return { statut: "indisponible" };
@@ -231,24 +234,29 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
 const COL_WIDTH = 72;
 const SIDEBAR_WIDTH = 224;
 const ROW_HEIGHT = 56;
-const CALENDAR_DAYS = 60;
+const CALENDAR_DAYS = 365;
+
+type ReservationSelectionnee = { villaNom: string } & TarificationReservation;
 
 // Calendrier hôte façon Airbnb : logements en lignes (colonne fixe à gauche), dates en colonnes
-// (défilement horizontal), barres de réservation superposées aux cellules de prix — Kamel,
-// 2026-09-28, capture d'écran Airbnb à l'appui : "je veux avoir la meme vue que airbnb".
+// (défilement horizontal, sélecteur de mois pour sauter directement à une période), barres de
+// réservation superposées aux cellules de prix, cliquables pour un récapitulatif — Kamel,
+// 2026-09-28, captures d'écran Airbnb à l'appui.
 function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
+  const [resaSelectionnee, setResaSelectionnee] = useState<ReservationSelectionnee | null>(null);
+
   const dateList = useMemo(() => Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(new Date(), i)), []);
   const dateStrings = useMemo(() => dateList.map((d) => format(d, "yyyy-MM-dd")), [dateList]);
   const aujourdhui = dateStrings[0];
 
   const moisGroupes = useMemo(() => {
-    const groupes: { label: string; count: number }[] = [];
-    for (const d of dateList) {
+    const groupes: { label: string; count: number; startIndex: number }[] = [];
+    dateList.forEach((d, i) => {
       const label = format(d, "MMMM yyyy", { locale: fr });
       const dernier = groupes[groupes.length - 1];
       if (dernier && dernier.label === label) dernier.count++;
-      else groupes.push({ label, count: 1 });
-    }
+      else groupes.push({ label, count: 1, startIndex: i });
+    });
     return groupes;
   }, [dateList]);
 
@@ -256,9 +264,31 @@ function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
   function scroll(delta: number) {
     scrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
   }
+  function allerAuMois(label: string) {
+    const mois = moisGroupes.find((m) => m.label === label);
+    if (mois) scrollRef.current?.scrollTo({ left: mois.startIndex * COL_WIDTH, behavior: "smooth" });
+  }
 
   return (
     <Card className="overflow-hidden py-0">
+      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+        <Select onValueChange={allerAuMois}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Aller à un mois..." />
+          </SelectTrigger>
+          <SelectContent>
+            {moisGroupes.map((m) => (
+              <SelectItem key={m.label} value={m.label} className="capitalize">
+                {m.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={() => scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
+          Aujourd&apos;hui
+        </Button>
+      </div>
+
       <div className="flex">
         <div className="shrink-0 border-r" style={{ width: SIDEBAR_WIDTH }}>
           <div className="flex items-center border-b px-3 text-sm font-medium text-muted-foreground" style={{ height: ROW_HEIGHT * 2 }}>
@@ -331,17 +361,27 @@ function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
               </div>
 
               {villas.map((v) => (
-                <VillaCalendarRow key={v.id} villa={v} dateStrings={dateStrings} />
+                <VillaCalendarRow key={v.id} villa={v} dateStrings={dateStrings} onSelectReservation={setResaSelectionnee} />
               ))}
             </div>
           </div>
         </div>
       </div>
+
+      <ReservationRecapDialog reservation={resaSelectionnee} onOpenChange={(open) => !open && setResaSelectionnee(null)} />
     </Card>
   );
 }
 
-function VillaCalendarRow({ villa, dateStrings }: { villa: TarificationVilla; dateStrings: string[] }) {
+function VillaCalendarRow({
+  villa,
+  dateStrings,
+  onSelectReservation,
+}: {
+  villa: TarificationVilla;
+  dateStrings: string[];
+  onSelectReservation: (r: ReservationSelectionnee) => void;
+}) {
   const largeurTotale = COL_WIDTH * dateStrings.length;
 
   if (villa.error) {
@@ -380,9 +420,11 @@ function VillaCalendarRow({ villa, dateStrings }: { villa: TarificationVilla; da
       {villa.reservations.map((r, i) => {
         const { start, end } = barGridColumns(r, dateStrings);
         return (
-          <div
+          <button
             key={i}
-            className="relative m-1 flex items-center rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground"
+            type="button"
+            onClick={() => onSelectReservation({ villaNom: villa.nom, ...r })}
+            className="relative m-1 flex items-center rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/85"
             style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
           >
             <span className="sticky left-2 truncate">
@@ -390,10 +432,86 @@ function VillaCalendarRow({ villa, dateStrings }: { villa: TarificationVilla; da
               {r.montant != null ? ` ${formatMontant(r.montant, r.devise)}` : ""}
               {r.enCours ? " · Séjour en cours" : ""}
             </span>
-          </div>
+          </button>
         );
       })}
     </div>
+  );
+}
+
+function ReservationRecapDialog({
+  reservation,
+  onOpenChange,
+}: {
+  reservation: ReservationSelectionnee | null;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const nuits = reservation ? differenceInCalendarDays(parseISO(reservation.checkOut), parseISO(reservation.checkIn)) : 0;
+
+  return (
+    <Dialog open={reservation !== null} onOpenChange={onOpenChange}>
+      <DialogContent>
+        {reservation ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{reservation.guestName}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Logement</span>
+                <span className="font-medium">{reservation.villaNom}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Séjour</span>
+                <span className="font-medium">
+                  {format(parseISO(reservation.checkIn), "d MMM yyyy", { locale: fr })} →{" "}
+                  {format(parseISO(reservation.checkOut), "d MMM yyyy", { locale: fr })} ({nuits} nuit{nuits > 1 ? "s" : ""})
+                </span>
+              </div>
+              {reservation.enCours ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Statut</span>
+                  <span className="font-medium text-green-600 dark:text-green-400">Séjour en cours</span>
+                </div>
+              ) : null}
+              {reservation.guestsCount != null ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Voyageurs</span>
+                  <span className="font-medium">{reservation.guestsCount}</span>
+                </div>
+              ) : null}
+              {reservation.canal ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Canal</span>
+                  <span className="font-medium">{reservation.canal}</span>
+                </div>
+              ) : null}
+              {reservation.montant != null ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Montant total</span>
+                  <span className="font-medium">{formatMontant(reservation.montant, reservation.devise)}</span>
+                </div>
+              ) : null}
+              {reservation.montantPaye != null ? (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Déjà payé</span>
+                  <span className="font-medium">{formatMontant(reservation.montantPaye, reservation.devise)}</span>
+                </div>
+              ) : null}
+              {reservation.guestPhone ? (
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Téléphone</span>
+                  <PhoneLink phone={reservation.guestPhone} />
+                </div>
+              ) : null}
+            </div>
+            <Button asChild className="w-full">
+              <Link href={`/reservations/${reservation.id}`}>Voir la réservation complète</Link>
+            </Button>
+          </>
+        ) : null}
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -3,7 +3,11 @@ import { getDb } from "@/db";
 import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
 
-const JOURS_CALENDRIER = 60;
+// PriceLabs calcule des prix fiables sur un an complet (vérifié : 365/365 jours non-null pour
+// Villa Tania le 2026-09-28), donc l'onglet Tarification peut proposer un vrai sélecteur de mois
+// façon Airbnb (juillet 2026 → octobre 2027 sur la capture de référence) plutôt que se limiter
+// aux ~2 mois d'une fenêtre de 60 jours.
+const JOURS_CALENDRIER = 365;
 
 function ttlMs(): number {
   const heures = Number(process.env.PRICELABS_CACHE_TTL_HOURS) || 2;
@@ -20,11 +24,16 @@ function dateISO(d: Date): string {
 }
 
 export type TarificationReservation = {
+  id: string;
   guestName: string;
+  guestPhone: string | null;
+  guestsCount: number | null;
   checkIn: string; // YYYY-MM-DD
   checkOut: string; // YYYY-MM-DD
   montant: number | null;
+  montantPaye: number | null;
   devise: string;
+  canal: string | null;
   enCours: boolean; // aujourd'hui tombe dans [checkIn, checkOut)
 };
 
@@ -149,12 +158,17 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
 
   const rows = await db
     .select({
+      id: reservations.id,
       villaId: reservations.villaId,
       guestName: reservations.guestName,
+      guestPhone: reservations.guestPhone,
+      guestsCount: reservations.guestsCount,
       checkIn: reservations.checkIn,
       checkOut: reservations.checkOut,
       loyerTotal: reservations.loyerTotal,
+      montantPaye: reservations.montantPaye,
       devisePaiement: reservations.devisePaiement,
+      canal: reservations.canal,
     })
     .from(reservations)
     .where(
@@ -172,11 +186,16 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
     const checkOut = dateISO(new Date(r.checkOut));
     const list = parVilla.get(r.villaId) ?? [];
     list.push({
+      id: r.id,
       guestName: r.guestName,
+      guestPhone: r.guestPhone,
+      guestsCount: r.guestsCount,
       checkIn,
       checkOut,
       montant: r.loyerTotal ? Number(r.loyerTotal) : null,
+      montantPaye: r.montantPaye ? Number(r.montantPaye) : null,
       devise: r.devisePaiement,
+      canal: r.canal,
       enCours: checkIn <= aujourdhui && aujourdhui < checkOut,
     });
     parVilla.set(r.villaId, list);
