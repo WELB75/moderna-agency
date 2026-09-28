@@ -1,17 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { addDays, format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Building2, RefreshCw, Search } from "lucide-react";
-import type { TarificationVilla } from "@/lib/pricelabs/sync";
+import { Building2, ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
+import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
   const [villasTarifs, setVillasTarifs] = useState(initialVillas);
@@ -86,11 +85,7 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucun logement ne correspond à la recherche.</CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {villasFiltrees.map((v) => (
-            <VillaTarifCard key={v.id} villa={v} />
-          ))}
-        </div>
+        <TarificationCalendarGrid villas={villasFiltrees} />
       )}
     </div>
   );
@@ -233,67 +228,200 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
   );
 }
 
-function VillaTarifCard({ villa }: { villa: TarificationVilla }) {
+const COL_WIDTH = 72;
+const SIDEBAR_WIDTH = 224;
+const ROW_HEIGHT = 56;
+const CALENDAR_DAYS = 60;
+
+// Calendrier hôte façon Airbnb : logements en lignes (colonne fixe à gauche), dates en colonnes
+// (défilement horizontal), barres de réservation superposées aux cellules de prix — Kamel,
+// 2026-09-28, capture d'écran Airbnb à l'appui : "je veux avoir la meme vue que airbnb".
+function TarificationCalendarGrid({ villas }: { villas: TarificationVilla[] }) {
+  const dateList = useMemo(() => Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(new Date(), i)), []);
+  const dateStrings = useMemo(() => dateList.map((d) => format(d, "yyyy-MM-dd")), [dateList]);
+  const aujourdhui = dateStrings[0];
+
+  const moisGroupes = useMemo(() => {
+    const groupes: { label: string; count: number }[] = [];
+    for (const d of dateList) {
+      const label = format(d, "MMMM yyyy", { locale: fr });
+      const dernier = groupes[groupes.length - 1];
+      if (dernier && dernier.label === label) dernier.count++;
+      else groupes.push({ label, count: 1 });
+    }
+    return groupes;
+  }, [dateList]);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  function scroll(delta: number) {
+    scrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
+  }
+
   return (
     <Card className="overflow-hidden py-0">
-      <CardHeader className="flex flex-row items-center gap-3 pt-6">
-        {villa.photoUrl ? (
-          <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-md">
-            <Image src={villa.photoUrl} alt="" fill sizes="56px" className="object-cover" />
+      <div className="flex">
+        <div className="shrink-0 border-r" style={{ width: SIDEBAR_WIDTH }}>
+          <div className="flex items-center border-b px-3 text-sm font-medium text-muted-foreground" style={{ height: ROW_HEIGHT * 2 }}>
+            {villas.length} logement{villas.length > 1 ? "s" : ""}
           </div>
-        ) : (
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-muted">
-            <Building2 className="h-5 w-5 text-muted-foreground" />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle className="text-base">{villa.nom}</CardTitle>
-            {villa.domaineNom ? (
-              <Badge variant="outline" className="text-xs">
-                {villa.domaineNom}
-              </Badge>
-            ) : null}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {villa.type === "appartement" ? "Appartement" : "Villa"} n°{villa.numero}
-          </p>
+          {villas.map((v) => (
+            <div key={v.id} className="flex items-center gap-2 border-b px-3" style={{ height: ROW_HEIGHT }}>
+              {v.photoUrl ? (
+                <div className="relative h-8 w-8 shrink-0 overflow-hidden rounded">
+                  <Image src={v.photoUrl} alt="" fill sizes="32px" className="object-cover" />
+                </div>
+              ) : (
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded bg-muted">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </div>
+              )}
+              <span className="min-w-0 truncate text-sm font-medium">{v.nom}</span>
+            </div>
+          ))}
         </div>
-        {!villa.error && (villa.minPrice != null || villa.basePrice != null || villa.maxPrice != null) ? (
-          <div className="hidden flex-wrap gap-1.5 sm:flex">
-            {villa.minPrice != null ? <Badge variant="outline">Min {formatPrix(villa.minPrice, villa.currency)}</Badge> : null}
-            {villa.basePrice != null ? <Badge variant="secondary">Base {formatPrix(villa.basePrice, villa.currency)}</Badge> : null}
-            {villa.maxPrice != null ? <Badge variant="outline">Max {formatPrix(villa.maxPrice, villa.currency)}</Badge> : null}
-          </div>
-        ) : null}
-      </CardHeader>
-      <CardContent className="pb-6">
-        {villa.error ? (
-          <p className="text-sm text-destructive">Prix temporairement indisponibles, réessayez plus tard.</p>
-        ) : villa.days.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Pas encore de calendrier de prix pour cette villa.</p>
-        ) : (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {villa.days.map((d) => (
-              <div
-                key={d.date}
-                className={`flex w-16 shrink-0 flex-col items-center rounded-md border px-1.5 py-2 text-center ${
-                  d.unbookable ? "border-border bg-muted/50 text-muted-foreground" : "border-border"
-                }`}
-              >
-                <span className="text-[11px] text-muted-foreground capitalize">{format(parseISO(d.date), "EEE d MMM", { locale: fr })}</span>
-                <span className={`mt-1 text-sm font-medium ${d.unbookable ? "text-muted-foreground line-through" : ""}`}>
-                  {d.unbookable || d.price == null ? "—" : formatPrix(d.price, villa.currency)}
-                </span>
+
+        <div className="relative min-w-0 flex-1">
+          <button
+            type="button"
+            aria-label="Reculer"
+            onClick={() => scroll(-COL_WIDTH * 5)}
+            className="absolute top-1/2 left-1.5 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border bg-background shadow-sm hover:bg-muted"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Avancer"
+            onClick={() => scroll(COL_WIDTH * 5)}
+            className="absolute top-1/2 right-1.5 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border bg-background shadow-sm hover:bg-muted"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+
+          <div ref={scrollRef} className="overflow-x-auto">
+            <div style={{ width: COL_WIDTH * dateList.length }}>
+              <div className="flex border-b" style={{ height: ROW_HEIGHT }}>
+                {moisGroupes.map((m) => (
+                  <div
+                    key={m.label}
+                    className="flex shrink-0 items-center border-r px-2 text-sm font-medium capitalize"
+                    style={{ width: COL_WIDTH * m.count }}
+                  >
+                    {m.label}
+                  </div>
+                ))}
               </div>
-            ))}
+              <div className="flex border-b" style={{ height: ROW_HEIGHT }}>
+                {dateList.map((d, i) => (
+                  <div
+                    key={dateStrings[i]}
+                    className="flex shrink-0 flex-col items-center justify-center border-r text-xs"
+                    style={{ width: COL_WIDTH }}
+                  >
+                    <span className="text-muted-foreground uppercase">{format(d, "EEEEE", { locale: fr })}</span>
+                    <span
+                      className={`mt-0.5 flex h-6 w-6 items-center justify-center rounded-full font-medium ${
+                        dateStrings[i] === aujourdhui ? "bg-primary text-primary-foreground" : ""
+                      }`}
+                    >
+                      {format(d, "d")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {villas.map((v) => (
+                <VillaCalendarRow key={v.id} villa={v} dateStrings={dateStrings} />
+              ))}
+            </div>
           </div>
-        )}
-      </CardContent>
+        </div>
+      </div>
     </Card>
   );
 }
 
+function VillaCalendarRow({ villa, dateStrings }: { villa: TarificationVilla; dateStrings: string[] }) {
+  const largeurTotale = COL_WIDTH * dateStrings.length;
+
+  if (villa.error) {
+    return (
+      <div className="flex items-center border-b px-3 text-xs text-destructive" style={{ height: ROW_HEIGHT, width: largeurTotale }}>
+        Prix temporairement indisponibles
+      </div>
+    );
+  }
+
+  const dayByDate = new Map(villa.days.map((d) => [d.date, d]));
+
+  return (
+    <div className="relative grid border-b" style={{ height: ROW_HEIGHT, gridTemplateColumns: `repeat(${dateStrings.length}, ${COL_WIDTH}px)` }}>
+      {dateStrings.map((date, i) => {
+        const jour = dayByDate.get(date);
+        const bloque = !jour || jour.unbookable || jour.price == null;
+        return (
+          <div
+            key={date}
+            className="flex items-start justify-end border-r px-1.5 py-1 text-xs"
+            style={{
+              gridColumn: i + 1,
+              gridRow: 1,
+              backgroundColor: bloque ? "var(--muted)" : undefined,
+              backgroundImage: bloque
+                ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 7px)"
+                : undefined,
+            }}
+          >
+            {!bloque ? <span>{formatPrix(jour!.price!, villa.currency)}</span> : null}
+          </div>
+        );
+      })}
+
+      {villa.reservations.map((r, i) => {
+        const { start, end } = barGridColumns(r, dateStrings);
+        return (
+          <div
+            key={i}
+            className="relative m-1 flex items-center rounded-md bg-primary px-2 text-xs font-medium text-primary-foreground"
+            style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+          >
+            <span className="sticky left-2 truncate">
+              {r.guestName}
+              {r.montant != null ? ` ${formatMontant(r.montant, r.devise)}` : ""}
+              {r.enCours ? " · Séjour en cours" : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Les lignes de grille sont 1-indexées : un séjour occupant les indices de jour [startIdx, endIdx[
+// s'étend donc de la ligne startIdx+1 à endIdx+1. Une réservation déjà en cours avant le début de
+// la fenêtre affichée (checkIn introuvable) démarre en butée gauche ; une réservation qui dépasse
+// les 60 jours en cache (checkOut introuvable) s'étend jusqu'en butée droite — comme les barres
+// coupées par le bord de l'écran sur le calendrier hôte Airbnb.
+function barGridColumns(r: TarificationReservation, dateStrings: string[]): { start: number; end: number } {
+  const startIdx = dateStrings.indexOf(r.checkIn);
+  const endIdx = dateStrings.indexOf(r.checkOut);
+  return {
+    start: startIdx === -1 ? 1 : startIdx + 1,
+    end: endIdx === -1 ? dateStrings.length + 1 : endIdx + 1,
+  };
+}
+
+function currencySymbole(code: string | null): string {
+  if (code === "EUR") return "€";
+  if (code === "USD") return "$";
+  if (code === "GBP") return "£";
+  return code ?? "";
+}
+
 function formatPrix(montant: number, currency: string | null): string {
-  return `${Math.round(montant)} ${currency ?? ""}`.trim();
+  return `${Math.round(montant)} ${currencySymbole(currency)}`.trim();
+}
+
+function formatMontant(montant: number, devise: string): string {
+  return `${montant.toFixed(2).replace(".", ",")} ${currencySymbole(devise) || devise}`.trim();
 }

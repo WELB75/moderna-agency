@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
@@ -19,6 +19,15 @@ function dateISO(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+export type TarificationReservation = {
+  guestName: string;
+  checkIn: string; // YYYY-MM-DD
+  checkOut: string; // YYYY-MM-DD
+  montant: number | null;
+  devise: string;
+  enCours: boolean; // aujourd'hui tombe dans [checkIn, checkOut)
+};
+
 export type TarificationVilla = {
   id: string;
   nom: string;
@@ -31,6 +40,7 @@ export type TarificationVilla = {
   basePrice: number | null;
   maxPrice: number | null;
   days: { date: string; price: number | null; unbookable: boolean }[];
+  reservations: TarificationReservation[];
   syncedAt: string | null;
   error: string | null;
 };
@@ -83,13 +93,14 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
   }
 
   const freshRows = staleVillas.length > 0 ? await reloadCache(rows.map((v) => v.id)) : rows;
-  const occupeParVilla = await joursOccupesParVilla(freshRows.map((v) => v.id));
+  const resaParVilla = await reservationsActivesParVilla(freshRows.map((v) => v.id));
 
   return freshRows.map((v) => {
-    const occupe = occupeParVilla.get(v.id);
+    const resaVilla = resaParVilla.get(v.id) ?? [];
+    const occupe = new Set(resaVilla.flatMap((r) => datesEntre(r.checkIn, r.checkOut)));
     const days = ((v.cacheDays as TarificationVilla["days"] | null) ?? []).map((d) => ({
       ...d,
-      unbookable: d.unbookable || Boolean(occupe?.has(d.date)),
+      unbookable: d.unbookable || occupe.has(d.date),
     }));
     return {
       id: v.id,
@@ -103,10 +114,19 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
       basePrice: v.cacheBasePrice ? Number(v.cacheBasePrice) : null,
       maxPrice: v.cacheMaxPrice ? Number(v.cacheMaxPrice) : null,
       days,
+      reservations: resaVilla,
       syncedAt: v.cacheSyncedAt ? v.cacheSyncedAt.toISOString() : null,
       error: v.cacheLastError,
     };
   });
+}
+
+function datesEntre(checkIn: string, checkOut: string): string[] {
+  const dates: string[] = [];
+  for (const cursor = new Date(`${checkIn}T00:00:00Z`); cursor < new Date(`${checkOut}T00:00:00Z`); cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+  return dates;
 }
 
 // PriceLabs ne reflète que ce que SA propre connexion au canal (Airbnb...) lui a remonté, qui
@@ -114,30 +134,55 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
 // ou saisie manuelle) — vu en pratique le 2026-09-26 : Villa Tania affichée "Disponible ce soir"
 // alors qu'un client (Youness, résa Superhote/Airbnb) y était déjà. `reservations` est la source
 // de vérité utilisée partout ailleurs dans l'app (dashboard, planning...) : on la superpose
-// toujours par-dessus le calendrier PriceLabs, même quand le prix vient du cache.
-async function joursOccupesParVilla(villaIds: string[]): Promise<Map<string, Set<string>>> {
-  const occupeParVilla = new Map<string, Set<string>>();
-  if (villaIds.length === 0) return occupeParVilla;
+// toujours par-dessus le calendrier PriceLabs, même quand le prix vient du cache — et sert aussi
+// à dessiner les barres de réservation façon calendrier hôte Airbnb (nom du client + montant).
+async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<string, TarificationReservation[]>> {
+  const parVilla = new Map<string, TarificationReservation[]>();
+  if (villaIds.length === 0) return parVilla;
 
   const db = getDb();
   const debutFenetre = new Date();
   debutFenetre.setUTCHours(0, 0, 0, 0);
+  const finFenetre = new Date(debutFenetre);
+  finFenetre.setUTCDate(finFenetre.getUTCDate() + JOURS_CALENDRIER);
+  const aujourdhui = dateISO(debutFenetre);
 
-  const reservationsActives = await db
-    .select({ villaId: reservations.villaId, checkIn: reservations.checkIn, checkOut: reservations.checkOut })
+  const rows = await db
+    .select({
+      villaId: reservations.villaId,
+      guestName: reservations.guestName,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      loyerTotal: reservations.loyerTotal,
+      devisePaiement: reservations.devisePaiement,
+    })
     .from(reservations)
-    .where(and(inArray(reservations.villaId, villaIds), ne(reservations.status, "annulee"), gt(reservations.checkOut, debutFenetre)));
+    .where(
+      and(
+        inArray(reservations.villaId, villaIds),
+        ne(reservations.status, "annulee"),
+        gt(reservations.checkOut, debutFenetre),
+        lt(reservations.checkIn, finFenetre)
+      )
+    );
 
-  for (const r of reservationsActives) {
+  for (const r of rows) {
     if (!r.villaId) continue;
-    const set = occupeParVilla.get(r.villaId) ?? new Set<string>();
-    for (const cursor = new Date(r.checkIn); cursor < new Date(r.checkOut); cursor.setUTCDate(cursor.getUTCDate() + 1)) {
-      set.add(cursor.toISOString().slice(0, 10));
-    }
-    occupeParVilla.set(r.villaId, set);
+    const checkIn = dateISO(new Date(r.checkIn));
+    const checkOut = dateISO(new Date(r.checkOut));
+    const list = parVilla.get(r.villaId) ?? [];
+    list.push({
+      guestName: r.guestName,
+      checkIn,
+      checkOut,
+      montant: r.loyerTotal ? Number(r.loyerTotal) : null,
+      devise: r.devisePaiement,
+      enCours: checkIn <= aujourdhui && aujourdhui < checkOut,
+    });
+    parVilla.set(r.villaId, list);
   }
 
-  return occupeParVilla;
+  return parVilla;
 }
 
 async function reloadCache(villaIds: string[]) {
