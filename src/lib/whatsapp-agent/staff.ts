@@ -31,7 +31,7 @@ const BATCH_SIZE = 3;
 
 // Kamel reçoit une copie de chaque offre envoyée au personnel, pour suivre le fil en temps réel
 // sans être une vraie candidate (il ne répondra jamais) — en plus de l'historique déjà consultable
-// sur /agent-ia. Kamel, 2026-08-04 : "fais comme si je faisais partie du groupe à chaque fois mais
+// sur /chat (section Agent IA). Kamel, 2026-08-04 : "fais comme si je faisais partie du groupe à chaque fois mais
 // je répondrais pas, c'est juste pour suivre le fil." Son numéro n'entre jamais dans
 // candidatsSollicitesIds/refusIds — il n'est jamais un vrai candidat, juste un destinataire en plus.
 const OBSERVER_PHONE = "+33672516297";

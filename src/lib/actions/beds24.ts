@@ -46,5 +46,5 @@ export async function sendBeds24Message(reservationId: string, message: string) 
   if (!reservation?.beds24BookingId) throw new Error("Cette réservation n'est pas liée à un canal Beds24.");
 
   await beds24SendMessage(Number(reservation.beds24BookingId), trimmed);
-  revalidatePath("/inbox");
+  revalidatePath("/chat");
 }

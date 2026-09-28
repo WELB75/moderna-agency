@@ -72,12 +72,7 @@ type ListItem = {
 // pour WhatsApp : répondre touche à un historique utilisé ailleurs comme contexte, à traiter
 // séparément. Ne fonctionne que pour les réservations liées à un canal OTA via Beds24 (pas les
 // résas "Direct", qui n'ont pas de fil de discussion côté Beds24).
-export default async function InboxPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ conv?: string }>;
-}) {
-  const { conv: selectedKeyParam } = await searchParams;
+export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKeyParam: string | undefined }) {
   const db = getDb();
 
   const [conversations, personnelList, techniciensList, clientsList, reservationsList, otaReservations] = await Promise.all([
@@ -148,119 +143,110 @@ export default async function InboxPage({
   const selectedOta = selectedKey?.startsWith("og:") ? otaConversations.find((c) => `og:${c.id}` === selectedKey) ?? null : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Boîte de réception</h1>
-        <p className="text-sm text-muted-foreground">
-          Toutes les conversations WhatsApp (clients, ménage/cuisine, techniciens) et Airbnb/Booking.com au même endroit.
-        </p>
+    <Card className="flex h-[calc(100vh-19rem)] min-h-[28rem] flex-row overflow-hidden p-0">
+      <div className="flex w-full max-w-xs shrink-0 flex-col overflow-y-auto border-r border-border">
+        {listItems.length === 0 ? (
+          <p className="p-4 text-sm text-muted-foreground">Aucune conversation pour l&apos;instant.</p>
+        ) : (
+          listItems.map((item) => {
+            const active = item.key === selectedKey;
+            return (
+              <Link
+                key={item.key}
+                href={`/chat?section=boite&conv=${encodeURIComponent(item.key)}`}
+                className={cn(
+                  "flex flex-col gap-1 border-b border-border px-4 py-3 text-left transition-colors",
+                  active ? "bg-accent" : "hover:bg-muted"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-medium">{item.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {formatDistanceToNow(item.updatedAt, { addSuffix: true, locale: fr })}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {item.badge}
+                  <span className="truncate text-xs text-muted-foreground">{item.preview}</span>
+                </div>
+              </Link>
+            );
+          })
+        )}
       </div>
 
-      <Card className="flex h-[calc(100vh-15rem)] min-h-[28rem] flex-row overflow-hidden p-0">
-        <div className="flex w-full max-w-xs shrink-0 flex-col overflow-y-auto border-r border-border">
-          {listItems.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">Aucune conversation pour l&apos;instant.</p>
-          ) : (
-            listItems.map((item) => {
-              const active = item.key === selectedKey;
-              return (
-                <Link
-                  key={item.key}
-                  href={`/inbox?conv=${encodeURIComponent(item.key)}`}
-                  className={cn(
-                    "flex flex-col gap-1 border-b border-border px-4 py-3 text-left transition-colors",
-                    active ? "bg-accent" : "hover:bg-muted"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-medium">{item.title}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {formatDistanceToNow(item.updatedAt, { addSuffix: true, locale: fr })}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {item.badge}
-                    <span className="truncate text-xs text-muted-foreground">{item.preview}</span>
-                  </div>
-                </Link>
-              );
-            })
-          )}
-        </div>
-
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {selectedWa ? (
-            <>
-              <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-                <span className="font-medium">{selectedWa.contact.nom}</span>
-                {contactBadge(selectedWa.contact, "text-[10px]")}
-                <span className="ml-auto text-xs text-muted-foreground">{selectedWa.phone}</span>
-              </div>
-              <div className="flex-1 space-y-3 overflow-y-auto p-5">
-                {selectedWa.messages.map((m, i) => {
-                  const parts = toRenderableParts(m.content);
-                  if (parts.length === 0) return null;
-                  const fromContact = m.role === "user";
-                  return (
-                    <div key={i} className={cn("flex", fromContact ? "justify-start" : "justify-end")}>
-                      <div
-                        className={cn(
-                          "max-w-[75%] space-y-1 rounded-2xl px-4 py-2 text-sm",
-                          fromContact ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
-                        )}
-                      >
-                        {parts.map((p, j) =>
-                          p.kind === "text" ? (
-                            <p key={j} className="whitespace-pre-wrap">
-                              {p.text}
-                            </p>
-                          ) : (
-                            <p key={j} className={cn("text-xs italic opacity-80", fromContact ? "" : "text-primary-foreground/80")}>
-                              🔧 {p.label}
-                            </p>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          ) : selectedOta ? (
-            <>
-              <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-                <span className="font-medium">{selectedOta.guestName}</span>
-                <PlatformBadge canal={selectedOta.canal ?? "Direct"} />
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {selectedOta.villaNom} (n°{selectedOta.villaNumero})
-                </span>
-              </div>
-              <div className="flex-1 space-y-3 overflow-y-auto p-5">
-                {selectedOta.messages.map((m) => {
-                  const fromGuest = m.source === "guest";
-                  return (
-                    <div key={m.id} className={cn("flex", fromGuest ? "justify-start" : "justify-end")}>
-                      <div
-                        className={cn(
-                          "max-w-[75%] space-y-1 rounded-2xl px-4 py-2 text-sm",
-                          fromGuest ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
-                        )}
-                      >
-                        <p className="whitespace-pre-wrap">{m.message}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <Beds24ReplyForm reservationId={selectedOta.id} />
-            </>
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              Sélectionne une conversation.
+      <div className="flex flex-1 flex-col overflow-hidden">
+        {selectedWa ? (
+          <>
+            <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+              <span className="font-medium">{selectedWa.contact.nom}</span>
+              {contactBadge(selectedWa.contact, "text-[10px]")}
+              <span className="ml-auto text-xs text-muted-foreground">{selectedWa.phone}</span>
             </div>
-          )}
-        </div>
-      </Card>
-    </div>
+            <div className="flex-1 space-y-3 overflow-y-auto p-5">
+              {selectedWa.messages.map((m, i) => {
+                const parts = toRenderableParts(m.content);
+                if (parts.length === 0) return null;
+                const fromContact = m.role === "user";
+                return (
+                  <div key={i} className={cn("flex", fromContact ? "justify-start" : "justify-end")}>
+                    <div
+                      className={cn(
+                        "max-w-[75%] space-y-1 rounded-2xl px-4 py-2 text-sm",
+                        fromContact ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
+                      )}
+                    >
+                      {parts.map((p, j) =>
+                        p.kind === "text" ? (
+                          <p key={j} className="whitespace-pre-wrap">
+                            {p.text}
+                          </p>
+                        ) : (
+                          <p key={j} className={cn("text-xs italic opacity-80", fromContact ? "" : "text-primary-foreground/80")}>
+                            🔧 {p.label}
+                          </p>
+                        )
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : selectedOta ? (
+          <>
+            <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+              <span className="font-medium">{selectedOta.guestName}</span>
+              <PlatformBadge canal={selectedOta.canal ?? "Direct"} />
+              <span className="ml-auto text-xs text-muted-foreground">
+                {selectedOta.villaNom} (n°{selectedOta.villaNumero})
+              </span>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto p-5">
+              {selectedOta.messages.map((m) => {
+                const fromGuest = m.source === "guest";
+                return (
+                  <div key={m.id} className={cn("flex", fromGuest ? "justify-start" : "justify-end")}>
+                    <div
+                      className={cn(
+                        "max-w-[75%] space-y-1 rounded-2xl px-4 py-2 text-sm",
+                        fromGuest ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
+                      )}
+                    >
+                      <p className="whitespace-pre-wrap">{m.message}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <Beds24ReplyForm reservationId={selectedOta.id} />
+          </>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+            Sélectionne une conversation.
+          </div>
+        )}
+      </div>
+    </Card>
   );
 }

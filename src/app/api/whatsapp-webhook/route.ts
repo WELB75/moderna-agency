@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Journalise le message reçu (avec son audio archivé s'il était vocal), pour que la
-    // conversation soit relisible des deux côtés dans /agent-ia — jusque-là seuls les envois
+    // conversation soit relisible des deux côtés dans /chat (section Agent IA) — jusque-là seuls les envois
     // étaient tracés, et les messages entrants hors intervention/mission n'étaient conservés
     // nulle part.
     //

@@ -339,7 +339,7 @@ export async function initiateMaintenanceRequest(interventionId: string): Promis
   // Premier contact avec ce technicien : la fenêtre de conversation WhatsApp n'est pas encore
   // ouverte (il ne nous a jamais écrit), donc un texte libre serait accepté par l'API (200) mais
   // jamais livré en pratique — il faut passer par un modèle approuvé par Meta. Le texte complet
-  // ci-dessus reste stocké dans l'historique pour l'affichage dans /agent-ia ; seul le mécanisme
+  // ci-dessus reste stocké dans l'historique pour l'affichage dans /chat (section Agent IA) ; seul le mécanisme
   // d'envoi change. Pas de note vocale ici pour la même raison (elle serait bloquée aussi).
   // Kamel, 2026-08-22 : "meme les autres technicien... ils reçoivent pas".
   const problemeDetail = buildProblemDetail(villa, darija.titre, darija.probleme);
@@ -659,7 +659,7 @@ export async function relanceStaleMaintenanceConversations(): Promise<void> {
       sent = await sendWhatsAppTemplate(row.phone, OPENING_TEMPLATE_NAME, OPENING_TEMPLATE_LANG, [problemeDetail]);
     }
     // Ajoutée au transcript (pas seulement à l'audio) pour rester visible dans l'onglet
-    // "Techniciens (maintenance)" de /agent-ia, comme le reste de la conversation.
+    // "Techniciens (maintenance)" de /chat (section Agent IA), comme le reste de la conversation.
     const messages = [...((row.messages as MessageParam[]) ?? []), { role: "assistant" as const, content: [{ type: "text" as const, text: relance }] }];
     const relanceCount = row.relanceCount + 1;
     await db

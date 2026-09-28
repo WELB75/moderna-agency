@@ -215,7 +215,7 @@ export async function updateReservationNotes(reservationId: string, notes: strin
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
-  revalidatePath("/tarification");
+  revalidatePath("/calendrier");
   revalidatePath(`/reservations/${reservationId}`);
 }
 
