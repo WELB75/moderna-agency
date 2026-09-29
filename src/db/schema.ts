@@ -131,6 +131,11 @@ export const villas = pgTable(
     // Un troisième code possible, pour la porte de la chambre principale (utile aux
     // propriétaires/équipe, ex. dépôt d'affaires personnelles verrouillé pendant la location).
     codeChambreMaster: text("code_chambre_master"),
+    // Nombre de chambres — sert notamment au tarif ménage des appartements Noria, différent
+    // selon 1 ou 2 chambres (voir TARIF_MENAGE_NORIA dans personnel-tarifs.ts). Kamel,
+    // 2026-09-29 : "pour les frais de menage a noria c'est different des villas, c'est 100 MAD
+    // pour une chambre et 150 MAD pour les deux chambres".
+    nbChambres: integer("nb_chambres"),
     codeWifi: text("code_wifi"),
     // Guide de bienvenue + instructions d'arrivée en photos — même document pour les deux usages
     // en pratique, un seul lien à tenir à jour (ex. Google Drive).

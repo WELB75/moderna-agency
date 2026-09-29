@@ -21,6 +21,7 @@ type ReservationInfo = {
   checkoutValideAt: Date | null;
   villaNom: string | null;
   villaNumero: string | null;
+  villaNbChambres: number | null;
   domaineNom: string | null;
 };
 
@@ -54,6 +55,7 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
         checkoutValideAt: reservations.checkoutValideAt,
         villaNom: villas.nom,
         villaNumero: villas.numero,
+        villaNbChambres: villas.nbChambres,
         domaineNom: domaines.nom,
       })
       .from(reservations)
@@ -83,7 +85,7 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
       if (!r) continue;
       if (role === "menage") {
         if (!a.faitAt) continue;
-        const montant = montantMenageDu(a.faitAt, a.nbJours);
+        const montant = montantMenageDu(a.faitAt, a.nbJours, { domaineNom: r.domaineNom, nbChambres: r.villaNbChambres });
         totalFait += a.nbJours ?? 1;
         montantGagne += montant;
         if (a.payeAt) montantRecu += montant;

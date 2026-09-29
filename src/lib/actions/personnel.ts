@@ -4,7 +4,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations, cashEntries, reservations, villas } from "@/db/schema";
+import { personnel, personnelAffectations, cashEntries, reservations, villas, domaines } from "@/db/schema";
 import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { finTravailleSiPartagee } from "@/lib/planning-jours-affectation";
 import { nowInMorocco } from "@/lib/now";
@@ -218,15 +218,19 @@ export async function markAffectationPaidSolo(affectationId: string): Promise<{ 
       checkOut: reservations.checkOut,
       checkoutValideAt: reservations.checkoutValideAt,
       villaId: reservations.villaId,
+      villaNbChambres: villas.nbChambres,
+      domaineNom: domaines.nom,
     })
     .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .where(eq(reservations.id, a.reservationId))
     .limit(1);
   if (!r) return { ok: false, message: "Réservation introuvable." };
 
   let montant: number;
   if (p.role === "menage") {
-    montant = montantMenageDu(a.faitAt, a.nbJours);
+    montant = montantMenageDu(a.faitAt, a.nbJours, { domaineNom: r.domaineNom, nbChambres: r.villaNbChambres });
   } else {
     // Sa propre date de fin SI elle partage les jours de cette réservation avec quelqu'un
     // d'autre (voir montantCuisineDu) — permet de la payer dès sa part terminée, sans attendre

@@ -35,6 +35,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       villaId: villas.id,
       villaType: villas.type,
       villaPhotoUrl: villas.photoUrl,
+      villaNbChambres: villas.nbChambres,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
       codeChambreMaster: villas.codeChambreMaster,
@@ -142,7 +143,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) return sum;
     const montant =
       a.role === "menage"
-        ? montantMenageDu(a.faitAt, a.nbJours)
+        ? montantMenageDu(a.faitAt, a.nbJours, { domaineNom: r.domaineNom, nbChambres: r.villaNbChambres })
         : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
     return sum + montant;
   }, 0);

@@ -57,6 +57,7 @@ export type ReservationRow = {
   villaId: string | null;
   villaType: "villa" | "appartement" | null;
   villaPhotoUrl: string | null;
+  villaNbChambres: number | null;
   codeBoitier: string | null;
   codePorteEntree: string | null;
   codeChambreMaster: string | null;

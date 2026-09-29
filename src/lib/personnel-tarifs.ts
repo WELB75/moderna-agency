@@ -18,14 +18,36 @@ export const TARIF_MENAGE = 200;
 export const TARIF_CUISINE_PETIT_DEJEUNER = 100;
 export const TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER = 200;
 
+// Appartements du domaine Noria : tarif ménage différent des villas, selon le nombre de
+// chambres — Kamel, 2026-09-29 : "pour les frais de menage a noria c'est different des villas,
+// c'est 100 MAD pour une chambre et 150 MAD pour les deux chambres".
+export const TARIF_MENAGE_NORIA_UNE_CHAMBRE = 100;
+export const TARIF_MENAGE_NORIA_DEUX_CHAMBRES = 150;
+
+export type VillaTarifContext = { domaineNom: string | null; nbChambres: number | null };
+
+// Exporté (contrairement à la version interne ci-dessous) pour les estimations affichées AVANT
+// que le ménage soit confirmé fait (ex. "cash à prévoir" sur le tableau de bord) — montantMenageDu
+// ne convient pas là puisqu'il renvoie toujours 0 tant que faitAt est vide.
+export function tarifMenageJournalier(villa: VillaTarifContext | null): number {
+  if (villa?.domaineNom !== "Noria") return TARIF_MENAGE;
+  // nbChambres pas encore renseigné pour cet appartement : mieux vaut retomber sur le tarif
+  // villa standard (signal visible, à corriger en remplissant nbChambres) que deviner un
+  // montant Noria potentiellement faux.
+  if (villa.nbChambres === 1) return TARIF_MENAGE_NORIA_UNE_CHAMBRE;
+  if (villa.nbChambres === 2) return TARIF_MENAGE_NORIA_DEUX_CHAMBRES;
+  return TARIF_MENAGE;
+}
+
 // Le ménage est dû dès qu'il est confirmé fait (pas juste affecté) — c'est le moment où,
 // dans la réalité, la villa est propre et prête pour l'arrivée suivante. `nbJours` permet de
 // couvrir aussi la femme de ménage sollicitée PENDANT le séjour (pas seulement le nettoyage de
-// fin de séjour) : même tarif journalier que le ménage de fin de séjour (200 MAD), Kamel
-// 2026-08-06 — nul (cas le plus courant, un seul passage) revient au comportement d'origine.
-export function montantMenageDu(faitAt: Date | null, nbJours: number | null = null): number {
+// fin de séjour) : même tarif journalier que le ménage de fin de séjour, Kamel 2026-08-06 — nul
+// (cas le plus courant, un seul passage) revient au comportement d'origine. `villa` optionnel :
+// omis (ou domaine différent de Noria), retombe sur le tarif villa standard (200 MAD/jour).
+export function montantMenageDu(faitAt: Date | null, nbJours: number | null = null, villa: VillaTarifContext | null = null): number {
   if (!faitAt) return 0;
-  return (nbJours ?? 1) * TARIF_MENAGE;
+  return (nbJours ?? 1) * tarifMenageJournalier(villa);
 }
 
 // La cuisine est due au check-out du client (son séjour, donc son besoin de cuisine, est

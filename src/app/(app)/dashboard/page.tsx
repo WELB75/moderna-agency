@@ -66,7 +66,7 @@ import {
   montantMenageDu,
   montantCuisineDu,
   estPayeParProprietaire,
-  TARIF_MENAGE,
+  tarifMenageJournalier,
   TARIF_CUISINE_PETIT_DEJEUNER,
   TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER,
 } from "@/lib/personnel-tarifs";
@@ -117,6 +117,7 @@ export default async function DashboardPage({
       villaId: villas.id,
       villaType: villas.type,
       villaPhotoUrl: villas.photoUrl,
+      villaNbChambres: villas.nbChambres,
       codeBoitier: villas.codeBoitier,
       codePorteEntree: villas.codePorteEntree,
       codeChambreMaster: villas.codeChambreMaster,
@@ -302,7 +303,7 @@ export default async function DashboardPage({
       if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) return sum;
       const montant =
         a.role === "menage"
-          ? montantMenageDu(a.faitAt, a.nbJours)
+          ? montantMenageDu(a.faitAt, a.nbJours, { domaineNom: r.domaineNom, nbChambres: r.villaNbChambres })
           : montantCuisineDu(a.nbJours, new Date(r.checkIn), new Date(r.checkOut), r.checkoutValideAt, a.avecDejeuner);
       return sum + montant;
     }, 0);
@@ -1071,7 +1072,7 @@ function estimateCashDetailPourDepart(r: ReservationRow): { nom: string; montant
   const detail: { nom: string; montant: number }[] = [];
   for (const a of r.menageDepartAssignes) {
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) continue;
-    detail.push({ nom: a.nom, montant: (a.nbJours ?? 1) * TARIF_MENAGE });
+    detail.push({ nom: a.nom, montant: (a.nbJours ?? 1) * tarifMenageJournalier({ domaineNom: r.domaineNom, nbChambres: r.villaNbChambres }) });
   }
   for (const a of r.cuisineAssignes) {
     if (a.payeAt || estPayeParProprietaire(r.personnelPayeParProprietaireNoms, a.nom)) continue;
