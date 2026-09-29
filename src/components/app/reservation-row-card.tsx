@@ -301,6 +301,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             assigned={r.menageDepartAssignes}
             options={r.menageOptions}
             payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+            villaTarifContext={{ domaineNom: r.domaineNom, nbChambres: r.villaNbChambres }}
           />
         ) : (
           <>
@@ -336,6 +337,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               assigned={r.menageSejourAssignes}
               options={r.menageOptions}
               payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+              villaTarifContext={{ domaineNom: r.domaineNom, nbChambres: r.villaNbChambres }}
             />
           </>
         )}

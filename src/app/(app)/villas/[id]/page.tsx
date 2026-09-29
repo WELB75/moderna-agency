@@ -77,6 +77,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       codePorteEntree: villas.codePorteEntree,
       codeChambreMaster: villas.codeChambreMaster,
       codeWifi: villas.codeWifi,
+      nbChambres: villas.nbChambres,
       guideBienvenueUrl: villas.guideBienvenueUrl,
       proprietaireNom: villas.proprietaireNom,
       proprietaireTelephone: villas.proprietaireTelephone,
@@ -402,6 +403,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                 menageAssigned={assignedFor(r.id, "menage")}
                 cuisineAssigned={assignedFor(r.id, "cuisine")}
                 personnelPayeParProprietaireNoms={villa.personnelPayeParProprietaireNoms}
+                villaTarifContext={{ domaineNom: villa.domaineNom, nbChambres: villa.nbChambres }}
               />
             ))
           )}
@@ -426,6 +428,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
                     menageAssigned={assignedFor(r.id, "menage")}
                     cuisineAssigned={assignedFor(r.id, "cuisine")}
                     personnelPayeParProprietaireNoms={villa.personnelPayeParProprietaireNoms}
+                    villaTarifContext={{ domaineNom: villa.domaineNom, nbChambres: villa.nbChambres }}
                   />
                 ))}
               </div>
@@ -523,6 +526,7 @@ function ReservationListItem({
   menageAssigned,
   cuisineAssigned,
   personnelPayeParProprietaireNoms,
+  villaTarifContext,
 }: {
   r: typeof reservations.$inferSelect;
   muted?: boolean;
@@ -534,6 +538,7 @@ function ReservationListItem({
   menageAssigned: PersonnelAssigne[];
   cuisineAssigned: PersonnelAssigne[];
   personnelPayeParProprietaireNoms?: string[] | null;
+  villaTarifContext?: { domaineNom: string | null; nbChambres: number | null };
 }) {
   const isProprietaire = phonesMatch(r.guestPhone, proprietaireTelephone);
 
@@ -604,6 +609,7 @@ function ReservationListItem({
           assigned={menageAssigned}
           options={personnelMenageOptions}
           payeParProprietaireNoms={personnelPayeParProprietaireNoms ?? []}
+          villaTarifContext={villaTarifContext}
         />
         <PersonnelAffectationEditor
           reservationId={r.id}

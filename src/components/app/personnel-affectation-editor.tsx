@@ -29,10 +29,11 @@ import {
   sendBrahimCoursesReminder,
 } from "@/lib/actions/personnel";
 import {
-  TARIF_MENAGE,
   TARIF_CUISINE_PETIT_DEJEUNER,
   TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER,
   estPayeParProprietaire,
+  tarifMenageJournalier,
+  type VillaTarifContext,
 } from "@/lib/personnel-tarifs";
 import type { PersonnelOption } from "@/lib/personnel-options";
 
@@ -78,12 +79,18 @@ export function PersonnelAffectationEditor({
   moment = "unique",
   onAssignedChange,
   minimal = false,
+  villaTarifContext = null,
 }: {
   reservationId: string;
   role: "menage" | "cuisine";
   label: string;
   assigned: PersonnelAssigne[];
   options: PersonnelOption[];
+  // Pour l'aperçu du tarif ménage affiché avant confirmation : Noria (100/150 MAD selon le
+  // nombre de chambres) a un tarif différent des villas (200 MAD/jour) — voir
+  // personnel-tarifs.ts. Omis (villa hors Noria ou contexte non transmis), retombe sur le tarif
+  // villa standard, comme avant.
+  villaTarifContext?: VillaTarifContext | null;
   // Noms des personnes dont le ménage/cuisine est payé directement par le propriétaire pour
   // cette villa : aucun montant ni bouton de paiement ne doit apparaître pour elles côté
   // agence. Les autres personnes affectées à la même réservation restent payées normalement.
@@ -332,6 +339,7 @@ export function PersonnelAffectationEditor({
               onSetCommentaire={handleSetCommentaire}
               onSetQualiteNote={handleSetQualiteNote}
               montantVisible={!estPayeParProprietaire(payeParProprietaireNoms, a.nom)}
+              tarifJournalier={tarifMenageJournalier(villaTarifContext)}
             />
           ) : (
             <CuisineBadge
@@ -589,6 +597,7 @@ function MenageBadge({
   onSetCommentaire,
   onSetQualiteNote,
   montantVisible,
+  tarifJournalier,
 }: {
   a: PersonnelAssigne;
   disabled: boolean;
@@ -601,6 +610,7 @@ function MenageBadge({
   onSetCommentaire: (affectationId: string, commentaire: string | null) => void;
   onSetQualiteNote: (affectationId: string, qualiteNote: number | null) => void;
   montantVisible: boolean;
+  tarifJournalier: number;
 }) {
   const fait = Boolean(a.faitAt);
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
@@ -619,7 +629,7 @@ function MenageBadge({
   // pendant le séjour, qui peut s'étaler) : pas de champ à saisir, juste le tarif fixe — Kamel,
   // 2026-08-16 : "un ménage de départ c'est toujours un jour donc on peut supprimer".
   const joursApercu = jours.trim() === "" ? 1 : Math.max(1, parseInt(jours, 10) || 1);
-  const montantApercu = notable ? TARIF_MENAGE : joursApercu * TARIF_MENAGE;
+  const montantApercu = notable ? tarifJournalier : joursApercu * tarifJournalier;
 
   return (
     <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background py-0.5 pl-0.5 pr-2.5 text-[0.8rem] font-medium">
