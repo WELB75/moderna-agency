@@ -15,6 +15,8 @@ import {
   deleteInterventionComment,
 } from "@/lib/actions/intervention-comments";
 
+const STAFF_AUTEURS = new Set(["Kamel", "Rida", "Imad"]);
+
 export type CommentRow = {
   id: string;
   auteur: string;
@@ -56,9 +58,9 @@ export function InterventionComments({
     const trimmed = message.trim();
     if (!trimmed) return;
     const finalAuteur = authorOptions && authorOptions.length > 1 ? selectedAuteur : auteur;
-    // "Kamel" écrit toujours pour Moderna Agency, même depuis le lien propriétaire — les
-    // autres prénoms de la liste sont bien les propriétaires réels de la villa.
-    const finalAuteurType: "staff" | "proprietaire" = finalAuteur === "Kamel" ? "staff" : auteurType;
+    // Kamel/Rida/Imad écrivent toujours pour Moderna Agency, même depuis un lien partagé
+    // publiquement — "Propriétaire" et "Technicien" restent les tiers externes réels.
+    const finalAuteurType: "staff" | "proprietaire" = STAFF_AUTEURS.has(finalAuteur) ? "staff" : auteurType;
     startTransition(async () => {
       try {
         await addInterventionComment(interventionId, finalAuteur, finalAuteurType, trimmed);

@@ -50,11 +50,11 @@ export default async function PublicInterventionPage({ params }: { params: Promi
     .where(eq(interventionComments.interventionId, id))
     .orderBy(interventionComments.createdAt);
 
-  // Lien envoyé à un tiers (prestataire, propriétaire...) : pas d'identité fixe, on propose
-  // le prestataire de l'intervention (s'il y en a un) et "Kamel" comme choix d'auteur.
-  const commentAuthorOptions = intervention.prestataire
-    ? [intervention.prestataire, "Kamel"]
-    : ["Kamel"];
+  // Lien envoyé à un tiers (prestataire, propriétaire...) : pas d'identité fixe, donc 5 profils
+  // fixes à choisir soi-même en écrivant, pour qu'on sache qui dit quoi dans les échanges —
+  // Kamel, 2026-10-01 : "ajoute 5 profils pour qu'on sache qui dis quoi : Kamel, Rida, Imad,
+  // Proprietaire, Technicien".
+  const commentAuthorOptions = ["Kamel", "Rida", "Imad", "Propriétaire", "Technicien"];
 
   return (
     <div className="mx-auto min-h-screen max-w-2xl space-y-6 p-4 sm:p-8">
