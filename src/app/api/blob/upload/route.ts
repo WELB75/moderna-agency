@@ -3,7 +3,7 @@ import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { technicians, villas } from "@/db/schema";
+import { technicians, villas, interventions } from "@/db/schema";
 import { isValidMaintenanceToken } from "@/lib/maintenance-access-token";
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -61,7 +61,21 @@ export async function POST(request: Request): Promise<NextResponse> {
               .limit(1)
               .then((rows) => rows.length > 0));
 
-          if (!validTechnician && !validTravauxToken && !validMaintenanceToken && !validGuestToken)
+          // Échanges du lien public /i/[id] (pas de token séparé : l'id de l'intervention, déjà
+          // peu devinable, EST le secret du lien, comme pour /p/[token] mais avec l'id direct) —
+          // Kamel, 2026-10-01 : "met la possibilité de mettre des photos dans la conversation,
+          // vidéo et audio aussi".
+          const isPublicInterventionUpload = pathname.startsWith("interventions/") && Boolean(clientPayload);
+          const validPublicInterventionId =
+            isPublicInterventionUpload &&
+            (await getDb()
+              .select({ id: interventions.id })
+              .from(interventions)
+              .where(eq(interventions.id, clientPayload as string))
+              .limit(1)
+              .then((rows) => rows.length > 0));
+
+          if (!validTechnician && !validTravauxToken && !validMaintenanceToken && !validGuestToken && !validPublicInterventionId)
             throw new Error("Non autorisé");
         }
 

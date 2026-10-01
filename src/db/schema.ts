@@ -464,6 +464,12 @@ export const interventionComments = pgTable("intervention_comments", {
   auteurType: text("auteur_type").notNull(), // "staff" | "proprietaire"
   message: text("message").notNull(),
   audioUrl: text("audio_url"), // note vocale jointe (WhatsApp...), optionnelle
+  // Photos/vidéos/audios ajoutés directement depuis le composeur d'échanges (distinct d'audioUrl
+  // ci-dessus, qui reste la voie de synchro WhatsApp existante) — Kamel, 2026-10-01 : "met la
+  // possibilité de mettre des photos dans la conversation, vidéo et audio aussi". Rendu avec le
+  // même composant InterventionAttachments que les photos de l'intervention elle-même (détection
+  // du type par extension).
+  attachmentUrls: jsonb("attachment_urls").$type<string[]>().default([]).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

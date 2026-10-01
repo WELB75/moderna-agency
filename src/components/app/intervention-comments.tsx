@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
+import { upload } from "@vercel/blob/client";
 import { toast } from "sonner";
-import { Send, Pencil, Trash2, Check, X } from "lucide-react";
+import { Send, Pencil, Trash2, Check, X, Paperclip, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InterventionAttachments } from "@/components/app/intervention-attachments";
 import { formatUtcDayMonthTime } from "@/lib/now";
 import { cn } from "@/lib/utils";
 import {
@@ -23,6 +25,7 @@ export type CommentRow = {
   auteurType: string;
   message: string;
   audioUrl?: string | null;
+  attachmentUrls?: string[] | null;
   createdAt: Date;
 };
 
@@ -41,6 +44,9 @@ export function InterventionComments({
 }) {
   const [localComments, setLocalComments] = useState(comments);
   const [message, setMessage] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const storageKey = "portail-comment-auteur";
   const [selectedAuteur, setSelectedAuteur] = useState(() => {
     if (typeof window === "undefined" || !authorOptions || authorOptions.length <= 1) return auteur;
@@ -54,21 +60,57 @@ export function InterventionComments({
     if (typeof window !== "undefined") window.localStorage.setItem(storageKey, value);
   }
 
+  // Photos/vidéos/audio joints à l'échange — Kamel, 2026-10-01 : "met la possibilité de mettre
+  // des photos dans la conversation, vidéo et audio aussi". Même route d'upload que les photos
+  // d'intervention elle-même (voir api/blob/upload), avec l'id de l'intervention comme jeton
+  // d'autorisation côté lien public (pas de compte, pas de token séparé pour ce lien-là).
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (files.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded: string[] = [];
+      for (const file of files) {
+        const blob = await upload(`interventions/${interventionId}/echange-${Date.now()}-${file.name}`, file, {
+          access: "public",
+          handleUploadUrl: "/api/blob/upload",
+          clientPayload: interventionId,
+        });
+        uploaded.push(blob.url);
+      }
+      setPendingAttachments((prev) => [...prev, ...uploaded]);
+    } catch {
+      toast.error("Échec de l'envoi du fichier.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   function handleSend() {
     const trimmed = message.trim();
-    if (!trimmed) return;
+    if (!trimmed && pendingAttachments.length === 0) return;
     const finalAuteur = authorOptions && authorOptions.length > 1 ? selectedAuteur : auteur;
     // Kamel/Rida/Imad écrivent toujours pour Moderna Agency, même depuis un lien partagé
     // publiquement — "Propriétaire" et "Technicien" restent les tiers externes réels.
     const finalAuteurType: "staff" | "proprietaire" = STAFF_AUTEURS.has(finalAuteur) ? "staff" : auteurType;
+    const attachments = pendingAttachments;
     startTransition(async () => {
       try {
-        await addInterventionComment(interventionId, finalAuteur, finalAuteurType, trimmed);
+        await addInterventionComment(interventionId, finalAuteur, finalAuteurType, trimmed, attachments);
         setLocalComments((prev) => [
           ...prev,
-          { id: `local-${Date.now()}`, auteur: finalAuteur, auteurType: finalAuteurType, message: trimmed, createdAt: new Date() },
+          {
+            id: `local-${Date.now()}`,
+            auteur: finalAuteur,
+            auteurType: finalAuteurType,
+            message: trimmed || "Pièce jointe",
+            attachmentUrls: attachments,
+            createdAt: new Date(),
+          },
         ]);
         setMessage("");
+        setPendingAttachments([]);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -120,7 +162,43 @@ export function InterventionComments({
           </Select>
         </div>
       ) : null}
+      {pendingAttachments.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {pendingAttachments.map((url) => (
+            <div key={url} className="flex items-center gap-1 rounded-md border bg-muted/40 px-2 py-1 text-xs">
+              <span className="max-w-32 truncate">{url.split("/").pop()}</span>
+              <button
+                type="button"
+                onClick={() => setPendingAttachments((prev) => prev.filter((u) => u !== url))}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label="Retirer"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="flex items-end gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*,audio/*"
+          multiple
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Joindre une photo, vidéo ou audio"
+          title="Joindre une photo, vidéo ou audio"
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+        </Button>
         <Textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
@@ -128,7 +206,7 @@ export function InterventionComments({
           rows={2}
           className="flex-1"
         />
-        <Button type="button" size="icon" disabled={isPending} onClick={handleSend}>
+        <Button type="button" size="icon" disabled={isPending || uploading} onClick={handleSend}>
           <Send className="h-4 w-4" />
         </Button>
       </div>
@@ -275,6 +353,11 @@ export function CommentItem({
           <p className="mt-0.5 whitespace-pre-line">{comment.message}</p>
           {comment.audioUrl ? (
             <audio controls src={comment.audioUrl} className="mt-1.5 h-9 w-full max-w-xs" />
+          ) : null}
+          {comment.attachmentUrls && comment.attachmentUrls.length > 0 ? (
+            <div className="mt-1.5">
+              <InterventionAttachments urls={comment.attachmentUrls} />
+            </div>
           ) : null}
         </>
       )}

@@ -11,17 +11,19 @@ export async function addInterventionComment(
   interventionId: string,
   auteur: string,
   auteurType: "staff" | "proprietaire",
-  message: string
+  message: string,
+  attachmentUrls: string[] = []
 ) {
   const trimmed = message.trim();
-  if (!trimmed) throw new Error("Le message est vide.");
+  if (!trimmed && attachmentUrls.length === 0) throw new Error("Le message est vide.");
 
   const db = getDb();
   await db.insert(interventionComments).values({
     interventionId,
     auteur: auteur.trim() || (auteurType === "proprietaire" ? "Propriétaire" : "Équipe"),
     auteurType,
-    message: trimmed,
+    message: trimmed || "Pièce jointe",
+    attachmentUrls,
   });
 
   revalidatePath("/interventions");
