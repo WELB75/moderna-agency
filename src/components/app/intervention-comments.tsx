@@ -75,8 +75,10 @@ export function InterventionComments({
     });
   }
 
-  function handleUpdated(id: string, newMessage: string) {
-    setLocalComments((prev) => prev.map((c) => (c.id === id ? { ...c, message: newMessage } : c)));
+  function handleUpdated(id: string, newMessage: string, newAuteur: string, newAuteurType: string) {
+    setLocalComments((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, message: newMessage, auteur: newAuteur, auteurType: newAuteurType } : c))
+    );
   }
 
   function handleDeleted(id: string) {
@@ -91,7 +93,13 @@ export function InterventionComments({
       ) : (
         <div className="space-y-2">
           {localComments.map((c) => (
-            <CommentItem key={c.id} comment={c} onUpdated={handleUpdated} onDeleted={handleDeleted} />
+            <CommentItem
+              key={c.id}
+              comment={c}
+              onUpdated={handleUpdated}
+              onDeleted={handleDeleted}
+              authorOptions={authorOptions && authorOptions.length > 1 ? authorOptions : undefined}
+            />
           ))}
         </div>
       )}
@@ -134,15 +142,22 @@ export function CommentItem({
   onDeleted,
   onUpdate = updateInterventionComment,
   onDelete = deleteInterventionComment,
+  authorOptions,
 }: {
   comment: CommentRow;
-  onUpdated: (id: string, message: string) => void;
+  onUpdated: (id: string, message: string, auteur: string, auteurType: string) => void;
   onDeleted: (id: string) => void;
-  onUpdate?: (commentId: string, message: string) => Promise<void>;
+  onUpdate?: (commentId: string, message: string, auteur?: string, auteurType?: "staff" | "proprietaire") => Promise<void>;
   onDelete?: (commentId: string) => Promise<void>;
+  // Présent uniquement là où il est utile de changer le nom après coup (message saisi sous le
+  // mauvais profil) — absent ailleurs (ex. commentaires paiement), le champ nom reste masqué et
+  // rien ne change par rapport à avant. Kamel, 2026-10-01 : "dans modifier ici j'aimerais avoir
+  // aussi l'option de choisir les noms".
+  authorOptions?: string[];
 }) {
   const [editing, setEditing] = useState(false);
   const [editValue, setEditValue] = useState(comment.message);
+  const [editAuteur, setEditAuteur] = useState(comment.auteur);
   const [isPending, startTransition] = useTransition();
   const isLocal = comment.id.startsWith("local-");
 
@@ -151,8 +166,14 @@ export function CommentItem({
     if (!trimmed) return;
     startTransition(async () => {
       try {
-        await onUpdate(comment.id, trimmed);
-        onUpdated(comment.id, trimmed);
+        if (authorOptions) {
+          const finalAuteurType: "staff" | "proprietaire" = STAFF_AUTEURS.has(editAuteur) ? "staff" : "proprietaire";
+          await onUpdate(comment.id, trimmed, editAuteur, finalAuteurType);
+          onUpdated(comment.id, trimmed, editAuteur, finalAuteurType);
+        } else {
+          await onUpdate(comment.id, trimmed);
+          onUpdated(comment.id, trimmed, comment.auteur, comment.auteurType);
+        }
         setEditing(false);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
@@ -209,6 +230,20 @@ export function CommentItem({
       </div>
       {editing ? (
         <div className="mt-1 space-y-1.5">
+          {authorOptions ? (
+            <Select value={editAuteur} onValueChange={setEditAuteur}>
+              <SelectTrigger className="h-8 w-40 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(authorOptions.includes(editAuteur) ? authorOptions : [editAuteur, ...authorOptions]).map((name) => (
+                  <SelectItem key={name} value={name}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
           <Textarea
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
@@ -226,6 +261,7 @@ export function CommentItem({
               variant="ghost"
               onClick={() => {
                 setEditValue(comment.message);
+                setEditAuteur(comment.auteur);
                 setEditing(false);
               }}
             >

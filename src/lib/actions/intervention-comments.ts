@@ -29,13 +29,24 @@ export async function addInterventionComment(
 }
 
 // Volontairement sans auth.protect(), même logique que addInterventionComment ci-dessus :
-// propriétaire et équipe peuvent tous les deux corriger/supprimer un message du fil.
-export async function updateInterventionComment(commentId: string, message: string) {
+// propriétaire et équipe peuvent tous les deux corriger/supprimer un message du fil. auteur/
+// auteurType optionnels : permet de corriger qui a dit quoi après coup (ex. message saisi sous
+// le mauvais profil par erreur), sans y toucher si seul le texte change — Kamel, 2026-10-01 :
+// "dans modifier ici j'aimerais avoir aussi l'option de choisir les noms".
+export async function updateInterventionComment(
+  commentId: string,
+  message: string,
+  auteur?: string,
+  auteurType?: "staff" | "proprietaire"
+) {
   const trimmed = message.trim();
   if (!trimmed) throw new Error("Le message est vide.");
 
   const db = getDb();
-  await db.update(interventionComments).set({ message: trimmed }).where(eq(interventionComments.id, commentId));
+  await db
+    .update(interventionComments)
+    .set({ message: trimmed, ...(auteur ? { auteur, auteurType } : {}) })
+    .where(eq(interventionComments.id, commentId));
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
