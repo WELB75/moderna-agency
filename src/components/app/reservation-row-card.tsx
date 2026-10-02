@@ -172,27 +172,35 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
         isDone && "opacity-60"
       )}
     >
-      <Link href={r.villaId ? `/villas/${r.villaId}` : "#"} className="block space-y-2 p-3 hover:bg-muted/50">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            {isIn ? (
-              <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-            )}
-            <p className="truncate font-medium">{r.guestName}</p>
-            {/* Icône WhatsApp juste à côté du nom (Kamel, 2026-08-16), pas seulement en bas de
-                carte. Composant client à part : ReservationRowCard est rendu côté serveur, qui
-                ne peut pas passer de onClick directement à un élément. */}
-            {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
-            <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
-            <EditNotesButton reservationId={r.id} notes={r.notes} />
-            {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
-            {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
-          </div>
-          <Countdown target={target} />
+      {/* En dehors du Link, comme PersonnelAffectationEditor plus bas : un clic dans cette rangée
+          (WhatsApp, modifier le téléphone, ajouter/modifier une note) ne doit jamais déclencher
+          la navigation vers la fiche villa. stopPropagation() seul s'est révélé pas fiable à
+          100% (clic juste après chargement, avant que React ait fini d'attacher les gestionnaires
+          — le <a> généré côté serveur navigue alors nativement) — Kamel, en cliquant sur "Ajouter
+          une note" : "ça me renvoie sur la page de la Villa Tania. Ce n'est pas ce que je veux."
+          La seule façon vraiment fiable d'éviter ça est de ne pas mettre ces boutons dans le
+          <Link> du tout. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 p-3 pb-0 hover:bg-muted/50">
+        <div className="flex min-w-0 items-center gap-2">
+          {isIn ? (
+            <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          ) : (
+            <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+          )}
+          <p className="truncate font-medium">{r.guestName}</p>
+          {/* Icône WhatsApp juste à côté du nom (Kamel, 2026-08-16), pas seulement en bas de
+              carte. Composant client à part : ReservationRowCard est rendu côté serveur, qui
+              ne peut pas passer de onClick directement à un élément. */}
+          {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
+          <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
+          <EditNotesButton reservationId={r.id} notes={r.notes} />
+          {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
+          {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
         </div>
+        <Countdown target={target} />
+      </div>
 
+      <Link href={r.villaId ? `/villas/${r.villaId}` : "#"} className="block space-y-2 px-3 pt-2 pb-3 hover:bg-muted/50">
         <div>
           <p className={cn("text-sm font-semibold", isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
             {isIn ? "Check-in" : "Check-out"} · {format(target, "d MMM", { locale: fr })} à {format(target, "HH:mm", { locale: fr })}
