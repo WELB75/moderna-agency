@@ -1,5 +1,6 @@
 import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { startOfDay, endOfDay } from "date-fns";
+import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
 import { personnel, personnelAffectations, reservations, villas, domaines } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
@@ -77,6 +78,12 @@ export async function notifyBrahimCourses(targetDateStr?: string): Promise<{ sen
 
   const villaLabels = concerned.map((d) => villaLabel(d.villaNom ?? "Villa", d.villaNumero ?? null));
   await sendBrahimCoursesMessage(villaLabels);
+  await db
+    .update(reservations)
+    .set({ brahimPrevenuAt: new Date() })
+    .where(inArray(reservations.id, concerned.map((d) => d.reservationId)));
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
   return { sent: true, villas: villaLabels };
 }
 
@@ -96,6 +103,10 @@ export async function notifyBrahimForReservation(reservationId: string): Promise
 
   const label = villaLabel(row.villaNom ?? "Villa", row.villaNumero ?? null);
   await sendBrahimCoursesMessage([label]);
+  await db.update(reservations).set({ brahimPrevenuAt: new Date() }).where(eq(reservations.id, reservationId));
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+  revalidatePath(`/reservations/${reservationId}`);
   return { sent: true, villa: label };
 }
 

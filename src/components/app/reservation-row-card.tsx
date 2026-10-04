@@ -79,6 +79,7 @@ export type ReservationRow = {
   checkinValidePar: string | null;
   checkoutValideAt: Date | null;
   checkoutValidePar: string | null;
+  brahimPrevenuAt: Date | null;
   aRelancer: boolean;
   messageArriveeEnvoyeAt: Date | null;
   messageBienvenueEnvoyeAt: Date | null;
@@ -310,6 +311,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
             options={r.menageOptions}
             payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
             villaTarifContext={{ domaineNom: r.domaineNom, nbChambres: r.villaNbChambres }}
+            brahimPrevenuAt={r.brahimPrevenuAt}
           />
         ) : (
           <>

@@ -139,6 +139,7 @@ export default async function DashboardPage({
       checkinValidePar: reservations.checkinValidePar,
       checkoutValideAt: reservations.checkoutValideAt,
       checkoutValidePar: reservations.checkoutValidePar,
+      brahimPrevenuAt: reservations.brahimPrevenuAt,
       aRelancer: reservations.aRelancer,
       messageArriveeEnvoyeAt: reservations.messageArriveeEnvoyeAt,
       messageBienvenueEnvoyeAt: reservations.messageBienvenueEnvoyeAt,

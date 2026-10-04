@@ -80,6 +80,7 @@ export function PersonnelAffectationEditor({
   onAssignedChange,
   minimal = false,
   villaTarifContext = null,
+  brahimPrevenuAt = null,
 }: {
   reservationId: string;
   role: "menage" | "cuisine";
@@ -99,6 +100,9 @@ export function PersonnelAffectationEditor({
   // de fin de séjour, souvent une équipe différente) — la MÊME personne peut être affectée aux
   // deux pour la même réservation. "unique" (défaut) pour la cuisine, sans objet.
   moment?: "sejour" | "depart" | "unique";
+  // Ménage/départ uniquement : horodatage posé en base dès que Brahim a été prévenu pour ce
+  // départ (cron quotidien ou bouton manuel) — colore le bouton en vert, Kamel, 2026-10-04.
+  brahimPrevenuAt?: Date | null;
   // Optionnel : miroir de l'état optimiste vers le parent — nécessaire quand `assigned` ne vient
   // pas d'un rendu serveur revalidé (ex. assistant de création de réservation, où la fiche
   // n'existe pas encore côté page) : sans lui, l'ajout retombe à la liste vide dès que l'action
@@ -283,6 +287,7 @@ export function PersonnelAffectationEditor({
   // demande (ex. Brahim n'a rien reçu) ou un cas particulier. Pas d'état optimiste ici : ça
   // n'affecte pas l'affectation elle-même, juste un envoi WhatsApp.
   const [isNotifyingBrahim, setIsNotifyingBrahim] = useState(false);
+  const [brahimPrevenu, setBrahimPrevenu] = useState(Boolean(brahimPrevenuAt));
   function handleNotifyBrahim() {
     setIsNotifyingBrahim(true);
     startTransition(async () => {
@@ -290,6 +295,7 @@ export function PersonnelAffectationEditor({
         const result = await sendBrahimCoursesReminder(reservationId);
         if (result.sent) {
           toast.success(`Brahim prévenu pour ${result.villa}.`);
+          setBrahimPrevenu(true);
         } else {
           toast.error("Réservation introuvable ou annulée.");
         }
@@ -361,11 +367,20 @@ export function PersonnelAffectationEditor({
             type="button"
             onClick={handleNotifyBrahim}
             disabled={isNotifyingBrahim}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
-            title="Envoyer un rappel de courses à Brahim pour ce départ"
+            className={cn(
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs disabled:pointer-events-none disabled:opacity-50",
+              brahimPrevenu
+                ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600/90"
+                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+            title={
+              brahimPrevenu
+                ? "Brahim a été prévenu pour ce départ — cliquer pour renvoyer"
+                : "Envoyer un rappel de courses à Brahim pour ce départ"
+            }
           >
             <ShoppingBasket className="h-3.5 w-3.5" />
-            {isNotifyingBrahim ? "Envoi…" : "Prévenir Brahim"}
+            {isNotifyingBrahim ? "Envoi…" : brahimPrevenu ? "Brahim prévenu" : "Prévenir Brahim"}
           </button>
         ) : null}
         {availableOptions.length > 0 ? (

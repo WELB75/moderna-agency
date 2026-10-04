@@ -59,6 +59,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       checkinValidePar: reservations.checkinValidePar,
       checkoutValideAt: reservations.checkoutValideAt,
       checkoutValidePar: reservations.checkoutValidePar,
+      brahimPrevenuAt: reservations.brahimPrevenuAt,
       aRelancer: reservations.aRelancer,
       messageArriveeEnvoyeAt: reservations.messageArriveeEnvoyeAt,
       messageBienvenueEnvoyeAt: reservations.messageBienvenueEnvoyeAt,

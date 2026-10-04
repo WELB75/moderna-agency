@@ -230,6 +230,10 @@ export const reservations = pgTable(
     checkinValidePar: text("checkin_valide_par"),
     checkoutValideAt: timestamp("checkout_valide_at", { withTimezone: true }),
     checkoutValidePar: text("checkout_valide_par"),
+    // Posé (cron quotidien ou bouton manuel "Prévenir Brahim") dès que Brahim a été notifié pour
+    // le départ de cette réservation — affiche le bouton en vert une fois fait, Kamel, 2026-10-04 :
+    // "j'aimerais bien que ce soit vert aussi, que ça montre que c'est fait". Voir brahim.ts.
+    brahimPrevenuAt: timestamp("brahim_prevenu_at", { withTimezone: true }),
     // Suivi opérationnel équivalent à ce que montre Superhote mais qu'on ne peut pas récupérer
     // via leur flux iCal (pas d'API accessible) : renseigné à la main.
     assigneCheckin: text("assigne_checkin"),
