@@ -39,6 +39,7 @@ import { DomaineBadge } from "@/components/app/domaine-badge";
 import { type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { DomainePlanTrigger } from "@/components/app/domaine-plan-trigger";
 import { MenuGrid } from "@/components/app/menu-grid";
+import { DashboardOverview } from "@/components/app/dashboard-overview";
 import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
@@ -545,6 +546,16 @@ export default async function DashboardPage({
 
   return (
     <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+      {/* Vue d'ensemble façon SuperHote v2 (performance du mois, actions à traiter, journée) —
+          seulement sur la semaine en cours : elle parle d'aujourd'hui, pas de la semaine affichée. */}
+      {offsetSemaines === 0 ? (
+        <>
+          <DashboardOverview now={now} unreadChatCount={unreadChatCount} />
+          <h2 className="border-t pt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Opérations de la semaine
+          </h2>
+        </>
+      ) : null}
       {/* Une seule ligne de tête : navigateur de semaine + date en ligne (plus dessous), toutes
           les icônes regroupées à droite — Kamel, 2026-09-08 : "je veux qu'il y ait toutes les
           icônes listé là en haut [...] la date [...] tu me la mets propre sur le côté à côté de
