@@ -1,252 +1,203 @@
-import type { ReactNode } from "react";
 import { desc, isNotNull, eq } from "drizzle-orm";
-import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
 import { beds24GetMessages, type Beds24Message } from "@/lib/beds24/client";
-import { PlatformBadge, WhatsAppBadge } from "@/components/app/platform-badge";
-import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { platformFromCanal } from "@/components/app/platform-badge";
+import {
+  InboxClient,
+  type InboxChannel,
+  type InboxConversation,
+  type InboxMessage,
+  type InboxStatus,
+} from "./inbox-client";
 
-type Contact = { nom: string; roleLabel: string; roleVariant: "client" | "staff" | "technicien" | "inconnu" };
+// Boîte de réception reconstruite sur le modèle de la messagerie Superhote (liste à gauche avec
+// recherche / filtre / statut du séjour / pastille de canal, conversation à droite) — Kamel,
+// 2026-10-10 : "supprime tout, et tu mets un modèle pour avoir les messages whatsapp, airbnb et
+// booking". Les sources de données sont inchangées : conversations WhatsApp (clients, personnel,
+// techniciens) + fils Airbnb/Booking.com lus via Beds24 (réponse possible, voir Beds24ReplyForm).
+// Pas de suivi "lu / non lu" en base : "À répondre" = le dernier message vient du voyageur.
 
-function resolveContact(
-  phone: string,
-  personnelList: { nom: string; telephone: string | null; role: string }[],
-  techniciensList: { nom: string; telephone: string }[],
-  clientsList: { nom: string; telephone: string | null }[],
-  reservationsList: { guestName: string; guestPhone: string | null }[]
-): Contact {
-  const p = personnelList.find((x) => phonesMatch(x.telephone, phone));
-  if (p) return { nom: p.nom, roleLabel: p.role === "menage" ? "Ménage" : "Cuisine", roleVariant: "staff" };
-
-  const t = techniciensList.find((x) => phonesMatch(x.telephone, phone));
-  if (t) return { nom: t.nom, roleLabel: "Technicien", roleVariant: "technicien" };
-
-  const c = clientsList.find((x) => phonesMatch(x.telephone, phone));
-  if (c) return { nom: c.nom, roleLabel: "Client", roleVariant: "client" };
-
-  const r = reservationsList.find((x) => phonesMatch(x.guestPhone, phone));
-  if (r) return { nom: r.guestName, roleLabel: "Client", roleVariant: "client" };
-
-  return { nom: phone, roleLabel: "WhatsApp", roleVariant: "inconnu" };
-}
-
-// Kamel, 2026-09-15 : "en fond vert whatsapp qu'on reconnaisse !" — numéro non identifié
-// (roleVariant "inconnu") a désormais son propre badge vert WhatsApp au lieu du badge gris
-// générique utilisé pour les autres rôles.
-function contactBadge(contact: Contact, className: string) {
-  if (contact.roleVariant === "inconnu") return <WhatsAppBadge className={className} />;
-  return <Badge className={cn(className, ROLE_BADGE_CLASS[contact.roleVariant])}>{contact.roleLabel}</Badge>;
-}
-
-const ROLE_BADGE_CLASS: Record<Contact["roleVariant"], string> = {
-  client: "bg-accent text-accent-foreground",
-  staff: "bg-secondary text-secondary-foreground",
-  technicien: "bg-muted text-muted-foreground",
-  inconnu: "bg-muted text-muted-foreground",
+type StayInfo = {
+  reservationId: string;
+  guestName: string;
+  guestPhone: string | null;
+  checkIn: Date;
+  checkOut: Date;
+  canal: string | null;
+  villaNom: string | null;
+  villaNumero: string | null;
 };
 
-type ListItem = {
-  key: string; // "wa:<phone>" ou "og:<reservationId>" (OTA guest)
-  title: string;
-  updatedAt: Date;
-  preview: string;
-  badge: ReactNode;
-};
+const DAY_MONTH = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" });
 
-// Boîte de réception unifiée : toutes les conversations WhatsApp (clients ET personnel/techniciens,
-// qui partagent la même table whatsapp_conversations) au même endroit, avec le contact identifié
-// automatiquement plutôt qu'un simple numéro. Kamel, 2026-09-04 : "construit l'inbox whatsapp +
-// mail" — le volet mail n'existe pas encore : aucune adresse n'est vérifiée sur Resend
-// aujourd'hui, donc pas d'email entrant à afficher (voir le message envoyé après ce commit).
-//
-// Fils Airbnb/Booking.com ajoutés le 2026-09-15 (Kamel, en voyant les messages Airbnb dans
-// Beds24 : "on peux les intégrer dans notre app moderna") — lecture seule pour l'instant, comme
-// pour WhatsApp : répondre touche à un historique utilisé ailleurs comme contexte, à traiter
-// séparément. Ne fonctionne que pour les réservations liées à un canal OTA via Beds24 (pas les
-// résas "Direct", qui n'ont pas de fil de discussion côté Beds24).
+function stayRange(checkIn: Date, checkOut: Date) {
+  const day = (d: Date) => String(d.getDate()).padStart(2, "0");
+  const sameMonth = checkIn.getMonth() === checkOut.getMonth();
+  return `${sameMonth ? day(checkIn) : DAY_MONTH.format(checkIn)} → ${DAY_MONTH.format(checkOut)}`;
+}
+
+function stayStatus(checkIn: Date, checkOut: Date, now: Date): { status: InboxStatus; label: string } {
+  if (checkOut < now) return { status: "termine", label: "Séjour terminé" };
+  if (checkIn > now) return { status: "a_venir", label: "Séjour à venir" };
+  return { status: "en_cours", label: "Séjour en cours" };
+}
+
+function channelFromCanal(canal: string | null): InboxChannel {
+  const p = platformFromCanal(canal ?? "Direct");
+  return p === "airbnb" || p === "booking" ? p : "direct";
+}
+
+// Réservation la plus pertinente pour un numéro : séjour en cours, sinon le prochain à venir,
+// sinon le plus récent terminé.
+function pickStay(candidates: StayInfo[], now: Date): StayInfo | null {
+  if (candidates.length === 0) return null;
+  const current = candidates.find((s) => s.checkIn <= now && s.checkOut >= now);
+  if (current) return current;
+  const upcoming = candidates.filter((s) => s.checkIn > now).sort((a, b) => a.checkIn.getTime() - b.checkIn.getTime());
+  if (upcoming[0]) return upcoming[0];
+  return [...candidates].sort((a, b) => b.checkOut.getTime() - a.checkOut.getTime())[0];
+}
+
 export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKeyParam: string | undefined }) {
   const db = getDb();
+  const now = new Date();
 
-  const [conversations, personnelList, techniciensList, clientsList, reservationsList, otaReservations] = await Promise.all([
+  const [conversations, personnelList, techniciensList, clientsList, stays, otaReservations] = await Promise.all([
     db.select().from(whatsappConversations).orderBy(desc(whatsappConversations.updatedAt)),
     db.select({ nom: personnel.nom, telephone: personnel.telephone, role: personnel.role }).from(personnel),
     db.select({ nom: technicians.nom, telephone: technicians.telephone }).from(technicians),
     db.select({ nom: clients.nom, telephone: clients.telephone }).from(clients),
-    db.select({ guestName: reservations.guestName, guestPhone: reservations.guestPhone }).from(reservations).orderBy(desc(reservations.checkIn)),
     db
       .select({
-        id: reservations.id,
+        reservationId: reservations.id,
         guestName: reservations.guestName,
+        guestPhone: reservations.guestPhone,
+        checkIn: reservations.checkIn,
+        checkOut: reservations.checkOut,
         canal: reservations.canal,
-        beds24BookingId: reservations.beds24BookingId,
         villaNom: villas.nom,
         villaNumero: villas.numero,
-        updatedAt: reservations.updatedAt,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .orderBy(desc(reservations.checkIn)),
+    db
+      .select({
+        id: reservations.id,
+        beds24BookingId: reservations.beds24BookingId,
+      })
+      .from(reservations)
       .where(isNotNull(reservations.beds24BookingId))
       .orderBy(desc(reservations.checkIn))
       .limit(30),
   ]);
 
-  const enrichedWa = conversations.map((c) => ({
-    ...c,
-    contact: resolveContact(c.phone, personnelList, techniciensList, clientsList, reservationsList),
-    messages: c.messages as { role: "user" | "assistant"; content: unknown }[],
-  }));
+  // Un appel API par réservation OTA ; une erreur individuelle (résa trop ancienne, token
+  // expiré...) ne doit jamais faire disparaître le reste de la boîte de réception.
+  const otaResults = await Promise.allSettled(otaReservations.map((r) => beds24GetMessages(Number(r.beds24BookingId))));
 
-  // Un appel API par réservation OTA — en pratique peu nombreuses tant que Beds24 n'est pas
-  // généralisé à toutes les villas. Une erreur individuelle (résa trop ancienne, token expiré...)
-  // ne doit jamais faire disparaître le reste de la boîte de réception.
-  const otaResults = await Promise.allSettled(
-    otaReservations.map((r) => beds24GetMessages(Number(r.beds24BookingId)))
-  );
-  const otaConversations = otaReservations
-    .map((r, i) => {
-      const result = otaResults[i];
-      const messages: Beds24Message[] = result.status === "fulfilled" ? result.value : [];
-      return { ...r, messages: [...messages].sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()) };
-    })
-    .filter((c) => c.messages.length > 0);
+  const staysById = new Map(stays.map((s) => [s.reservationId, s]));
+  const items: InboxConversation[] = [];
 
-  const listItems: ListItem[] = [
-    ...enrichedWa.map((c) => ({
+  // --- WhatsApp : clients, personnel, techniciens
+  for (const c of conversations) {
+    const raw = c.messages as { role: "user" | "assistant"; content: unknown }[];
+    const messages: InboxMessage[] = [];
+    for (const m of raw) {
+      for (const part of toRenderableParts(m.content)) {
+        messages.push({
+          fromContact: m.role === "user",
+          text: part.kind === "text" ? part.text : `🔧 ${part.label}`,
+          tool: part.kind === "tool",
+          at: null,
+        });
+      }
+    }
+    const last = raw[raw.length - 1];
+
+    const staff = personnelList.find((x) => phonesMatch(x.telephone, c.phone));
+    const tech = techniciensList.find((x) => phonesMatch(x.telephone, c.phone));
+    const client = clientsList.find((x) => phonesMatch(x.telephone, c.phone));
+    const stay = pickStay(
+      stays.filter((s) => phonesMatch(s.guestPhone, c.phone)),
+      now
+    );
+
+    let name = c.phone;
+    let status: InboxStatus = "autre";
+    let statusLabel = "WhatsApp";
+    if (staff) {
+      name = staff.nom;
+      statusLabel = staff.role === "menage" ? "Ménage" : "Cuisine";
+    } else if (tech) {
+      name = tech.nom;
+      statusLabel = "Technicien";
+    } else if (stay) {
+      name = stay.guestName;
+    } else if (client) {
+      name = client.nom;
+      statusLabel = "Client";
+    }
+    if (stay && !staff && !tech) {
+      const s = stayStatus(stay.checkIn, stay.checkOut, now);
+      status = s.status;
+      statusLabel = s.label;
+    }
+
+    items.push({
       key: `wa:${c.phone}`,
-      title: c.contact.nom,
-      updatedAt: new Date(c.updatedAt),
-      preview: c.messages.length > 0 ? previewText(c.messages[c.messages.length - 1].content) : "",
-      badge: contactBadge(c.contact, "shrink-0 text-[10px]"),
-    })),
-    ...otaConversations.map((c) => {
-      const last = c.messages[c.messages.length - 1];
-      return {
-        key: `og:${c.id}`,
-        title: c.guestName,
-        updatedAt: new Date(last.time),
-        preview: last.message,
-        badge: <PlatformBadge canal={c.canal ?? "Direct"} className="shrink-0" />,
-      };
-    }),
-  ].sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+      name,
+      channel: "whatsapp",
+      status,
+      statusLabel,
+      stay: stay && !staff && !tech ? stayRange(stay.checkIn, stay.checkOut) : null,
+      logement: stay && !staff && !tech ? [stay.villaNom, stay.villaNumero ? `n°${stay.villaNumero}` : null].filter(Boolean).join(" ") : null,
+      lastAt: new Date(c.updatedAt).toISOString(),
+      preview: last ? previewText(last.content) : "",
+      awaitingReply: last?.role === "user",
+      messages: messages.slice(-100),
+      phone: c.phone,
+      reservationId: null,
+    });
+  }
 
-  const selectedKey = selectedKeyParam ?? listItems[0]?.key ?? null;
-  const selectedWa = selectedKey?.startsWith("wa:") ? enrichedWa.find((c) => `wa:${c.phone}` === selectedKey) ?? null : null;
-  const selectedOta = selectedKey?.startsWith("og:") ? otaConversations.find((c) => `og:${c.id}` === selectedKey) ?? null : null;
+  // --- Airbnb / Booking.com via Beds24
+  otaReservations.forEach((r, i) => {
+    const result = otaResults[i];
+    if (result.status !== "fulfilled") return;
+    const thread: Beds24Message[] = [...result.value].sort(
+      (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
+    );
+    if (thread.length === 0) return;
+    const stay = staysById.get(r.id);
+    if (!stay) return;
+    const last = thread[thread.length - 1];
+    const s = stayStatus(stay.checkIn, stay.checkOut, now);
+    items.push({
+      key: `og:${r.id}`,
+      name: stay.guestName,
+      channel: channelFromCanal(stay.canal),
+      status: s.status,
+      statusLabel: s.label,
+      stay: stayRange(stay.checkIn, stay.checkOut),
+      logement: [stay.villaNom, stay.villaNumero ? `n°${stay.villaNumero}` : null].filter(Boolean).join(" ") || null,
+      lastAt: new Date(last.time).toISOString(),
+      preview: last.message,
+      awaitingReply: last.source === "guest",
+      messages: thread.map((m) => ({
+        fromContact: m.source === "guest",
+        text: m.message,
+        at: m.time,
+      })),
+      phone: stay.guestPhone,
+      reservationId: r.id,
+    });
+  });
 
-  return (
-    <Card className="flex h-[calc(100vh-19rem)] min-h-[28rem] flex-row overflow-hidden p-0">
-      <div className="flex w-full max-w-xs shrink-0 flex-col overflow-y-auto border-r border-border">
-        {listItems.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">Aucune conversation pour l&apos;instant.</p>
-        ) : (
-          listItems.map((item) => {
-            const active = item.key === selectedKey;
-            return (
-              <Link
-                key={item.key}
-                href={`/chat?section=boite&conv=${encodeURIComponent(item.key)}`}
-                className={cn(
-                  "flex flex-col gap-1 border-b border-border px-4 py-3 text-left transition-colors",
-                  active ? "bg-accent" : "hover:bg-muted"
-                )}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate font-medium">{item.title}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {formatDistanceToNow(item.updatedAt, { addSuffix: true, locale: fr })}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {item.badge}
-                  <span className="truncate text-xs text-muted-foreground">{item.preview}</span>
-                </div>
-              </Link>
-            );
-          })
-        )}
-      </div>
+  items.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
 
-      <div className="flex flex-1 flex-col overflow-hidden">
-        {selectedWa ? (
-          <>
-            <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-              <span className="font-medium">{selectedWa.contact.nom}</span>
-              {contactBadge(selectedWa.contact, "text-[10px]")}
-              <span className="ml-auto text-xs text-muted-foreground">{selectedWa.phone}</span>
-            </div>
-            <div className="flex-1 space-y-3 overflow-y-auto p-5">
-              {selectedWa.messages.map((m, i) => {
-                const parts = toRenderableParts(m.content);
-                if (parts.length === 0) return null;
-                const fromContact = m.role === "user";
-                return (
-                  <div key={i} className={cn("flex", fromContact ? "justify-start" : "justify-end")}>
-                    <div
-                      className={cn(
-                        "max-w-[75%] space-y-1 rounded-2xl px-4 py-2 text-sm",
-                        fromContact ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
-                      )}
-                    >
-                      {parts.map((p, j) =>
-                        p.kind === "text" ? (
-                          <p key={j} className="whitespace-pre-wrap">
-                            {p.text}
-                          </p>
-                        ) : (
-                          <p key={j} className={cn("text-xs italic opacity-80", fromContact ? "" : "text-primary-foreground/80")}>
-                            🔧 {p.label}
-                          </p>
-                        )
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        ) : selectedOta ? (
-          <>
-            <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-              <span className="font-medium">{selectedOta.guestName}</span>
-              <PlatformBadge canal={selectedOta.canal ?? "Direct"} />
-              <span className="ml-auto text-xs text-muted-foreground">
-                {selectedOta.villaNom} (n°{selectedOta.villaNumero})
-              </span>
-            </div>
-            <div className="flex-1 space-y-3 overflow-y-auto p-5">
-              {selectedOta.messages.map((m) => {
-                const fromGuest = m.source === "guest";
-                return (
-                  <div key={m.id} className={cn("flex", fromGuest ? "justify-start" : "justify-end")}>
-                    <div
-                      className={cn(
-                        "max-w-[75%] space-y-1 rounded-2xl px-4 py-2 text-sm",
-                        fromGuest ? "bg-muted text-foreground" : "bg-primary text-primary-foreground"
-                      )}
-                    >
-                      <p className="whitespace-pre-wrap">{m.message}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <Beds24ReplyForm reservationId={selectedOta.id} />
-          </>
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            Sélectionne une conversation.
-          </div>
-        )}
-      </div>
-    </Card>
-  );
+  return <InboxClient conversations={items} initialKey={selectedKeyParam ?? null} />;
 }

@@ -90,3 +90,8 @@ export function WhatsAppBadge({ className }: { className?: string }) {
     </span>
   );
 }
+
+// Icône WhatsApp seule, pour la pastille de canal sur l'avatar dans la boîte de réception.
+export function WhatsAppIcon({ className }: { className?: string }) {
+  return <BrandIcon path={WHATSAPP_PATH} className={className} />;
+}
