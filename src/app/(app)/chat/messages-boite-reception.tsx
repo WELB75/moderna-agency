@@ -1,4 +1,4 @@
-import { desc, isNotNull, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, notIlike, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
 import { phonesMatch } from "@/lib/phone";
@@ -90,7 +90,8 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
         beds24BookingId: reservations.beds24BookingId,
       })
       .from(reservations)
-      .where(isNotNull(reservations.beds24BookingId))
+      // Airbnb exclu — Kamel, 2026-10-10 : "retire airbnb car c lié à mon compte".
+      .where(and(isNotNull(reservations.beds24BookingId), or(isNull(reservations.canal), notIlike(reservations.canal, "%airbnb%"))))
       .orderBy(desc(reservations.checkIn))
       .limit(30),
   ]);

@@ -177,7 +177,6 @@ export function InboxClient({
             >
               <option value="all">Tous canaux</option>
               <option value="whatsapp">WhatsApp</option>
-              <option value="airbnb">Airbnb</option>
               <option value="booking">Booking.com</option>
               <option value="direct">En direct</option>
             </select>
