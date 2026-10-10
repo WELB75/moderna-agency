@@ -810,7 +810,6 @@ function DomaineMetricsHeader({
         value={sollicitationsEnAttente}
         label="Personnel en attente"
         color={sollicitationsEnAttente > 0 ? "amber" : "slate"}
-        href="/chat?section=agent&onglet=personnel"
       />
       <StatTile
         icon={FileWarning}

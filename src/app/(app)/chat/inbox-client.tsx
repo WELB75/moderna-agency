@@ -126,8 +126,7 @@ export function InboxClient({
       <div className="flex w-full max-w-sm shrink-0 flex-col border-r border-border">
         <div className="space-y-3 border-b border-border p-4">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">Messages</h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm font-medium">
               {awaitingCount === 0 ? "Rien à répondre" : `${awaitingCount} à répondre`}
             </p>
           </div>
