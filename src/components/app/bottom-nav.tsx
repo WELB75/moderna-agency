@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { navItems, isNavItemActive } from "@/components/app/nav-items";
+import { navItems, isNavItemActive, mobilePrimaryHrefs } from "@/components/app/nav-items";
 import {
   Sheet,
   SheetContent,
@@ -13,15 +13,15 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-const PRIMARY_COUNT = 4;
-
 export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
 
-  const primaryItems = navItems.slice(0, PRIMARY_COUNT);
-  const overflowItems = navItems.slice(PRIMARY_COUNT);
+  const primaryItems = mobilePrimaryHrefs
+    .map((href) => navItems.find((item) => item.href === href))
+    .filter((item): item is (typeof navItems)[number] => Boolean(item));
+  const overflowItems = navItems.filter((item) => !mobilePrimaryHrefs.includes(item.href));
   const isOverflowActive = overflowItems.some((item) => isNavItemActive(pathname, searchParams, item.href));
   const overflowHasUnread = unreadChatCount > 0 && overflowItems.some((item) => item.href === "/chat");
 

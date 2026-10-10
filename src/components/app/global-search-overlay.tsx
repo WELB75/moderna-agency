@@ -25,8 +25,24 @@ const TYPE_LABELS: Record<SearchResult["type"], string> = {
 // Kamel garde une charte strictement monochrome), balayage lumineux pendant la recherche,
 // résultats qui entrent en cascade. Kamel, 2026-08-20 : "tu peux mieux faire encore je veux
 // vraiment un truc du futur !" (suite à une première passe jugée pas assez poussée).
-export function GlobalSearchOverlay() {
+// variant="bar" : barre de recherche façon SuperHote v2 dans l'en-tête (libellé + raccourci ⌘K),
+// variant="icon" (défaut) : simple loupe, comme avant.
+export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "bar" } = {}) {
   const [open, setOpen] = useState(false);
+
+  // Raccourci clavier ⌘K / Ctrl+K — seulement sur l'instance "bar" (en-tête), pour ne pas ouvrir
+  // deux calques si la loupe de l'accueil est aussi présente à l'écran.
+  useEffect(() => {
+    if (variant !== "bar") return;
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setOpen((v) => !v);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [variant]);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -67,13 +83,27 @@ export function GlobalSearchOverlay() {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger asChild>
-        <button
-          type="button"
-          aria-label="Rechercher"
-          className="flex items-center justify-center border border-border p-2 text-muted-foreground hover:text-foreground"
-        >
-          <Search className="h-4 w-4" />
-        </button>
+        {variant === "bar" ? (
+          <button
+            type="button"
+            aria-label="Rechercher"
+            className="flex h-9 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+          >
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="flex-1 truncate text-left">Voyageur, villa, intervention…</span>
+            <kbd className="hidden rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[10px] font-medium sm:inline-block">
+              ⌘K
+            </kbd>
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Rechercher"
+            className="flex items-center justify-center border border-border p-2 text-muted-foreground hover:text-foreground"
+          >
+            <Search className="h-4 w-4" />
+          </button>
+        )}
       </DialogPrimitive.Trigger>
       <DialogPortal>
         <DialogOverlay className="bg-black/40 backdrop-blur-md" />
