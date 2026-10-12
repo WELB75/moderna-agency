@@ -22,15 +22,25 @@ export async function runIcalSync(): Promise<
   const db = getDb();
 
   const rows = await db
-    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, icalUrl: villas.icalUrl })
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, icalUrl: villas.icalUrl, beds24RoomId: villas.beds24RoomId })
     .from(villas)
     .where(isNotNull(villas.icalUrl));
 
+  // Bascule Beds24 (2026-10-13) : une villa liée à Beds24 (beds24RoomId renseigné) reçoit ses
+  // réservations par runBeds24Sync ; SuperHote ne reçoit plus les réservations Airbnb, son flux
+  // iCal ne ferait que créer des doublons (ou annuler à tort via la réconciliation). On la saute
+  // donc entièrement, sans réconciliation. Rien ne change pour les villas non liées.
+  const migratedToBeds24 = rows.filter((v) => Boolean(v.beds24RoomId));
   const targets = rows.filter(
-    (v): v is { id: string; nom: string; numero: string; icalUrl: string } => Boolean(v.icalUrl)
+    (v): v is { id: string; nom: string; numero: string; icalUrl: string; beds24RoomId: string | null } =>
+      Boolean(v.icalUrl) && !v.beds24RoomId
   );
 
   if (targets.length === 0) {
+    if (migratedToBeds24.length > 0) {
+      // Toutes les villas avec un lien iCal sont passées sur Beds24 : rien à faire, pas une erreur.
+      return { success: true, bookingsSynced: 0, villasSynced: 0, bookingsCancelled: 0, failedVillas: [] };
+    }
     return { success: false, error: "Aucune villa n'a de lien iCal configuré." };
   }
 
@@ -234,10 +244,15 @@ export async function runDirectPlatformSync(): Promise<{
       numero: villas.numero,
       airbnbIcalUrl: villas.airbnbIcalUrl,
       bookingIcalUrl: villas.bookingIcalUrl,
+      beds24RoomId: villas.beds24RoomId,
     })
     .from(villas);
 
   for (const villa of targets) {
+    // Villa liée à Beds24 : ses réservations Airbnb/Booking.com arrivent déjà par runBeds24Sync,
+    // les flux iCal natifs feraient doublon (même règle que runIcalSync ci-dessus).
+    if (villa.beds24RoomId) continue;
+
     for (const plat of [
       { key: "airbnb" as const, label: "Réservation Airbnb", canal: "Airbnb.com", url: villa.airbnbIcalUrl },
       { key: "booking" as const, label: "Réservation Booking.com", canal: "Booking.com", url: villa.bookingIcalUrl },

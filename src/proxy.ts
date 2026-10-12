@@ -11,6 +11,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/telegram-webhook",
   "/api/staff-requests/sweep",
   "/api/maintenance/dispatch",
+  "/api/beds24/sync", // cron quotidien, protégé par CRON_SECRET dans la route
+  "/api/beds24/webhook", // appelé par Beds24, protégé par ?key= (BEDS24_WEBHOOK_SECRET) dans la route
   // Autorisation gérée par la route elle-même (compte Clerk, OU token technicien/villa valide en
   // base) — voir src/app/api/blob/upload/route.ts. Sans cette entrée, auth.protect() bloquait
   // déjà toute requête non connectée avant même d'atteindre ce contrôle, y compris les envois de
