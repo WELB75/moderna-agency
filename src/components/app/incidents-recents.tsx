@@ -21,13 +21,26 @@ function dayLabel(date: Date, now: Date): string {
   return new Intl.DateTimeFormat("fr-FR", { timeZone: TIMEZONE, weekday: "long", day: "numeric", month: "long" }).format(date);
 }
 
-// Fil simple des incidents signalés ces 7 derniers jours : villa, titre, statut, rien de plus.
+const MAX_LIGNES = 10;
+
+function dateHeure(date: Date): string {
+  return new Intl.DateTimeFormat("fr-FR", {
+    timeZone: TIMEZONE,
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+    .format(date)
+    .replace(" ", " · ");
+}
+
+// Fil simple des 10 derniers incidents signalés : villa, titre, statut, date et heure.
 export function IncidentsRecents({ incidents }: { incidents: Incident[] }) {
   const now = new Date();
-  const limite = now.getTime() - 7 * 24 * 60 * 60 * 1000;
-  const recents = incidents
-    .filter((i) => new Date(i.signaleAt).getTime() >= limite)
-    .sort((a, b) => new Date(b.signaleAt).getTime() - new Date(a.signaleAt).getTime());
+  const recents = [...incidents]
+    .sort((a, b) => new Date(b.signaleAt).getTime() - new Date(a.signaleAt).getTime())
+    .slice(0, MAX_LIGNES);
 
   if (recents.length === 0) return null;
 
@@ -41,7 +54,7 @@ export function IncidentsRecents({ incidents }: { incidents: Incident[] }) {
 
   return (
     <div className="space-y-2">
-      <h2 className="text-sm font-medium text-muted-foreground">Signalés ces 7 derniers jours</h2>
+      <h2 className="text-sm font-medium text-muted-foreground">Derniers signalements</h2>
       <div className="space-y-3 rounded-md border p-3">
         {jours.map((jour) => (
           <div key={jour.label} className="space-y-1">
@@ -53,7 +66,7 @@ export function IncidentsRecents({ incidents }: { incidents: Incident[] }) {
                   <span className="text-muted-foreground"> · {i.titre}</span>
                 </p>
                 <span className="shrink-0 text-xs text-muted-foreground">
-                  {INTERVENTION_STEPS.find((s) => s.key === i.etape)?.label}
+                  {dateHeure(new Date(i.signaleAt))} · {INTERVENTION_STEPS.find((s) => s.key === i.etape)?.label}
                 </span>
               </div>
             ))}
