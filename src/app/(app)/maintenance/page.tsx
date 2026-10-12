@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddTechnicianDialog } from "@/components/app/add-technician-dialog";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
 import { InterventionCard } from "@/components/app/intervention-card";
+import { IncidentsRecents } from "@/components/app/incidents-recents";
 import { VillaFilterView, type VillaGroup } from "@/components/app/villa-filter-view";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
@@ -205,6 +206,8 @@ export default async function MaintenancePage() {
                   </p>
                 </div>
               </div>
+
+              <IncidentsRecents incidents={villaInterventions} />
 
               <Tabs defaultValue="a-faire">
                 <TabsList>
