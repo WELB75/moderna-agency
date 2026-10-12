@@ -85,20 +85,46 @@ export type Beds24Booking = {
   firstName: string;
   lastName: string;
   email: string;
+  phone?: string;
+  mobile?: string;
   price: number;
-  channel?: string; // ex. "direct", "airbnb", "bookingcom"
+  channel?: string; // code technique du canal, ex. "airbnb", "booking", "direct"
+  referer?: string; // libellé lisible du canal, ex. "Airbnb", "Booking.com", "Direct"
+  apiSource?: string;
 };
 
-export async function beds24GetBookings(filters: {
-  propertyId?: number;
-  roomId?: number;
+// Réponse paginée de GET /bookings : Beds24 renvoie au plus une page de résultats et indique
+// via pages.nextPageExists s'il faut demander la suivante (paramètre "page", à partir de 1).
+type Beds24BookingsPage = {
+  data: Beds24Booking[];
+  count?: number;
+  pages?: { nextPageExists?: boolean; nextPageLink?: string | null };
+};
+
+export type Beds24BookingFilters = {
+  propertyId?: number | number[];
+  roomId?: number | number[];
   arrivalFrom?: string;
   arrivalTo?: string;
-  status?: Beds24BookingStatus;
+  departureFrom?: string; // sans filtre de date, Beds24 ne renvoie que les séjours en cours/à venir
+  departureTo?: string;
+  status?: Beds24BookingStatus | Beds24BookingStatus[];
   modifiedFrom?: string;
-} = {}): Promise<Beds24Booking[]> {
-  const res = await beds24Fetch<{ data: Beds24Booking[] }>("/bookings", { query: filters });
-  return res.data;
+  includeGuests?: boolean;
+};
+
+// Garde-fou contre une boucle infinie si l'API renvoyait toujours nextPageExists: true.
+const MAX_BOOKING_PAGES = 50;
+
+// Récupère TOUTES les pages de résultats (et non seulement la première, comme avant).
+export async function beds24GetBookings(filters: Beds24BookingFilters = {}): Promise<Beds24Booking[]> {
+  const all: Beds24Booking[] = [];
+  for (let page = 1; page <= MAX_BOOKING_PAGES; page++) {
+    const res = await beds24Fetch<Beds24BookingsPage>("/bookings", { query: { ...filters, page } });
+    all.push(...(res.data ?? []));
+    if (!res.pages?.nextPageExists) return all;
+  }
+  throw new Beds24ApiError(`Beds24 GET /bookings : plus de ${MAX_BOOKING_PAGES} pages de résultats, synchro interrompue.`);
 }
 
 export type Beds24BookingWrite = {

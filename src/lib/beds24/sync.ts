@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, gte, notInArray } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, gte, lt, inArray, notInArray } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -7,11 +7,22 @@ import { beds24GetBookings, beds24WriteBookings, type Beds24Booking, type Beds24
 import { nowInMorocco } from "@/lib/now";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
+import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
 // séjours réels (demande en attente, blocage manuel) et ne doivent pas apparaître dans l'app.
 const ACTIVE_STATUSES = new Set(["confirmed", "new"]);
 const CANCELLED_STATUSES = new Set(["cancelled"]);
+
+// Sans filtre de date, GET /bookings ne renvoie que les séjours en cours/à venir : on remonte
+// aussi les séjours terminés depuis moins de 30 jours (ménage, caution, fiche police...).
+const PAST_DAYS_INCLUDED = 30;
+
+// Sources des réservations importées par les anciennes synchros iCal (SuperHote, flux natifs
+// Airbnb/Booking.com) : à la bascule, la même réservation remonte maintenant par Beds24. On
+// rattache alors la ligne existante (voir findPreBeds24Duplicate) au lieu d'en créer une seconde.
+// Jamais "manuel" : une résa Direct saisie dans l'app ne fait que bloquer le calendrier Beds24.
+const PRE_BEDS24_SOURCES = ["superhote", "airbnb", "booking"];
 
 // Beds24 ne donne qu'une date (pas d'heure) pour l'arrivée/le départ : on retombe sur les
 // horaires standards de l'agence, modifiables ensuite comme pour toute autre réservation.
@@ -26,26 +37,81 @@ function toDateTime(dateOnly: string, hour: number): Date {
   return new Date(Date.UTC(year, month - 1, day, hour, 0, 0));
 }
 
-function mapCanal(booking: Beds24Booking): string | null {
-  if (!booking.channel || booking.channel === "direct") return "Direct";
-  return booking.channel;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Canal normalisé sur les libellés déjà utilisés dans l'app ("Airbnb", "Booking.com", "Direct",
+// reconnus par platformFromCanal). Beds24 expose un code technique (channel : "airbnb",
+// "booking"...) et un libellé (referer : "Airbnb", "Booking.com"...), parfois l'un sans l'autre.
+// On ne cherche pas "booking" seul dans referer : "Beds24 booking page" est une résa directe.
+function mapCanal(booking: Beds24Booking): string {
+  const channel = (booking.channel ?? "").trim().toLowerCase();
+  const referer = (booking.referer ?? "").trim();
+  const refererLower = referer.toLowerCase();
+
+  if (channel.includes("airbnb") || refererLower.includes("airbnb")) return "Airbnb";
+  if (channel === "booking" || channel === "bookingcom" || channel.includes("booking.com") || refererLower.includes("booking.com")) {
+    return "Booking.com";
+  }
+  if (!channel || channel === "direct") return "Direct";
+  // Autre OTA (Vrbo, Expedia...) : on garde le libellé Beds24 tel quel.
+  return referer || booking.channel || "Direct";
+}
+
+function mapPhone(booking: Beds24Booking): string | null {
+  const phone = (booking.mobile || booking.phone || "").trim();
+  return phone || null;
+}
+
+// Ligne existante (importée avant la bascule) correspondant au même séjour : même villa, mêmes
+// jours d'arrivée et de départ, pas encore rattachée à Beds24.
+async function findPreBeds24Duplicate(villaId: string, booking: Beds24Booking) {
+  const db = getDb();
+  const arrivalStart = toDateTime(booking.arrival, 0);
+  const departureStart = toDateTime(booking.departure, 0);
+  const [row] = await db
+    .select({
+      id: reservations.id,
+      guestPhone: reservations.guestPhone,
+      guestEmail: reservations.guestEmail,
+      nbAdultes: reservations.nbAdultes,
+      nbEnfants: reservations.nbEnfants,
+      guestsCount: reservations.guestsCount,
+    })
+    .from(reservations)
+    .where(
+      and(
+        eq(reservations.villaId, villaId),
+        isNull(reservations.beds24BookingId),
+        inArray(reservations.source, PRE_BEDS24_SOURCES),
+        eq(reservations.status, "confirmee"),
+        gte(reservations.checkIn, arrivalStart),
+        lt(reservations.checkIn, new Date(arrivalStart.getTime() + DAY_MS)),
+        gte(reservations.checkOut, departureStart),
+        lt(reservations.checkOut, new Date(departureStart.getTime() + DAY_MS))
+      )
+    )
+    .limit(1);
+  return row ?? null;
 }
 
 // Ne synchronise que les villas explicitement migrées vers Beds24 (beds24RoomId renseigné) —
-// tant qu'une villa n'a pas ce champ, elle continue de fonctionner exactement comme aujourd'hui
-// (iCal Superhote), cette fonction n'y touche pas.
+// tant qu'une villa n'a pas ce champ, elle continue de fonctionner exactement comme avant
+// (iCal Superhote), cette fonction n'y touche pas. Appelée par le bouton du tableau de bord, le
+// webhook Beds24 (/api/beds24/webhook) et le cron quotidien (/api/beds24/sync).
 export async function runBeds24Sync(): Promise<
-  | { success: true; bookingsSynced: number; villasSynced: number; bookingsCancelled: number }
+  | { success: true; bookingsSynced: number; villasSynced: number; bookingsCancelled: number; bookingsAdopted: number }
   | { success: false; error: string }
 > {
   const db = getDb();
 
   const rows = await db
-    .select({ id: villas.id, nom: villas.nom, beds24RoomId: villas.beds24RoomId })
+    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, beds24RoomId: villas.beds24RoomId })
     .from(villas)
     .where(isNotNull(villas.beds24RoomId));
 
-  const targets = rows.filter((v): v is { id: string; nom: string; beds24RoomId: string } => Boolean(v.beds24RoomId));
+  const targets = rows.filter(
+    (v): v is { id: string; nom: string; numero: string; beds24RoomId: string } => Boolean(v.beds24RoomId)
+  );
 
   if (targets.length === 0) {
     return { success: false, error: "Aucune villa n'est encore connectée à Beds24." };
@@ -53,14 +119,29 @@ export async function runBeds24Sync(): Promise<
 
   let totalSynced = 0;
   let totalCancelled = 0;
+  let totalAdopted = 0;
   const now = nowInMorocco();
+  const departureFrom = new Date(now.getTime() - PAST_DAYS_INCLUDED * DAY_MS).toISOString().slice(0, 10);
   const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[] = [];
   const cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[] = [];
 
   try {
+    // Un seul appel (paginé) pour toutes les chambres connectées, plutôt qu'un appel par villa.
+    const roomIds: number[] = Array.from(new Set(targets.map((v) => Number(v.beds24RoomId))));
+    const allBookings = await beds24GetBookings({
+      roomId: roomIds,
+      departureFrom,
+      status: ["new", "confirmed", "cancelled"],
+    });
+    const bookingsByRoom = new Map<number, Beds24Booking[]>();
+    for (const booking of allBookings) {
+      const list = bookingsByRoom.get(booking.roomId) ?? [];
+      list.push(booking);
+      bookingsByRoom.set(booking.roomId, list);
+    }
+
     for (const villa of targets) {
-      const roomId = Number(villa.beds24RoomId);
-      const bookings = await beds24GetBookings({ roomId });
+      const bookings = bookingsByRoom.get(Number(villa.beds24RoomId)) ?? [];
       const seenIds: string[] = [];
 
       for (const booking of bookings) {
@@ -72,18 +153,14 @@ export async function runBeds24Sync(): Promise<
         const guestName = toTitleCase(`${booking.firstName ?? ""} ${booking.lastName ?? ""}`.trim() || "Réservation Beds24");
         const checkIn = toDateTime(booking.arrival, DEFAULT_CHECKIN_HOUR);
         const checkOut = toDateTime(booking.departure, DEFAULT_CHECKOUT_HOUR);
-
-        const existing = await db
-          .select({ id: reservations.id })
-          .from(reservations)
-          .where(eq(reservations.beds24BookingId, bookingId))
-          .limit(1);
+        const guestPhone = mapPhone(booking);
 
         const values = {
           villaId: villa.id,
           beds24BookingId: bookingId,
           guestName,
           guestEmail: booking.email || null,
+          guestPhone,
           checkIn,
           checkOut,
           nbAdultes: booking.numAdult ?? null,
@@ -93,17 +170,69 @@ export async function runBeds24Sync(): Promise<
           status: isCancelled ? ("annulee" as const) : ("confirmee" as const),
           source: "beds24" as const,
           loyerTotal: booking.price ? booking.price.toFixed(2) : null,
-          rawData: { beds24Status: booking.status },
+          rawData: { beds24Status: booking.status, beds24Channel: booking.channel ?? null, beds24Referer: booking.referer ?? null },
           updatedAt: new Date(),
         };
 
-        if (existing.length > 0) {
-          await db.update(reservations).set(values).where(eq(reservations.id, existing[0].id));
-        } else {
-          await db.insert(reservations).values(values);
-          if (!isCancelled) newBookings.push({ villaNom: villa.nom, guestName, checkIn, checkOut });
+        const [existing] = await db
+          .select({ id: reservations.id, guestPhone: reservations.guestPhone })
+          .from(reservations)
+          .where(eq(reservations.beds24BookingId, bookingId))
+          .limit(1);
+
+        if (existing) {
+          // Téléphone : comme pour la synchro iCal, un numéro corrigé à la main dans l'app ne
+          // doit pas être écrasé par la valeur brute du canal — on ne fait que compléter.
+          await db
+            .update(reservations)
+            .set({ ...values, guestPhone: existing.guestPhone ?? values.guestPhone })
+            .where(eq(reservations.id, existing.id));
+          totalSynced += 1;
+          continue;
         }
+
+        // Bascule SuperHote -> Beds24 : même séjour déjà importé par l'ancienne synchro iCal ?
+        // On le rattache (en gardant ménage/cuisine déjà affectés, messages envoyés, etc.) au
+        // lieu de créer un doublon. Les infos corrigées à la main (téléphone, nombre de
+        // voyageurs, email) sont conservées, Beds24 ne fait que compléter les champs vides.
+        const duplicate = isCancelled ? null : await findPreBeds24Duplicate(villa.id, booking);
+        if (duplicate) {
+          await db
+            .update(reservations)
+            .set({
+              ...values,
+              guestPhone: duplicate.guestPhone ?? values.guestPhone,
+              guestEmail: duplicate.guestEmail ?? values.guestEmail,
+              nbAdultes: duplicate.nbAdultes ?? values.nbAdultes,
+              nbEnfants: duplicate.nbEnfants ?? values.nbEnfants,
+              guestsCount: duplicate.guestsCount ?? values.guestsCount,
+            })
+            .where(eq(reservations.id, duplicate.id));
+          totalAdopted += 1;
+          totalSynced += 1;
+          continue;
+        }
+
+        // onConflictDoNothing : le webhook peut déclencher deux synchros simultanées ; la
+        // seconde ne doit ni planter sur l'index unique ni notifier deux fois.
+        const [inserted] = await db
+          .insert(reservations)
+          .values(values)
+          .onConflictDoNothing({ target: reservations.beds24BookingId })
+          .returning({ id: reservations.id });
         totalSynced += 1;
+
+        // Séjour déjà terminé (remonté par departureFrom) : pas de notification ni de ménage.
+        if (!inserted || isCancelled || checkOut < now) continue;
+
+        newBookings.push({ villaNom: villa.nom, guestName, checkIn, checkOut });
+        // Sollicitation automatique d'une femme de ménage, comme pour la synchro iCal qu'on
+        // remplace — ne doit jamais faire échouer la synchro elle-même si ça plante.
+        try {
+          await initiateMenageRequest(inserted.id, villa.nom, villa.numero, booking.departure);
+        } catch (err) {
+          console.error("Échec initiation demande ménage (sync Beds24):", err);
+        }
       }
 
       // Réconciliation : une réservation encore "confirmée" à venir pour cette villa mais
@@ -127,7 +256,13 @@ export async function runBeds24Sync(): Promise<
 
     await notifySyncChanges(newBookings, cancelledBookings);
 
-    return { success: true, bookingsSynced: totalSynced, villasSynced: targets.length, bookingsCancelled: totalCancelled };
+    return {
+      success: true,
+      bookingsSynced: totalSynced,
+      villasSynced: targets.length,
+      bookingsCancelled: totalCancelled,
+      bookingsAdopted: totalAdopted,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation Beds24.";
     return { success: false, error: message };
