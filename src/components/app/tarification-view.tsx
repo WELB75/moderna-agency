@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, ArrowRight, Building2, ChevronDown, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, Info, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
 import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
@@ -255,6 +255,16 @@ const ROW_HEIGHT = 64;
 const HEADER_MONTH_HEIGHT = 56;
 const HEADER_DAYS_HEIGHT = 64;
 const CALENDAR_DAYS = 365;
+const DETAIL_ROW_HEIGHT = 44;
+
+// Lignes de détail affichées sous une villa dépliée, dans l'ordre de SuperHote v2.
+const LIGNES_DETAIL = [
+  { key: "prix", label: "Prix nuitée", aide: null },
+  { key: "min", label: "Nombre de nuits minimum", aide: "Durée minimale d'un séjour qui commence ce jour-là." },
+  { key: "max", label: "Nombre de nuits maximum", aide: "Durée maximale d'un séjour qui commence ce jour-là." },
+  { key: "arrivee", label: "Arrivées bloquées", aide: "Oui = aucun voyageur ne peut arriver ce jour-là." },
+  { key: "depart", label: "Départs bloqués", aide: "Oui = aucun voyageur ne peut partir ce jour-là." },
+] as const;
 // Comme SuperHote : on garde quelques jours de passé à gauche d'aujourd'hui (séjours qui viennent
 // de se terminer, affichés grisés).
 const JOURS_PASSES_PLANNING = 4;
@@ -343,6 +353,19 @@ function TarificationDesktopGrid({
   }, [dateList]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [ouvertes, setOuvertes] = useState<Set<string>>(() => new Set());
+  const toutOuvert = villas.length > 0 && villas.every((v) => ouvertes.has(v.id));
+  function basculer(villaId: string) {
+    setOuvertes((prev) => {
+      const next = new Set(prev);
+      if (next.has(villaId)) next.delete(villaId);
+      else next.add(villaId);
+      return next;
+    });
+  }
+  function toutBasculer() {
+    setOuvertes(toutOuvert ? new Set() : new Set(villas.map((v) => v.id)));
+  }
   const [premierIndexVisible, setPremierIndexVisible] = useState(0);
   // Mois affiché en grand dans l'en-tête : celui du premier jour visible à l'écran (suit le
   // défilement, comme "Octobre 2026" sur SuperHote).
@@ -403,29 +426,74 @@ function TarificationDesktopGrid({
       <Card className="gap-0 overflow-hidden rounded-xl py-0">
         <div className="flex">
           <div className="shrink-0 border-r bg-card" style={{ width: SIDEBAR_WIDTH }}>
-            <div className="flex items-center border-b px-4 text-sm font-semibold" style={{ height: HEADER_MONTH_HEIGHT + HEADER_DAYS_HEIGHT }}>
-              {villas.length} hébergement{villas.length > 1 ? "s" : ""}
-            </div>
-            {villas.map((v) => (
-              <Link
-                key={v.id}
-                href={`/villas/${v.id}`}
-                className="flex items-center gap-3 border-b px-4 transition-colors hover:bg-muted/50"
-                style={{ height: ROW_HEIGHT }}
+            <div
+              className="flex flex-col justify-center gap-3 border-b px-4"
+              style={{ height: HEADER_MONTH_HEIGHT + HEADER_DAYS_HEIGHT }}
+            >
+              <span className="text-sm font-semibold">
+                {villas.length} hébergement{villas.length > 1 ? "s" : ""}
+              </span>
+              <button
+                type="button"
+                onClick={toutBasculer}
+                title={toutOuvert ? "Replier tous les hébergements" : "Déplier tous les hébergements"}
+                aria-label={toutOuvert ? "Replier tous les hébergements" : "Déplier tous les hébergements"}
+                className="flex h-9 w-12 items-center justify-center rounded-lg border bg-background hover:bg-muted"
               >
-                {v.photoUrl ? (
-                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md">
-                    <Image src={v.photoUrl} alt="" fill sizes="36px" className="object-cover" />
-                  </div>
-                ) : (
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                )}
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{v.nom}</span>
-                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </Link>
-            ))}
+                {toutOuvert ? <ChevronUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+              </button>
+            </div>
+            {villas.map((v) => {
+              const ouverte = ouvertes.has(v.id);
+              return (
+                <div key={v.id}>
+                  {/* Toute la ligne déplie/replie les détails de la villa (prix, nuits min/max,
+                      arrivées/départs bloqués), comme sur SuperHote — plus de lien vers la fiche. */}
+                  <button
+                    type="button"
+                    onClick={() => basculer(v.id)}
+                    aria-expanded={ouverte}
+                    className="flex w-full items-center gap-3 border-b px-4 text-left transition-colors hover:bg-muted/50"
+                    style={{ height: ROW_HEIGHT }}
+                  >
+                    {v.photoUrl ? (
+                      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md">
+                        <Image src={v.photoUrl} alt="" fill sizes="36px" className="object-cover" />
+                      </div>
+                    ) : (
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    )}
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{v.nom}</span>
+                    {/* Prix PriceLabs indisponibles : petit signal dans la colonne des villas plutôt
+                        qu'un texte dans la ligne, qui passait sous les barres de réservation. */}
+                    {v.error ? (
+                      <span title="Prix temporairement indisponibles" aria-label="Prix temporairement indisponibles">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                      </span>
+                    ) : null}
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${ouverte ? "rotate-180" : ""}`} />
+                  </button>
+                  {ouverte
+                    ? LIGNES_DETAIL.map((ligne) => (
+                        <div
+                          key={ligne.key}
+                          className="flex items-center gap-1.5 border-b bg-muted/40 px-4 text-sm text-muted-foreground"
+                          style={{ height: DETAIL_ROW_HEIGHT }}
+                        >
+                          <span className="truncate">{ligne.label}</span>
+                          {ligne.aide ? (
+                            <span title={ligne.aide} aria-label={ligne.aide} className="shrink-0">
+                              <Info className="h-3.5 w-3.5" />
+                            </span>
+                          ) : null}
+                        </div>
+                      ))
+                    : null}
+                </div>
+              );
+            })}
           </div>
 
           <div className="relative min-w-0 flex-1">
@@ -483,13 +551,15 @@ function TarificationDesktopGrid({
 
                 <div className="relative">
                   {villas.map((v) => (
-                    <VillaCalendarRow
-                      key={v.id}
-                      villa={v}
-                      dateStrings={dateStrings}
-                      aujourdhui={aujourdhui}
-                      onSelectReservation={onSelectReservation}
-                    />
+                    <div key={v.id}>
+                      <VillaCalendarRow
+                        villa={v}
+                        dateStrings={dateStrings}
+                        aujourdhui={aujourdhui}
+                        onSelectReservation={onSelectReservation}
+                      />
+                      {ouvertes.has(v.id) ? <VillaDetailRows villa={v} dateStrings={dateStrings} aujourdhui={aujourdhui} /> : null}
+                    </div>
                   ))}
                   {positionMaintenant !== null ? (
                     <div
@@ -550,10 +620,6 @@ function VillaCalendarRow({
         })}
       </div>
 
-      {villa.error ? (
-        <div className="sticky left-0 flex h-full items-center px-3 text-xs text-destructive">Prix temporairement indisponibles</div>
-      ) : null}
-
       {resas.map((r) => {
         const { left, width } = barPosition(r, dateStrings);
         const termine = r.checkOut <= aujourdhui;
@@ -576,6 +642,103 @@ function VillaCalendarRow({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+type DetailJour = {
+  date: string;
+  price: number | null;
+  minStay: number | null;
+  maxStay: number | null;
+  arriveeBloquee: boolean;
+  departBloque: boolean;
+};
+
+// Cache côté navigateur des calendriers Beds24 déjà chargés : replier puis redéplier une villa ne
+// refait pas l'appel (Beds24 compte ses appels API).
+const cacheDetails = new Map<string, DetailJour[]>();
+
+// Détails jour par jour d'une villa dépliée, lus dans Beds24 (là où PriceLabs pousse désormais
+// ses prix, et d'où partent les règles vers Airbnb/Booking). Villa pas encore reliée à Beds24 :
+// prix PriceLabs seulement, le reste en tiret.
+function VillaDetailRows({ villa, dateStrings, aujourdhui }: { villa: TarificationVilla; dateStrings: string[]; aujourdhui: string }) {
+  const roomId = villa.beds24RoomId ? Number(villa.beds24RoomId) : null;
+  const from = dateStrings[0];
+  const to = dateStrings[dateStrings.length - 1];
+  const cleCache = roomId ? `${roomId}:${from}:${to}` : null;
+  const [details, setDetails] = useState<DetailJour[] | null>(() => (cleCache ? (cacheDetails.get(cleCache) ?? null) : null));
+  const [erreur, setErreur] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!roomId || !cleCache || cacheDetails.has(cleCache)) return;
+    let annule = false;
+    fetch(`/api/beds24/calendrier?roomId=${roomId}&from=${from}&to=${to}`)
+      .then(async (res) => {
+        const body = (await res.json()) as { days?: DetailJour[]; error?: string };
+        if (!res.ok || !body.days) throw new Error(body.error ?? "Calendrier Beds24 indisponible.");
+        cacheDetails.set(cleCache, body.days);
+        if (!annule) setDetails(body.days);
+      })
+      .catch((e: unknown) => {
+        if (!annule) setErreur(e instanceof Error ? e.message : "Calendrier Beds24 indisponible.");
+      });
+    return () => {
+      annule = true;
+    };
+  }, [roomId, cleCache, from, to]);
+
+  const parDate = new Map((details ?? []).map((d) => [d.date, d]));
+  const prixPricelabs = new Map(villa.days.map((d) => [d.date, d.price]));
+  const chargement = Boolean(roomId) && !details && !erreur;
+  const message = !roomId ? "Villa pas encore reliée à Beds24 : prix PriceLabs uniquement." : erreur;
+
+  function valeur(ligne: (typeof LIGNES_DETAIL)[number]["key"], date: string): string {
+    const d = parDate.get(date);
+    switch (ligne) {
+      case "prix": {
+        const prix = d?.price ?? prixPricelabs.get(date) ?? null;
+        return prix != null ? formatPrixCompact(prix, villa.currency ?? "EUR") : "";
+      }
+      case "min":
+        return d?.minStay != null ? String(d.minStay) : roomId ? "" : "—";
+      case "max":
+        return d?.maxStay != null ? String(d.maxStay) : roomId ? "" : "—";
+      case "arrivee":
+        return d ? (d.arriveeBloquee ? "Oui" : "Non") : roomId ? "" : "—";
+      case "depart":
+        return d ? (d.departBloque ? "Oui" : "Non") : roomId ? "" : "—";
+    }
+  }
+
+  return (
+    <div className="relative bg-muted/40">
+      {LIGNES_DETAIL.map((ligne) => (
+        <div key={ligne.key} className="flex border-b" style={{ height: DETAIL_ROW_HEIGHT, width: COL_WIDTH * dateStrings.length }}>
+          {dateStrings.map((date) => {
+            const texte = valeur(ligne.key, date);
+            const bloque = texte === "Oui";
+            return (
+              <div
+                key={date}
+                className={`flex shrink-0 items-center justify-end border-r px-2 text-sm tabular-nums ${
+                  date < aujourdhui ? "text-muted-foreground" : ""
+                } ${bloque ? "font-semibold text-destructive" : ""}`}
+                style={{ width: COL_WIDTH }}
+              >
+                {texte}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      {chargement || message ? (
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center" style={{ height: DETAIL_ROW_HEIGHT }}>
+          <span className="sticky left-3 rounded-md bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm">
+            {chargement ? "Chargement des détails Beds24…" : message}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

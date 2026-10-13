@@ -186,17 +186,64 @@ export async function beds24SendMessage(bookingId: number, message: string): Pro
   await beds24Fetch("/bookings/messages", { method: "POST", body: [{ bookingId, message }] });
 }
 
+// Calendrier d'un logement Beds24, jour par jour : prix envoyé aux canaux (price1, poussé par
+// PriceLabs), séjour minimum/maximum et restrictions d'arrivée/départ — affiché sous chaque villa
+// dans la vue planning (détails dépliables façon SuperHote v2). Beds24 renvoie des plages
+// { from, to } que l'on déplie ici en une ligne par date.
 export type Beds24CalendarDay = {
-  roomId: number;
-  date: string;
-  numAvail: number;
-  price1: number;
-  minStay: number;
+  date: string; // YYYY-MM-DD
+  price: number | null;
+  minStay: number | null;
+  maxStay: number | null;
+  numAvail: number | null;
+  arriveeBloquee: boolean;
+  departBloque: boolean;
+};
+
+type Beds24CalendarRange = {
+  from: string;
+  to: string;
+  numAvail?: number;
+  minStay?: number;
+  maxStay?: number;
+  override?: "none" | "blackout" | "exception" | "noCheckIn" | "noCheckOut" | "noCheckInOrCheckOut" | string;
+  price1?: number;
 };
 
 export async function beds24GetCalendar(roomId: number, startDate: string, endDate: string): Promise<Beds24CalendarDay[]> {
-  const res = await beds24Fetch<{ data: Beds24CalendarDay[] }>("/inventory/rooms/calendar", {
-    query: { roomId, startDate, endDate, includePrices: true, includeNumAvail: true },
+  const res = await beds24Fetch<{ data?: { roomId: number; calendar?: Beds24CalendarRange[] }[] }>("/inventory/rooms/calendar", {
+    query: {
+      roomId,
+      startDate,
+      endDate,
+      includePrices: true,
+      includeNumAvail: true,
+      includeMinStay: true,
+      includeMaxStay: true,
+      includeOverride: true,
+    },
   });
-  return res.data;
+
+  const parDate = new Map<string, Beds24CalendarDay>();
+  for (const room of res.data ?? []) {
+    if (Number(room.roomId) !== roomId) continue;
+    for (const plage of room.calendar ?? []) {
+      const override = plage.override ?? "none";
+      const fin = plage.to && plage.to >= plage.from ? plage.to : plage.from;
+      for (let d = new Date(`${plage.from}T00:00:00Z`); d <= new Date(`${fin}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+        const date = d.toISOString().slice(0, 10);
+        if (date < startDate || date > endDate) continue;
+        parDate.set(date, {
+          date,
+          price: typeof plage.price1 === "number" ? plage.price1 : null,
+          minStay: typeof plage.minStay === "number" ? plage.minStay : null,
+          maxStay: typeof plage.maxStay === "number" ? plage.maxStay : null,
+          numAvail: typeof plage.numAvail === "number" ? plage.numAvail : null,
+          arriveeBloquee: override === "blackout" || override === "noCheckIn" || override === "noCheckInOrCheckOut",
+          departBloque: override === "blackout" || override === "noCheckOut" || override === "noCheckInOrCheckOut",
+        });
+      }
+    }
+  }
+  return [...parDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
