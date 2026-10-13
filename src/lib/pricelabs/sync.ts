@@ -2,6 +2,7 @@ import { and, eq, gt, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
+import { villaEstGeree } from "@/lib/domaines-actifs";
 
 // PriceLabs calcule des prix fiables sur un an complet (vérifié : 365/365 jours non-null pour
 // Villa Tania le 2026-09-28), donc l'onglet Tarification peut proposer un vrai sélecteur de mois
@@ -68,7 +69,8 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
   // opérationnellement) — la tarification reste utile même pour des logements pas gérés au
   // jour le jour. Le vrai filtre ici est le mapping PriceLabs lui-même, posé à la main par
   // Kamel : rien ne s'affiche tant qu'il n'a pas relié la fiche.
-  const rows = await db
+  const rows = (
+    await db
     .select({
       id: villas.id,
       nom: villas.nom,
@@ -89,7 +91,8 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
     .from(villas)
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
-    .where(isNotNull(villas.pricelabsListingId));
+    .where(isNotNull(villas.pricelabsListingId))
+  ).filter((v) => villaEstGeree(v.nom)); // logements retirés (voir VILLAS_MASQUEES) : hors calendrier
 
   const staleVillas = rows.filter((v) => options.force || estPerimee(v.cacheSyncedAt));
 
