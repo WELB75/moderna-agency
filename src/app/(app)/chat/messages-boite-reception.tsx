@@ -26,7 +26,7 @@ import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatu
 const AIRBNB_JOURS_AVANT = 30;
 const AIRBNB_JOURS_APRES = 120;
 const AIRBNB_MAX_FILS = 25;
-const DEMANDES_MAX = 15;
+const DEMANDES_MAX = 40;
 const BEDS24_CONCURRENCE = 5;
 const BEDS24_TIMEOUT_MS = 8000;
 const BEDS24_BUDGET_MS = 12000;
@@ -342,7 +342,7 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
       .from(villas)
       .where(isNotNull(villas.beds24RoomId));
     const villaParRoom = new Map(villasBeds24.map((v) => [Number(v.roomId), v]));
-    if (villaParRoom.size > 0) {
+    {
       const iso = (d: Date) => d.toISOString().slice(0, 10);
       const demandes = (
         await withTimeout(
@@ -354,12 +354,22 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
           BEDS24_TIMEOUT_MS
         )
       )
-        .filter((b) => villaParRoom.has(Number(b.roomId)))
+        // Les plus récentes d'abord : Beds24 les renvoie par id croissant, donc une simple coupe
+        // gardait les plus anciennes et masquait les nouvelles demandes. Les logements non reliés
+        // à une villa de l'app restent affichés (sans nom de villa) au lieu d'être écartés en
+        // silence — Kamel, 2026-10-13 : "les demandes d'infos je les ai pas dans la boîte".
+        .sort((a, b) => b.id - a.id)
         .slice(0, DEMANDES_MAX);
 
-      const fils = await Promise.all(
-        demandes.map((b) => withTimeout(beds24GetMessages(b.id), BEDS24_TIMEOUT_MS).catch(() => [] as Beds24Message[]))
-      );
+      const fils: Beds24Message[][] = [];
+      for (let i = 0; i < demandes.length; i += 10) {
+        const lot = demandes.slice(i, i + 10);
+        fils.push(
+          ...(await Promise.all(
+            lot.map((b) => withTimeout(beds24GetMessages(b.id), BEDS24_TIMEOUT_MS).catch(() => [] as Beds24Message[]))
+          ))
+        );
+      }
       demandes.forEach((b, i) => {
         const thread = [...fils[i]].sort((x, y) => horodatage(x.time) - horodatage(y.time));
         if (thread.length === 0) return;
@@ -376,7 +386,7 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
           status: "autre",
           statusLabel: "Demande d'information",
           stay: stayRange(checkIn, checkOut),
-          logement: villa ? [villa.nom, villa.numero ? `n°${villa.numero}` : null].filter(Boolean).join(" ") : null,
+          logement: villa ? [villa.nom, villa.numero ? `n°${villa.numero}` : null].filter(Boolean).join(" ") : "Logement non relié dans l'app",
           lastAt: new Date(horodatage(last.time)).toISOString(),
           preview: last.message ?? "",
           awaitingReply: last.source === "guest",
