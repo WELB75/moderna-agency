@@ -175,7 +175,7 @@ export async function runBeds24Sync(): Promise<
         };
 
         const [existing] = await db
-          .select({ id: reservations.id, guestPhone: reservations.guestPhone })
+          .select({ id: reservations.id, guestPhone: reservations.guestPhone, canal: reservations.canal })
           .from(reservations)
           .where(eq(reservations.beds24BookingId, bookingId))
           .limit(1);
@@ -183,9 +183,12 @@ export async function runBeds24Sync(): Promise<
         if (existing) {
           // Téléphone : comme pour la synchro iCal, un numéro corrigé à la main dans l'app ne
           // doit pas être écrasé par la valeur brute du canal — on ne fait que compléter.
+          // Canal : une résa Airbnb importée par iCal arrive étiquetée "direct" côté Beds24 ; si le
+          // canal a été corrigé à la main (Airbnb, Booking.com...), on ne le remet pas à Direct.
+          const canal = values.canal === "Direct" && existing.canal && existing.canal !== "Direct" ? existing.canal : values.canal;
           await db
             .update(reservations)
-            .set({ ...values, guestPhone: existing.guestPhone ?? values.guestPhone })
+            .set({ ...values, canal, guestPhone: existing.guestPhone ?? values.guestPhone })
             .where(eq(reservations.id, existing.id));
           totalSynced += 1;
           continue;

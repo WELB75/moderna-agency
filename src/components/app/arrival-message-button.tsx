@@ -35,7 +35,7 @@ export function ArrivalMessageButton({
 }: {
   reservationId: string;
   villaId: string;
-  phone: string;
+  phone: string | null;
   guestName: string;
   checkIn: Date;
   now: Date;
@@ -55,7 +55,9 @@ export function ArrivalMessageButton({
     // action utilisateur légitime et bloquent le passage vers l'app WhatsApp, laissant une
     // page vide bloquée sur l'écran de chargement WhatsApp. On ouvre donc un onglet vide
     // tout de suite, et on le redirige une fois le lien de fiche (éventuellement créé) prêt.
-    const win = window.open("", "_blank");
+    // Sans numéro (ex. résa Airbnb importée par iCal, sans coordonnées) : pas de WhatsApp possible,
+    // on copie le message pour le coller dans la conversation Airbnb.
+    const win = phone ? window.open("", "_blank") : null;
     startTransition(async () => {
       try {
         let ficheLink: string | null = null;
@@ -68,9 +70,15 @@ export function ArrivalMessageButton({
           }
           ficheLink = `${window.location.origin}/g/${formId}`;
         }
-        const url = toWhatsAppUrl(phone, buildArrivalMessage(guestName, checkIn, now, ficheLink, lang, repasInclus));
-        if (win) win.location.href = url;
-        else window.open(url, "_blank");
+        const message = buildArrivalMessage(guestName, checkIn, now, ficheLink, lang, repasInclus);
+        if (phone) {
+          const url = toWhatsAppUrl(phone, message);
+          if (win) win.location.href = url;
+          else window.open(url, "_blank");
+        } else {
+          await navigator.clipboard.writeText(message);
+          toast.success("Message copié : colle-le dans la conversation Airbnb.");
+        }
         setEnvoye(true);
         marquerMessageEnvoye(reservationId, "arrivee").catch(() => {});
       } catch (err) {

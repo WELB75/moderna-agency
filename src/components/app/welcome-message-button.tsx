@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Sparkles, ChevronDown } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -28,7 +29,7 @@ export function WelcomeMessageButton({
   envoyeAt,
 }: {
   reservationId: string;
-  phone: string;
+  phone: string | null;
   guestName: string;
   villaNom: string;
   mapsUrl: string | null;
@@ -42,10 +43,16 @@ export function WelcomeMessageButton({
   const [envoye, setEnvoye] = useState(Boolean(envoyeAt));
 
   function handleClick(lang: MessageLang) {
-    window.open(
-      toWhatsAppUrl(phone, buildWelcomeMessage(guestName, villaNom, mapsUrl, wazeUrl, codeBoitier, guideBienvenueUrl, lang, repasInclus)),
-      "_blank"
-    );
+    const message = buildWelcomeMessage(guestName, villaNom, mapsUrl, wazeUrl, codeBoitier, guideBienvenueUrl, lang, repasInclus);
+    if (phone) {
+      window.open(toWhatsAppUrl(phone, message), "_blank");
+    } else {
+      // Sans numéro (ex. résa Airbnb importée par iCal) : on copie le message pour la conversation Airbnb.
+      navigator.clipboard
+        .writeText(message)
+        .then(() => toast.success("Message copié : colle-le dans la conversation Airbnb."))
+        .catch(() => toast.error("Impossible de copier le message."));
+    }
     setEnvoye(true);
     marquerMessageEnvoye(reservationId, "bienvenue").catch(() => {});
   }
