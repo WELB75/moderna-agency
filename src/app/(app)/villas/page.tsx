@@ -42,6 +42,9 @@ export default async function VillasPage() {
     // (VILLAS_MASQUEES) n'apparaissent plus.
     .filter((v) => (v.type === "appartement" ? Boolean(v.beds24RoomId) : domaineEstActif(v.domaineNom)))
     .filter((v) => villaEstGeree(v.nom))
+    // Fouad, 2026-10-14 : "prestigia on le met pas" — l'appartement du domaine Prestigia ne
+    // figure pas dans Hébergements (il reste accessible depuis /appartements).
+    .filter((v) => v.domaineNom !== "Prestigia")
     // Villas d'abord, puis appartements.
     .sort((a, b) => Number(a.type === "appartement") - Number(b.type === "appartement"));
 
