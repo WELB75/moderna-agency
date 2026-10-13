@@ -91,6 +91,8 @@ export type Beds24Booking = {
   channel?: string; // code technique du canal, ex. "airbnb", "booking", "direct"
   referer?: string; // libellé lisible du canal, ex. "Airbnb", "Booking.com", "Direct"
   apiSource?: string;
+  bookingTime?: string; // ISO, date de création de la réservation / demande
+  modifiedTime?: string; // ISO
 };
 
 // Réponse paginée de GET /bookings : Beds24 renvoie au plus une page de résultats et indique
@@ -178,6 +180,32 @@ export type Beds24Message = {
 export async function beds24GetMessages(bookingId: number): Promise<Beds24Message[]> {
   const res = await beds24Fetch<{ data: Beds24Message[] }>("/bookings/messages", { query: { bookingId } });
   return res.data;
+}
+
+// Messages de PLUSIEURS réservations en quelques appels (bookingId accepte une liste, cf.
+// apiV2.yaml), au lieu d'un appel par réservation. La boîte de réception faisait jusqu'à ~65
+// appels par affichage, ce qui épuisait le quota Beds24 sur 5 minutes : des fils (dont les
+// demandes d'information) disparaissaient alors au hasard — Fouad, 2026-10-13 : "16
+// conversations Airbnb / Booking.com non chargées".
+const MESSAGES_IDS_PAR_APPEL = 50;
+const MAX_MESSAGE_PAGES = 20;
+
+export async function beds24GetMessagesBulk(bookingIds: number[], maxAge?: number): Promise<Map<number, Beds24Message[]>> {
+  const parResa = new Map<number, Beds24Message[]>();
+  const ids = [...new Set(bookingIds.filter((id) => Number.isFinite(id) && id > 0))];
+  for (const id of ids) parResa.set(id, []);
+
+  for (let i = 0; i < ids.length; i += MESSAGES_IDS_PAR_APPEL) {
+    const lot = ids.slice(i, i + MESSAGES_IDS_PAR_APPEL);
+    for (let page = 1; page <= MAX_MESSAGE_PAGES; page++) {
+      const res = await beds24Fetch<{ data?: Beds24Message[]; pages?: { nextPageExists?: boolean } }>("/bookings/messages", {
+        query: { bookingId: lot, maxAge, page },
+      });
+      for (const m of res.data ?? []) parResa.get(Number(m.bookingId))?.push(m);
+      if (!res.pages?.nextPageExists) break;
+    }
+  }
+  return parResa;
 }
 
 // Kamel, 2026-09-15 : "je veux pouvoir aussi y répondre sur l'app" — l'API précise que l'écriture
