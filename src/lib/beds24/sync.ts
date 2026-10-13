@@ -3,7 +3,13 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { villas, reservations } from "@/db/schema";
-import { beds24GetBookings, beds24WriteBookings, type Beds24Booking, type Beds24BookingWrite } from "@/lib/beds24/client";
+import {
+  beds24GetBookings,
+  beds24GetProperties,
+  beds24WriteBookings,
+  type Beds24Booking,
+  type Beds24BookingWrite,
+} from "@/lib/beds24/client";
 import { nowInMorocco } from "@/lib/now";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
@@ -57,6 +63,14 @@ function mapCanal(booking: Beds24Booking): string {
   return referer || booking.channel || "Direct";
 }
 
+// Beds24 donne le prix sans devise : c'est celle de la propriété. Libellés alignés sur ceux de
+// l'app ("DH" pour les dirhams, comme payment-info). Sans devise connue, on ne touche à rien.
+function mapDevise(currency: string | undefined): string | null {
+  const code = (currency ?? "").trim().toUpperCase();
+  if (!code) return null;
+  return code === "MAD" ? "DH" : code;
+}
+
 function mapPhone(booking: Beds24Booking): string | null {
   const phone = (booking.mobile || booking.phone || "").trim();
   return phone || null;
@@ -105,12 +119,19 @@ export async function runBeds24Sync(): Promise<
   const db = getDb();
 
   const rows = await db
-    .select({ id: villas.id, nom: villas.nom, numero: villas.numero, beds24RoomId: villas.beds24RoomId })
+    .select({
+      id: villas.id,
+      nom: villas.nom,
+      numero: villas.numero,
+      beds24RoomId: villas.beds24RoomId,
+      beds24PropertyId: villas.beds24PropertyId,
+    })
     .from(villas)
     .where(isNotNull(villas.beds24RoomId));
 
   const targets = rows.filter(
-    (v): v is { id: string; nom: string; numero: string; beds24RoomId: string } => Boolean(v.beds24RoomId)
+    (v): v is { id: string; nom: string; numero: string; beds24RoomId: string; beds24PropertyId: string | null } =>
+      Boolean(v.beds24RoomId)
   );
 
   if (targets.length === 0) {
@@ -133,6 +154,17 @@ export async function runBeds24Sync(): Promise<
       departureFrom,
       status: ["new", "confirmed", "cancelled"],
     });
+    // Devise du loyer par propriété (le prix Beds24 n'en porte pas) : sans ça, un montant en
+    // dirhams restait étiqueté "EUR" par défaut. Si la lecture échoue, on garde la devise actuelle.
+    const deviseParPropriete = new Map<string, string>();
+    try {
+      for (const property of await beds24GetProperties()) {
+        const devise = mapDevise(property.currency);
+        if (devise) deviseParPropriete.set(String(property.id), devise);
+      }
+    } catch {
+      // non bloquant
+    }
     const bookingsByRoom = new Map<number, Beds24Booking[]>();
     for (const booking of allBookings) {
       const list = bookingsByRoom.get(booking.roomId) ?? [];
@@ -142,6 +174,7 @@ export async function runBeds24Sync(): Promise<
 
     for (const villa of targets) {
       const bookings = bookingsByRoom.get(Number(villa.beds24RoomId)) ?? [];
+      const deviseVilla = villa.beds24PropertyId ? deviseParPropriete.get(villa.beds24PropertyId) : undefined;
       const seenIds: string[] = [];
 
       for (const booking of bookings) {
@@ -167,6 +200,7 @@ export async function runBeds24Sync(): Promise<
           nbEnfants: booking.numChild ?? null,
           guestsCount: (booking.numAdult ?? 0) + (booking.numChild ?? 0) || null,
           canal: mapCanal(booking),
+          ...(deviseVilla ? { devisePaiement: deviseVilla } : {}),
           status: isCancelled ? ("annulee" as const) : ("confirmee" as const),
           source: "beds24" as const,
           loyerTotal: booking.price ? booking.price.toFixed(2) : null,

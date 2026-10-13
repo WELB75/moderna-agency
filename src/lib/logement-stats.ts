@@ -27,7 +27,7 @@ export function montantProrata(montantTotal: number, checkIn: Date, checkOut: Da
 const TAUX_MAD_VERS_EUR = 1 / 10.8;
 
 export function versEuros(montant: number, devise: string): number {
-  return devise === "MAD" ? montant * TAUX_MAD_VERS_EUR : montant;
+  return devise === "MAD" || devise === "DH" ? montant * TAUX_MAD_VERS_EUR : montant;
 }
 
 export const MOIS_LABELS = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
