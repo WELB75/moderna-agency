@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
-import { beds24GetBookings, beds24GetMessages, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
+import { beds24GetBookings, beds24GetMessagesBulk, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
 import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatus } from "./inbox-client";
 
@@ -22,12 +22,11 @@ import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatu
 // même, avec une petite note — jamais d'erreur de page.
 
 // Fenêtre de séjours dont on lit les fils Airbnb, et garde-fous pour rester rapide et ne pas
-// épuiser le quota d'appels Beds24 (un appel par réservation).
+// épuiser le quota d'appels Beds24 (les messages sont lus en appels groupés, voir chargerFilsAirbnb).
 const AIRBNB_JOURS_AVANT = 30;
 const AIRBNB_JOURS_APRES = 120;
-const AIRBNB_MAX_FILS = 25;
+const AIRBNB_MAX_FILS = 80;
 const DEMANDES_MAX = 40;
-const BEDS24_CONCURRENCE = 5;
 const BEDS24_TIMEOUT_MS = 8000;
 const BEDS24_BUDGET_MS = 12000;
 
@@ -74,9 +73,10 @@ function prioriteSejour(r: AirbnbResa, now: Date): [number, number] {
   return [2, -r.checkOut.getTime()];
 }
 
-// Fils Airbnb via Beds24 (beds24GetMessages, un appel par réservation), avec concurrence limitée,
-// délai max par appel et budget global. Le premier appel sert de test : token absent ou Beds24
-// injoignable => on n'insiste pas pour les autres.
+// Fils Airbnb / Booking.com via Beds24 : TOUS les fils en un ou deux appels groupés
+// (beds24GetMessagesBulk), au lieu d'un appel par réservation qui épuisait le quota Beds24
+// (2026-10-13). Délai max global ; en échec, aucune conversation n'est chargée et une note
+// s'affiche au-dessus de la liste.
 async function chargerFilsAirbnb(
   resas: AirbnbResa[]
 ): Promise<{ fils: Map<string, Beds24Message[]>; echecs: number; injoignable: boolean }> {
@@ -84,43 +84,19 @@ async function chargerFilsAirbnb(
   const cibles = resas.filter((r) => Number.isFinite(Number(r.beds24BookingId)) && Number(r.beds24BookingId) > 0);
   if (cibles.length === 0) return { fils, echecs: 0, injoignable: false };
 
-  const debut = Date.now();
-  let echecs = 0;
-
-  async function charger(r: AirbnbResa) {
-    if (Date.now() - debut > BEDS24_BUDGET_MS) {
-      echecs++;
-      return;
-    }
-    try {
-      fils.set(r.id, await withTimeout(beds24GetMessages(Number(r.beds24BookingId)), BEDS24_TIMEOUT_MS));
-    } catch (error) {
-      echecs++;
-      throw error;
-    }
-  }
-
-  // Premier appel seul (il obtient aussi le jeton d'accès, mis en cache pour les suivants). En
-  // échec — token absent ou refusé, délai dépassé, réponse illisible — on n'insiste pas.
   try {
-    await charger(cibles[0]);
+    const parResa = await withTimeout(
+      beds24GetMessagesBulk(cibles.map((r) => Number(r.beds24BookingId))),
+      BEDS24_BUDGET_MS
+    );
+    for (const r of cibles) fils.set(r.id, parResa.get(Number(r.beds24BookingId)) ?? []);
+    return { fils, echecs: 0, injoignable: false };
   } catch (error) {
     if (!(error instanceof Beds24ConfigError || error instanceof Beds24TimeoutError)) {
       console.error("[boite-reception] Beds24 :", error);
     }
     return { fils, echecs: cibles.length, injoignable: true };
   }
-
-  let suivant = 1;
-  async function travailleur() {
-    while (suivant < cibles.length) {
-      const r = cibles[suivant++];
-      await charger(r).catch(() => undefined);
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(BEDS24_CONCURRENCE, cibles.length - 1) }, travailleur));
-
-  return { fils, echecs, injoignable: fils.size === 0 && echecs > 0 };
 }
 
 type StayInfo = {
@@ -361,19 +337,19 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
         .sort((a, b) => b.id - a.id)
         .slice(0, DEMANDES_MAX);
 
-      const fils: Beds24Message[][] = [];
-      for (let i = 0; i < demandes.length; i += 10) {
-        const lot = demandes.slice(i, i + 10);
-        fils.push(
-          ...(await Promise.all(
-            lot.map((b) => withTimeout(beds24GetMessages(b.id), BEDS24_TIMEOUT_MS).catch(() => [] as Beds24Message[]))
-          ))
-        );
-      }
-      demandes.forEach((b, i) => {
-        const thread = [...fils[i]].sort((x, y) => horodatage(x.time) - horodatage(y.time));
-        if (thread.length === 0) return;
-        const last = thread[thread.length - 1];
+      // Un seul appel groupé pour tous les fils. S'il échoue, les demandes restent affichées
+      // (avec un aperçu générique) au lieu de disparaître de la boîte.
+      const filsDemandes = await withTimeout(beds24GetMessagesBulk(demandes.map((b) => b.id)), BEDS24_BUDGET_MS).catch(
+        (error: unknown) => {
+          if (!(error instanceof Beds24ConfigError || error instanceof Beds24TimeoutError)) {
+            console.error("[boite-reception] messages des demandes Beds24 :", error);
+          }
+          return new Map<number, Beds24Message[]>();
+        }
+      );
+      demandes.forEach((b) => {
+        const thread = [...(filsDemandes.get(b.id) ?? [])].sort((x, y) => horodatage(x.time) - horodatage(y.time));
+        const last: Beds24Message | undefined = thread[thread.length - 1];
         const villa = villaParRoom.get(Number(b.roomId));
         const checkIn = new Date(`${b.arrival}T00:00:00Z`);
         const checkOut = new Date(`${b.departure}T00:00:00Z`);
@@ -387,9 +363,12 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
           statusLabel: "Demande d'information",
           stay: stayRange(checkIn, checkOut),
           logement: villa ? [villa.nom, villa.numero ? `n°${villa.numero}` : null].filter(Boolean).join(" ") : "Logement non relié dans l'app",
-          lastAt: new Date(horodatage(last.time)).toISOString(),
-          preview: last.message ?? "",
-          awaitingReply: last.source === "guest",
+          // Fil non chargé (Beds24 lent) : la demande reste visible, datée de sa création.
+          lastAt: new Date(
+            horodatage(last?.time) || horodatage(b.modifiedTime) || horodatage(b.bookingTime) || now.getTime()
+          ).toISOString(),
+          preview: last ? (last.message ?? "") : "Demande d'information — ouvrez pour répondre",
+          awaitingReply: last ? last.source === "guest" : true,
           messages: thread.map((m) => ({
             fromContact: m.source === "guest",
             text: m.message ?? "",
