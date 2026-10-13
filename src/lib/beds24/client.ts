@@ -102,6 +102,7 @@ type Beds24BookingsPage = {
 };
 
 export type Beds24BookingFilters = {
+  id?: number | number[];
   propertyId?: number | number[];
   roomId?: number | number[];
   arrivalFrom?: string;

@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
-import { beds24GetMessages, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
+import { beds24GetBookings, beds24GetMessages, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
 import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatus } from "./inbox-client";
 
 // Boîte de réception reconstruite sur le modèle de la messagerie Superhote (liste à gauche avec
@@ -25,6 +25,7 @@ import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatu
 const AIRBNB_JOURS_AVANT = 30;
 const AIRBNB_JOURS_APRES = 120;
 const AIRBNB_MAX_FILS = 25;
+const DEMANDES_MAX = 15;
 const BEDS24_CONCURRENCE = 5;
 const BEDS24_TIMEOUT_MS = 8000;
 const BEDS24_BUDGET_MS = 12000;
@@ -324,6 +325,70 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
       phone: r.guestPhone,
       reservationId: r.id,
     });
+  }
+
+  // --- Demandes d'information Airbnb (2026-10-13, "Enquêtes et demandes" passé sur "Importer
+  // tout" dans Beds24) : pas encore de réservation, donc rien dans `reservations` — on les lit
+  // directement dans Beds24 (statut inquiry/request), sur les seuls logements reliés à nos villas.
+  // Bloc isolé comme le précédent : une panne Beds24 n'empêche pas le reste de s'afficher.
+  try {
+    const villasBeds24 = await db
+      .select({ roomId: villas.beds24RoomId, nom: villas.nom, numero: villas.numero })
+      .from(villas)
+      .where(isNotNull(villas.beds24RoomId));
+    const villaParRoom = new Map(villasBeds24.map((v) => [Number(v.roomId), v]));
+    if (villaParRoom.size > 0) {
+      const iso = (d: Date) => d.toISOString().slice(0, 10);
+      const demandes = (
+        await withTimeout(
+          beds24GetBookings({
+            status: ["inquiry", "request"],
+            arrivalFrom: iso(subDays(now, 2)),
+            arrivalTo: iso(addDays(now, 365)),
+          }),
+          BEDS24_TIMEOUT_MS
+        )
+      )
+        .filter((b) => villaParRoom.has(Number(b.roomId)))
+        .slice(0, DEMANDES_MAX);
+
+      const fils = await Promise.all(
+        demandes.map((b) => withTimeout(beds24GetMessages(b.id), BEDS24_TIMEOUT_MS).catch(() => [] as Beds24Message[]))
+      );
+      demandes.forEach((b, i) => {
+        const thread = [...fils[i]].sort((x, y) => horodatage(x.time) - horodatage(y.time));
+        if (thread.length === 0) return;
+        const last = thread[thread.length - 1];
+        const villa = villaParRoom.get(Number(b.roomId));
+        const checkIn = new Date(`${b.arrival}T00:00:00Z`);
+        const checkOut = new Date(`${b.departure}T00:00:00Z`);
+        const nom = [b.firstName, b.lastName].filter(Boolean).join(" ").trim() || "Voyageur Airbnb";
+        items.push({
+          key: `og:b24-${b.id}`,
+          name: nom,
+          channel: "airbnb",
+          status: "autre",
+          statusLabel: "Demande d'information",
+          stay: stayRange(checkIn, checkOut),
+          logement: villa ? [villa.nom, villa.numero ? `n°${villa.numero}` : null].filter(Boolean).join(" ") : null,
+          lastAt: new Date(horodatage(last.time)).toISOString(),
+          preview: last.message ?? "",
+          awaitingReply: last.source === "guest",
+          messages: thread.map((m) => ({
+            fromContact: m.source === "guest",
+            text: m.message ?? "",
+            at: horodatage(m.time) ? m.time : null,
+          })),
+          phone: b.phone || b.mobile || null,
+          reservationId: null,
+          beds24InquiryId: b.id,
+        });
+      });
+    }
+  } catch (error) {
+    if (!(error instanceof Beds24ConfigError || error instanceof Beds24TimeoutError)) {
+      console.error("[boite-reception] demandes Airbnb/Beds24 :", error);
+    }
   }
 
   items.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
