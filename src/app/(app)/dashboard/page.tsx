@@ -1096,25 +1096,16 @@ function DayCard({
             {/* Un seul domaine actif la plupart du temps : forcer 2 colonnes ici laisserait la
                 moitié de l'écran vide. On ne coupe en colonnes que s'il y a vraiment plusieurs
                 domaines à afficher côte à côte. */}
-            <div className={cn("grid min-w-0 gap-4", domaineGroups.length > 1 && "sm:grid-cols-2")}>
+            {/* Vue horizontale (Kamel, 2026-10-13) : une carte pleine largeur par check-in /
+                check-out, empilées par heure — plus compact que deux colonnes de cartes hautes. */}
+            <div className="min-w-0 space-y-4">
               {domaineGroups.map((g) => (
                 <div key={g.domaineName} className="min-w-0 space-y-2">
                   <DomaineBadge nom={g.domaineName} />
-                  {/* Grille 2 colonnes sur grand écran : un turnover (check-out + check-in de la
-                      même villa) occupe les 2 colonnes côte à côte ; les réservations isolées se
-                      rangent naturellement 2 par 2 plutôt que de laisser l'espace vide. */}
-                  <div className="grid min-w-0 gap-2 lg:grid-cols-2">
-                    {groupTurnoverRows(g.items).map((row, i) =>
-                      row.length === 2 ? (
-                        <div key={i} className="grid min-w-0 gap-2 sm:grid-cols-2 lg:col-span-2">
-                          {row.map(({ r, kind }) => (
-                            <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />
-                          ))}
-                        </div>
-                      ) : (
-                        row.map(({ r, kind }) => <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} />)
-                      )
-                    )}
+                  <div className="space-y-2">
+                    {g.items.map(({ r, kind }) => (
+                      <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} layout="horizontal" />
+                    ))}
                   </div>
                 </div>
               ))}
@@ -1124,37 +1115,6 @@ function DayCard({
       </CardContent>
     </Card>
   );
-}
-
-// Regroupe check-in et check-out de la même villa (turnover le même jour) pour les afficher
-// côte à côte sur grand écran plutôt qu'empilés — les autres restent seuls sur leur ligne.
-function groupTurnoverRows(
-  items: { r: ReservationRow; kind: "in" | "out" }[]
-): { r: ReservationRow; kind: "in" | "out" }[][] {
-  const byVilla = new Map<string, { r: ReservationRow; kind: "in" | "out" }[]>();
-  for (const item of items) {
-    if (!item.r.villaId) continue;
-    const list = byVilla.get(item.r.villaId) ?? [];
-    list.push(item);
-    byVilla.set(item.r.villaId, list);
-  }
-
-  const rows: { r: ReservationRow; kind: "in" | "out" }[][] = [];
-  const seen = new Set<string>();
-  for (const item of items) {
-    const key = `${item.kind}-${item.r.id}`;
-    if (seen.has(key)) continue;
-    const villaGroup = item.r.villaId ? byVilla.get(item.r.villaId) : undefined;
-    if (villaGroup && villaGroup.length === 2 && villaGroup[0].kind !== villaGroup[1].kind) {
-      const pair = [...villaGroup].sort((a) => (a.kind === "out" ? -1 : 1));
-      rows.push(pair);
-      pair.forEach((p) => seen.add(`${p.kind}-${p.r.id}`));
-    } else {
-      rows.push([item]);
-      seen.add(key);
-    }
-  }
-  return rows;
 }
 
 // Estimation de ce qu'il faudra prévoir en liquide pour le ménage/la cuisine d'un départ,

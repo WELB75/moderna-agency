@@ -159,7 +159,16 @@ function estSynchronisee(source: string): boolean {
 // le reste de la charte Stripe du 2026-09-08. Le sens check-in/check-out reste visible (icône +
 // libellé colorés juste en dessous), donc un simple liseré de gauche suffit à le rappeler d'un
 // coup d'œil sans repeindre tout le contour de la carte.
-export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
+export function ReservationRowCard({
+  r,
+  kind,
+  layout = "vertical",
+}: {
+  r: ReservationRow;
+  kind: "in" | "out";
+  layout?: "vertical" | "horizontal";
+}) {
+  if (layout === "horizontal") return <ReservationRowCardHorizontal r={r} kind={kind} />;
   const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
   const isIn = kind === "in";
   const isProprietaire = phonesMatch(r.guestPhone, r.proprietaireTelephone);
@@ -499,6 +508,270 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               }
             />
           </div>
+      </div>
+    </div>
+  );
+}
+
+// Même contenu et mêmes actions que la carte verticale, disposés en largeur : une carte = une
+// ligne (identité du séjour | équipe | paiement et documents), puis une rangée d'actions
+// (messages, correction d'heure, suppression). Kamel, 2026-10-13 : "je veux une vue horizontale
+// mais avec toutes ces fonctionnalités [...] ça prendra moins de place et ce sera plus propre".
+// Comme dans la version verticale, les boutons interactifs restent hors du <Link>.
+function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "in" | "out" }) {
+  const target = kind === "in" ? new Date(r.checkIn) : new Date(r.checkOut);
+  const isIn = kind === "in";
+  const isProprietaire = phonesMatch(r.guestPhone, r.proprietaireTelephone);
+  const isDone = Boolean(isIn ? r.checkinValideAt : r.checkoutValideAt);
+  const nuits = differenceInCalendarDays(new Date(r.checkOut), new Date(r.checkIn));
+
+  return (
+    <div
+      className={cn(
+        "min-w-0 rounded-2xl border border-border border-l-4 bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-opacity",
+        isIn ? "border-l-emerald-500" : "border-l-red-500",
+        isDone && "opacity-60"
+      )}
+    >
+      <div className="grid gap-x-5 gap-y-3 p-3 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1.1fr)_minmax(0,1fr)]">
+        {/* Colonne 1 : le séjour */}
+        <div className="min-w-0 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              {isIn ? (
+                <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+              )}
+              <p className="truncate font-medium">{r.guestName}</p>
+              {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
+              <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
+              <EditNotesButton reservationId={r.id} notes={r.notes} />
+              {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
+              {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
+            </div>
+            <Countdown target={target} />
+          </div>
+
+          <Link href={r.villaId ? `/villas/${r.villaId}` : "#"} className="block space-y-2 rounded-md hover:bg-muted/50">
+            <p className={cn("text-sm font-semibold", isIn ? "text-emerald-700 dark:text-emerald-400" : "text-red-700 dark:text-red-400")}>
+              {isIn ? "Check-in" : "Check-out"} · {format(target, "d MMM", { locale: fr })} à {format(target, "HH:mm", { locale: fr })}
+              {isIn ? (
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  (départ le {format(new Date(r.checkOut), "d MMM", { locale: fr })} · {nuits + 1} jour{nuits + 1 > 1 ? "s" : ""} / {nuits} nuit
+                  {nuits > 1 ? "s" : ""})
+                </span>
+              ) : null}
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <VillaVignette photoUrl={r.villaPhotoUrl} numero={r.villaNumero} nom={r.villaNom} type={r.villaType} />
+              <span className="text-sm font-medium">
+                {r.villaNom ?? "Logement non renseigné"}
+                {r.villaNumero ? (
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">{r.villaType === "appartement" ? "appt" : "villa"}</span>
+                ) : null}
+              </span>
+              {r.villaType === "appartement" && r.numeroImmeuble ? (
+                <Badge variant="outline" className="text-xs">
+                  Immeuble {r.numeroImmeuble}
+                </Badge>
+              ) : null}
+              {r.codeBoitier ? (
+                <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code du boîtier à clés">
+                  <KeyRound className="h-3 w-3" />
+                  {r.codeBoitier}
+                </Badge>
+              ) : null}
+              {r.codePorteEntree ? (
+                <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code de la poignée tactile de la porte d'entrée">
+                  <DoorClosedLocked className="h-3 w-3" />
+                  {r.codePorteEntree}
+                </Badge>
+              ) : null}
+              {r.codeChambreMaster ? (
+                <Badge variant="outline" className="gap-1 text-xs font-semibold tracking-wide" title="Code de la porte de la chambre master">
+                  <BedDouble className="h-3 w-3" />
+                  {r.codeChambreMaster}
+                </Badge>
+              ) : null}
+              {r.canal ? <CanalBadge canal={r.canal} /> : null}
+            </div>
+            <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
+            {(isIn && r.clientConnu) || (!isIn && r.cashAPrevoir > 0) || r.notes ? (
+              <div className="space-y-1">
+                {isIn && r.clientConnu ? (
+                  <InlineAlert tone="blue" icon={UserCheck}>
+                    Client connu ({r.clientConnu.nom}){r.clientConnu.notes ? ` — ${r.clientConnu.notes}` : ""}
+                  </InlineAlert>
+                ) : null}
+                {!isIn && r.cashAPrevoir > 0 ? (
+                  <InlineAlert tone="amber" icon={Wallet}>
+                    Cash à prévoir : {r.cashAPrevoir} MAD
+                  </InlineAlert>
+                ) : null}
+                {r.notes ? (
+                  <InlineAlert tone="amber" icon={Info}>
+                    {r.notes}
+                  </InlineAlert>
+                ) : null}
+              </div>
+            ) : null}
+          </Link>
+        </div>
+
+        {/* Colonne 2 : l'équipe + validation */}
+        <div className="min-w-0 space-y-2">
+          {!isIn ? (
+            <PersonnelAffectationEditor
+              reservationId={r.id}
+              role="menage"
+              moment="depart"
+              label="Ménage de départ (prépare l'arrivée suivante) — cliquer sur le nom pour confirmer fait"
+              assigned={r.menageDepartAssignes}
+              options={r.menageOptions}
+              payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+              villaTarifContext={{ domaineNom: r.domaineNom, nbChambres: r.villaNbChambres }}
+              brahimPrevenuAt={r.brahimPrevenuAt}
+            />
+          ) : (
+            <>
+              <PersonnelAffectationEditor
+                reservationId={r.id}
+                role="cuisine"
+                label="Cuisine"
+                assigned={r.cuisineAssignes}
+                options={r.cuisineOptions}
+                payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+              />
+              {r.cuisineAssignes.length > 0 && r.guestPhone ? (
+                <CuisineCoursesMessageButton
+                  reservationId={r.id}
+                  phone={r.guestPhone}
+                  guestName={r.guestName}
+                  envoyeAt={r.messageCuisineEnvoyeAt}
+                />
+              ) : null}
+              <PersonnelAffectationEditor
+                reservationId={r.id}
+                role="menage"
+                moment="sejour"
+                label="Femme de ménage (si besoin pendant le séjour)"
+                assigned={r.menageSejourAssignes}
+                options={r.menageOptions}
+                payeParProprietaireNoms={r.personnelPayeParProprietaireNoms}
+                villaTarifContext={{ domaineNom: r.domaineNom, nbChambres: r.villaNbChambres }}
+              />
+            </>
+          )}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <ValidateCheckinCheckoutButton
+              reservationId={r.id}
+              kind={kind}
+              valideAt={isIn ? r.checkinValideAt : r.checkoutValideAt}
+              validePar={isIn ? r.checkinValidePar : r.checkoutValidePar}
+            />
+          </div>
+        </div>
+
+        {/* Colonne 3 : documents + paiement */}
+        <div className="min-w-0 space-y-2">
+          {isProprietaire || !isIn ? null : (
+            <div className="flex flex-wrap gap-1.5">
+              <FichePoliceStatusChip reservationId={r.id} villaId={r.villaId} ficheId={r.ficheId} ficheStatut={r.ficheStatut} />
+              <ContratStatusChip contratId={r.contratId} contratStatut={r.contratStatut} villaId={r.villaId} reservationId={r.id} />
+            </div>
+          )}
+          {isProprietaire ? null : (
+            <PaymentSummary
+              reservationId={r.id}
+              loyerTotal={r.loyerTotal}
+              montantPaye={r.montantPaye}
+              caution={r.caution}
+              cautionPayee={r.cautionPayee}
+              devisePaiement={r.devisePaiement}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Rangée d'actions : messages (arrivée, bienvenue, localisation, sécurité / départ, note) à
+          gauche, correction d'heure et suppression à droite. */}
+      <div className="flex flex-wrap items-center gap-2 border-t px-3 py-2">
+        {isIn ? (
+          <>
+            {r.villaId ? (
+              <ArrivalMessageButton
+                reservationId={r.id}
+                villaId={r.villaId}
+                phone={r.guestPhone}
+                guestName={r.guestName}
+                checkIn={new Date(r.checkIn)}
+                now={nowInMorocco()}
+                ficheId={r.ficheId}
+                ficheComplete={r.ficheStatut === "complete"}
+                repasInclus={r.repasInclusDansLoyer}
+                envoyeAt={r.messageArriveeEnvoyeAt}
+              />
+            ) : null}
+            {r.villaNom ? (
+              <WelcomeMessageButton
+                reservationId={r.id}
+                phone={r.guestPhone}
+                guestName={r.guestName}
+                villaNom={r.villaNom}
+                mapsUrl={r.domaineMapsUrl}
+                wazeUrl={r.domaineWazeUrl}
+                codeBoitier={r.codeBoitier}
+                guideBienvenueUrl={r.guideBienvenueUrl}
+                repasInclus={r.repasInclusDansLoyer}
+                envoyeAt={r.messageBienvenueEnvoyeAt}
+              />
+            ) : null}
+            {r.guestPhone && r.domaineMapsUrl ? (
+              <LocationMessageButton
+                reservationId={r.id}
+                phone={r.guestPhone}
+                guestName={r.guestName}
+                domaineNom={r.domaineNom ?? "domaine"}
+                mapsUrl={r.domaineMapsUrl}
+                wazeUrl={r.domaineWazeUrl}
+                envoyeAt={r.messageLocalisationEnvoyeAt}
+              />
+            ) : null}
+            {r.villaId && r.domaineSecuritePhone ? (
+              <SecurityMessageButton
+                securityPhone={r.domaineSecuritePhone}
+                guestName={r.guestName}
+                villaNom={r.villaNom ?? "Villa"}
+                villaNumero={r.villaNumero ?? "?"}
+                reservationId={r.id}
+                checkIn={new Date(r.checkIn)}
+                envoyeAt={r.messageSecuriteEnvoyeAt}
+              />
+            ) : null}
+          </>
+        ) : !isProprietaire ? (
+          <>
+            {r.guestPhone && r.villaNom ? (
+              <CheckoutMessageButton phone={r.guestPhone} guestName={r.guestName} villaNom={r.villaNom} />
+            ) : null}
+            {r.guestPhone ? <DepartureMessageButton phone={r.guestPhone} guestName={r.guestName} /> : null}
+            <StayRatingButton reservationId={r.id} />
+          </>
+        ) : null}
+
+        <div className="ml-auto flex items-center gap-1">
+          <EditReservationTimeDialog reservationId={r.id} checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
+          <ConfirmDeleteButton
+            action={deleteReservation.bind(null, r.id)}
+            title="Supprimer cette réservation ?"
+            description={
+              estSynchronisee(r.source)
+                ? `Réservation importée automatiquement (${r.canal ?? r.source}). La supprimer la retire de l'app, mais la prochaine synchronisation la recréera si elle est toujours présente dans le calendrier ${r.canal ?? r.source}. Pour un vrai doublon qui revient sans cesse, retirer plutôt l'URL iCal en double sur la fiche de la villa. Le ménage/la cuisine affectés à cette réservation sont supprimés avec elle.`
+                : "Cette réservation et le ménage/la cuisine qui lui sont affectés seront définitivement supprimés."
+            }
+          />
+        </div>
       </div>
     </div>
   );
