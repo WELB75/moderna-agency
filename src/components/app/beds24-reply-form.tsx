@@ -7,14 +7,26 @@ import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { sendBeds24InquiryMessage, sendBeds24Message } from "@/lib/actions/beds24";
+import { traduireReponse } from "@/lib/actions/traduction";
 
 // Répondre à un voyageur Airbnb/Booking.com depuis l'app — Kamel, 2026-09-15 : "je veux pouvoir
 // aussi y répondre sur l'app". router.refresh() plutôt qu'une mise à jour optimiste : le message
 // envoyé doit repasser par Beds24 pour apparaître avec son vrai id/horodatage au prochain chargement.
 // reservationId : réservation de l'app ; beds24InquiryId : demande d'information Airbnb encore
 // sans réservation (lue directement dans Beds24).
-export function Beds24ReplyForm({ reservationId, beds24InquiryId }: { reservationId?: string | null; beds24InquiryId?: number | null }) {
+// langue : langue du voyageur si ce n'est pas du français — la réponse écrite en français est alors
+// traduite automatiquement avant l'envoi (Kamel, 2026-10-13).
+export function Beds24ReplyForm({
+  reservationId,
+  beds24InquiryId,
+  langue = null,
+}: {
+  reservationId?: string | null;
+  beds24InquiryId?: number | null;
+  langue?: string | null;
+}) {
   const [message, setMessage] = useState("");
+  const [traduire, setTraduire] = useState(true);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
@@ -25,9 +37,12 @@ export function Beds24ReplyForm({ reservationId, beds24InquiryId }: { reservatio
     if (!trimmed) return;
     startTransition(async () => {
       try {
-        if (reservationId) await sendBeds24Message(reservationId, trimmed);
-        else if (beds24InquiryId) await sendBeds24InquiryMessage(beds24InquiryId, trimmed);
+        let aEnvoyer = trimmed;
+        if (langue && traduire) aEnvoyer = await traduireReponse(trimmed, langue);
+        if (reservationId) await sendBeds24Message(reservationId, aEnvoyer);
+        else if (beds24InquiryId) await sendBeds24InquiryMessage(beds24InquiryId, aEnvoyer);
         else throw new Error("Conversation sans canal de réponse.");
+        if (aEnvoyer !== trimmed) toast.success(`Envoyé en ${langue} : ${aEnvoyer}`);
         setMessage("");
         router.refresh();
       } catch (err) {
@@ -37,7 +52,14 @@ export function Beds24ReplyForm({ reservationId, beds24InquiryId }: { reservatio
   }
 
   return (
-    <form ref={formRef} onSubmit={handleSubmit} className="flex items-end gap-2 border-t border-border p-3">
+    <div className="border-t border-border">
+      {langue ? (
+        <label className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
+          <input type="checkbox" checked={traduire} onChange={(e) => setTraduire(e.target.checked)} />
+          Écris en français : ta réponse sera traduite en {langue} avant l&apos;envoi
+        </label>
+      ) : null}
+    <form ref={formRef} onSubmit={handleSubmit} className="flex items-end gap-2 p-3">
       <Textarea
         value={message}
         onChange={(e) => setMessage(e.target.value)}
@@ -55,5 +77,6 @@ export function Beds24ReplyForm({ reservationId, beds24InquiryId }: { reservatio
         <Send className="h-4 w-4" />
       </Button>
     </form>
+    </div>
   );
 }

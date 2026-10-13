@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { CanalDot } from "@/components/app/canal-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
 import { SOURCE_META } from "@/lib/canal";
+import { traduireMessagesRecus } from "@/lib/actions/traduction";
+import type { TraductionRecue } from "@/lib/translate-ai";
 import { cn } from "@/lib/utils";
 
 export type InboxChannel = "airbnb" | "booking" | "direct" | "whatsapp";
@@ -67,6 +69,53 @@ function formatTime(iso: string) {
     : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 }
 
+// Les messages Airbnb contiennent parfois du HTML brut (pièces jointes : <a href="...">). On
+// affiche un vrai lien plutôt que le code, et on retire les autres balises.
+type Morceau = { type: "texte"; valeur: string } | { type: "lien"; href: string; label: string };
+
+function decouperLiens(brut: string): Morceau[] {
+  const morceaux: Morceau[] = [];
+  const re = /<a\s+[^>]*href="([^"]+)"[^>]*>(?:([\s\S]*?)<\/a>)?/gi;
+  let dernier = 0;
+  let m: RegExpExecArray | null;
+  const nettoyer = (t: string) => t.replace(/<[^>]+>/g, "");
+  while ((m = re.exec(brut))) {
+    if (m.index > dernier) morceaux.push({ type: "texte", valeur: nettoyer(brut.slice(dernier, m.index)) });
+    const href = m[1].replace(/&amp;/g, "&");
+    const label = nettoyer(m[2] ?? "").trim();
+    const estImage = /muscache|\.(png|jpe?g|webp|gif)(\?|$)/i.test(href);
+    morceaux.push({ type: "lien", href, label: label && label.length < 60 ? label : estImage ? "Voir la photo" : "Ouvrir le lien" });
+    dernier = re.lastIndex;
+  }
+  if (dernier < brut.length) morceaux.push({ type: "texte", valeur: nettoyer(brut.slice(dernier)) });
+  return morceaux.filter((x) => x.type === "lien" || x.valeur.trim() !== "");
+}
+
+// Texte soumis à la traduction : sans les liens/HTML.
+function texteATraduire(brut: string): string {
+  return decouperLiens(brut)
+    .filter((x): x is Extract<Morceau, { type: "texte" }> => x.type === "texte")
+    .map((x) => x.valeur.trim())
+    .join("\n")
+    .trim();
+}
+
+function MessageTexte({ text }: { text: string }) {
+  return (
+    <p className="whitespace-pre-wrap break-words">
+      {decouperLiens(text).map((x, i) =>
+        x.type === "lien" ? (
+          <a key={i} href={x.href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+            {x.label}
+          </a>
+        ) : (
+          <span key={i}>{x.valeur}</span>
+        )
+      )}
+    </p>
+  );
+}
+
 const PAGE_SIZE = 20;
 
 export function InboxClient({
@@ -100,6 +149,49 @@ export function InboxClient({
   const safePage = Math.min(page, pageCount - 1);
   const visible = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
   const selected = conversations.find((c) => c.key === selectedKey) ?? null;
+
+  // Traduction des messages des voyageurs Airbnb / Booking.com (cache par texte d'origine).
+  const [traductions, setTraductions] = useState<Record<string, TraductionRecue>>({});
+  const [erreurCle, setErreurCle] = useState<string | null>(null);
+  const aTraduire =
+    selected && (selected.channel === "airbnb" || selected.channel === "booking")
+      ? selected.messages.filter((m) => m.fromContact && !m.tool).map((m) => texteATraduire(m.text)).filter((t) => t !== "")
+      : [];
+  const aTraduireCle = aTraduire.join("\u0001");
+  const traductionErreur = erreurCle === aTraduireCle;
+  const traductionEnCours = !traductionErreur && aTraduire.some((t) => !traductions[t]);
+  useEffect(() => {
+    const manquants = Array.from(new Set(aTraduire.filter((t) => !traductions[t])));
+    if (manquants.length === 0) return;
+    let annule = false;
+    traduireMessagesRecus(manquants)
+      .then((res) => {
+        if (annule) return;
+        setTraductions((prev) => {
+          const next = { ...prev };
+          manquants.forEach((t, i) => {
+            if (res[i]) next[t] = res[i];
+          });
+          return next;
+        });
+      })
+      .catch(() => {
+        if (!annule) setErreurCle(aTraduireCle);
+      });
+    return () => {
+      annule = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aTraduireCle]);
+
+  // Langue de réponse : celle du dernier message du voyageur, si ce n'est pas du français.
+  const derniereLangue = (() => {
+    for (let i = aTraduire.length - 1; i >= 0; i--) {
+      const t = traductions[aTraduire[i]];
+      if (t) return t.estFrancais ? null : t.langue;
+    }
+    return null;
+  })();
 
   return (
     <div className="flex h-[calc(100vh-19rem)] min-h-[32rem] overflow-hidden rounded-xl border border-border bg-card">
@@ -253,7 +345,15 @@ export function InboxClient({
                         m.tool && "text-xs italic opacity-80"
                       )}
                     >
-                      <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                      <MessageTexte text={m.text} />
+                      {m.fromContact && !m.tool && traductions[texteATraduire(m.text)] && !traductions[texteATraduire(m.text)].estFrancais ? (
+                        <div className="mt-2 border-t border-foreground/10 pt-2">
+                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Traduction · {traductions[texteATraduire(m.text)].langue}
+                          </p>
+                          <p className="whitespace-pre-wrap break-words">{traductions[texteATraduire(m.text)].fr}</p>
+                        </div>
+                      ) : null}
                       {m.at ? (
                         <p className={cn("mt-1 text-[10px]", m.fromContact ? "text-muted-foreground" : "text-primary-foreground/70")}>
                           {formatTime(m.at)}
@@ -265,8 +365,20 @@ export function InboxClient({
               )}
             </div>
 
+            {traductionEnCours ? (
+              <p className="border-t border-border px-5 py-1.5 text-xs text-muted-foreground">Traduction en cours...</p>
+            ) : traductionErreur ? (
+              <p className="border-t border-border px-5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
+                Traduction indisponible pour le moment.
+              </p>
+            ) : null}
             {selected.reservationId || selected.beds24InquiryId ? (
-              <Beds24ReplyForm reservationId={selected.reservationId} beds24InquiryId={selected.beds24InquiryId} />
+              <Beds24ReplyForm
+                key={selected.key}
+                reservationId={selected.reservationId}
+                beds24InquiryId={selected.beds24InquiryId}
+                langue={derniereLangue}
+              />
             ) : (
               <p className="border-t border-border p-3 text-sm text-muted-foreground">
                 Réponse WhatsApp depuis l&apos;app : pas encore branchée, la conversation est en lecture seule.
