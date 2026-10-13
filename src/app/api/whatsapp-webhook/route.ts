@@ -164,6 +164,9 @@ export async function POST(req: NextRequest) {
     // une réponse de repli plutôt que d'être ignorés silencieusement côté client.
     const from = `+${message.from}`;
 
+    // Interrupteur général / numéro muet : aucune réponse, aucun traitement.
+    if (isMutedPhone(from)) return NextResponse.json({ ok: true, muted: true });
+
     // Ce message entrant vient de rouvrir la fenêtre de 24h de WhatsApp : c'est le seul instant
     // où une note vocale refusée plus tôt (code 131047) peut enfin être livrée. Indispensable
     // pour le personnel et Brahim — Kamel, 2026-09-20 : "la plupart des gens ne savent pas lire
