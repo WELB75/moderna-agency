@@ -406,7 +406,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               pas checkin donc fais le"). */}
           {kind === "in" ? (
             <div className="flex flex-col gap-1.5">
-              {r.guestPhone && r.villaId ? (
+              {r.villaId ? (
                 <ArrivalMessageButton
                   prominent
                   reservationId={r.id}
@@ -421,7 +421,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                   envoyeAt={r.messageArriveeEnvoyeAt}
                 />
               ) : null}
-              {r.guestPhone && r.villaNom ? (
+              {r.villaNom ? (
                 <WelcomeMessageButton
                   prominent
                   reservationId={r.id}

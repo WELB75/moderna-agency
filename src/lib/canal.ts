@@ -66,3 +66,13 @@ export function canalPillStyle(key: SourceKey): CSSProperties {
     color: `color-mix(in srgb, ${c} 78%, var(--foreground))`,
   };
 }
+
+// Barre de réservation de la vue planning, façon SuperHote v2 : fond pastel, liseré et texte dans
+// la couleur du canal (variables --bar-* de globals.css, déclinées en mode sombre).
+export function canalPlanningStyle(key: CanalKey): CSSProperties {
+  return {
+    backgroundColor: `var(--bar-${key}-bg)`,
+    borderColor: `var(--bar-${key}-border)`,
+    color: `var(--bar-${key}-text)`,
+  };
+}

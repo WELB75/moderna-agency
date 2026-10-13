@@ -147,6 +147,40 @@
   --canal-whatsapp: #4ade80;
 }
 
+/* Barres de réservation de la vue planning, calquées sur SuperHote v2 (captures du 2026-10-13) :
+   fond pastel, liseré plus soutenu et nom du voyageur dans la couleur du canal. */
+:root {
+  --bar-airbnb-bg: #fdeaeb;
+  --bar-airbnb-border: #f2b2b5;
+  --bar-airbnb-text: #e0464d;
+  --bar-booking-bg: #dfe4fb;
+  --bar-booking-border: #8c9ae2;
+  --bar-booking-text: #1c2a6e;
+  --bar-direct-bg: #e4f4e7;
+  --bar-direct-border: #6cbd7d;
+  --bar-direct-text: #1d6a34;
+  --bar-autre-bg: #eef1f5;
+  --bar-autre-border: #b6bfcc;
+  --bar-autre-text: #475569;
+  --planning-today: #e0533a;
+}
+
+.dark {
+  --bar-airbnb-bg: #3a1e23;
+  --bar-airbnb-border: #8a3a41;
+  --bar-airbnb-text: #ff9ea2;
+  --bar-booking-bg: #1d2446;
+  --bar-booking-border: #4a5ab0;
+  --bar-booking-text: #bac5ff;
+  --bar-direct-bg: #15301e;
+  --bar-direct-border: #2f7a45;
+  --bar-direct-text: #8fe3a7;
+  --bar-autre-bg: #1f2530;
+  --bar-autre-border: #475569;
+  --bar-autre-text: #cbd5e1;
+  --planning-today: #f0664f;
+}
+
 /* Vitrine publique (page d'accueil "/") : toujours claire, peu importe le mode sombre de l'app —
    un site marketing calibré sur fond clair. Redéclare les mêmes valeurs que :root pour que les
    composants partagés (Card, Button, Badge...) qui lisent ces variables restent clairs même sous
