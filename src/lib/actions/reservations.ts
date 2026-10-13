@@ -3,7 +3,7 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import { getDb } from "@/db";
 import { reservations, villas } from "@/db/schema";
 import { runIcalSync } from "@/lib/ical/sync";
@@ -12,6 +12,16 @@ import { parseSuperhoteCsv } from "@/lib/superhote-csv";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { beds24UpdateCalendar } from "@/lib/beds24/client";
+import { normaliseCanal } from "@/lib/canal";
+
+// Beds24 (inventory/rooms/calendar) : "to" est la DERNIÈRE NUIT incluse, pas le jour du départ.
+// Bloquer jusqu'au jour du départ fermait à tort la nuit du départ (ex. résa Kawtar sur AZUR du
+// 15 au 17/10/2026 : la nuit du 17 était fermée sur Airbnb). Renvoie null pour 0 nuit.
+function derniereNuit(checkIn: string, checkOut: string): string | null {
+  const debut = checkIn.slice(0, 10);
+  const fin = format(subDays(new Date(`${checkOut.slice(0, 10)}T12:00:00`), 1), "yyyy-MM-dd");
+  return fin < debut ? null : fin;
+}
 
 export async function createReservation(formData: FormData) {
   await auth.protect();
@@ -87,11 +97,16 @@ export async function createReservation(formData: FormData) {
   // Un blocage de calendrier est un geste hôte normal (fermer/rouvrir des dates), sans
   // réservation associée, donc réversible sans aucun risque.
   try {
-    if ((canal || "Direct") === "Direct" && villa?.beds24RoomId) {
+    // Bloque pour toute résa saisie à la main SAUF Airbnb : depuis la bascule du 12/10/2026,
+    // Airbnb passe par Beds24, la résa y existe déjà. Booking.com est bloqué aussi : pendant la
+    // bascule (et pour les villas encore gérées par SuperHote), une résa Booking saisie à la main
+    // n'existe pas dans Beds24 et Airbnb restait ouvert (villa AZUR, 13/10/2026).
+    const derniere = derniereNuit(checkIn, checkOut);
+    if (normaliseCanal(canal || "Direct") !== "airbnb" && villa?.beds24RoomId && derniere) {
       await beds24UpdateCalendar([
         {
           roomId: Number(villa.beds24RoomId),
-          calendar: [{ from: checkIn.slice(0, 10), to: checkOut.slice(0, 10), numAvail: 0 }],
+          calendar: [{ from: checkIn.slice(0, 10), to: derniere, numAvail: 0 }],
         },
       ]);
     }
@@ -289,16 +304,20 @@ export async function deleteReservation(reservationId: string) {
   // ménage local, pas une vraie annulation à répercuter. Toujours via numAvail (blocage de
   // calendrier), jamais via l'annulation d'une réservation Beds24 — voir le commentaire dans
   // createReservation sur le verrou anti-abus d'Airbnb.
-  if (reservation?.source === "manuel" && reservation.canal === "Direct" && reservation.villaId) {
+  // Seulement pour une résa "Direct" : une résa Booking.com saisie à la main peut avoir un
+  // doublon réel importé dans Beds24 ; rouvrir les dates en supprimant la copie manuelle
+  // risquerait de rouvrir une nuit réellement réservée. Dans ce cas les dates restent bloquées
+  // (à rouvrir à la main dans Beds24 si besoin) — on préfère un blocage en trop à un doublon.
+  if (reservation?.source === "manuel" && normaliseCanal(reservation.canal) === "direct" && reservation.villaId) {
     try {
       const [villa] = await db.select({ beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, reservation.villaId)).limit(1);
-      if (villa?.beds24RoomId) {
+      const debut = format(reservation.checkIn, "yyyy-MM-dd");
+      const derniere = derniereNuit(debut, format(reservation.checkOut, "yyyy-MM-dd"));
+      if (villa?.beds24RoomId && derniere) {
         await beds24UpdateCalendar([
           {
             roomId: Number(villa.beds24RoomId),
-            calendar: [
-              { from: format(reservation.checkIn, "yyyy-MM-dd"), to: format(reservation.checkOut, "yyyy-MM-dd"), numAvail: 1 },
-            ],
+            calendar: [{ from: debut, to: derniere, numAvail: 1 }],
           },
         ]);
       }
