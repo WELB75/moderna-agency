@@ -1,9 +1,10 @@
-import { and, eq, isNotNull, isNull, gte, lt, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, gte, lt, inArray, notInArray } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations } from "@/db/schema";
+import { villas, reservations, gendarmerieForms } from "@/db/schema";
 import {
+  beds24AddInfoItems,
   beds24GetBookings,
   beds24GetProperties,
   beds24WriteBookings,
@@ -14,6 +15,7 @@ import { nowInMorocco } from "@/lib/now";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
+import { getBaseUrl } from "@/lib/base-url";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
 // séjours réels (demande en attente, blocage manuel) et ne doivent pas apparaître dans l'app.
@@ -153,6 +155,7 @@ export async function runBeds24Sync(): Promise<
       roomId: roomIds,
       departureFrom,
       status: ["new", "confirmed", "cancelled"],
+      includeInfoItems: true,
     });
     // Devise du loyer par propriété (le prix Beds24 n'en porte pas) : sans ça, un montant en
     // dirhams restait étiqueté "EUR" par défaut. Si la lecture échoue, on garde la devise actuelle.
@@ -291,6 +294,14 @@ export async function runBeds24Sync(): Promise<
       cancelled.forEach((c) => cancelledBookings.push({ villaNom: villa.nom, guestName: c.guestName, checkIn: c.checkIn }));
     }
 
+    // Lien fiche police de chaque séjour à venir, publié dans Beds24 pour le message automatique.
+    // Jamais bloquant : en cas d'échec, la synchro des réservations reste valide.
+    try {
+      await publierLiensFichePolice(allBookings, now);
+    } catch (err) {
+      console.error("Échec publication des liens fiche police (Beds24):", err);
+    }
+
     await notifySyncChanges(newBookings, cancelledBookings);
 
     return {
@@ -303,6 +314,56 @@ export async function runBeds24Sync(): Promise<
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erreur inattendue lors de la synchronisation Beds24.";
     return { success: false, error: message };
+  }
+}
+
+// Fiche police automatique — Fouad, 2026-10-13 : "J'aimerais que tu leur envoies le lien pour
+// qu'ils puissent scanner leur passeport [...] et que ça envoie un message automatique".
+// Pour chaque séjour Beds24 à venir : une fiche police (gendarmerieForms) est créée si besoin, et
+// son lien public /g/[id] est écrit dans la réservation Beds24 en info item FICHEPOLICE. Le
+// message automatique Beds24 l'insère avec [BOOKINGINFOCODETEXT:FICHEPOLICE] (filtre "info
+// code" = FICHEPOLICE, pour ne jamais partir sans lien). Une seule écriture par réservation : on
+// ne réécrit pas si l'info item existe déjà.
+export const FICHE_POLICE_INFO_CODE = "FICHEPOLICE";
+
+async function publierLiensFichePolice(bookings: Beds24Booking[], now: Date): Promise<void> {
+  const baseUrl = getBaseUrl();
+  if (!baseUrl) return;
+  const db = getDb();
+  const aPublier: { id: number; infoItems: { code: string; text: string }[] }[] = [];
+
+  for (const booking of bookings) {
+    if (!ACTIVE_STATUSES.has(booking.status)) continue;
+    if (toDateTime(booking.departure, DEFAULT_CHECKOUT_HOUR) < now) continue;
+    if ((booking.infoItems ?? []).some((item) => item.code === FICHE_POLICE_INFO_CODE)) continue;
+
+    const [resa] = await db
+      .select({ id: reservations.id, villaId: reservations.villaId })
+      .from(reservations)
+      .where(eq(reservations.beds24BookingId, String(booking.id)))
+      .limit(1);
+    if (!resa) continue;
+
+    // Fiche déjà créée à la main depuis la réservation : on réutilise la plus ancienne.
+    let [fiche] = await db
+      .select({ id: gendarmerieForms.id })
+      .from(gendarmerieForms)
+      .where(eq(gendarmerieForms.reservationId, resa.id))
+      .orderBy(asc(gendarmerieForms.createdAt))
+      .limit(1);
+    if (!fiche) {
+      [fiche] = await db
+        .insert(gendarmerieForms)
+        .values({ reservationId: resa.id, villaId: resa.villaId, createdByName: "Beds24 (automatique)" })
+        .returning({ id: gendarmerieForms.id });
+    }
+    if (!fiche) continue;
+
+    aPublier.push({ id: booking.id, infoItems: [{ code: FICHE_POLICE_INFO_CODE, text: `${baseUrl}/g/${fiche.id}` }] });
+  }
+
+  for (let i = 0; i < aPublier.length; i += 50) {
+    await beds24AddInfoItems(aPublier.slice(i, i + 50));
   }
 }
 

@@ -93,7 +93,12 @@ export type Beds24Booking = {
   apiSource?: string;
   bookingTime?: string; // ISO, date de création de la réservation / demande
   modifiedTime?: string; // ISO
+  infoItems?: Beds24InfoItem[]; // renvoyés seulement avec includeInfoItems: true
 };
+
+// "Booking info items" Beds24 : couples code/texte attachés à une réservation, lisibles dans
+// les messages automatiques via [BOOKINGINFOCODETEXT:CODE] (voir lien fiche police, sync.ts).
+export type Beds24InfoItem = { id?: number; code: string; text: string };
 
 // Réponse paginée de GET /bookings : Beds24 renvoie au plus une page de résultats et indique
 // via pages.nextPageExists s'il faut demander la suivante (paramètre "page", à partir de 1).
@@ -114,6 +119,7 @@ export type Beds24BookingFilters = {
   status?: Beds24BookingStatus | Beds24BookingStatus[];
   modifiedFrom?: string;
   includeGuests?: boolean;
+  includeInfoItems?: boolean;
 };
 
 // Garde-fou contre une boucle infinie si l'API renvoyait toujours nextPageExists: true.
@@ -143,6 +149,13 @@ export type Beds24BookingWrite = {
 };
 
 export type Beds24BookingWriteResult = { success: boolean; id?: number; warnings?: string[] };
+
+// Ajoute des info items à des réservations existantes (POST /bookings avec seulement id +
+// infoItems : Beds24 n'ajoute que l'élément, sans toucher au reste de la réservation).
+export async function beds24AddInfoItems(items: { id: number; infoItems: Beds24InfoItem[] }[]): Promise<Beds24BookingWriteResult[]> {
+  if (items.length === 0) return [];
+  return beds24Fetch<Beds24BookingWriteResult[]>("/bookings", { method: "POST", body: items });
+}
 
 export async function beds24WriteBookings(bookings: Beds24BookingWrite[]): Promise<Beds24BookingWriteResult[]> {
   return beds24Fetch<Beds24BookingWriteResult[]>("/bookings", { method: "POST", body: bookings });
