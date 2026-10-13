@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Building2, ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
+import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
+import { canalBarStyle, normaliseCanal } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
@@ -478,18 +480,23 @@ function VillaCalendarRow({
 
       {reservationsVisibles(villa.reservations, dateStrings).map((r, i) => {
         const { start, end } = barGridColumns(r, dateStrings);
+        // Barre colorée selon le canal + pastille ronde au début, façon SuperHote v2 (voir
+        // lib/canal.ts) — la pastille reste collée au nom (sticky) quand on fait défiler.
         return (
           <button
             key={i}
             type="button"
             onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...r })}
-            className="relative m-0.5 flex items-center rounded-md bg-primary px-1.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/85"
-            style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+            className="relative m-0.5 flex min-w-0 items-center rounded-md border-l-4 pl-0.5 pr-1.5 text-[10px] font-medium text-foreground transition-[filter] hover:brightness-95 dark:hover:brightness-125"
+            style={{ gridColumn: `${start} / ${end}`, gridRow: 1, ...canalBarStyle(normaliseCanal(r.canal)) }}
           >
-            <span className="sticky left-1.5 truncate">
-              {r.guestName}
-              {r.montant != null ? ` ${formatMontant(r.montant, r.devise)}` : ""}
-              {r.enCours ? " · Séjour en cours" : ""}
+            <span className="sticky left-0.5 flex min-w-0 items-center gap-1">
+              <CanalDot canal={r.canal} size="sm" className="ring-2 ring-card" />
+              <span className="truncate">
+                {r.guestName}
+                {r.montant != null ? ` ${formatMontant(r.montant, r.devise)}` : ""}
+                {r.enCours ? " · Séjour en cours" : ""}
+              </span>
             </span>
           </button>
         );
@@ -632,14 +639,23 @@ function VillaMonthCalendar({
                 key={reservation.id}
                 type="button"
                 onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...reservation })}
-                className={`relative mb-1 flex h-5 items-center self-end bg-primary px-2 text-[11px] font-medium text-primary-foreground active:bg-primary/85 ${
-                  arrondiGauche ? "rounded-l-full ml-1" : ""
+                className={`relative mb-1 flex h-5 min-w-0 items-center self-end pr-2 text-[11px] font-medium text-foreground active:brightness-95 ${
+                  arrondiGauche ? "rounded-l-full ml-1 pl-0.5" : "pl-1"
                 } ${arrondiDroite ? "rounded-r-full mr-1" : ""}`}
-                style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+                style={{
+                  gridColumn: `${start} / ${end}`,
+                  gridRow: 1,
+                  // Pas de border-l ici (barre en pilule) : la teinte + la pastille au début du
+                  // séjour suffisent à identifier le canal.
+                  ...canalBarStyle(normaliseCanal(reservation.canal), 20),
+                }}
               >
-                <span className="sticky left-2 truncate">
-                  {reservation.guestName}
-                  {reservation.enCours ? " · En cours" : ""}
+                <span className="sticky left-1 flex min-w-0 items-center gap-1">
+                  {arrondiGauche ? <CanalDot canal={reservation.canal} size="xs" /> : null}
+                  <span className="truncate">
+                    {reservation.guestName}
+                    {reservation.enCours ? " · En cours" : ""}
+                  </span>
                 </span>
               </button>
             ))}
@@ -755,7 +771,7 @@ function ReservationRecapDialog({
               {reservation.canal ? (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Canal</span>
-                  <span className="font-medium">{reservation.canal}</span>
+                  <CanalBadge canal={reservation.canal} />
                 </div>
               ) : null}
               {reservation.montant != null ? (

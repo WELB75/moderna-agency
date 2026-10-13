@@ -24,7 +24,7 @@ import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
-import { PlatformBadge } from "@/components/app/platform-badge";
+import { CanalBadge } from "@/components/app/canal-badge";
 import { deleteReservation } from "@/lib/actions/reservations";
 import {
   LogIn,
@@ -266,7 +266,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 {r.codeChambreMaster}
               </Badge>
             ) : null}
-            {r.canal ? <PlatformBadge canal={r.canal} /> : null}
+            {r.canal ? <CanalBadge canal={r.canal} /> : null}
           </div>
         </div>
 
@@ -406,7 +406,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               pas checkin donc fais le"). */}
           {kind === "in" ? (
             <div className="flex flex-col gap-1.5">
-              {r.villaId ? (
+              {r.guestPhone && r.villaId ? (
                 <ArrivalMessageButton
                   prominent
                   reservationId={r.id}
@@ -421,7 +421,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                   envoyeAt={r.messageArriveeEnvoyeAt}
                 />
               ) : null}
-              {r.villaNom ? (
+              {r.guestPhone && r.villaNom ? (
                 <WelcomeMessageButton
                   prominent
                   reservationId={r.id}

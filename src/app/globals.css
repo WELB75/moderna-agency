@@ -128,6 +128,25 @@
   --sidebar-ring: #8b85ff;
 }
 
+/* Couleurs de canal (lib/canal.ts) pour les barres du calendrier et les pilules de canal, façon
+   SuperHote v2 : Airbnb corail, Booking.com bleu nuit, Direct vert. Éclaircies en mode sombre
+   pour rester lisibles sur fond foncé (les pastilles rondes, elles, gardent la couleur de marque). */
+:root {
+  --canal-airbnb: #ff5a5f;
+  --canal-booking: #003580;
+  --canal-direct: #059669;
+  --canal-autre: #64748b;
+  --canal-whatsapp: #1fa855;
+}
+
+.dark {
+  --canal-airbnb: #ff7a7e;
+  --canal-booking: #6b8be0;
+  --canal-direct: #34d399;
+  --canal-autre: #94a3b8;
+  --canal-whatsapp: #4ade80;
+}
+
 /* Vitrine publique (page d'accueil "/") : toujours claire, peu importe le mode sombre de l'app —
    un site marketing calibré sur fond clair. Redéclare les mêmes valeurs que :root pour que les
    composants partagés (Card, Button, Badge...) qui lisent ces variables restent clairs même sous
