@@ -14,10 +14,17 @@ export function domaineEstActif(nom: string | null | undefined): boolean {
 // factures...) reste visible ailleurs dans l'app, rien n'est supprimé.
 // "Villa 5" (même fiche, numéro 5 dans Domaine Moderna II) a été réactivée et renommée
 // "Villa Naggy" le 2026-09-17 avec sa vraie synchro Superhote — donc retirée d'ici.
-export const VILLAS_MASQUEES: string[] = [];
+// Fouad, 2026-10-14 : "A supprimer : Villa Elysée, Villa Eline, Villa Kamel" (Hébergements) et
+// "Sur le calendrier supprimer : Villa Elysée, Eva Cosy, Villa Eline, Alba Cosy" — masquées
+// (Hébergements, calendrier planning, nouvelle réservation, tableau de bord, statistiques), pas
+// supprimées en base : leurs réservations, factures et fiches passées restent consultables.
+export const VILLAS_MASQUEES: string[] = ["Villa Elysée", "Villa Eline", "Villa Kamel", "Eva cosy", "Alba cosy"];
+
+const normaliserNom = (nom: string | null | undefined) => (nom ?? "").trim().toLowerCase();
+const VILLAS_MASQUEES_NORMALISEES = new Set(VILLAS_MASQUEES.map(normaliserNom));
 
 export function villaEstGeree(nom: string | null | undefined): boolean {
-  return !VILLAS_MASQUEES.includes(nom ?? "");
+  return !VILLAS_MASQUEES_NORMALISEES.has(normaliserNom(nom));
 }
 
 export function filtrerDomainesActifs<T extends { nom: string }>(domaines: T[]): T[] {
