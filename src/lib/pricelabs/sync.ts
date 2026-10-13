@@ -45,6 +45,7 @@ export type TarificationVilla = {
   type: "villa" | "appartement";
   domaineNom: string | null;
   photoUrl: string | null;
+  beds24RoomId: string | null;
   currency: string | null;
   minPrice: number | null;
   basePrice: number | null;
@@ -74,6 +75,7 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
       numero: villas.numero,
       type: villas.type,
       photoUrl: villas.photoUrl,
+      beds24RoomId: villas.beds24RoomId,
       pricelabsListingId: villas.pricelabsListingId,
       domaineNom: domaines.nom,
       cacheCurrency: pricelabsPriceCache.currency,
@@ -119,6 +121,7 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
       type: v.type,
       domaineNom: v.domaineNom,
       photoUrl: v.photoUrl,
+      beds24RoomId: v.beds24RoomId,
       currency: v.cacheCurrency,
       minPrice: v.cacheMinPrice ? Number(v.cacheMinPrice) : null,
       basePrice: v.cacheBasePrice ? Number(v.cacheBasePrice) : null,
@@ -222,6 +225,7 @@ async function reloadCache(villaIds: string[]) {
       numero: villas.numero,
       type: villas.type,
       photoUrl: villas.photoUrl,
+      beds24RoomId: villas.beds24RoomId,
       pricelabsListingId: villas.pricelabsListingId,
       domaineNom: domaines.nom,
       cacheCurrency: pricelabsPriceCache.currency,
