@@ -215,6 +215,25 @@ export async function updateGuestPhone(reservationId: string, phone: string) {
   revalidatePath(`/reservations/${reservationId}`);
 }
 
+// Nom affiché d'une réservation — Fouad, 2026-10-14, sur une résa Airbnb annulée restée à
+// 0 € (Villa Nessya, été 2027) : "laisse Airbnb à la place de Hamza". Pour une réservation
+// Beds24, la synchro remet le nom envoyé par le canal à chaque passage : la correction ne tient
+// durablement que sur les réservations manuelles ou importées de SuperHote.
+export async function updateGuestName(reservationId: string, name: string) {
+  await auth.protect();
+  if (!reservationId) throw new Error("Réservation introuvable.");
+  const nom = name.trim();
+  if (!nom) throw new Error("Le nom ne peut pas être vide.");
+
+  const db = getDb();
+  await db.update(reservations).set({ guestName: nom, updatedAt: new Date() }).where(eq(reservations.id, reservationId));
+
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+  revalidatePath("/calendrier");
+  revalidatePath(`/reservations/${reservationId}`);
+}
+
 // Note libre sur la réservation (ex. "prévoir un lit bébé") — Kamel, 2026-09-28, relayant une
 // question posée en regardant le calendrier Tarification : "c'est possible d'avoir une note ?
 // pour les lit bébé etc...". Distincte de notesPaiement (qui ne concerne que le règlement).
