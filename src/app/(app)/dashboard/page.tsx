@@ -24,10 +24,6 @@ import {
   personnel,
   personnelAffectations,
   clients,
-  interventions,
-  staffAssignmentRequests,
-  cashEntries,
-  caisseReconciliations,
 } from "@/db/schema";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -45,24 +41,13 @@ import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import {
-  LogIn,
-  LogOut,
   Wrench,
   ChevronLeft,
   ChevronRight,
   MoreVertical,
-  DoorOpen,
-  DoorClosed,
-  BrushCleaning,
-  ChefHat,
-  Wallet,
-  AlertTriangle,
-  Hourglass,
-  FileWarning,
-  type LucideIcon,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
-import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
+import { villaEstGeree } from "@/lib/domaines-actifs";
 import { getUnreadChatCount } from "@/lib/actions/chat";
 import {
   montantMenageDu,
@@ -72,7 +57,6 @@ import {
   TARIF_CUISINE_PETIT_DEJEUNER,
   TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER,
 } from "@/lib/personnel-tarifs";
-import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 import { buildPersonnelOptions, getQualiteMoyenneById } from "@/lib/personnel-options";
 import { chargerVoisins, voisinsAutour } from "@/lib/taches-du-jour";
@@ -84,8 +68,8 @@ const DAYS_AHEAD = 7;
 // défaut, géré par Kamel au quotidien), puis Zaraba et Noria réintégrés depuis leur mise de côté
 // du 2026-07-24 (voir domaines-actifs.ts, qui reste inchangé et ne s'applique qu'aux autres pages
 // comme /caisse). "Bureau Moderna Agency" n'est pas un domaine loué (0 villa) donc pas d'onglet.
-// Prestigia ajouté le 2026-09-14 (1er appartement du domaine, Appart. Climatisé vue Piscine & Atlas).
-const DASHBOARD_DOMAINES = ["Domaine Moderna II", "Domaine Zaraba", "Noria", "Prestigia"];
+// Prestigia retiré de l'accueil le 2026-10-13 (Kamel : "retire prestigia").
+const DASHBOARD_DOMAINES = ["Domaine Moderna II", "Domaine Zaraba", "Noria"];
 
 export default async function DashboardPage({
   searchParams,
@@ -413,7 +397,6 @@ export default async function DashboardPage({
     ["Domaine Moderna II", modernaIIPlanVillas],
     ["Domaine Zaraba", []],
     ["Noria", []],
-    ["Prestigia", []],
   ]);
 
   const maintenanceByDomaine = new Map(
@@ -427,125 +410,6 @@ export default async function DashboardPage({
     .from(superhoteSyncLog)
     .orderBy(desc(superhoteSyncLog.startedAt))
     .limit(1);
-
-  // --- Chiffres du jour (tête de page) -------------------------------------------------------
-
-  const villasOccupeesByDomaine = new Map(
-    DASHBOARD_DOMAINES.map((d) => [d, allVillasGerees.filter((v) => v.domaineNom === d && occupiedVillaIds.has(v.id))])
-  );
-
-  // Ménage/cuisine "occupée aujourd'hui" : même logique de fenêtre de travail que le dispatch
-  // automatique (voir dayAfter/moment dans whatsapp-agent/staff.ts) — ménage "depart"/"unique" ne
-  // travaille que le jour du check-out, ménage "sejour" et cuisine travaillent du lendemain du
-  // check-in jusqu'au check-out inclus. Calculée tous domaines confondus (pas par onglet) : le
-  // personnel n'est pas rattaché à un domaine, quelqu'un occupé à Noria n'est pas "disponible"
-  // pour Zaraba — la disponibilité est un fait global, pas un fait par domaine.
-  const affectationsAujourdhui = await db
-    .select({
-      personnelId: personnelAffectations.personnelId,
-      role: personnel.role,
-      moment: personnelAffectations.moment,
-      checkIn: reservations.checkIn,
-      checkOut: reservations.checkOut,
-    })
-    .from(personnelAffectations)
-    .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
-    .innerJoin(reservations, eq(personnelAffectations.reservationId, reservations.id))
-    .where(
-      and(
-        ne(reservations.status, "annulee"),
-        lte(reservations.checkIn, endOfDay(now)),
-        gte(reservations.checkOut, startOfDay(now))
-      )
-    );
-  const todayStart = startOfDay(now);
-  function travailleAujourdhui(row: { role: string; moment: string | null; checkIn: Date; checkOut: Date }): boolean {
-    const checkIn = new Date(row.checkIn);
-    const checkOut = new Date(row.checkOut);
-    if (row.role === "menage" && row.moment !== "sejour") return isSameDay(checkOut, now);
-    const debutTravail = startOfDay(addDays(checkIn, 1));
-    return todayStart >= debutTravail && todayStart <= startOfDay(checkOut);
-  }
-  const menageOccupeIds = new Set(
-    affectationsAujourdhui.filter((r) => r.role === "menage" && travailleAujourdhui(r)).map((r) => r.personnelId)
-  );
-  const cuisineOccupeIds = new Set(
-    affectationsAujourdhui.filter((r) => r.role === "cuisine" && travailleAujourdhui(r)).map((r) => r.personnelId)
-  );
-  const menageActif = activePersonnel.filter((p) => p.role === "menage");
-  const cuisineActif = activePersonnel.filter((p) => p.role === "cuisine");
-  const menageOccupeCount = menageActif.filter((p) => menageOccupeIds.has(p.id)).length;
-  const cuisineOccupeCount = cuisineActif.filter((p) => cuisineOccupeIds.has(p.id)).length;
-
-  const interventionsUrgentesEnCours = await db
-    .select({ id: interventions.id })
-    .from(interventions)
-    .where(and(inArray(interventions.urgence, ["haute", "critique"]), ne(interventions.etape, "termine")));
-
-  const sollicitationsEnAttente = await db
-    .select({ id: staffAssignmentRequests.id, domaineNom: domaines.nom })
-    .from(staffAssignmentRequests)
-    .innerJoin(reservations, eq(staffAssignmentRequests.reservationId, reservations.id))
-    .leftJoin(villas, eq(reservations.villaId, villas.id))
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(eq(staffAssignmentRequests.statut, "en_recherche"));
-  const sollicitationsByDomaine = new Map(
-    DASHBOARD_DOMAINES.map((d) => [d, sollicitationsEnAttente.filter((s) => s.domaineNom === d).length])
-  );
-
-  const checkInsAujourdhuiByDomaine = new Map(
-    DASHBOARD_DOMAINES.map((d) => [d, upcomingByDomaine.get(d)!.filter((r) => isSameDay(new Date(r.checkIn), now))])
-  );
-  const checkOutsAujourdhuiByDomaine = new Map(
-    DASHBOARD_DOMAINES.map((d) => [d, upcomingByDomaine.get(d)!.filter((r) => isSameDay(new Date(r.checkOut), now))])
-  );
-  const fichesPoliceManquantesByDomaine = new Map(
-    DASHBOARD_DOMAINES.map((d) => [
-      d,
-      checkInsAujourdhuiByDomaine.get(d)!.filter((r) => r.ficheStatut !== "complete").length,
-    ])
-  );
-
-  // Argent physiquement disponible en caisse société (espèces) depuis la dernière réconciliation
-  // ("on repart de zéro", voir caisseReconciliations) — pas depuis le début du mois calendaire :
-  // Kamel, 2026-09-16, un mois sans nouvelle remise affichait un déficit même après un vrai
-  // règlement des comptes avec le boss où il ne reste plus rien à devoir ni à recevoir.
-  const [derniereReconciliationEspeces] = await db
-    .select({ resetAt: caisseReconciliations.resetAt })
-    .from(caisseReconciliations)
-    .where(eq(caisseReconciliations.moyenPaiement, "especes"))
-    .orderBy(desc(caisseReconciliations.resetAt))
-    .limit(1);
-  const especesSocieteCaisse = (
-    await db
-      .select({
-        type: cashEntries.type,
-        caisse: cashEntries.caisse,
-        financePar: cashEntries.financePar,
-        moyenPaiement: cashEntries.moyenPaiement,
-        montant: cashEntries.montant,
-        devise: cashEntries.devise,
-        domaineNom: domaines.nom,
-      })
-      .from(cashEntries)
-      .leftJoin(villas, eq(cashEntries.villaId, villas.id))
-      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(
-        derniereReconciliationEspeces
-          ? gte(cashEntries.createdAt, derniereReconciliationEspeces.resetAt)
-          : undefined
-      )
-  ).filter((e) => domaineEstActif(e.domaineNom) && e.caisse === "societe" && e.moyenPaiement === "especes");
-  const devisesCaisse = Array.from(new Set(especesSocieteCaisse.map((e) => e.devise)));
-  const soldesCaisse = devisesCaisse.map((devise) => {
-    const enDevise = especesSocieteCaisse.filter((e) => e.devise === devise);
-    const totalRemise = enDevise.filter((e) => e.type === "remise").reduce((s, e) => s + Number(e.montant), 0);
-    const totalDepenseSociete = enDevise
-      .filter((e) => e.type === "depense" && e.financePar === "societe")
-      .reduce((s, e) => s + Number(e.montant), 0);
-    const totalRestitution = enDevise.filter((e) => e.type === "restitution").reduce((s, e) => s + Number(e.montant), 0);
-    return { devise, solde: totalRemise - totalDepenseSociete - totalRestitution };
-  });
 
   // Tâches du jour (une ligne par check-out, ménage de départ, check-in, cuisine) avec dernier
   // départ / prochaine arrivée de la villa — uniquement sur la semaine en cours.
@@ -721,29 +585,8 @@ export default async function DashboardPage({
             ))}
           </TabsList>
 
-          {/* Personnel dispo/occupé, caisse et interventions urgentes sont partagés entre
-              domaines (pas rattachés à un seul), donc affichés une fois plutôt que répétés
-              identiquement dans chaque onglet. */}
-          <div className="pt-4">
-            <GlobalMetricsHeader
-              menageLibre={menageActif.length - menageOccupeCount}
-              menageOccupe={menageOccupeCount}
-              cuisineLibre={cuisineActif.length - cuisineOccupeCount}
-              cuisineOccupe={cuisineOccupeCount}
-              soldesCaisse={soldesCaisse}
-              interventionsUrgentes={interventionsUrgentesEnCours.length}
-            />
-          </div>
         {DASHBOARD_DOMAINES.map((d) => (
           <TabsContent key={d} value={d} className="space-y-6 pt-2">
-            <DomaineMetricsHeader
-              checkInsAujourdhui={checkInsAujourdhuiByDomaine.get(d)!.length}
-              checkOutsAujourdhui={checkOutsAujourdhuiByDomaine.get(d)!.length}
-              villasOccupees={villasOccupeesByDomaine.get(d)!.length}
-              villasLibres={villasLibresByDomaine.get(d)!.length}
-              sollicitationsEnAttente={sollicitationsByDomaine.get(d)!}
-              fichesPoliceManquantes={fichesPoliceManquantesByDomaine.get(d)!}
-            />
             {offsetSemaines === 0 ? (
               <TachesDuJour taches={tachesDuJour.filter((t) => t.domaineNom === d)} now={now} />
             ) : null}
@@ -758,150 +601,6 @@ export default async function DashboardPage({
         ))}
         </Tabs>
       </div>
-    </div>
-  );
-}
-
-// Chiffres du jour, recalculés à chaque chargement — regroupe tout ce qui était auparavant
-// dispersé (check-in/check-out) avec les indicateurs opérationnels qui n'avaient encore aucune
-// vue d'ensemble (personnel dispo, caisse, interventions urgentes, sollicitations en attente,
-// fiches police manquantes). Kamel, 2026-08-21.
-function StatTile({
-  icon: Icon,
-  value,
-  label,
-  color,
-  href,
-}: {
-  icon: LucideIcon;
-  value: string | number;
-  label: string;
-  color: "emerald" | "amber" | "sky" | "red" | "slate";
-  href?: string;
-}) {
-  // Icône plate sans pastille de fond, même traitement que les icônes de la sidebar (trait fin,
-  // pas de cercle coloré derrière) — Kamel, 2026-09-08 : "je veux qu'on reste sur le meme theme
-  // que la sidebar de gauche niveau icone etc". La couleur ne reste que sur l'icône elle-même,
-  // et seulement là où elle porte un vrai sens (rouge = alerte) ; "slate" (l'immense majorité)
-  // reprend le même gris que les icônes de nav.
-  const iconTextClasses: Record<typeof color, string> = {
-    emerald: "text-emerald-600 dark:text-emerald-400",
-    amber: "text-amber-600 dark:text-amber-400",
-    sky: "text-sky-600 dark:text-sky-400",
-    red: "text-red-600 dark:text-red-400",
-    slate: "text-muted-foreground",
-  };
-  // Kamel, 2026-09-08 : "je suis pas trop fan de ça, tu peux encre plus l'épurée stp ?" — plus
-  // d'ombre, plus d'effet de survol qui soulève la carte, bordure plus discrète, libellé en plus
-  // petit : ce qui reste, c'est le chiffre (l'info), une bordure fine et rien d'autre.
-  const content = (
-    <div className={cn("h-full rounded-xl border border-border/60 bg-card transition-colors", href && "hover:bg-muted/30")}>
-      {/* Empilé (icône puis texte) en mobile pour laisser toute la largeur de la colonne au
-          chiffre — l'agencement icône+texte côte à côte faisait chevaucher les valeurs longues
-          ("13 500 MAD") dans les colonnes étroites à 2 par ligne. Repasse à côte à côte dès `sm`,
-          où les colonnes sont plus larges. Kamel, 2026-08-24. */}
-      <div className="flex flex-col gap-1.5 px-3 py-2.5 sm:flex-row sm:items-center sm:gap-3 sm:px-3.5 sm:py-3">
-        <Icon className={cn("h-4 w-4 shrink-0 sm:h-5 sm:w-5", iconTextClasses[color])} strokeWidth={1.5} />
-        <div className="min-w-0">
-          <p className="truncate text-xl font-semibold leading-tight tracking-tight tabular-nums sm:text-2xl sm:leading-none">
-            {value}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">{label}</p>
-        </div>
-      </div>
-    </div>
-  );
-  return href ? (
-    <Link href={href} className="block h-full">
-      {content}
-    </Link>
-  ) : (
-    content
-  );
-}
-
-function GlobalMetricsHeader({
-  menageLibre,
-  menageOccupe,
-  cuisineLibre,
-  cuisineOccupe,
-  soldesCaisse,
-  interventionsUrgentes,
-}: {
-  menageLibre: number;
-  menageOccupe: number;
-  cuisineLibre: number;
-  cuisineOccupe: number;
-  soldesCaisse: { devise: string; solde: number }[];
-  interventionsUrgentes: number;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <StatTile icon={BrushCleaning} value={menageLibre} label="Ménage disponible" color="slate" href="/personnel" />
-      <StatTile icon={BrushCleaning} value={menageOccupe} label="Ménage occupée" color="slate" href="/personnel" />
-      <StatTile icon={ChefHat} value={cuisineLibre} label="Cuisine disponible" color="slate" href="/personnel" />
-      <StatTile icon={ChefHat} value={cuisineOccupe} label="Cuisine occupée" color="slate" href="/personnel" />
-      {soldesCaisse.length > 0 ? (
-        soldesCaisse.map((s) => (
-          <StatTile
-            key={s.devise}
-            icon={Wallet}
-            value={`${s.solde.toLocaleString("fr-FR")} ${s.devise}`}
-            label="Caisse disponible"
-            color={s.solde < 0 ? "red" : "slate"}
-            href="/caisse"
-          />
-        ))
-      ) : (
-        <StatTile icon={Wallet} value="0" label="Caisse disponible" color="slate" href="/caisse" />
-      )}
-      <StatTile
-        icon={AlertTriangle}
-        value={interventionsUrgentes}
-        label="Interventions urgentes"
-        color={interventionsUrgentes > 0 ? "red" : "slate"}
-        href="/interventions"
-      />
-    </div>
-  );
-}
-
-// Chiffres propres à un domaine (recalculés par onglet) — check-in/out, occupation, sollicitations
-// de personnel et fiches police, contrairement aux chiffres partagés de GlobalMetricsHeader.
-function DomaineMetricsHeader({
-  checkInsAujourdhui,
-  checkOutsAujourdhui,
-  villasOccupees,
-  villasLibres,
-  sollicitationsEnAttente,
-  fichesPoliceManquantes,
-}: {
-  checkInsAujourdhui: number;
-  checkOutsAujourdhui: number;
-  villasOccupees: number;
-  villasLibres: number;
-  sollicitationsEnAttente: number;
-  fichesPoliceManquantes: number;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-      <StatTile icon={LogIn} value={checkInsAujourdhui} label="Check-in aujourd'hui" color="slate" />
-      <StatTile icon={LogOut} value={checkOutsAujourdhui} label="Check-out aujourd'hui" color="slate" />
-      <StatTile icon={DoorClosed} value={villasOccupees} label="Villas occupées" color="slate" href="/villas" />
-      <StatTile icon={DoorOpen} value={villasLibres} label="Villas libres" color="slate" href="/villas" />
-      <StatTile
-        icon={Hourglass}
-        value={sollicitationsEnAttente}
-        label="Personnel en attente"
-        color={sollicitationsEnAttente > 0 ? "amber" : "slate"}
-      />
-      <StatTile
-        icon={FileWarning}
-        value={fichesPoliceManquantes}
-        label="Fiches police manquantes"
-        color={fichesPoliceManquantes > 0 ? "red" : "slate"}
-        href="/securite"
-      />
     </div>
   );
 }
