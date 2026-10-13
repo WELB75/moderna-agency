@@ -5,7 +5,7 @@ import { fr } from "date-fns/locale";
 import { ArrowRight, Building2 } from "lucide-react";
 import { getDb } from "@/db";
 import { domaines, reservations, villas } from "@/db/schema";
-import { PlatformBadge } from "@/components/app/platform-badge";
+import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
 import { formatUtcTime } from "@/lib/now";
 import { cautionEnAttente, estImpayee, estPrepayeeParPlateforme } from "@/lib/reservation-alerts";
 import { cn } from "@/lib/utils";
@@ -145,8 +145,9 @@ export async function CalendrierListe({ filtre, now }: { filtre: FiltreListe; no
                     <tr key={r.id} className="border-b last:border-b-0 hover:bg-muted/40">
                       <td className="px-4 py-2.5">
                         <Link href={`/reservations/${r.id}`} className="flex items-center gap-3">
-                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                             {initiales || "?"}
+                            <CanalDot canal={r.canal} size="xs" className="absolute -right-1 -bottom-1 ring-2 ring-card" />
                           </span>
                           <div className="min-w-0 leading-tight">
                             <p className="truncate text-sm font-medium">{r.guestName}</p>
@@ -178,7 +179,7 @@ export async function CalendrierListe({ filtre, now }: { filtre: FiltreListe; no
                         {format(r.checkOut, "dd/MM/yyyy", { locale: fr })}
                         <span className="block text-xs text-muted-foreground">{formatUtcTime(r.checkOut)}</span>
                       </td>
-                      <td className="px-4 py-2.5">{r.canal ? <PlatformBadge canal={r.canal} /> : <span className="text-sm text-muted-foreground">—</span>}</td>
+                      <td className="px-4 py-2.5"><CanalBadge canal={r.canal} /></td>
                       <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm tabular-nums">
                         {loyer > 0 ? montantFmt(loyer, r.devisePaiement) : <span className="text-muted-foreground">—</span>}
                       </td>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO, startOfWeek } from "date-fns";
@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Building2, ChevronLeft, ChevronRight, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, ChevronDown, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
+import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
+import { canalBarStyle, canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
@@ -242,16 +244,20 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
   );
 }
 
-// Colonnes resserrées pour voir davantage de jours sans défiler — Kamel, 2026-09-28 : "c'est
-// possible de baisser un peu la police pour voir tout le mois ?". Un mois entier (jusqu'à 31
-// jours) tient rarement sans défiler du tout sur un écran normal en gardant les prix lisibles
-// (Airbnb lui-même ne montre qu'une poignée de jours à la fois sur sa propre capture) — mais on
-// en affiche nettement plus qu'avant, et le sélecteur de mois + les flèches restent là pour le
-// reste.
-const COL_WIDTH = 46;
-const SIDEBAR_WIDTH = 200;
-const ROW_HEIGHT = 44;
+// Vue planning calquée sur SuperHote v2 (captures envoyées le 2026-10-13 : "le calendrier doit
+// ressembler à ça") : colonnes larges avec jour de la semaine + grand numéro, week-ends grisés,
+// aujourd'hui en rouge avec un trait vertical, prix "350€" dans les cases libres, et barres de
+// réservation qui démarrent au milieu de la case d'arrivée et s'arrêtent au milieu de la case de
+// départ, colorées et marquées du logo de leur canal (Airbnb / Booking.com / Direct).
+const COL_WIDTH = 64;
+const SIDEBAR_WIDTH = 260;
+const ROW_HEIGHT = 64;
+const HEADER_MONTH_HEIGHT = 56;
+const HEADER_DAYS_HEIGHT = 64;
 const CALENDAR_DAYS = 365;
+// Comme SuperHote : on garde quelques jours de passé à gauche d'aujourd'hui (séjours qui viennent
+// de se terminer, affichés grisés).
+const JOURS_PASSES_PLANNING = 4;
 
 type ReservationSelectionnee = { villaId: string; villaNom: string } & TarificationReservation;
 
@@ -295,10 +301,24 @@ function TarificationCalendrier({
   );
 }
 
-// Calendrier hôte façon Airbnb : logements en lignes (colonne fixe à gauche), dates en colonnes
-// (défilement horizontal, sélecteur de mois pour sauter directement à une période), barres de
-// réservation superposées aux cellules de prix, cliquables pour un récapitulatif — Kamel,
-// 2026-09-28, captures d'écran Airbnb à l'appui.
+function debutDuJour(d: Date): Date {
+  const copie = new Date(d);
+  copie.setHours(0, 0, 0, 0);
+  return copie;
+}
+
+function libelleJourCourt(d: Date): string {
+  const jour = format(d, "EEE", { locale: fr }).replace(".", "");
+  return `${jour.charAt(0).toUpperCase()}${jour.slice(1)}.`;
+}
+
+function libelleMois(d: Date): string {
+  const mois = format(d, "MMMM", { locale: fr });
+  return mois.charAt(0).toUpperCase() + mois.slice(1);
+}
+
+// Grille villas × jours (logements en lignes, colonne fixe à gauche ; dates en colonnes avec
+// défilement horizontal), mise en forme SuperHote v2.
 function TarificationDesktopGrid({
   villas,
   onSelectReservation,
@@ -306,196 +326,269 @@ function TarificationDesktopGrid({
   villas: TarificationVilla[];
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
-  const dateList = useMemo(() => Array.from({ length: CALENDAR_DAYS }, (_, i) => addDays(new Date(), i)), []);
+  const dateList = useMemo(() => {
+    const debut = addDays(debutDuJour(new Date()), -JOURS_PASSES_PLANNING);
+    return Array.from({ length: CALENDAR_DAYS + JOURS_PASSES_PLANNING }, (_, i) => addDays(debut, i));
+  }, []);
   const dateStrings = useMemo(() => dateList.map((d) => format(d, "yyyy-MM-dd")), [dateList]);
-  const aujourdhui = dateStrings[0];
+  const aujourdhui = dateStrings[JOURS_PASSES_PLANNING];
 
   const moisGroupes = useMemo(() => {
-    const groupes: { label: string; count: number; startIndex: number }[] = [];
+    const groupes: { key: string; label: string; startIndex: number }[] = [];
     dateList.forEach((d, i) => {
-      const label = format(d, "MMMM yyyy", { locale: fr });
-      const dernier = groupes[groupes.length - 1];
-      if (dernier && dernier.label === label) dernier.count++;
-      else groupes.push({ label, count: 1, startIndex: i });
+      const key = format(d, "yyyy-MM");
+      if (groupes[groupes.length - 1]?.key !== key) groupes.push({ key, label: format(d, "MMMM yyyy", { locale: fr }), startIndex: i });
     });
     return groupes;
   }, [dateList]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [premierIndexVisible, setPremierIndexVisible] = useState(0);
+  // Mois affiché en grand dans l'en-tête : celui du premier jour visible à l'écran (suit le
+  // défilement, comme "Octobre 2026" sur SuperHote).
+  const dateEnTete = dateList[Math.min(Math.max(premierIndexVisible, 0), dateList.length - 1)];
+
   function scroll(delta: number) {
     scrollRef.current?.scrollBy({ left: delta, behavior: "smooth" });
   }
-  function allerAuMois(label: string) {
-    const mois = moisGroupes.find((m) => m.label === label);
+  function allerAuMois(key: string) {
+    const mois = moisGroupes.find((m) => m.key === key);
     if (mois) scrollRef.current?.scrollTo({ left: mois.startIndex * COL_WIDTH, behavior: "smooth" });
   }
 
+  // Position du trait rouge "maintenant" : dans la colonne d'aujourd'hui, à l'heure courante.
+  // Calculée seulement dans le navigateur (heure locale de l'utilisateur, pas celle du serveur)
+  // et rafraîchie toutes les 5 minutes.
+  const [positionMaintenant, setPositionMaintenant] = useState<number | null>(null);
+  useEffect(() => {
+    function maj() {
+      const maintenant = new Date();
+      const fractionJour = (maintenant.getHours() * 60 + maintenant.getMinutes()) / (24 * 60);
+      setPositionMaintenant((JOURS_PASSES_PLANNING + fractionJour) * COL_WIDTH);
+    }
+    maj();
+    const timer = setInterval(maj, 5 * 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   return (
-    <Card className="overflow-hidden py-0">
-      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
-        <Select onValueChange={allerAuMois}>
-          <SelectTrigger className="w-44">
-            <SelectValue placeholder="Aller à un mois..." />
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" onClick={() => scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
+          Aujourd&apos;hui
+        </Button>
+        <span className="text-sm font-medium">Allez à</span>
+        <Select value={format(dateEnTete, "yyyy-MM")} onValueChange={allerAuMois}>
+          <SelectTrigger className="w-48">
+            <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {moisGroupes.map((m) => (
-              <SelectItem key={m.label} value={m.label} className="capitalize">
+              <SelectItem key={m.key} value={m.key} className="capitalize">
                 {m.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" size="sm" onClick={() => scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
-          Aujourd&apos;hui
-        </Button>
-      </div>
-
-      <div className="flex">
-        <div className="shrink-0 border-r" style={{ width: SIDEBAR_WIDTH }}>
-          <div className="flex items-center border-b px-3 text-sm font-medium text-muted-foreground" style={{ height: ROW_HEIGHT * 2 }}>
-            {villas.length} logement{villas.length > 1 ? "s" : ""}
-          </div>
-          {villas.map((v) => (
-            <div key={v.id} className="flex items-center gap-2 border-b px-3" style={{ height: ROW_HEIGHT }}>
-              {v.photoUrl ? (
-                <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded">
-                  <Image src={v.photoUrl} alt="" fill sizes="24px" className="object-cover" />
-                </div>
-              ) : (
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-muted">
-                  <Building2 className="h-3 w-3 text-muted-foreground" />
-                </div>
-              )}
-              <span className="min-w-0 truncate text-xs font-medium">{v.nom}</span>
-            </div>
+        <div className="ml-auto flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          {(["airbnb", "booking", "direct"] as const).map((key) => (
+            <span key={key} className="inline-flex items-center gap-1.5">
+              <CanalDot source={key} size="xs" />
+              {SOURCE_META[key].label}
+            </span>
           ))}
         </div>
+      </div>
 
-        <div className="relative min-w-0 flex-1">
-          <button
-            type="button"
-            aria-label="Reculer"
-            onClick={() => scroll(-COL_WIDTH * 5)}
-            className="absolute top-1/2 left-1.5 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border bg-background shadow-sm hover:bg-muted"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            aria-label="Avancer"
-            onClick={() => scroll(COL_WIDTH * 5)}
-            className="absolute top-1/2 right-1.5 z-20 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border bg-background shadow-sm hover:bg-muted"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-
-          <div ref={scrollRef} className="overflow-x-auto">
-            <div style={{ width: COL_WIDTH * dateList.length }}>
-              <div className="flex border-b" style={{ height: ROW_HEIGHT }}>
-                {moisGroupes.map((m) => (
-                  <div
-                    key={m.label}
-                    className="flex shrink-0 items-center border-r px-2 text-xs font-medium capitalize"
-                    style={{ width: COL_WIDTH * m.count }}
-                  >
-                    {m.label}
+      <Card className="gap-0 overflow-hidden rounded-xl py-0">
+        <div className="flex">
+          <div className="shrink-0 border-r bg-card" style={{ width: SIDEBAR_WIDTH }}>
+            <div className="flex items-center border-b px-4 text-sm font-semibold" style={{ height: HEADER_MONTH_HEIGHT + HEADER_DAYS_HEIGHT }}>
+              {villas.length} hébergement{villas.length > 1 ? "s" : ""}
+            </div>
+            {villas.map((v) => (
+              <Link
+                key={v.id}
+                href={`/villas/${v.id}`}
+                className="flex items-center gap-3 border-b px-4 transition-colors hover:bg-muted/50"
+                style={{ height: ROW_HEIGHT }}
+              >
+                {v.photoUrl ? (
+                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md">
+                    <Image src={v.photoUrl} alt="" fill sizes="36px" className="object-cover" />
                   </div>
-                ))}
-              </div>
-              <div className="flex border-b" style={{ height: ROW_HEIGHT }}>
-                {dateList.map((d, i) => (
-                  <div
-                    key={dateStrings[i]}
-                    className="flex shrink-0 flex-col items-center justify-center border-r text-[10px]"
-                    style={{ width: COL_WIDTH }}
-                  >
-                    <span className="text-muted-foreground uppercase">{format(d, "EEEEE", { locale: fr })}</span>
-                    <span
-                      className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full font-medium ${
-                        dateStrings[i] === aujourdhui ? "bg-primary text-primary-foreground" : ""
-                      }`}
-                    >
-                      {format(d, "d")}
-                    </span>
+                ) : (
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
                   </div>
-                ))}
-              </div>
+                )}
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold">{v.nom}</span>
+                <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </Link>
+            ))}
+          </div>
 
-              {villas.map((v) => (
-                <VillaCalendarRow key={v.id} villa={v} dateStrings={dateStrings} onSelectReservation={onSelectReservation} />
-              ))}
+          <div className="relative min-w-0 flex-1">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-3" style={{ height: HEADER_MONTH_HEIGHT }}>
+              <button
+                type="button"
+                aria-label="Semaine précédente"
+                onClick={() => scroll(-COL_WIDTH * 7)}
+                className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-lg border bg-background shadow-sm hover:bg-muted"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label="Semaine suivante"
+                onClick={() => scroll(COL_WIDTH * 7)}
+                className="pointer-events-auto flex h-9 w-9 items-center justify-center rounded-lg border bg-background shadow-sm hover:bg-muted"
+              >
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="pointer-events-none absolute top-0 left-16 z-30 flex flex-col justify-center leading-tight" style={{ height: HEADER_MONTH_HEIGHT }}>
+              <span className="text-lg font-bold" style={{ color: "var(--planning-today)" }}>
+                {libelleMois(dateEnTete)}
+              </span>
+              <span className="text-xs text-muted-foreground">{format(dateEnTete, "yyyy")}</span>
+            </div>
+
+            <div
+              ref={scrollRef}
+              className="overflow-x-auto"
+              onScroll={(e) => setPremierIndexVisible(Math.round(e.currentTarget.scrollLeft / COL_WIDTH))}
+            >
+              <div style={{ width: COL_WIDTH * dateList.length }}>
+                <div style={{ height: HEADER_MONTH_HEIGHT }} />
+                <div className="flex border-b" style={{ height: HEADER_DAYS_HEIGHT }}>
+                  {dateList.map((d, i) => {
+                    const estAujourdhui = dateStrings[i] === aujourdhui;
+                    const weekEnd = d.getDay() === 0 || d.getDay() === 6;
+                    return (
+                      <div key={dateStrings[i]} className="shrink-0 p-0.5 pb-1.5" style={{ width: COL_WIDTH }}>
+                        <div
+                          className={`flex h-full flex-col items-center justify-center rounded-md leading-none ${
+                            estAujourdhui ? "text-white" : weekEnd ? "bg-muted" : ""
+                          }`}
+                          style={estAujourdhui ? { backgroundColor: "var(--planning-today)" } : undefined}
+                        >
+                          <span className={`text-xs ${estAujourdhui ? "text-white/90" : "text-muted-foreground"}`}>{libelleJourCourt(d)}</span>
+                          <span className="mt-1 text-lg font-semibold tabular-nums">{format(d, "dd")}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="relative">
+                  {villas.map((v) => (
+                    <VillaCalendarRow
+                      key={v.id}
+                      villa={v}
+                      dateStrings={dateStrings}
+                      aujourdhui={aujourdhui}
+                      onSelectReservation={onSelectReservation}
+                    />
+                  ))}
+                  {positionMaintenant !== null ? (
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute top-0 bottom-0 z-20 w-0.5"
+                      style={{ left: positionMaintenant, backgroundColor: "var(--planning-today)" }}
+                    />
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 }
 
 function VillaCalendarRow({
   villa,
   dateStrings,
+  aujourdhui,
   onSelectReservation,
 }: {
   villa: TarificationVilla;
   dateStrings: string[];
+  aujourdhui: string;
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
   const largeurTotale = COL_WIDTH * dateStrings.length;
-
-  if (villa.error) {
-    return (
-      <div className="flex items-center border-b px-3 text-xs text-destructive" style={{ height: ROW_HEIGHT, width: largeurTotale }}>
-        Prix temporairement indisponibles
-      </div>
-    );
-  }
-
   const dayByDate = new Map(villa.days.map((d) => [d.date, d]));
+  const resas = reservationsVisibles(villa.reservations, dateStrings);
+  // Jours couverts par une barre : pas de prix ni de hachures dessous.
+  const couverts = new Set(resas.flatMap((r) => dateStrings.filter((d) => d >= r.checkIn && d < r.checkOut)));
 
   return (
-    <div className="relative grid border-b" style={{ height: ROW_HEIGHT, gridTemplateColumns: `repeat(${dateStrings.length}, ${COL_WIDTH}px)` }}>
-      {dateStrings.map((date, i) => {
-        const jour = dayByDate.get(date);
-        const bloque = !jour || jour.unbookable || jour.price == null;
-        return (
-          <div
-            key={date}
-            className="flex items-start justify-end border-r px-1 py-0.5 text-[10px]"
-            style={{
-              gridColumn: i + 1,
-              gridRow: 1,
-              backgroundColor: bloque ? "var(--muted)" : undefined,
-              backgroundImage: bloque
-                ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 7px)"
-                : undefined,
-            }}
-          >
-            {!bloque ? <span>{formatPrix(jour!.price!, villa.currency)}</span> : null}
-          </div>
-        );
-      })}
+    <div className="relative border-b" style={{ height: ROW_HEIGHT, width: largeurTotale }}>
+      <div className="absolute inset-0 flex">
+        {dateStrings.map((date) => {
+          const passe = date < aujourdhui;
+          const jour = dayByDate.get(date);
+          const couvert = couverts.has(date);
+          const bloque = !passe && !couvert && !villa.error && (!jour || jour.unbookable || jour.price == null);
+          return (
+            <div
+              key={date}
+              className="flex shrink-0 items-center justify-end border-r px-2 text-sm tabular-nums"
+              style={{
+                width: COL_WIDTH,
+                backgroundImage: bloque
+                  ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 7px)"
+                  : undefined,
+              }}
+            >
+              {!passe && !couvert && !bloque && jour?.price != null ? formatPrixCompact(jour.price, villa.currency) : null}
+            </div>
+          );
+        })}
+      </div>
 
-      {reservationsVisibles(villa.reservations, dateStrings).map((r, i) => {
-        const { start, end } = barGridColumns(r, dateStrings);
+      {villa.error ? (
+        <div className="sticky left-0 flex h-full items-center px-3 text-xs text-destructive">Prix temporairement indisponibles</div>
+      ) : null}
+
+      {resas.map((r) => {
+        const { left, width } = barPosition(r, dateStrings);
+        const termine = r.checkOut <= aujourdhui;
+        const canal = normaliseCanal(r.canal);
         return (
           <button
-            key={i}
+            key={r.id}
             type="button"
+            title={`${r.guestName} · ${format(parseISO(r.checkIn), "d MMM", { locale: fr })} → ${format(parseISO(r.checkOut), "d MMM", { locale: fr })}`}
             onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...r })}
-            className="relative m-0.5 flex items-center rounded-md bg-primary px-1.5 text-[10px] font-medium text-primary-foreground transition-colors hover:bg-primary/85"
-            style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+            className={`absolute top-1.5 bottom-1.5 z-10 flex min-w-0 items-center rounded-lg border px-1.5 text-left text-sm font-semibold transition-[filter] hover:brightness-95 dark:hover:brightness-125 ${
+              termine ? "opacity-50" : ""
+            }`}
+            style={{ left, width, ...canalPlanningStyle(canal) }}
           >
-            <span className="sticky left-1.5 truncate">
-              {r.guestName}
-              {r.montant != null ? ` ${formatMontant(r.montant, r.devise)}` : ""}
-              {r.enCours ? " · Séjour en cours" : ""}
+            <span className="sticky left-1.5 flex min-w-0 items-center gap-2">
+              <CanalDot canal={r.canal} size="lg" />
+              <span className="truncate">{r.guestName}</span>
             </span>
           </button>
         );
       })}
     </div>
   );
+}
+
+// Barre de séjour : du milieu de la case d'arrivée au milieu de la case de départ (arrivée
+// l'après-midi, départ le matin), comme sur SuperHote. Un séjour commencé avant la fenêtre
+// affichée part du bord gauche ; un séjour qui la dépasse va jusqu'au bord droit.
+function barPosition(r: TarificationReservation, dateStrings: string[]): { left: number; width: number } {
+  const debutIdx = dateStrings.indexOf(r.checkIn);
+  const finIdx = dateStrings.indexOf(r.checkOut);
+  const gauche = debutIdx === -1 ? 0 : debutIdx * COL_WIDTH + COL_WIDTH / 2 + 2;
+  const droite = finIdx === -1 ? dateStrings.length * COL_WIDTH : finIdx * COL_WIDTH + COL_WIDTH / 2 - 2;
+  return { left: gauche, width: Math.max(droite - gauche, COL_WIDTH / 2) };
 }
 
 // Vue mois façon appli Airbnb (calendrier d'une seule annonce, semaines en lignes de 7 jours,
@@ -632,14 +725,23 @@ function VillaMonthCalendar({
                 key={reservation.id}
                 type="button"
                 onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...reservation })}
-                className={`relative mb-1 flex h-5 items-center self-end bg-primary px-2 text-[11px] font-medium text-primary-foreground active:bg-primary/85 ${
-                  arrondiGauche ? "rounded-l-full ml-1" : ""
+                className={`relative mb-1 flex h-5 min-w-0 items-center self-end pr-2 text-[11px] font-medium text-foreground active:brightness-95 ${
+                  arrondiGauche ? "rounded-l-full ml-1 pl-0.5" : "pl-1"
                 } ${arrondiDroite ? "rounded-r-full mr-1" : ""}`}
-                style={{ gridColumn: `${start} / ${end}`, gridRow: 1 }}
+                style={{
+                  gridColumn: `${start} / ${end}`,
+                  gridRow: 1,
+                  // Pas de border-l ici (barre en pilule) : la teinte + la pastille au début du
+                  // séjour suffisent à identifier le canal.
+                  ...canalBarStyle(normaliseCanal(reservation.canal), 20),
+                }}
               >
-                <span className="sticky left-2 truncate">
-                  {reservation.guestName}
-                  {reservation.enCours ? " · En cours" : ""}
+                <span className="sticky left-1 flex min-w-0 items-center gap-1">
+                  {arrondiGauche ? <CanalDot canal={reservation.canal} size="xs" /> : null}
+                  <span className="truncate">
+                    {reservation.guestName}
+                    {reservation.enCours ? " · En cours" : ""}
+                  </span>
                 </span>
               </button>
             ))}
@@ -755,7 +857,7 @@ function ReservationRecapDialog({
               {reservation.canal ? (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Canal</span>
-                  <span className="font-medium">{reservation.canal}</span>
+                  <CanalBadge canal={reservation.canal} />
                 </div>
               ) : null}
               {reservation.montant != null ? (
@@ -798,22 +900,6 @@ function ReservationRecapDialog({
   );
 }
 
-// Les lignes de grille sont 1-indexées : un séjour occupant les indices de jour [startIdx, endIdx[
-// s'étend donc de la ligne startIdx+1 à endIdx+1. Une réservation déjà en cours avant le début de
-// la fenêtre affichée (checkIn introuvable) démarre en butée gauche ; une réservation qui dépasse
-// la fenêtre affichée (checkOut introuvable) s'étend jusqu'en butée droite — comme les barres
-// coupées par le bord de l'écran sur le calendrier hôte Airbnb. Appeler uniquement après
-// reservationsVisibles ci-dessous, sinon une réservation entièrement hors fenêtre se retrouve
-// calée à tort sur un bord.
-function barGridColumns(r: TarificationReservation, dateStrings: string[]): { start: number; end: number } {
-  const startIdx = dateStrings.indexOf(r.checkIn);
-  const endIdx = dateStrings.indexOf(r.checkOut);
-  return {
-    start: startIdx === -1 ? 1 : startIdx + 1,
-    end: endIdx === -1 ? dateStrings.length + 1 : endIdx + 1,
-  };
-}
-
 function currencySymbole(code: string | null): string {
   if (code === "EUR") return "€";
   if (code === "USD") return "$";
@@ -823,6 +909,10 @@ function currencySymbole(code: string | null): string {
 
 function formatPrix(montant: number, currency: string | null): string {
   return `${Math.round(montant)} ${currencySymbole(currency)}`.trim();
+}
+
+function formatPrixCompact(montant: number, currency: string | null): string {
+  return `${Math.round(montant)}${currencySymbole(currency)}`;
 }
 
 function formatMontant(montant: number, devise: string): string {

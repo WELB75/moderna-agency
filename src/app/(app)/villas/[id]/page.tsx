@@ -44,6 +44,7 @@ import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-b
 import { GuestAccessButton } from "@/components/app/guest-access-button";
 import { VillaIcalUrl, VillaDirectIcalUrls } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
+import { CanalBadge } from "@/components/app/canal-badge";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { OperationalSummary, EditOperationalInfoDialog } from "@/components/app/operational-info";
@@ -555,7 +556,7 @@ function ReservationListItem({
             ) : null}
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            {r.canal ? <Badge variant="outline">{r.canal}</Badge> : null}
+            {r.canal ? <CanalBadge canal={r.canal} /> : null}
             <Badge variant={r.source === "manuel" ? "outline" : "secondary"}>
               {r.source === "superhote" ? "Superhote" : r.source === "beds24" ? "Beds24" : "Manuel"}
             </Badge>

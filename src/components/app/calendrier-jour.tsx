@@ -5,7 +5,8 @@ import { fr } from "date-fns/locale";
 import { AlertCircle, ArrowRight, Building2, CheckCircle2, ChevronLeft, ChevronRight, Moon, RefreshCcw, Users } from "lucide-react";
 import { getDb } from "@/db";
 import { domaines, gendarmerieForms, personnel, personnelAffectations, reservations, villas } from "@/db/schema";
-import { PlatformBadge } from "@/components/app/platform-badge";
+import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
+import { normaliseCanal, SOURCE_META } from "@/lib/canal";
 import { formatUtcTime } from "@/lib/now";
 import { cautionEnAttente } from "@/lib/reservation-alerts";
 import { cn } from "@/lib/utils";
@@ -307,7 +308,7 @@ export async function CalendrierJour({ date, onglet, now }: { date: Date; onglet
                       {voyageurs}
                     </span>
                   ) : null}
-                  {r.canal ? <PlatformBadge canal={r.canal} /> : null}
+                  <CanalBadge canal={r.canal} />
                 </span>,
                 ficheComplete.has(r.id) ? (
                   <StatusDot key="f" ok label="Complète" />
@@ -422,14 +423,19 @@ function Section({
 function HebergementCell({ r, badge }: { r: Resa; badge?: string }) {
   return (
     <Link href={`/reservations/${r.id}`} className="flex min-w-0 items-center gap-3">
-      {r.villaPhotoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={r.villaPhotoUrl} alt="" className="h-9 w-9 shrink-0 rounded-md border object-cover" />
-      ) : (
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
-          <Building2 className="h-4 w-4" />
-        </span>
-      )}
+      {/* Liseré + pastille de canal (Airbnb / Booking.com / Direct), comme les barres du planning. */}
+      <span className="h-9 w-1 shrink-0 rounded-full" style={{ backgroundColor: SOURCE_META[normaliseCanal(r.canal)].cssVar }} aria-hidden />
+      <span className="relative shrink-0">
+        {r.villaPhotoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={r.villaPhotoUrl} alt="" className="h-9 w-9 shrink-0 rounded-md border object-cover" />
+        ) : (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+            <Building2 className="h-4 w-4" />
+          </span>
+        )}
+        <CanalDot canal={r.canal} size="sm" className="absolute -right-1.5 -bottom-1.5 ring-2 ring-card" />
+      </span>
       <div className="min-w-0 leading-tight">
         <p className="flex items-center gap-1.5 truncate text-sm font-medium">
           <span className="truncate">{r.villaNom ?? "Logement non rattaché"}</span>

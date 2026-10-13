@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import { PlatformIcon, WhatsAppIcon, type PlatformKey } from "@/components/app/platform-badge";
+import { CanalDot } from "@/components/app/canal-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
+import { SOURCE_META } from "@/lib/canal";
 import { cn } from "@/lib/utils";
 
 export type InboxChannel = "airbnb" | "booking" | "direct" | "whatsapp";
@@ -24,14 +25,7 @@ export type InboxConversation = {
   awaitingReply: boolean;
   messages: InboxMessage[];
   phone: string | null;
-  reservationId: string | null; // seulement pour Airbnb/Booking (réponse via Beds24)
-};
-
-const CHANNEL_META: Record<InboxChannel, { label: string; color: string }> = {
-  airbnb: { label: "Airbnb", color: "#FF5A5F" },
-  booking: { label: "Booking.com", color: "#003A9A" },
-  direct: { label: "En direct", color: "#6b7280" },
-  whatsapp: { label: "WhatsApp", color: "#25D366" },
+  reservationId: string | null; // seulement pour Airbnb (réponse via Beds24)
 };
 
 const STATUS_CLASS: Record<InboxStatus, string> = {
@@ -46,23 +40,6 @@ function initials(name: string) {
   return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
-function ChannelDot({ channel, className }: { channel: InboxChannel; className?: string }) {
-  const meta = CHANNEL_META[channel];
-  return (
-    <span
-      className={cn("flex items-center justify-center rounded-full border-2 border-card text-white", className)}
-      style={{ backgroundColor: meta.color }}
-      title={meta.label}
-    >
-      {channel === "whatsapp" ? (
-        <WhatsAppIcon className="h-2.5 w-2.5" />
-      ) : (
-        <PlatformIcon platform={channel as PlatformKey} className="h-2.5 w-2.5" />
-      )}
-    </span>
-  );
-}
-
 function Avatar({ name, channel, size = "md" }: { name: string; channel: InboxChannel; size?: "md" | "lg" }) {
   return (
     <div className="relative shrink-0">
@@ -74,7 +51,8 @@ function Avatar({ name, channel, size = "md" }: { name: string; channel: InboxCh
       >
         {initials(name)}
       </div>
-      <ChannelDot channel={channel} className="absolute -bottom-0.5 -right-0.5 h-5 w-5" />
+      {/* Pastille de canal partagée avec le calendrier (components/app/canal-badge.tsx). */}
+      <CanalDot source={channel} size="sm" className="absolute -bottom-0.5 -right-0.5 ring-2 ring-card" />
     </div>
   );
 }
@@ -93,9 +71,11 @@ const PAGE_SIZE = 20;
 export function InboxClient({
   conversations,
   initialKey,
+  notice = null,
 }: {
   conversations: InboxConversation[];
   initialKey: string | null;
+  notice?: string | null; // ex. Beds24 injoignable : la boîte WhatsApp s'affiche quand même
 }) {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"tous" | "a_repondre">("tous");
@@ -129,6 +109,7 @@ export function InboxClient({
             <p className="text-sm font-medium">
               {awaitingCount === 0 ? "Rien à répondre" : `${awaitingCount} à répondre`}
             </p>
+            {notice ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{notice}</p> : null}
           </div>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -177,8 +158,10 @@ export function InboxClient({
             >
               <option value="all">Tous canaux</option>
               <option value="whatsapp">WhatsApp</option>
-              <option value="booking">Booking.com</option>
-              <option value="direct">En direct</option>
+              <option value="airbnb">Airbnb</option>
+              <option value="booking" disabled>
+                Booking.com (bientôt)
+              </option>
             </select>
           </div>
         </div>
@@ -250,7 +233,7 @@ export function InboxClient({
               <div className="min-w-0">
                 <p className="truncate font-semibold">{selected.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
-                  {CHANNEL_META[selected.channel].label}
+                  {SOURCE_META[selected.channel].label}
                   {selected.stay ? ` · ${selected.stay}` : ""}
                   {selected.logement ? ` · ${selected.logement}` : ""}
                   {selected.phone ? ` · ${selected.phone}` : ""}

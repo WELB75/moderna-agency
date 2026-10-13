@@ -16,7 +16,7 @@ export default async function MessagesPage({
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Messages</h1>
-        <p className="text-sm text-muted-foreground">Boîte de réception WhatsApp et Booking.com.</p>
+        <p className="text-sm text-muted-foreground">Boîte de réception WhatsApp et Airbnb (Booking.com bientôt).</p>
       </div>
 
       <MessagesBoiteReception selectedKeyParam={conv} />

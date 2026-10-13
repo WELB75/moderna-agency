@@ -151,11 +151,17 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
   if (villaIds.length === 0) return parVilla;
 
   const db = getDb();
-  const debutFenetre = new Date();
-  debutFenetre.setUTCHours(0, 0, 0, 0);
-  const finFenetre = new Date(debutFenetre);
+  const debutJour = new Date();
+  debutJour.setUTCHours(0, 0, 0, 0);
+  const aujourdhui = dateISO(debutJour);
+  // Quelques jours de passé en plus, comme la vue planning SuperHote v2 qui affiche les séjours
+  // tout juste terminés (grisés) avant aujourd'hui — voir JOURS_PASSES_PLANNING dans
+  // tarification-view.tsx. Sans effet sur le calcul des jours occupés : le cache PriceLabs ne
+  // contient que des dates à partir d'aujourd'hui.
+  const debutFenetre = new Date(debutJour);
+  debutFenetre.setUTCDate(debutFenetre.getUTCDate() - 7);
+  const finFenetre = new Date(debutJour);
   finFenetre.setUTCDate(finFenetre.getUTCDate() + JOURS_CALENDRIER);
-  const aujourdhui = dateISO(debutFenetre);
 
   const rows = await db
     .select({
