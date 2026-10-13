@@ -1,4 +1,5 @@
 import { and, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { IA_WHATSAPP_DESACTIVEE } from "@/lib/whatsapp-agent/muted-phones";
 import { startOfDay, endOfDay } from "date-fns";
 import { revalidatePath } from "next/cache";
 import { getDb } from "@/db";
@@ -31,6 +32,8 @@ const CONTEXTE = "courses-brahim";
 // quotidien qui regarde le lendemain garantit l'envoi "la veille" — peu importe quand
 // l'affectation a réellement été faite.
 export async function notifyBrahimCourses(targetDateStr?: string): Promise<{ sent: boolean; villas: string[] }> {
+  // Interrupteur général des agents IA WhatsApp (Kamel, 2026-10-13 : "on ne va pas l'utiliser").
+  if (IA_WHATSAPP_DESACTIVEE) return { sent: false, villas: [] };
   const db = getDb();
   const resolvedDateStr = targetDateStr ?? dayAfter(new Date().toISOString().slice(0, 10));
   const target = new Date(`${resolvedDateStr}T00:00:00`);
