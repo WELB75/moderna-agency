@@ -17,6 +17,7 @@ import {
 import { sendWhatsAppText, sendWhatsAppTextAndVoice, renvoyerVocalEnAttente, journaliserReception, archiverAudio } from "@/lib/whatsapp-agent/send";
 import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
+import { isMutedPhone } from "@/lib/whatsapp-agent/muted-phones";
 
 export const maxDuration = 60;
 
@@ -242,6 +243,9 @@ export async function POST(req: NextRequest) {
       audioUrl: audioBuffer ? await archiverAudio(audioBuffer, "entrant") : null,
     });
     if (!premierTraitement) return NextResponse.json({ ok: true, dedup: true });
+
+    // Numéro réduit au silence : message journalisé ci-dessus, aucune réponse de l'IA.
+    if (isMutedPhone(from)) return NextResponse.json({ ok: true, muted: true });
 
     // Un numéro d'employée en attente de réponse à une proposition de mission est routé vers
     // l'agent de coordination personnel plutôt que l'agent client — deux conversations
