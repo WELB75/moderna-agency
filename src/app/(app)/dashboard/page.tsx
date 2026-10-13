@@ -75,6 +75,8 @@ import {
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 import { buildPersonnelOptions, getQualiteMoyenneById } from "@/lib/personnel-options";
+import { chargerVoisins, voisinsAutour } from "@/lib/taches-du-jour";
+import { TachesDuJour, type TacheJour, type TacheStatut } from "@/components/app/taches-du-jour";
 
 const DAYS_AHEAD = 7;
 
@@ -545,6 +547,83 @@ export default async function DashboardPage({
     return { devise, solde: totalRemise - totalDepenseSociete - totalRestitution };
   });
 
+  // Tâches du jour (une ligne par check-out, ménage de départ, check-in, cuisine) avec dernier
+  // départ / prochaine arrivée de la villa — uniquement sur la semaine en cours.
+  const tachesDuJour: TacheJour[] = [];
+  if (offsetSemaines === 0) {
+    const duJour = upcomingWithDocs.filter((r) => isSameDay(new Date(r.checkIn), now) || isSameDay(new Date(r.checkOut), now));
+    const voisins = await chargerVoisins(
+      Array.from(new Set(duJour.map((r) => r.villaId).filter((id): id is string => Boolean(id)))),
+      now
+    );
+    const statutPersonnel = (assignes: { faitAt: Date | null }[]): TacheStatut =>
+      assignes.length === 0 ? "non_assigne" : assignes.every((a) => a.faitAt) ? "fait" : "assigne";
+    for (const r of duJour) {
+      const liste = r.villaId ? (voisins.get(r.villaId) ?? []) : [];
+      const base = {
+        reservationId: r.id,
+        villaNom: r.villaNom,
+        villaNumero: r.villaNumero,
+        villaPhotoUrl: r.villaPhotoUrl,
+        domaineNom: r.domaineNom,
+      };
+      if (isSameDay(new Date(r.checkOut), now)) {
+        const at = new Date(r.checkOut);
+        const autour = voisinsAutour(liste, at);
+        tachesDuJour.push({
+          ...base,
+          key: `out-${r.id}`,
+          type: "checkout",
+          at,
+          statut: r.checkoutValideAt ? "fait" : "a_faire",
+          personnes: r.checkoutValidePar ? [r.checkoutValidePar] : [],
+          extra: [],
+          ...autour,
+        });
+        tachesDuJour.push({
+          ...base,
+          key: `menage-${r.id}`,
+          type: "menage",
+          at,
+          statut: statutPersonnel(r.menageDepartAssignes),
+          personnes: r.menageDepartAssignes.map((a) => a.nom),
+          extra: [],
+          ...autour,
+        });
+      }
+      if (isSameDay(new Date(r.checkIn), now)) {
+        const at = new Date(r.checkIn);
+        const autour = voisinsAutour(liste, at);
+        tachesDuJour.push({
+          ...base,
+          key: `in-${r.id}`,
+          type: "checkin",
+          at,
+          statut: r.checkinValideAt ? "fait" : "a_faire",
+          personnes: r.checkinValidePar ? [r.checkinValidePar] : [],
+          extra: [
+            { label: "Fiche police", ok: r.ficheStatut === "complete" },
+            { label: "Contrat", ok: r.contratStatut === "signe" },
+          ],
+          ...autour,
+        });
+        if (r.cuisineAssignes.length > 0) {
+          tachesDuJour.push({
+            ...base,
+            key: `cuisine-${r.id}`,
+            type: "cuisine",
+            at,
+            statut: statutPersonnel(r.cuisineAssignes),
+            personnes: r.cuisineAssignes.map((a) => a.nom),
+            extra: [],
+            ...autour,
+          });
+        }
+      }
+    }
+    tachesDuJour.sort((a, b) => a.at.getTime() - b.at.getTime());
+  }
+
   return (
     <div className="w-full max-w-full space-y-6 overflow-x-hidden">
       {/* Vue d'ensemble façon SuperHote v2 (performance du mois, actions à traiter, journée) —
@@ -665,6 +744,9 @@ export default async function DashboardPage({
               sollicitationsEnAttente={sollicitationsByDomaine.get(d)!}
               fichesPoliceManquantes={fichesPoliceManquantesByDomaine.get(d)!}
             />
+            {offsetSemaines === 0 ? (
+              <TachesDuJour taches={tachesDuJour.filter((t) => t.domaineNom === d)} now={now} />
+            ) : null}
             <VillasLibresCard villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
             <PersonPanel
               reservations={upcomingByDomaine.get(d)!}
