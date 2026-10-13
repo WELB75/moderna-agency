@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gte, ilike, isNotNull, lte, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, isNotNull, lte, ne, or } from "drizzle-orm";
 import { addDays, subDays } from "date-fns";
 import { getDb } from "@/db";
 import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
 import { beds24GetBookings, beds24GetMessages, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
+import { normaliseCanal } from "@/lib/canal";
 import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatus } from "./inbox-client";
 
 // Boîte de réception reconstruite sur le modèle de la messagerie Superhote (liste à gauche avec
@@ -56,6 +57,7 @@ function horodatage(time: string | null | undefined): number {
 
 type AirbnbResa = {
   id: string;
+  canal: string | null;
   beds24BookingId: string | null;
   guestName: string;
   guestPhone: string | null;
@@ -193,6 +195,7 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
     const candidates: AirbnbResa[] = await db
       .select({
         id: reservations.id,
+        canal: reservations.canal,
         beds24BookingId: reservations.beds24BookingId,
         guestName: reservations.guestName,
         guestPhone: reservations.guestPhone,
@@ -206,7 +209,9 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
       .where(
         and(
           isNotNull(reservations.beds24BookingId),
-          ilike(reservations.canal, "%airbnb%"),
+          // Airbnb ET Booking.com (2026-10-13) : Beds24 relaie la messagerie des deux plateformes,
+          // avec la même API (bookings/messages) une fois la propriété connectée au canal.
+          or(ilike(reservations.canal, "%airbnb%"), ilike(reservations.canal, "booking%"), ilike(reservations.canal, "%booking.com%")),
           ne(reservations.status, "annulee"),
           gte(reservations.checkOut, subDays(now, AIRBNB_JOURS_AVANT)),
           lte(reservations.checkIn, addDays(now, AIRBNB_JOURS_APRES))
@@ -226,9 +231,9 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
     const resultat = await chargerFilsAirbnb(airbnbResas);
     filsAirbnb = resultat.fils;
     if (resultat.injoignable) {
-      notice = "Messages Airbnb indisponibles pour le moment (Beds24 injoignable) — WhatsApp reste à jour.";
+      notice = "Messages Airbnb / Booking.com indisponibles pour le moment (Beds24 injoignable) — WhatsApp reste à jour.";
     } else if (resultat.echecs > 0) {
-      notice = `${resultat.echecs} conversation${resultat.echecs > 1 ? "s" : ""} Airbnb non chargée${resultat.echecs > 1 ? "s" : ""} (Beds24).`;
+      notice = `${resultat.echecs} conversation${resultat.echecs > 1 ? "s" : ""} Airbnb / Booking.com non chargée${resultat.echecs > 1 ? "s" : ""} (Beds24).`;
     }
   } catch (error) {
     console.error("[boite-reception] Airbnb/Beds24 :", error);
@@ -309,7 +314,7 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
     items.push({
       key: `og:${r.id}`,
       name: r.guestName,
-      channel: "airbnb",
+      channel: normaliseCanal(r.canal) === "booking" ? "booking" : "airbnb",
       status: s.status,
       statusLabel: s.label,
       stay: stayRange(r.checkIn, r.checkOut),
@@ -362,11 +367,12 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
         const villa = villaParRoom.get(Number(b.roomId));
         const checkIn = new Date(`${b.arrival}T00:00:00Z`);
         const checkOut = new Date(`${b.departure}T00:00:00Z`);
-        const nom = [b.firstName, b.lastName].filter(Boolean).join(" ").trim() || "Voyageur Airbnb";
+        const estBooking = normaliseCanal(b.referer ?? b.channel ?? null) === "booking";
+        const nom = [b.firstName, b.lastName].filter(Boolean).join(" ").trim() || (estBooking ? "Voyageur Booking.com" : "Voyageur Airbnb");
         items.push({
           key: `og:b24-${b.id}`,
           name: nom,
-          channel: "airbnb",
+          channel: estBooking ? "booking" : "airbnb",
           status: "autre",
           statusLabel: "Demande d'information",
           stay: stayRange(checkIn, checkOut),
