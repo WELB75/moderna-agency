@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { AddVillaDialog } from "@/components/app/add-villa-dialog";
 import { AddDomaineDialog } from "@/components/app/add-domaine-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
-import { filtrerDomainesActifs, domaineEstActif } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { Building2, ChevronRight } from "lucide-react";
 
 export default async function VillasPage() {
@@ -25,26 +25,37 @@ export default async function VillasPage() {
         photoUrl: villas.photoUrl,
         icalUrl: villas.icalUrl,
         domaineId: villas.domaineId,
+        type: villas.type,
+        beds24RoomId: villas.beds24RoomId,
         createdAt: villas.createdAt,
         updatedAt: villas.updatedAt,
         domaineNom: domaines.nom,
       })
       .from(villas)
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .where(eq(villas.type, "villa"))
       .orderBy(desc(villas.createdAt))
-  ).filter((v) => domaineEstActif(v.domaineNom));
+  )
+    // Fouad, 2026-10-14 : les appartements Cosy (Amal, Jade, Nina, Mama, Maeva, Livia, Lina,
+    // Mya...) doivent apparaître dans Hébergements. On y ajoute donc les appartements reliés à
+    // Beds24 (ceux réellement loués sur Airbnb/Booking.com), même dans un domaine masqué ailleurs
+    // (Noria) ; les villas suivent la règle habituelle des domaines actifs. Les logements retirés
+    // (VILLAS_MASQUEES) n'apparaissent plus.
+    .filter((v) => (v.type === "appartement" ? Boolean(v.beds24RoomId) : domaineEstActif(v.domaineNom)))
+    .filter((v) => villaEstGeree(v.nom))
+    // Villas d'abord, puis appartements.
+    .sort((a, b) => Number(a.type === "appartement") - Number(b.type === "appartement"));
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Villas</h1>
-          <p className="text-sm text-muted-foreground">{allVillas.length} villa(s) enregistrée(s)</p>
+          <h1 className="text-2xl font-semibold tracking-tight">Hébergements</h1>
+          <p className="text-sm text-muted-foreground">{allVillas.length} hébergement(s) enregistré(s)</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <AddDomaineDialog />
           <AddVillaDialog domaines={allDomaines} />
+          <AddVillaDialog domaines={allDomaines} type="appartement" />
         </div>
       </div>
 
@@ -75,15 +86,19 @@ export default async function VillasPage() {
                   <div>
                     {villa.domaineNom ? <DomaineBadge nom={villa.domaineNom} className="mb-1 text-xs" /> : null}
                     <CardTitle className="text-base">{villa.nom}</CardTitle>
-                    <p className="text-sm text-muted-foreground">Villa n°{villa.numero}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {villa.type === "appartement" ? "Appartement" : "Villa"} n°{villa.numero}
+                    </p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2 pb-6">
-                  {villa.icalUrl ? (
+                  {villa.beds24RoomId ? (
+                    <Badge variant="secondary">Beds24 lié</Badge>
+                  ) : villa.icalUrl ? (
                     <Badge variant="secondary">Superhote lié</Badge>
                   ) : (
-                    <Badge variant="outline">Non lié à Superhote</Badge>
+                    <Badge variant="outline">Non lié</Badge>
                   )}
                   {villa.adresse ? (
                     <span className="text-xs text-muted-foreground">{villa.adresse}</span>
