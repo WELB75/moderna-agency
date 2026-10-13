@@ -6,12 +6,14 @@ import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { sendBeds24Message } from "@/lib/actions/beds24";
+import { sendBeds24InquiryMessage, sendBeds24Message } from "@/lib/actions/beds24";
 
 // Répondre à un voyageur Airbnb/Booking.com depuis l'app — Kamel, 2026-09-15 : "je veux pouvoir
 // aussi y répondre sur l'app". router.refresh() plutôt qu'une mise à jour optimiste : le message
 // envoyé doit repasser par Beds24 pour apparaître avec son vrai id/horodatage au prochain chargement.
-export function Beds24ReplyForm({ reservationId }: { reservationId: string }) {
+// reservationId : réservation de l'app ; beds24InquiryId : demande d'information Airbnb encore
+// sans réservation (lue directement dans Beds24).
+export function Beds24ReplyForm({ reservationId, beds24InquiryId }: { reservationId?: string | null; beds24InquiryId?: number | null }) {
   const [message, setMessage] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -23,7 +25,9 @@ export function Beds24ReplyForm({ reservationId }: { reservationId: string }) {
     if (!trimmed) return;
     startTransition(async () => {
       try {
-        await sendBeds24Message(reservationId, trimmed);
+        if (reservationId) await sendBeds24Message(reservationId, trimmed);
+        else if (beds24InquiryId) await sendBeds24InquiryMessage(beds24InquiryId, trimmed);
+        else throw new Error("Conversation sans canal de réponse.");
         setMessage("");
         router.refresh();
       } catch (err) {

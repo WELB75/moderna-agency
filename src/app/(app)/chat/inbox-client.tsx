@@ -26,6 +26,7 @@ export type InboxConversation = {
   messages: InboxMessage[];
   phone: string | null;
   reservationId: string | null; // seulement pour Airbnb (réponse via Beds24)
+  beds24InquiryId?: number | null; // demande d'information Airbnb, sans réservation dans l'app
 };
 
 const STATUS_CLASS: Record<InboxStatus, string> = {
@@ -266,8 +267,8 @@ export function InboxClient({
               )}
             </div>
 
-            {selected.reservationId ? (
-              <Beds24ReplyForm reservationId={selected.reservationId} />
+            {selected.reservationId || selected.beds24InquiryId ? (
+              <Beds24ReplyForm reservationId={selected.reservationId} beds24InquiryId={selected.beds24InquiryId} />
             ) : (
               <p className="border-t border-border p-3 text-sm text-muted-foreground">
                 Réponse WhatsApp depuis l&apos;app : pas encore branchée, la conversation est en lecture seule.

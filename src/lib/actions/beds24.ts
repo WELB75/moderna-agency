@@ -2,11 +2,11 @@
 
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { reservations, villas } from "@/db/schema";
 import { runBeds24Sync } from "@/lib/beds24/sync";
-import { beds24SendMessage } from "@/lib/beds24/client";
+import { beds24GetBookings, beds24SendMessage } from "@/lib/beds24/client";
 import { BEDS24_VILLA_MAPPING, villaNameMatchesMapping } from "@/lib/beds24/mapping";
 
 // Déclenchement manuel depuis le tableau de bord (bouton dans "Options"), même principe que
@@ -48,6 +48,29 @@ export async function sendBeds24Message(reservationId: string, message: string) 
   if (!reservation?.beds24BookingId) throw new Error("Cette réservation n'est pas liée à un canal Beds24.");
 
   await beds24SendMessage(Number(reservation.beds24BookingId), trimmed);
+  revalidatePath("/chat");
+}
+
+// Répondre à une demande d'information Airbnb (pas encore une réservation, donc pas de ligne
+// dans `reservations`) — 2026-10-13, demande de Zine sur Villa Tania. Même prudence que
+// sendBeds24Message : on revérifie côté serveur que l'id Beds24 est bien une demande, sur un
+// logement relié à l'une de nos villas, avant d'envoyer quoi que ce soit.
+export async function sendBeds24InquiryMessage(beds24BookingId: number, message: string) {
+  await auth.protect();
+  const trimmed = message.trim();
+  if (!trimmed) throw new Error("Le message ne peut pas être vide.");
+  if (!Number.isInteger(beds24BookingId) || beds24BookingId <= 0) throw new Error("Demande introuvable.");
+
+  const [booking] = await beds24GetBookings({ id: beds24BookingId, status: ["inquiry", "request"] });
+  if (!booking) throw new Error("Cette demande n'existe plus dans Beds24.");
+
+  const db = getDb();
+  const villasBeds24 = await db.select({ roomId: villas.beds24RoomId }).from(villas).where(isNotNull(villas.beds24RoomId));
+  if (!villasBeds24.some((v) => Number(v.roomId) === Number(booking.roomId))) {
+    throw new Error("Cette demande ne concerne pas un logement de l'agence.");
+  }
+
+  await beds24SendMessage(beds24BookingId, trimmed);
   revalidatePath("/chat");
 }
 
