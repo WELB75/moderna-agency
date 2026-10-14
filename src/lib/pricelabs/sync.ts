@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNotNull, lt, ne } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, lt, ne, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
@@ -78,6 +78,7 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
       type: villas.type,
       photoUrl: villas.photoUrl,
       beds24RoomId: villas.beds24RoomId,
+      beds24PropertyId: villas.beds24PropertyId,
       pricelabsListingId: villas.pricelabsListingId,
       domaineNom: domaines.nom,
       cacheCurrency: pricelabsPriceCache.currency,
@@ -91,14 +92,17 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
     .from(villas)
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
-    .where(isNotNull(villas.pricelabsListingId))
-  ).filter((v) => villaEstGeree(v.nom)); // logements retirés (voir VILLAS_MASQUEES) : hors calendrier
+    .where(or(isNotNull(villas.pricelabsListingId), isNotNull(villas.beds24RoomId)))
+  )
+    .filter((v) => villaEstGeree(v.nom)) // logements retirés (voir VILLAS_MASQUEES) : hors calendrier
+    .map((v) => ({ ...v, listingId: annoncePricelabs(v) }))
+    .filter((v): v is typeof v & { listingId: string } => Boolean(v.listingId));
 
   const staleVillas = rows.filter((v) => options.force || estPerimee(v.cacheSyncedAt));
 
   if (staleVillas.length > 0) {
     try {
-      await resyncVillas(staleVillas.map((v) => ({ id: v.id, pricelabsListingId: v.pricelabsListingId! })));
+      await resyncVillas(staleVillas.map((v) => ({ id: v.id, pricelabsListingId: v.listingId })));
     } catch (err) {
       // Panne PriceLabs (clé absente, API down, quota dépassé...) : on n'écrase rien en base,
       // les villas déjà en cache continuent d'afficher leurs derniers prix connus, et celles
@@ -135,6 +139,16 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
       error: v.cacheLastError,
     };
   });
+}
+
+// Annonce PriceLabs d'une fiche : celle reliée à la main (pricelabsListingId) en priorité ; à
+// défaut, l'annonce Beds24 du logement, que PriceLabs identifie par "propriété___chambre"
+// (ex. 360242___742730). Fouad, 2026-10-14 : Villa Lila et Villa Nessya, reliées à Beds24 mais
+// jamais à PriceLabs dans l'app, n'apparaissaient pas dans le calendrier planning.
+function annoncePricelabs(v: { pricelabsListingId: string | null; beds24PropertyId: string | null; beds24RoomId: string | null }): string | null {
+  if (v.pricelabsListingId) return v.pricelabsListingId;
+  if (v.beds24PropertyId && v.beds24RoomId) return `${v.beds24PropertyId}___${v.beds24RoomId}`;
+  return null;
 }
 
 function datesEntre(checkIn: string, checkOut: string): string[] {
