@@ -45,6 +45,7 @@ import { GuestAccessButton } from "@/components/app/guest-access-button";
 import { VillaIcalUrl, VillaDirectIcalUrls } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { CanalBadge } from "@/components/app/canal-badge";
+import { EditGuestNameButton } from "@/components/app/edit-guest-name-button";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
 import { OperationalSummary, EditOperationalInfoDialog } from "@/components/app/operational-info";
@@ -549,6 +550,7 @@ function ReservationListItem({
         <div>
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="font-medium">{r.guestName}</p>
+            <EditGuestNameButton reservationId={r.id} guestName={r.guestName} />
             {isProprietaire ? (
               <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400">
                 Propriétaire
