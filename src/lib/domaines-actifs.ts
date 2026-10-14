@@ -18,7 +18,15 @@ export function domaineEstActif(nom: string | null | undefined): boolean {
 // "Sur le calendrier supprimer : Villa Elysée, Eva Cosy, Villa Eline, Alba Cosy" — masquées
 // (Hébergements, calendrier planning, nouvelle réservation, tableau de bord, statistiques), pas
 // supprimées en base : leurs réservations, factures et fiches passées restent consultables.
-export const VILLAS_MASQUEES: string[] = ["Villa Elysée", "Villa Eline", "Villa Kamel", "Eva cosy", "Alba cosy"];
+// Kamel, 2026-10-14 : "retire l'appart Prestigia golf" (Appart. Climatisé vue Piscine & Atlas).
+export const VILLAS_MASQUEES: string[] = [
+  "Villa Elysée",
+  "Villa Eline",
+  "Villa Kamel",
+  "Eva cosy",
+  "Alba cosy",
+  "Appart. Climatisé vue Piscine & Atlas – Prestigia",
+];
 
 const normaliserNom = (nom: string | null | undefined) => (nom ?? "").trim().toLowerCase();
 const VILLAS_MASQUEES_NORMALISEES = new Set(VILLAS_MASQUEES.map(normaliserNom));
