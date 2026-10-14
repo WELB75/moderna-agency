@@ -108,7 +108,12 @@ export async function createReservation(formData: FormData) {
       await beds24UpdateCalendar([
         {
           roomId: Number(villa.beds24RoomId),
-          calendar: [{ from: checkIn.slice(0, 10), to: derniere, numAvail: 0 }],
+          // Fermeture "blackout" (case "Remplacer" de Beds24) EN PLUS de numAvail:0. Test Villa
+          // Sofya du 14/10/2026 : avec numAvail:0 seul, Booking.com fermait en ~1 min mais
+          // Airbnb restait réservable 24 min à 2 h (Beds24 envoyait pourtant bien 0 à Airbnb).
+          // Le même jour, un blackout posé sur des dates déjà à numAvail:0 depuis 12 min (et
+          // toujours ouvertes sur Airbnb) les a fermées sur Airbnb en moins de 25 secondes.
+          calendar: [{ from: checkIn.slice(0, 10), to: derniere, numAvail: 0, override: "blackout" }],
         },
       ]);
     }
@@ -368,7 +373,8 @@ export async function deleteReservation(reservationId: string) {
         await beds24UpdateCalendar([
           {
             roomId: Number(villa.beds24RoomId),
-            calendar: [{ from: debut, to: derniere, numAvail: 1 }],
+            // Lève aussi la fermeture "blackout" posée à la création (voir createReservation).
+            calendar: [{ from: debut, to: derniere, numAvail: 1, override: "none" }],
           },
         ]);
       }
