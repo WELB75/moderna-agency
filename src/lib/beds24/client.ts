@@ -163,7 +163,16 @@ export async function beds24WriteBookings(bookings: Beds24BookingWrite[]): Promi
 
 export type Beds24CalendarWrite = {
   roomId: number;
-  calendar: { from: string; to: string; numAvail?: number; price1?: number; minStay?: number }[];
+  calendar: {
+    from: string;
+    to: string;
+    numAvail?: number;
+    price1?: number;
+    minStay?: number;
+    // "Remplacer" dans le calendrier Beds24. "blackout" ferme la date sur tous les canaux ;
+    // "none" lève la fermeture (spec API v2 : sans numAvail, numAvail repasse au maximum possible).
+    override?: "none" | "blackout" | "exception" | "noCheckIn" | "noCheckOut" | "noCheckInOrCheckOut";
+  }[];
 };
 
 // price1, minStay et numAvail sont tous les trois vérifiés fonctionnels (écriture + relecture
