@@ -14,7 +14,7 @@ import { nowInMorocco } from "@/lib/now";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
-import { beds24UpdateCalendar } from "@/lib/beds24/client";
+import { beds24UpdateCalendar, beds24WriteBookings } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
 
 // Beds24 (inventory/rooms/calendar) : "to" est la DERNIÈRE NUIT incluse, pas le jour du départ.
@@ -373,10 +373,47 @@ export async function deleteReservation(reservationId: string) {
       checkOut: reservations.checkOut,
       source: reservations.source,
       canal: reservations.canal,
+      beds24BookingId: reservations.beds24BookingId,
     })
     .from(reservations)
     .where(eq(reservations.id, reservationId))
     .limit(1);
+
+  // Réservation directe (ou blocage) qui existe aussi dans Beds24 : on l'annule là-bas d'abord,
+  // pour que les dates se rouvrent vraiment sur Airbnb/Booking.com et qu'elle ne revienne pas à la
+  // prochaine synchro. Kamel, 2026-10-14 : "je veux qu'on puisse supprimer directement dans notre
+  // app et que ça supprime sur Beds24". Jamais pour une vraie réservation Airbnb/Booking.com
+  // (annuler un voyageur réel se fait sur la plateforme). Si Beds24 refuse, on garde la ligne
+  // locale et on remonte l'erreur plutôt que de laisser les dates fermées en silence.
+  let annuleeSurBeds24 = false;
+  if (
+    reservation?.beds24BookingId &&
+    reservation.villaId &&
+    ["direct", "bloque"].includes(normaliseCanal(reservation.canal))
+  ) {
+    const [villaB24] = await db
+      .select({ roomId: villas.beds24RoomId })
+      .from(villas)
+      .where(eq(villas.id, reservation.villaId))
+      .limit(1);
+    if (villaB24?.roomId) {
+      const resultats = await beds24WriteBookings([
+        {
+          id: Number(reservation.beds24BookingId),
+          roomId: Number(villaB24.roomId),
+          status: "cancelled",
+          arrival: format(reservation.checkIn, "yyyy-MM-dd"),
+          departure: format(reservation.checkOut, "yyyy-MM-dd"),
+        },
+      ]);
+      if (!resultats[0]?.success) {
+        throw new Error(
+          `Beds24 n'a pas annulé la réservation (${JSON.stringify(resultats[0] ?? {}).slice(0, 200)}). Rien n'a été supprimé.`
+        );
+      }
+      annuleeSurBeds24 = true;
+    }
+  }
 
   await db.delete(reservations).where(eq(reservations.id, reservationId));
 
@@ -391,9 +428,9 @@ export async function deleteReservation(reservationId: string) {
   // risquerait de rouvrir une nuit réellement réservée. Dans ce cas les dates restent bloquées
   // (à rouvrir à la main dans Beds24 si besoin) — on préfère un blocage en trop à un doublon.
   if (
-    reservation?.source === "manuel" &&
-    ["direct", "bloque"].includes(normaliseCanal(reservation.canal)) &&
-    reservation.villaId
+    (reservation?.source === "manuel" || annuleeSurBeds24) &&
+    ["direct", "bloque"].includes(normaliseCanal(reservation?.canal)) &&
+    reservation?.villaId
   ) {
     try {
       const [villa] = await db.select({ beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, reservation.villaId)).limit(1);

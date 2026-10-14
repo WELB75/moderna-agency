@@ -1076,12 +1076,12 @@ function ReservationRecapDialog({
             {/* Réservation créée dans l'app : la supprimer rouvre aussi les dates sur Beds24, donc
                 Airbnb et Booking.com (voir deleteReservation). Les réservations importées
                 (Airbnb, Booking, Superhote) se gèrent depuis leur plateforme. */}
-            {reservation.source === "manuel" ? (
+            {reservation.source === "manuel" || (reservation.source === "beds24" && ["direct", "bloque"].includes(normaliseCanal(reservation.canal))) ? (
               <div className="flex justify-center">
                 <ConfirmDeleteButton
                   label="Supprimer et rouvrir les dates"
                   title="Supprimer cette réservation ?"
-                  description="La réservation est supprimée de l'app et les dates sont rouvertes sur le calendrier Beds24, donc sur Airbnb et Booking.com. Le ménage et la cuisine affectés sont supprimés avec elle."
+                  description="La réservation est annulée dans Beds24 et supprimée de l'app : les dates sont rouvertes sur Airbnb et Booking.com. Le ménage et la cuisine affectés sont supprimés avec elle."
                   action={async () => {
                     await deleteReservation(reservation.id);
                     onSupprimee();

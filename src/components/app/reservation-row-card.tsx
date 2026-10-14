@@ -161,6 +161,12 @@ function estSynchronisee(source: string): boolean {
   return SOURCES_SYNCHRONISEES.has(source);
 }
 
+// Réservation directe ou blocage présent dans Beds24 : la supprimer l'annule là-bas aussi et
+// rouvre les dates sur Airbnb/Booking.com (voir deleteReservation).
+function estAnnulableSurBeds24(r: { source: string; canal: string | null }): boolean {
+  return r.source === "beds24" && ["direct", "bloque"].includes(normaliseCanal(r.canal));
+}
+
 // Carte de réservation complète et interactive (ménage/cuisine, validation check-in/out,
 // documents, messages) — utilisée à la fois sur le tableau de bord (groupée par jour) et sur la
 // fiche dédiée /reservations/[id] (arrivée avec la recherche globale), pour toujours retomber
@@ -519,7 +525,9 @@ export function ReservationRowCard({
               action={deleteReservation.bind(null, r.id)}
               title="Supprimer cette réservation ?"
               description={
-                estSynchronisee(r.source)
+                estAnnulableSurBeds24(r)
+                  ? "La réservation sera annulée dans Beds24 et supprimée de l'app : les dates sont rouvertes sur Airbnb et Booking.com. Le ménage/la cuisine affectés sont supprimés avec elle."
+                  : estSynchronisee(r.source)
                   ? `Réservation importée automatiquement (${r.canal ?? r.source}). La supprimer la retire de l'app, mais la prochaine synchronisation la recréera si elle est toujours présente dans le calendrier ${r.canal ?? r.source}. Pour un vrai doublon qui revient sans cesse, retirer plutôt l'URL iCal en double sur la fiche de la villa. Le ménage/la cuisine affectés à cette réservation sont supprimés avec elle.`
                   : "Cette réservation et le ménage/la cuisine qui lui sont affectés seront définitivement supprimés."
               }
@@ -784,7 +792,9 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
             action={deleteReservation.bind(null, r.id)}
             title="Supprimer cette réservation ?"
             description={
-              estSynchronisee(r.source)
+              estAnnulableSurBeds24(r)
+                ? "La réservation sera annulée dans Beds24 et supprimée de l'app : les dates sont rouvertes sur Airbnb et Booking.com. Le ménage/la cuisine affectés sont supprimés avec elle."
+                : estSynchronisee(r.source)
                 ? `Réservation importée automatiquement (${r.canal ?? r.source}). La supprimer la retire de l'app, mais la prochaine synchronisation la recréera si elle est toujours présente dans le calendrier ${r.canal ?? r.source}. Pour un vrai doublon qui revient sans cesse, retirer plutôt l'URL iCal en double sur la fiche de la villa. Le ménage/la cuisine affectés à cette réservation sont supprimés avec elle.`
                 : "Cette réservation et le ménage/la cuisine qui lui sont affectés seront définitivement supprimés."
             }
