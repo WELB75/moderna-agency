@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertTriangle, ArrowLeft, ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, Info, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
+import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
+import { deleteReservation } from "@/lib/actions/reservations";
 import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
 import { canalBarStyle, canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
@@ -43,6 +45,12 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           ? v
           : { ...v, reservations: v.reservations.map((r) => (r.id === reservationId ? { ...r, notes: notes || null } : r)) }
       )
+    );
+  }
+
+  function handleReservationSupprimee(villaId: string, reservationId: string) {
+    setVillasTarifs((prev) =>
+      prev.map((v) => (v.id !== villaId ? v : { ...v, reservations: v.reservations.filter((r) => r.id !== reservationId) }))
     );
   }
 
@@ -101,7 +109,7 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucun logement ne correspond à la recherche.</CardContent>
         </Card>
       ) : (
-        <TarificationCalendrier villas={villasFiltrees} onNotesUpdated={handleNotesUpdated} />
+        <TarificationCalendrier villas={villasFiltrees} onNotesUpdated={handleNotesUpdated} onReservationSupprimee={handleReservationSupprimee} />
       )}
     </div>
   );
@@ -282,9 +290,11 @@ type ReservationSelectionnee = { villaId: string; villaNom: string } & Tarificat
 function TarificationCalendrier({
   villas,
   onNotesUpdated,
+  onReservationSupprimee,
 }: {
   villas: TarificationVilla[];
   onNotesUpdated: (villaId: string, reservationId: string, notes: string) => void;
+  onReservationSupprimee: (villaId: string, reservationId: string) => void;
 }) {
   const [resaSelectionnee, setResaSelectionnee] = useState<ReservationSelectionnee | null>(null);
 
@@ -306,6 +316,11 @@ function TarificationCalendrier({
         reservation={resaSelectionnee}
         onOpenChange={(open) => !open && setResaSelectionnee(null)}
         onNotesSaved={handleNotesSaved}
+        onSupprimee={() => {
+          if (!resaSelectionnee) return;
+          onReservationSupprimee(resaSelectionnee.villaId, resaSelectionnee.id);
+          setResaSelectionnee(null);
+        }}
       />
     </>
   );
@@ -978,10 +993,12 @@ function ReservationRecapDialog({
   reservation,
   onOpenChange,
   onNotesSaved,
+  onSupprimee,
 }: {
   reservation: ReservationSelectionnee | null;
   onOpenChange: (open: boolean) => void;
   onNotesSaved: (notes: string) => void;
+  onSupprimee: () => void;
 }) {
   const nuits = reservation ? differenceInCalendarDays(parseISO(reservation.checkOut), parseISO(reservation.checkIn)) : 0;
 
@@ -1056,6 +1073,22 @@ function ReservationRecapDialog({
             <Button asChild className="w-full">
               <Link href={`/reservations/${reservation.id}`}>Voir la réservation complète</Link>
             </Button>
+            {/* Réservation créée dans l'app : la supprimer rouvre aussi les dates sur Beds24, donc
+                Airbnb et Booking.com (voir deleteReservation). Les réservations importées
+                (Airbnb, Booking, Superhote) se gèrent depuis leur plateforme. */}
+            {reservation.source === "manuel" ? (
+              <div className="flex justify-center">
+                <ConfirmDeleteButton
+                  label="Supprimer et rouvrir les dates"
+                  title="Supprimer cette réservation ?"
+                  description="La réservation est supprimée de l'app et les dates sont rouvertes sur le calendrier Beds24, donc sur Airbnb et Booking.com. Le ménage et la cuisine affectés sont supprimés avec elle."
+                  action={async () => {
+                    await deleteReservation(reservation.id);
+                    onSupprimee();
+                  }}
+                />
+              </div>
+            ) : null}
           </>
         ) : null}
       </DialogContent>
