@@ -39,6 +39,15 @@ import { cn } from "@/lib/utils";
 const STEPS_WITH_VILLA = ["Logement", "Séjour", "Voyageur", "Prix"] as const;
 const STEPS_NO_VILLA = ["Séjour", "Voyageur", "Prix"] as const;
 
+type TypeResa = "client" | "proprietaire" | "travaux" | "famille" | "autre";
+const TYPES_RESA: { value: TypeResa; label: string; hint: string; nom: string }[] = [
+  { value: "client", label: "Client", hint: "Séjour payant", nom: "" },
+  { value: "proprietaire", label: "Propriétaire sur place", hint: "Blocage, sans prix", nom: "Propriétaire" },
+  { value: "travaux", label: "Travaux", hint: "Blocage, sans prix", nom: "Travaux" },
+  { value: "famille", label: "Famille / proches", hint: "Ménage seulement", nom: "Famille" },
+  { value: "autre", label: "Autre blocage", hint: "Indisponible, sans prix", nom: "Blocage" },
+];
+
 const DEVISES = ["EUR", "MAD"] as const;
 const MOYENS_PAIEMENT = [
   { value: "especes", label: "Espèces" },
@@ -120,6 +129,12 @@ export function AddReservationWizard({
   const [nbAdultes, setNbAdultes] = useState("1");
   const [nbEnfants, setNbEnfants] = useState("0");
 
+  // Type : client payant, ou blocage sans tarif (propriétaire sur place, travaux...) ou famille qui
+  // ne paie que le ménage — Kamel, 2026-10-14 : "bloquer sans mettre de prix, par exemple quand le
+  // proprio est là, quand y a des travaux, parfois c'est la famille qui paie que les frais de ménage".
+  const [typeResa, setTypeResa] = useState<TypeResa>("client");
+  const estClient = typeResa === "client";
+  const estBlocage = typeResa === "proprietaire" || typeResa === "travaux" || typeResa === "autre";
   const [guestName, setGuestName] = useState("");
   const [indicatif, setIndicatif] = useState("+212");
   const [phoneLocal, setPhoneLocal] = useState("");
@@ -218,7 +233,7 @@ export function AddReservationWizard({
 
   const villaValid = Boolean(villaId);
   const sejourValid = Boolean(checkInDate && checkOutDate);
-  const voyageurValid = Boolean(guestName.trim());
+  const voyageurValid = !estClient || Boolean(guestName.trim());
 
   function handleNext() {
     if (step === villaStepIndex && !villaValid) {
@@ -238,7 +253,7 @@ export function AddReservationWizard({
     // à PriceLabs directement, comme ça elle applique les prix PriceLabs + sa promo".
     if (step === voyageurStepIndex) {
       setPrixPl(null);
-      if (villaId && checkInDate && checkOutDate) {
+      if (estClient && villaId && checkInDate && checkOutDate) {
         setPrixPlLoading(true);
         calculerPrixSejourAction(villaId, checkInDate, checkOutDate)
           .then((res) => {
@@ -274,13 +289,14 @@ export function AddReservationWizard({
     formData.set("avanceVersee", avanceVersee.trim());
     formData.set("modeReglement", modeReglement);
     formData.set("remarqueInterne", remarqueInterne.trim());
-    formData.set("guestName", guestName);
+    formData.set("typeReservation", typeResa);
+    formData.set("guestName", guestName.trim() || TYPES_RESA.find((t) => t.value === typeResa)!.nom);
     formData.set("guestPhone", composePhone());
     formData.set("guestEmail", guestEmail.trim());
-    formData.set("loyerTotal", loyerTotal.trim());
+    formData.set("loyerTotal", estClient ? loyerTotal.trim() : "");
     formData.set("devisePaiement", devisePaiement);
     formData.set("moyenPaiement", moyenPaiement);
-    formData.set("caution", caution.trim());
+    formData.set("caution", estClient ? caution.trim() : "");
     formData.set("fraisMenage", fraisMenage.trim());
     formData.set("notes", notes.trim());
 
@@ -440,8 +456,33 @@ export function AddReservationWizard({
         {step === voyageurStepIndex ? (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="guestName">Nom du client</Label>
-              <Input id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} required />
+              <Label>Type de réservation</Label>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {TYPES_RESA.map((t) => (
+                  <button
+                    key={t.value}
+                    type="button"
+                    onClick={() => setTypeResa(t.value)}
+                    className={cn(
+                      "rounded-lg border p-2.5 text-left transition-colors",
+                      typeResa === t.value ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
+                    )}
+                  >
+                    <span className="block text-sm font-medium">{t.label}</span>
+                    <span className="block text-xs text-muted-foreground">{t.hint}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="guestName">{estClient ? "Nom du client" : "Nom (optionnel)"}</Label>
+              <Input
+                id="guestName"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                placeholder={estClient ? "" : TYPES_RESA.find((t) => t.value === typeResa)!.nom}
+                required={estClient}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="guestPhone">Téléphone</Label>
@@ -472,7 +513,54 @@ export function AddReservationWizard({
           </div>
         ) : null}
 
-        {step === prixStepIndex ? (
+        {step === prixStepIndex && !estClient ? (
+          <div className="space-y-4">
+            <p className="rounded-lg border p-3 text-sm">
+              {typeResa === "famille"
+                ? "Aucun loyer : la famille ne paie que les frais de ménage. Les dates sont bloquées sur tous les canaux (Beds24, Airbnb, Booking.com)."
+                : "Aucun tarif : le logement est simplement bloqué sur ces dates, sur tous les canaux (Beds24, Airbnb, Booking.com)."}
+            </p>
+            {typeResa === "famille" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="fraisMenageFamille">Frais de ménage de départ</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="fraisMenageFamille"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={fraisMenage}
+                    onChange={(e) => setFraisMenage(e.target.value)}
+                  />
+                  <Select value={devisePaiement} onValueChange={(v) => setDevisePaiement(v as (typeof DEVISES)[number])}>
+                    <SelectTrigger className="w-28 shrink-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DEVISES.map((d) => (
+                        <SelectItem key={d} value={d}>
+                          {d}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : null}
+            <div className="space-y-1.5">
+              <Label htmlFor="notes">{estBlocage ? "Motif / remarque" : "Remarque"}</Label>
+              <Textarea
+                id="notes"
+                rows={2}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder={typeResa === "travaux" ? "Ex. Réfection de la piscine" : "Ex. Le propriétaire est là avec sa famille"}
+              />
+            </div>
+          </div>
+        ) : null}
+
+        {step === prixStepIndex && estClient ? (
           <div className="space-y-4">
             {/* Tarif PriceLabs du séjour (somme des nuits) */}
             <div className="rounded-lg border p-3 text-sm">
@@ -659,7 +747,10 @@ export function AddReservationWizard({
         {step === personnelStepIndex && createdReservationId ? (
           <div className="space-y-4">
             {shareToken ? <ShareRecapCard token={shareToken} guestName={guestName} /> : null}
-            {showPersonnelStep ? (
+            {!shareToken && estBlocage ? (
+              <p className="rounded-lg border p-3 text-sm">Dates bloquées sur le calendrier, sur tous les canaux.</p>
+            ) : null}
+            {showPersonnelStep && !estBlocage ? (
               <>
                 <p className="text-xs text-muted-foreground">Affecte le personnel si tu le connais déjà (facultatif).</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

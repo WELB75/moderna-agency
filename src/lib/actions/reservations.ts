@@ -42,11 +42,21 @@ export async function createReservation(formData: FormData) {
   // Plateforme d'origine (logos Airbnb/Booking/Direct côté wizard, voir platform-badge.tsx) et
   // prix — optionnels : Kamel, 2026-09-14, l'assistant de création manuelle ne doit pas forcer
   // à tout remplir d'un coup, ces infos peuvent être complétées après coup.
-  const canal = String(formData.get("canal") ?? "").trim();
-  const loyerTotalRaw = String(formData.get("loyerTotal") ?? "").trim();
+  // Type : "client" (défaut) ou blocage sans tarif / famille (ménage seulement) — voir l'assistant.
+  const typeReservation = String(formData.get("typeReservation") ?? "client");
+  const LIBELLES_TYPE: Record<string, string> = {
+    proprietaire: "Blocage · Propriétaire",
+    travaux: "Blocage · Travaux",
+    autre: "Blocage · Autre",
+    famille: "Famille",
+  };
+  const estBlocage = typeReservation === "proprietaire" || typeReservation === "travaux" || typeReservation === "autre";
+  const estClientPayant = !LIBELLES_TYPE[typeReservation];
+  const canal = LIBELLES_TYPE[typeReservation] ?? String(formData.get("canal") ?? "").trim();
+  const loyerTotalRaw = estClientPayant ? String(formData.get("loyerTotal") ?? "").trim() : "";
   const devisePaiement = String(formData.get("devisePaiement") ?? "").trim();
   const moyenPaiement = String(formData.get("moyenPaiement") ?? "").trim();
-  const cautionRaw = String(formData.get("caution") ?? "").trim();
+  const cautionRaw = estClientPayant ? String(formData.get("caution") ?? "").trim() : "";
   const fraisMenageRaw = String(formData.get("fraisMenage") ?? "").trim();
 
   if (!villaId || !guestName || !checkIn || !checkOut) {
@@ -94,7 +104,8 @@ export async function createReservation(formData: FormData) {
   // doit jamais faire échouer la création de la réservation elle-même si ça plante.
   const [villa] = await db.select({ nom: villas.nom, numero: villas.numero, beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, villaId)).limit(1);
   try {
-    if (villa) await initiateMenageRequest(reservation.id, villa.nom, villa.numero, checkOut.slice(0, 10));
+    // Pas de ménage de départ à solliciter pour un simple blocage (propriétaire, travaux...).
+    if (villa && !estBlocage) await initiateMenageRequest(reservation.id, villa.nom, villa.numero, checkOut.slice(0, 10));
   } catch (err) {
     console.error("Échec initiation demande ménage:", err);
   }
@@ -137,6 +148,7 @@ export async function createReservation(formData: FormData) {
   // Récapitulatif partageable (prix PriceLabs, promo, avance, remarque interne) + jeton du lien
   // public /s/[token] — jamais bloquant pour la création elle-même.
   let token: string | null = null;
+  if (!estBlocage) {
   try {
     const num = (key: string) => {
       const raw = String(formData.get(key) ?? "").trim().replace(",", ".");
@@ -162,6 +174,7 @@ export async function createReservation(formData: FormData) {
   } catch (err) {
     console.error("Échec création du récapitulatif de réservation:", err);
     token = null;
+  }
   }
 
   revalidatePath("/dashboard");
