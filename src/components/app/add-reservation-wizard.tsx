@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { differenceInCalendarDays } from "date-fns";
-import { Check } from "lucide-react";
+import { Check, Copy, MessageCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PLATFORMS, PlatformIcon, type PlatformKey } from "@/components/app/platform-badge";
 import { createReservation } from "@/lib/actions/reservations";
+import { calculerPrixSejourAction } from "@/lib/actions/recaps";
+import type { PrixSejour } from "@/lib/pricelabs/sejour";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import type { PersonnelOption } from "@/lib/personnel-options";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,9 @@ export function AddReservationWizard({
 }) {
   const showVillaStep = !initialVillaId && Boolean(villas);
   const showPersonnelStep = Boolean(menageOptions || cuisineOptions || menageOptionsByDomaine || cuisineOptionsByDomaine);
-  const STEPS = [...(showVillaStep ? STEPS_WITH_VILLA : STEPS_NO_VILLA), ...(showPersonnelStep ? (["Personnel"] as const) : [])];
+  // Dernière étape (après création) : personnel si les options sont fournies, et toujours le lien
+  // de partage du récapitulatif.
+  const STEPS = [...(showVillaStep ? STEPS_WITH_VILLA : STEPS_NO_VILLA), ...(showPersonnelStep ? (["Personnel"] as const) : (["Récap"] as const))];
   const router = useRouter();
 
   const [step, setStep] = useState(0);
@@ -116,7 +119,6 @@ export function AddReservationWizard({
   const [nbAdultes, setNbAdultes] = useState("1");
   const [nbEnfants, setNbEnfants] = useState("0");
 
-  const [platform, setPlatform] = useState<PlatformKey>("direct");
   const [guestName, setGuestName] = useState("");
   const [indicatif, setIndicatif] = useState("+212");
   const [phoneLocal, setPhoneLocal] = useState("");
@@ -132,6 +134,32 @@ export function AddReservationWizard({
   const [caution, setCaution] = useState(() => (initialVillaId ? String(villaPriceDefaults?.[initialVillaId]?.caution ?? "") : ""));
   const [fraisMenage, setFraisMenage] = useState(() => (initialVillaId ? String(villaPriceDefaults?.[initialVillaId]?.menage ?? "") : ""));
   const [notes, setNotes] = useState("");
+  // Prix PriceLabs + promo + suivi interne (avance, mode de règlement, remarque) — Kamel,
+  // 2026-10-14 : réservations en direct prises par une partenaire.
+  const [prixPl, setPrixPl] = useState<PrixSejour | null>(null);
+  const [prixPlLoading, setPrixPlLoading] = useState(false);
+  const [showNuits, setShowNuits] = useState(false);
+  const [promoType, setPromoType] = useState<"aucune" | "pourcentage" | "montant">("aucune");
+  const [promoValeur, setPromoValeur] = useState("");
+  const [avanceVersee, setAvanceVersee] = useState("");
+  const [modeReglement, setModeReglement] = useState<"" | "sur_place" | "virement">("");
+  const [remarqueInterne, setRemarqueInterne] = useState("");
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  // Le loyer n'est recalculé automatiquement tant qu'il n'a pas été modifié à la main.
+  const [loyerManuel, setLoyerManuel] = useState(false);
+
+  function appliquerPromo(base: number, type: typeof promoType, valeur: string): number {
+    const v = Number(valeur.replace(",", "."));
+    if (type === "aucune" || !Number.isFinite(v) || v <= 0) return Math.round(base * 100) / 100;
+    const apres = type === "pourcentage" ? base * (1 - Math.min(v, 100) / 100) : base - v;
+    return Math.max(0, Math.round(apres * 100) / 100);
+  }
+
+  function recalculerLoyer(base: number | null, type: typeof promoType, valeur: string) {
+    if (base == null) return;
+    setLoyerTotal(String(appliquerPromo(base, type, valeur)));
+    setLoyerManuel(false);
+  }
 
   function handleVillaChange(newVillaId: string) {
     setVillaId(newVillaId);
@@ -155,13 +183,14 @@ export function AddReservationWizard({
     return digits ? `${indicatif}${digits}` : "";
   }
 
-  const canalValue = platform === "direct" ? "Direct" : PLATFORMS.find((p) => p.key === platform)!.label;
+  // Réservations en direct uniquement : Airbnb et Booking.com arrivent par Beds24.
+  const canalValue = "Direct";
 
   const villaStepIndex = showVillaStep ? 0 : -1;
   const sejourStepIndex = showVillaStep ? 1 : 0;
   const voyageurStepIndex = sejourStepIndex + 1;
   const prixStepIndex = voyageurStepIndex + 1;
-  const personnelStepIndex = showPersonnelStep ? prixStepIndex + 1 : -1;
+  const personnelStepIndex = prixStepIndex + 1;
 
   const villaValid = Boolean(villaId);
   const sejourValid = Boolean(checkInDate && checkOutDate);
@@ -180,15 +209,27 @@ export function AddReservationWizard({
       toast.error("Le nom du client est obligatoire.");
       return;
     }
-    // Loyer total calculé depuis le tarif/nuit connu de la villa (voir villaPriceDefaults) dès
-    // qu'on arrive sur l'étape Prix — Kamel, 2026-09-15 : "le loyer total peut pas etre calculer
-    // par rapport au donné que l'on a sur le bien ?". Seulement si le champ est encore vide, pour
-    // ne jamais écraser une valeur déjà saisie (ex. retour en arrière puis re-avance).
-    if (step === voyageurStepIndex && !loyerTotal) {
-      const prixNuit = villaPriceDefaults?.[villaId]?.prixNuit;
-      if (prixNuit && checkInDate && checkOutDate) {
-        const nights = differenceInCalendarDays(new Date(checkOutDate), new Date(checkInDate));
-        if (nights > 0) setLoyerTotal(String(nights * prixNuit));
+    // Loyer calculé depuis PriceLabs (somme des nuits) dès qu'on arrive sur l'étape Prix ; repli
+    // sur le tarif/nuit connu de la villa si PriceLabs ne répond pas — Kamel, 2026-10-14 : "connecté
+    // à PriceLabs directement, comme ça elle applique les prix PriceLabs + sa promo".
+    if (step === voyageurStepIndex) {
+      setPrixPl(null);
+      if (villaId && checkInDate && checkOutDate) {
+        setPrixPlLoading(true);
+        calculerPrixSejourAction(villaId, checkInDate, checkOutDate)
+          .then((res) => {
+            setPrixPl(res);
+            if (res.ok) {
+              if (res.devise === "EUR" || res.devise === "MAD") setDevisePaiement(res.devise);
+              if (!loyerManuel) setLoyerTotal(String(appliquerPromo(res.total, promoType, promoValeur)));
+            } else if (!loyerTotal) {
+              const prixNuit = villaPriceDefaults?.[villaId]?.prixNuit;
+              const nights = differenceInCalendarDays(new Date(checkOutDate), new Date(checkInDate));
+              if (prixNuit && nights > 0) setLoyerTotal(String(nights * prixNuit));
+            }
+          })
+          .catch(() => setPrixPl({ ok: false, devise: "EUR", nuits: 0, total: 0, parNuit: [], source: null, message: "PriceLabs injoignable." }))
+          .finally(() => setPrixPlLoading(false));
       }
     }
     setStep((s) => Math.min(s + 1, STEPS.length - 1));
@@ -203,6 +244,12 @@ export function AddReservationWizard({
     formData.set("nbAdultes", nbAdultes);
     formData.set("nbEnfants", nbEnfants);
     formData.set("canal", canalValue);
+    if (prixPl?.ok) formData.set("prixPricelabs", String(prixPl.total));
+    formData.set("promoType", promoType === "aucune" ? "" : promoType);
+    formData.set("promoValeur", promoType === "aucune" ? "" : promoValeur.trim());
+    formData.set("avanceVersee", avanceVersee.trim());
+    formData.set("modeReglement", modeReglement);
+    formData.set("remarqueInterne", remarqueInterne.trim());
     formData.set("guestName", guestName);
     formData.set("guestPhone", composePhone());
     formData.set("guestEmail", guestEmail.trim());
@@ -217,14 +264,9 @@ export function AddReservationWizard({
       try {
         const result = await createReservation(formData);
         toast.success("Réservation ajoutée.");
-        if (showPersonnelStep) {
-          setCreatedReservationId(result.id);
-          setStep(personnelStepIndex);
-        } else if (onCreated) {
-          onCreated(result.id);
-        } else {
-          router.push(`/villas/${villaId}`);
-        }
+        setCreatedReservationId(result.id);
+        setShareToken(result.token ?? null);
+        setStep(personnelStepIndex);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de l'ajout.");
       }
@@ -362,30 +404,6 @@ export function AddReservationWizard({
         {step === voyageurStepIndex ? (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Plateforme</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {PLATFORMS.map((p) => (
-                  <button
-                    key={p.key}
-                    type="button"
-                    onClick={() => setPlatform(p.key)}
-                    className={cn(
-                      "flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-colors",
-                      platform === p.key ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
-                    )}
-                  >
-                    <span
-                      className="flex h-8 w-8 items-center justify-center rounded-full text-white"
-                      style={{ backgroundColor: p.color || "var(--primary)" }}
-                    >
-                      <PlatformIcon platform={p.key} className="h-4 w-4" />
-                    </span>
-                    <span className="text-xs font-medium">{p.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="guestName">Nom du client</Label>
               <Input id="guestName" value={guestName} onChange={(e) => setGuestName(e.target.value)} required />
             </div>
@@ -420,11 +438,102 @@ export function AddReservationWizard({
 
         {step === prixStepIndex ? (
           <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">Facultatif — tu peux aussi le renseigner plus tard depuis la fiche.</p>
+            {/* Tarif PriceLabs du séjour (somme des nuits) */}
+            <div className="rounded-lg border p-3 text-sm">
+              {prixPlLoading ? (
+                <p className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Calcul du prix PriceLabs...
+                </p>
+              ) : prixPl?.ok ? (
+                <div className="space-y-1.5">
+                  <p className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="font-medium">Tarif PriceLabs · {prixPl.nuits} nuit{prixPl.nuits > 1 ? "s" : ""}</span>
+                    <span className="text-base font-semibold">
+                      {prixPl.total} {prixPl.devise}
+                    </span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Moyenne {Math.round((prixPl.total / prixPl.nuits) * 100) / 100} {prixPl.devise} / nuit
+                    {prixPl.source === "cache" ? " · prix en cache (moins de 2 h)" : ""}
+                    {" · "}
+                    <button type="button" className="underline underline-offset-2" onClick={() => setShowNuits((v) => !v)}>
+                      {showNuits ? "masquer le détail" : "voir le détail"}
+                    </button>
+                  </p>
+                  {showNuits ? (
+                    <ul className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                      {prixPl.parNuit.map((n) => (
+                        <li key={n.date} className="flex justify-between">
+                          <span>{n.date.slice(8, 10)}/{n.date.slice(5, 7)}</span>
+                          <span>{n.prix}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-muted-foreground">
+                  {prixPl?.message ?? "Prix PriceLabs indisponibles"} — saisis le loyer à la main.
+                </p>
+              )}
+            </div>
+
+            {/* Promotion */}
+            <div className="space-y-1.5">
+              <Label>Promotion</Label>
+              <div className="grid grid-cols-[1fr_1fr] gap-3">
+                <Select
+                  value={promoType}
+                  onValueChange={(v) => {
+                    const t = v as typeof promoType;
+                    setPromoType(t);
+                    if (t === "aucune") setPromoValeur("");
+                    if (prixPl?.ok) recalculerLoyer(prixPl.total, t, t === "aucune" ? "" : promoValeur);
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aucune">Aucune</SelectItem>
+                    <SelectItem value="pourcentage">En pourcentage (%)</SelectItem>
+                    <SelectItem value="montant">Somme ({devisePaiement})</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  disabled={promoType === "aucune"}
+                  placeholder={promoType === "pourcentage" ? "Ex. 10" : "Ex. 200"}
+                  value={promoValeur}
+                  onChange={(e) => {
+                    setPromoValeur(e.target.value);
+                    if (prixPl?.ok) recalculerLoyer(prixPl.total, promoType, e.target.value);
+                  }}
+                />
+              </div>
+              {prixPl?.ok && promoType !== "aucune" && Number(promoValeur) > 0 ? (
+                <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                  {prixPl.total} {prixPl.devise} → {appliquerPromo(prixPl.total, promoType, promoValeur)} {prixPl.devise}
+                </p>
+              ) : null}
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="loyerTotal">Loyer total</Label>
-                <Input id="loyerTotal" type="number" step="0.01" min="0" value={loyerTotal} onChange={(e) => setLoyerTotal(e.target.value)} />
+                <Input
+                  id="loyerTotal"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={loyerTotal}
+                  onChange={(e) => {
+                    setLoyerTotal(e.target.value);
+                    setLoyerManuel(true);
+                  }}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Devise</Label>
@@ -442,6 +551,43 @@ export function AddReservationWizard({
                 </Select>
               </div>
             </div>
+
+            {/* Suivi de l'encaissement */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="avanceVersee">Avance déjà versée</Label>
+                <Input id="avanceVersee" type="number" step="0.01" min="0" value={avanceVersee} onChange={(e) => setAvanceVersee(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Reste à récupérer</Label>
+                <Select value={modeReglement} onValueChange={(v) => setModeReglement(v as typeof modeReglement)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Sur place / virement" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sur_place">Sur place</SelectItem>
+                    <SelectItem value="virement">Par virement</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {Number(loyerTotal) > 0 ? (
+              <p className="text-sm font-medium">
+                Reste à encaisser : {Math.max(0, Math.round((Number(loyerTotal) - (Number(avanceVersee) || 0)) * 100) / 100)} {devisePaiement}
+                {modeReglement === "sur_place" ? " (sur place)" : modeReglement === "virement" ? " (par virement)" : ""}
+              </p>
+            ) : null}
+            <div className="space-y-1.5">
+              <Label htmlFor="remarqueInterne">Remarque interne (pas visible sur le lien)</Label>
+              <Textarea
+                id="remarqueInterne"
+                rows={2}
+                value={remarqueInterne}
+                onChange={(e) => setRemarqueInterne(e.target.value)}
+                placeholder="Ex. Elle a déjà envoyé 200 € d'avance, on récupère 500 € sur place à l'arrivée"
+              />
+            </div>
+
             <div className="space-y-1.5">
               <Label>Moyen de paiement</Label>
               <Select value={moyenPaiement} onValueChange={setMoyenPaiement}>
@@ -476,32 +622,37 @@ export function AddReservationWizard({
 
         {step === personnelStepIndex && createdReservationId ? (
           <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">Réservation créée — affecte le personnel si tu le connais déjà (facultatif).</p>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {menageOptions || menageOptionsByDomaine ? (
-                <PersonnelAffectationEditor
-                  reservationId={createdReservationId}
-                  role="menage"
-                  moment="depart"
-                  label="Ménage"
-                  assigned={menageAssigned}
-                  onAssignedChange={setMenageAssigned}
-                  options={effectiveMenageOptions ?? []}
-                  minimal
-                />
-              ) : null}
-              {cuisineOptions || cuisineOptionsByDomaine ? (
-                <PersonnelAffectationEditor
-                  reservationId={createdReservationId}
-                  role="cuisine"
-                  label="Cuisine"
-                  assigned={cuisineAssigned}
-                  onAssignedChange={setCuisineAssigned}
-                  options={effectiveCuisineOptions ?? []}
-                  minimal
-                />
-              ) : null}
-            </div>
+            {shareToken ? <ShareRecapCard token={shareToken} guestName={guestName} /> : null}
+            {showPersonnelStep ? (
+              <>
+                <p className="text-xs text-muted-foreground">Affecte le personnel si tu le connais déjà (facultatif).</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {menageOptions || menageOptionsByDomaine ? (
+                    <PersonnelAffectationEditor
+                      reservationId={createdReservationId}
+                      role="menage"
+                      moment="depart"
+                      label="Ménage"
+                      assigned={menageAssigned}
+                      onAssignedChange={setMenageAssigned}
+                      options={effectiveMenageOptions ?? []}
+                      minimal
+                    />
+                  ) : null}
+                  {cuisineOptions || cuisineOptionsByDomaine ? (
+                    <PersonnelAffectationEditor
+                      reservationId={createdReservationId}
+                      role="cuisine"
+                      label="Cuisine"
+                      assigned={cuisineAssigned}
+                      onAssignedChange={setCuisineAssigned}
+                      options={effectiveCuisineOptions ?? []}
+                      minimal
+                    />
+                  ) : null}
+                </div>
+              </>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -530,6 +681,40 @@ export function AddReservationWizard({
         )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Lien de partage du récapitulatif (page publique /s/[token]) : copier, ou l'envoyer par WhatsApp
+// à la partenaire, à nous ou à la cliente.
+function ShareRecapCard({ token, guestName }: { token: string; guestName: string }) {
+  const url = typeof window !== "undefined" ? `${window.location.origin}/s/${token}` : `/s/${token}`;
+  const texte = `Récapitulatif de la réservation de ${guestName} : ${url}`;
+  return (
+    <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+      <p className="text-sm font-medium">Réservation créée — lien de partage</p>
+      <p className="break-all rounded-md border bg-background px-2 py-1.5 text-xs">{url}</p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            navigator.clipboard
+              .writeText(url)
+              .then(() => toast.success("Lien copié."))
+              .catch(() => toast.error("Copie impossible, sélectionne le lien."));
+          }}
+        >
+          <Copy className="h-3.5 w-3.5" /> Copier le lien
+        </Button>
+        <Button type="button" size="sm" variant="outline" asChild>
+          <a href={`https://wa.me/?text=${encodeURIComponent(texte)}`} target="_blank" rel="noopener noreferrer">
+            <MessageCircle className="h-3.5 w-3.5" /> Envoyer par WhatsApp
+          </a>
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">Le lien montre le séjour, le tarif, la promo, l&apos;avance et le reste à régler. La remarque interne n&apos;y figure pas.</p>
     </div>
   );
 }

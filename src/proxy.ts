@@ -30,6 +30,7 @@ const isPublicRoute = createRouteMatcher([
   "/m/(.*)",
   "/bienvenue/(.*)",
   "/r/(.*)",
+  "/s/(.*)", // récapitulatif d'une réservation directe (lien de partage par jeton)
   "/payer/(.*)",
   "/dossier/(.*)",
   "/securite/villa/(.*)",

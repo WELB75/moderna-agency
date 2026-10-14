@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { format, subDays } from "date-fns";
 import { getDb } from "@/db";
+import { randomBytes } from "node:crypto";
 import { reservations, villas } from "@/db/schema";
+import { reservationRecaps } from "@/db/schema-recaps";
 import { runIcalSync } from "@/lib/ical/sync";
 import { nowInMorocco } from "@/lib/now";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
@@ -114,10 +116,40 @@ export async function createReservation(formData: FormData) {
     console.error("Échec blocage calendrier Beds24:", err);
   }
 
+  // Récapitulatif partageable (prix PriceLabs, promo, avance, remarque interne) + jeton du lien
+  // public /s/[token] — jamais bloquant pour la création elle-même.
+  let token: string | null = null;
+  try {
+    const num = (key: string) => {
+      const raw = String(formData.get(key) ?? "").trim().replace(",", ".");
+      const n = Number(raw);
+      return raw !== "" && Number.isFinite(n) ? n.toFixed(2) : null;
+    };
+    const promoTypeRaw = String(formData.get("promoType") ?? "");
+    const promoType = promoTypeRaw === "pourcentage" || promoTypeRaw === "montant" ? promoTypeRaw : null;
+    const modeRaw = String(formData.get("modeReglement") ?? "");
+    token = randomBytes(16).toString("hex");
+    await db.insert(reservationRecaps).values({
+      reservationId: reservation.id,
+      token,
+      devise: devisePaiement || "EUR",
+      prixPricelabs: num("prixPricelabs"),
+      promoType: promoType && num("promoValeur") ? promoType : null,
+      promoValeur: promoType ? num("promoValeur") : null,
+      totalFinal: loyerTotalRaw ? num("loyerTotal") : null,
+      avanceVersee: num("avanceVersee"),
+      modeReglement: modeRaw === "sur_place" || modeRaw === "virement" ? modeRaw : null,
+      remarqueInterne: String(formData.get("remarqueInterne") ?? "").trim() || null,
+    });
+  } catch (err) {
+    console.error("Échec création du récapitulatif de réservation:", err);
+    token = null;
+  }
+
   revalidatePath("/dashboard");
   revalidatePath("/villas");
 
-  return { id: reservation.id };
+  return { id: reservation.id, token };
 }
 
 export async function updatePaymentInfo(formData: FormData) {

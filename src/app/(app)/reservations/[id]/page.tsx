@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { reservationRecaps } from "@/db/schema-recaps";
 import { notFound } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { ArrowLeft } from "lucide-react";
@@ -155,8 +156,26 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     clientConnu = allClients.find((c) => phonesMatch(c.telephone, r.guestPhone)) ?? null;
   }
 
+  const [recapRow] = await db
+    .select()
+    .from(reservationRecaps)
+    .where(eq(reservationRecaps.reservationId, r.id))
+    .limit(1);
+  const recapTotal = recapRow?.totalFinal ? Number(recapRow.totalFinal) : null;
+  const recapAvance = recapRow?.avanceVersee ? Number(recapRow.avanceVersee) : null;
+
   const row: ReservationRow = {
     ...r,
+    recap: recapRow
+      ? {
+          token: recapRow.token,
+          devise: recapRow.devise,
+          avanceVersee: recapAvance,
+          reste: recapTotal != null ? Math.max(0, Math.round((recapTotal - (recapAvance ?? 0)) * 100) / 100) : null,
+          modeReglement: recapRow.modeReglement,
+          remarqueInterne: recapRow.remarqueInterne,
+        }
+      : null,
     personnelPayeParProprietaireNoms: r.personnelPayeParProprietaireNoms ?? [],
     repasInclusDansLoyer: r.repasInclusDansLoyer ?? false,
     ficheStatut,

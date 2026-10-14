@@ -97,6 +97,16 @@ export type ReservationRow = {
   cuisineOptions: PersonnelOption[];
   cashAPrevoir: number;
   clientConnu: { nom: string; telephone: string | null; notes: string | null } | null;
+  // Récapitulatif d'une réservation directe créée dans l'app (promo, avance, remarque interne,
+  // lien de partage /s/[token]) — absent pour les réservations importées.
+  recap?: {
+    token: string;
+    devise: string;
+    avanceVersee: number | null;
+    reste: number | null;
+    modeReglement: string | null;
+    remarqueInterne: string | null;
+  } | null;
 };
 
 // Vignette ronde d'un logement : sa photo si elle existe, sinon son numéro seul, avec dans les
@@ -301,6 +311,12 @@ export function ReservationRowCard({
           </div>
         ) : null}
       </Link>
+
+      {r.recap ? (
+        <div className="px-3 pb-2">
+          <RecapInline recap={r.recap} />
+        </div>
+      ) : null}
 
       {/* En dehors du Link (bouton cliquable dans une carte cliquable = navigation
           accidentelle). La cuisine ne se prépare que pour une arrivée (kind "in") ; le ménage a
@@ -675,6 +691,7 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
 
         {/* Colonne 3 : documents + paiement */}
         <div className="min-w-0 space-y-2">
+          {r.recap ? <RecapInline recap={r.recap} /> : null}
           {isProprietaire || !isIn ? null : (
             <div className="flex flex-wrap gap-1.5">
               <FichePoliceStatusChip reservationId={r.id} villaId={r.villaId} ficheId={r.ficheId} ficheStatut={r.ficheStatut} />
@@ -773,6 +790,32 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+// Suivi d'encaissement + remarque interne + lien de partage d'une réservation directe.
+function RecapInline({ recap }: { recap: NonNullable<ReservationRow["recap"]> }) {
+  const mode = recap.modeReglement === "sur_place" ? " sur place" : recap.modeReglement === "virement" ? " par virement" : "";
+  const lignes: string[] = [];
+  if (recap.reste != null) lignes.push(`Reste à encaisser${mode} : ${recap.reste} ${recap.devise}`);
+  if (recap.avanceVersee) lignes.push(`Avance versée : ${recap.avanceVersee} ${recap.devise}`);
+  return (
+    <div className="space-y-1">
+      {lignes.length > 0 || recap.remarqueInterne ? (
+        <InlineAlert tone="amber" icon={Wallet}>
+          {lignes.join(" · ")}
+          {recap.remarqueInterne ? `${lignes.length > 0 ? " — " : ""}${recap.remarqueInterne}` : ""}
+        </InlineAlert>
+      ) : null}
+      <a
+        href={`/s/${recap.token}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-block text-xs text-primary underline underline-offset-2"
+      >
+        Lien récapitulatif à partager
+      </a>
     </div>
   );
 }

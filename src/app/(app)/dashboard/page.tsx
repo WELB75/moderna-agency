@@ -60,6 +60,7 @@ import {
 import { phonesMatch } from "@/lib/phone";
 import { buildPersonnelOptions, getQualiteMoyenneById } from "@/lib/personnel-options";
 import { chargerVoisins, voisinsAutour } from "@/lib/taches-du-jour";
+import { reservationRecaps } from "@/db/schema-recaps";
 import { TachesDuJour, type TacheJour, type TacheStatut } from "@/components/app/taches-du-jour";
 
 const DAYS_AHEAD = 7;
@@ -248,6 +249,40 @@ export default async function DashboardPage({
     affectationsByReservationForCash.set(a.reservationId, all);
   }
 
+  // Récapitulatifs des réservations directes (avance, reste à encaisser, remarque interne, lien).
+  const recapRows =
+    reservationIds.length > 0
+      ? await db
+          .select({
+            reservationId: reservationRecaps.reservationId,
+            token: reservationRecaps.token,
+            devise: reservationRecaps.devise,
+            avanceVersee: reservationRecaps.avanceVersee,
+            totalFinal: reservationRecaps.totalFinal,
+            modeReglement: reservationRecaps.modeReglement,
+            remarqueInterne: reservationRecaps.remarqueInterne,
+          })
+          .from(reservationRecaps)
+          .where(inArray(reservationRecaps.reservationId, reservationIds))
+      : [];
+  const recapByReservation = new Map(
+    recapRows.map((x) => {
+      const total = x.totalFinal ? Number(x.totalFinal) : null;
+      const avance = x.avanceVersee ? Number(x.avanceVersee) : null;
+      return [
+        x.reservationId,
+        {
+          token: x.token,
+          devise: x.devise,
+          avanceVersee: avance,
+          reste: total != null ? Math.max(0, Math.round((total - (avance ?? 0)) * 100) / 100) : null,
+          modeReglement: x.modeReglement,
+          remarqueInterne: x.remarqueInterne,
+        },
+      ] as const;
+    })
+  );
+
   const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom));
 
   // Coordonnées de chaque domaine (pour trier les options ménage/cuisine par proximité, voir
@@ -312,6 +347,7 @@ export default async function DashboardPage({
       cuisineOptions: cuisineOptionsFor(r.domaineNom),
       cashAPrevoir,
       clientConnu,
+      recap: recapByReservation.get(r.id) ?? null,
     };
   });
 
