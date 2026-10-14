@@ -23,14 +23,18 @@ import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
   const [villasTarifs, setVillasTarifs] = useState(initialVillas);
   const [search, setSearch] = useState("");
+  // Bascule en un clic entre tous les logements, les appartements (les "cosy") et les villas —
+  // Kamel, 2026-10-14.
+  const [typeFiltre, setTypeFiltre] = useState<"tous" | "appartement" | "villa">("tous");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const villasFiltrees = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return villasTarifs;
-    return villasTarifs.filter((v) => v.nom.toLowerCase().includes(q) || v.numero.toLowerCase().includes(q));
-  }, [villasTarifs, search]);
+    const parType = typeFiltre === "tous" ? villasTarifs : villasTarifs.filter((v) => v.type === typeFiltre);
+    if (!q) return parType;
+    return parType.filter((v) => v.nom.toLowerCase().includes(q) || v.numero.toLowerCase().includes(q));
+  }, [villasTarifs, search, typeFiltre]);
 
   const plusAncienneSynchro = useMemo(() => {
     const dates = villasTarifs.map((v) => v.syncedAt).filter((d): d is string => Boolean(d));
@@ -77,6 +81,27 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           <Input placeholder="Rechercher un logement..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex rounded-lg border bg-muted p-0.5 text-sm" role="group" aria-label="Type de logement">
+            {(
+              [
+                ["tous", `Tous (${villasTarifs.length})`],
+                ["appartement", `Appartements (${villasTarifs.filter((v) => v.type === "appartement").length})`],
+                ["villa", `Villas (${villasTarifs.filter((v) => v.type === "villa").length})`],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTypeFiltre(value)}
+                aria-pressed={typeFiltre === value}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                  typeFiltre === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           {plusAncienneSynchro ? (
             <p className="text-xs text-muted-foreground">
               Prix mis à jour {formatDistanceToNow(parseISO(plusAncienneSynchro), { addSuffix: true, locale: fr })}
