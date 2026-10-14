@@ -31,7 +31,8 @@ export default async function NouvelleReservationPage() {
   ).filter((v) => villaEstGeree(v.nom));
 
   const domaineIdsAvecVillas = new Set(allVillas.map((v) => v.domaineId).filter((id): id is string => Boolean(id)));
-  const allDomaines = allDomainesRaw.filter((d) => domaineIdsAvecVillas.has(d.id));
+  // Prestigia retiré (Kamel, 2026-10-14 : "retire prestigia"), comme sur le tableau de bord.
+  const allDomaines = allDomainesRaw.filter((d) => domaineIdsAvecVillas.has(d.id) && d.nom !== "Prestigia");
 
   const allPersonnel = await db.select().from(personnel);
 
