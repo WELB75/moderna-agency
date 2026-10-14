@@ -6,7 +6,7 @@ import type { CSSProperties } from "react";
 // "airbnb", "Airbnb.com", "booking", "Superhote", "Manuel", null... Toute l'app (calendrier,
 // listes, boîte de réception) passe par normaliseCanal pour colorer une réservation de la même
 // façon partout, façon SuperHote v2 : Airbnb = corail, Booking.com = bleu nuit, Direct = vert.
-export type CanalKey = "airbnb" | "booking" | "direct" | "autre";
+export type CanalKey = "airbnb" | "booking" | "direct" | "autre" | "bloque";
 
 // Source d'une conversation dans la boîte de réception : un canal de réservation, ou WhatsApp.
 export type SourceKey = CanalKey | "whatsapp";
@@ -17,6 +17,9 @@ const DIRECT_HINTS = ["direct", "manuel", "manual", "superhote", "super hote", "
 
 export function normaliseCanal(value: string | null | undefined): CanalKey {
   const v = (value ?? "").trim().toLowerCase();
+  // Propriétaire sur place, travaux, famille (ménage seulement), ménage : pas de client payant,
+  // affichés en jaune partout (Kamel, 2026-10-14). Voir LIBELLES_TYPE dans actions/reservations.ts.
+  if (/^(blocage|famille|propri[eé]taire|travaux|m[eé]nage)/.test(v)) return "bloque";
   // Pas de canal renseigné : l'app crée ses réservations manuelles en "Direct" par défaut (voir
   // actions/reservations.ts), la boîte de réception traitait déjà null comme "Direct".
   if (!v) return "direct";
@@ -34,13 +37,14 @@ export const SOURCE_META: Record<SourceKey, { label: string; letter: string; bra
   booking: { label: "Booking.com", letter: "B", brand: "#003580", cssVar: "var(--canal-booking)" },
   direct: { label: "En direct", letter: "D", brand: "#059669", cssVar: "var(--canal-direct)" },
   autre: { label: "Autre", letter: "?", brand: "#64748b", cssVar: "var(--canal-autre)" },
+  bloque: { label: "Blocage", letter: "!", brand: "#d4a017", cssVar: "var(--canal-bloque)" },
   whatsapp: { label: "WhatsApp", letter: "W", brand: "#25D366", cssVar: "var(--canal-whatsapp)" },
 };
 
 // Libellé affiché : pour "autre", on garde la valeur brute (ex. "Vrbo") plutôt que "Autre".
 export function canalLabel(value: string | null | undefined): string {
   const key = normaliseCanal(value);
-  if (key === "autre" && value?.trim()) return value.trim();
+  if ((key === "autre" || key === "bloque") && value?.trim()) return value.trim();
   return SOURCE_META[key].label;
 }
 

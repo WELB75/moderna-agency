@@ -136,6 +136,7 @@
   --canal-booking: #003580;
   --canal-direct: #059669;
   --canal-autre: #64748b;
+  --canal-bloque: #d4a017;
   --canal-whatsapp: #1fa855;
 }
 
@@ -144,6 +145,7 @@
   --canal-booking: #6b8be0;
   --canal-direct: #34d399;
   --canal-autre: #94a3b8;
+  --canal-bloque: #facc15;
   --canal-whatsapp: #4ade80;
 }
 
@@ -162,6 +164,9 @@
   --bar-autre-bg: #eef1f5;
   --bar-autre-border: #b6bfcc;
   --bar-autre-text: #475569;
+  --bar-bloque-bg: #fdf3c4;
+  --bar-bloque-border: #e0b82e;
+  --bar-bloque-text: #7a5b00;
   --planning-today: #e0533a;
 }
 
@@ -178,6 +183,9 @@
   --bar-autre-bg: #1f2530;
   --bar-autre-border: #475569;
   --bar-autre-text: #cbd5e1;
+  --bar-bloque-bg: #3a3010;
+  --bar-bloque-border: #a8861a;
+  --bar-bloque-text: #fde68a;
   --planning-today: #f0664f;
 }
 

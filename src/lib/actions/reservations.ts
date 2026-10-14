@@ -390,7 +390,11 @@ export async function deleteReservation(reservationId: string) {
   // doublon réel importé dans Beds24 ; rouvrir les dates en supprimant la copie manuelle
   // risquerait de rouvrir une nuit réellement réservée. Dans ce cas les dates restent bloquées
   // (à rouvrir à la main dans Beds24 si besoin) — on préfère un blocage en trop à un doublon.
-  if (reservation?.source === "manuel" && normaliseCanal(reservation.canal) === "direct" && reservation.villaId) {
+  if (
+    reservation?.source === "manuel" &&
+    ["direct", "bloque"].includes(normaliseCanal(reservation.canal)) &&
+    reservation.villaId
+  ) {
     try {
       const [villa] = await db.select({ beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, reservation.villaId)).limit(1);
       const debut = format(reservation.checkIn, "yyyy-MM-dd");

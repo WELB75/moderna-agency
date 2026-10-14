@@ -38,6 +38,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { normaliseCanal } from "@/lib/canal";
 import { cn } from "@/lib/utils";
 import { phonesMatch } from "@/lib/phone";
 
@@ -188,7 +189,7 @@ export function ReservationRowCard({
     <div
       className={cn(
         "flex h-full min-w-0 flex-col rounded-2xl border border-border border-l-4 bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-opacity",
-        isIn ? "border-l-emerald-500" : "border-l-red-500",
+        r.canal && normaliseCanal(r.canal) === "bloque" ? "border-l-yellow-400" : isIn ? "border-l-emerald-500" : "border-l-red-500",
         isDone && "opacity-60"
       )}
     >
@@ -545,7 +546,7 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
     <div
       className={cn(
         "min-w-0 rounded-2xl border border-border border-l-4 bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-opacity",
-        isIn ? "border-l-emerald-500" : "border-l-red-500",
+        r.canal && normaliseCanal(r.canal) === "bloque" ? "border-l-yellow-400" : isIn ? "border-l-emerald-500" : "border-l-red-500",
         isDone && "opacity-60"
       )}
     >
