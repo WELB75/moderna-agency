@@ -8,6 +8,7 @@ import { getDb } from "@/db";
 import { randomBytes } from "node:crypto";
 import { reservations, villas } from "@/db/schema";
 import { reservationRecaps } from "@/db/schema-recaps";
+import { conflitsSejour } from "@/lib/disponibilite";
 import { runIcalSync } from "@/lib/ical/sync";
 import { nowInMorocco } from "@/lib/now";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
@@ -50,6 +51,18 @@ export async function createReservation(formData: FormData) {
 
   if (!villaId || !guestName || !checkIn || !checkOut) {
     throw new Error("Villa, nom du client, arrivée et départ sont obligatoires.");
+  }
+
+  // Garde-fou serveur : jamais de réservation directe sur des nuits déjà prises (réservations de
+  // l'app, calendrier Beds24 en direct, PriceLabs). Kamel, 2026-10-14 : "si on choisit une date et
+  // que c'est pas dispo ça sera impossible à réserver".
+  if (new Date(checkOut) <= new Date(checkIn)) {
+    throw new Error("Le départ doit être après l'arrivée.");
+  }
+  const { conflits } = await conflitsSejour(villaId, checkIn, checkOut);
+  if (conflits.length > 0) {
+    const liste = conflits.slice(0, 4).map((n) => `${n.slice(8, 10)}/${n.slice(5, 7)}`).join(", ");
+    throw new Error(`Ces dates ne sont plus disponibles (${liste}${conflits.length > 4 ? "…" : ""}). Choisis d'autres dates.`);
   }
 
   const db = getDb();

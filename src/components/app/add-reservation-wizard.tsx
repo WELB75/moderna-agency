@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { differenceInCalendarDays } from "date-fns";
 import { Check, Copy, MessageCircle, Loader2 } from "lucide-react";
@@ -17,7 +17,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createReservation } from "@/lib/actions/reservations";
-import { calculerPrixSejourAction } from "@/lib/actions/recaps";
+import { calculerPrixSejourAction, indisponibilitesAction } from "@/lib/actions/recaps";
+import { DisponibiliteCalendar } from "@/components/app/disponibilite-calendar";
 import type { PrixSejour } from "@/lib/pricelabs/sejour";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import type { PersonnelOption } from "@/lib/personnel-options";
@@ -148,6 +149,27 @@ export function AddReservationWizard({
   // Le loyer n'est recalculé automatiquement tant qu'il n'a pas été modifié à la main.
   const [loyerManuel, setLoyerManuel] = useState(false);
 
+  // Nuits déjà prises du logement choisi (réservations, Beds24 en direct, PriceLabs) — grisées
+  // dans le calendrier et revérifiées côté serveur à la création.
+  const [indispos, setIndispos] = useState<{ villaId: string; nuits: string[]; tempsReel: boolean } | null>(null);
+  const indisposChargees = Boolean(villaId) && indispos?.villaId === villaId;
+  const nuitsPrises = useMemo(() => new Set(indisposChargees ? indispos!.nuits : []), [indisposChargees, indispos]);
+
+  useEffect(() => {
+    if (!villaId) return;
+    let annule = false;
+    indisponibilitesAction(villaId)
+      .then((res) => {
+        if (!annule) setIndispos({ villaId, nuits: res.nuits, tempsReel: res.tempsReel });
+      })
+      .catch(() => {
+        if (!annule) setIndispos({ villaId, nuits: [], tempsReel: false });
+      });
+    return () => {
+      annule = true;
+    };
+  }, [villaId, step]);
+
   function appliquerPromo(base: number, type: typeof promoType, valeur: string): number {
     const v = Number(valeur.replace(",", "."));
     if (type === "aucune" || !Number.isFinite(v) || v <= 0) return Math.round(base * 100) / 100;
@@ -163,6 +185,8 @@ export function AddReservationWizard({
 
   function handleVillaChange(newVillaId: string) {
     setVillaId(newVillaId);
+    setCheckInDate("");
+    setCheckOutDate("");
     const defaults = villaPriceDefaults?.[newVillaId];
     if (defaults) {
       setCaution(String(defaults.caution));
@@ -365,24 +389,36 @@ export function AddReservationWizard({
         {step === sejourStepIndex ? (
           <div className="space-y-4">
             {villaLabel ? <p className="text-sm text-muted-foreground">{villaLabel}</p> : null}
-            <div className="grid grid-cols-[1fr_auto] gap-3">
+            {!indisposChargees ? (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Lecture du calendrier du logement...
+              </p>
+            ) : (
+              <>
+                <DisponibiliteCalendar
+                  nuitsPrises={nuitsPrises}
+                  arrivee={checkInDate}
+                  depart={checkOutDate}
+                  onChange={(a, d) => {
+                    setCheckInDate(a);
+                    setCheckOutDate(d);
+                  }}
+                />
+                {!indispos?.tempsReel ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Calendrier Beds24 injoignable : seules les réservations de l&apos;app et PriceLabs sont prises en compte.
+                  </p>
+                ) : null}
+              </>
+            )}
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="checkInDate">Arrivée</Label>
-                <Input id="checkInDate" type="date" value={checkInDate} onChange={(e) => setCheckInDate(e.target.value)} required />
+                <Label htmlFor="checkInTime">Heure d&apos;arrivée</Label>
+                <Input id="checkInTime" type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="checkInTime">Heure</Label>
-                <Input id="checkInTime" type="time" className="w-24" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
-              </div>
-            </div>
-            <div className="grid grid-cols-[1fr_auto] gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="checkOutDate">Départ</Label>
-                <Input id="checkOutDate" type="date" value={checkOutDate} onChange={(e) => setCheckOutDate(e.target.value)} required />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="checkOutTime">Heure</Label>
-                <Input id="checkOutTime" type="time" className="w-24" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} />
+                <Label htmlFor="checkOutTime">Heure de départ</Label>
+                <Input id="checkOutTime" type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
