@@ -438,7 +438,8 @@ export async function getSecuriteOverview(): Promise<SecuriteDomaineResume[]> {
       villaId: gendarmerieForms.villaId,
       statut: gendarmerieForms.statut,
       createdAt: gendarmerieForms.createdAt,
-      nbPhotosEnfants: sql<number>`coalesce(jsonb_array_length(${gendarmerieForms.enfantsPassportUrls}), 0)`,
+      // jsonb_typeof : une valeur JSON null (et non SQL NULL) ferait échouer jsonb_array_length.
+      nbPhotosEnfants: sql<number>`case when jsonb_typeof(${gendarmerieForms.enfantsPassportUrls}) = 'array' then jsonb_array_length(${gendarmerieForms.enfantsPassportUrls}) else 0 end`,
     })
     .from(gendarmerieForms)
     .where(and(inArray(gendarmerieForms.villaId, villaIds), gte(gendarmerieForms.createdAt, addDays(now, -120))));
