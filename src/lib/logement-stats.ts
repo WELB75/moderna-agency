@@ -1,4 +1,5 @@
 import { addMonths, differenceInCalendarDays, endOfMonth, max as maxDate, min as minDate, startOfMonth, startOfYear } from "date-fns";
+import { estDirham, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
 
 // Nombre de nuits d'une réservation qui tombent dans le mois donné (year/monthIndex 0-11) —
 // une réservation à cheval sur deux mois contribue ses nuits à chacun des deux, prorata du
@@ -21,13 +22,11 @@ export function montantProrata(montantTotal: number, checkIn: Date, checkOut: Da
   return montantTotal * (nuitsDansLeMois / totalNuits);
 }
 
-// Taux fixe approximatif, juste pour afficher un seul chiffre en euros dans le tableau
-// Statistiques (Kamel, 2026-08-31 : "on va rester en euros [...] c'est pas beau" en réaction au
-// mélange EUR/MAD dans les cellules) — pas destiné à la comptabilité précise.
-const TAUX_MAD_VERS_EUR = 1 / 10.8;
-
-export function versEuros(montant: number, devise: string): number {
-  return devise === "MAD" || devise === "DH" ? montant * TAUX_MAD_VERS_EUR : montant;
+// Un seul chiffre en euros dans le tableau Statistiques (Kamel, 2026-08-31 : "on va rester en
+// euros [...] c'est pas beau" en réaction au mélange EUR/MAD dans les cellules). Taux du jour
+// (voir lib/devises.ts) passé par l'appelant, taux de secours sinon — pas de la comptabilité précise.
+export function versEuros(montant: number, devise: string, madParEur: number = MAD_PAR_EUR_SECOURS): number {
+  return estDirham(devise) ? montant / madParEur : montant;
 }
 
 export const MOIS_LABELS = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
