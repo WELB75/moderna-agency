@@ -16,7 +16,7 @@ import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
-import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
+import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
 // séjours réels (demande en attente, blocage manuel) et ne doivent pas apparaître dans l'app.
@@ -78,13 +78,12 @@ type ConversionLoyer = { deviseOrigine: "MAD"; montantOrigine: number; madParEur
 // Loyer toujours enregistré en euros, comme pour toutes les villas (Fouad, 2026-10-15 : Villa
 // Wimiliim affichait "6216,00 €" pour 6216 MAD). Un montant est en dirhams quand :
 // - la propriété Beds24 est en MAD ;
-// - ou c'est une résa Airbnb et l'annonce PriceLabs de la villa est en MAD : l'annonce Airbnb
-//   de Wimiliim est tarifée en dirhams et Airbnb transmet le montant dans la devise de
-//   l'annonce, alors que la propriété Beds24 est en euros (ses prix nuitée le sont). Wimiliim a
-//   aussi une annonce Airbnb en euros : garde-fou sur le montant par nuit, comparé au prix
-//   minimum PriceLabs (en MAD). Un loyer en euros par nuit reste sous ~4x le minimum en euros,
-//   un loyer en dirhams dépasse ~6x (≈ 11 MAD pour 1 €, moins les frais Airbnb) : seuil à
-//   0,45 x le minimum en dirhams (≈ 5x le minimum en euros) ;
+// - ou c'est une résa Airbnb dont le montant par nuit dépasse 5x le prix minimum PriceLabs du
+//   logement (en euros) : l'annonce Airbnb de Wimiliim est tarifée en dirhams et Airbnb transmet
+//   le montant dans la devise de l'annonce, alors que la propriété Beds24 et PriceLabs sont en
+//   euros. Un loyer en euros reste sous ~2x le minimum par nuit (relevé du 15/10/2026 : 1,8x au
+//   plus sur toutes les résas Airbnb), un loyer en dirhams dépasse ~6x (≈ 11 MAD pour 1 €,
+//   moins les frais Airbnb) ;
 // - ou ce même montant a déjà été converti à une synchro précédente (l'annonce peut repasser en
 //   euros plus tard, une ancienne résa reste en dirhams chez Beds24).
 // Le montant d'origine et le taux sont gardés dans rawData ; le taux est réutilisé tant que le
@@ -106,8 +105,12 @@ async function loyerEnEuros(
   const precedente = (contexte.precedent as { conversion?: Partial<ConversionLoyer> } | null)?.conversion;
   const memeMontant = precedente?.deviseOrigine === "MAD" && precedente.montantOrigine === prix && Number(precedente.madParEur) > 0;
   const parNuit = prix / Math.max(1, contexte.nuits);
-  const montantPlausibleEnDirhams = !contexte.minPricelabs || parNuit >= contexte.minPricelabs * 0.45;
-  const annonceAirbnbEnDirhams = contexte.canal === "Airbnb" && estDirham(contexte.devisePricelabs) && montantPlausibleEnDirhams;
+  const minEuros = contexte.minPricelabs
+    ? estDirham(contexte.devisePricelabs)
+      ? contexte.minPricelabs / MAD_PAR_EUR_SECOURS
+      : contexte.minPricelabs
+    : null;
+  const annonceAirbnbEnDirhams = contexte.canal === "Airbnb" && minEuros != null && parNuit >= minEuros * 5;
   const enDirhams = estDirham(contexte.deviseBeds24) || annonceAirbnbEnDirhams || memeMontant;
   if (!enDirhams) return { loyerTotal: prix.toFixed(2), devise: contexte.deviseBeds24, conversion: null };
 
