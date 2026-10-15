@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO, startOfWeek } from "date-fns";
+import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import { EditNotesButton } from "@/components/app/edit-notes-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { deleteReservation } from "@/lib/actions/reservations";
 import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
-import { canalBarStyle, canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
+import { canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
@@ -282,13 +282,35 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
 // aujourd'hui en rouge avec un trait vertical, prix "350€" dans les cases libres, et barres de
 // réservation qui démarrent au milieu de la case d'arrivée et s'arrêtent au milieu de la case de
 // départ, colorées et marquées du logo de leur canal (Airbnb / Booking.com / Direct).
-const COL_WIDTH = 64;
-const SIDEBAR_WIDTH = 260;
-const ROW_HEIGHT = 64;
-const HEADER_MONTH_HEIGHT = 56;
-const HEADER_DAYS_HEIGHT = 64;
 const CALENDAR_DAYS = 365;
-const DETAIL_ROW_HEIGHT = 44;
+
+// Même grille sur ordinateur et sur smartphone ; seules les dimensions changent (Kamel, 2026-10-15 :
+// "je veux le même style de vue pour la version smartphone"). Mobile : colonne des logements
+// étroite (nom sur deux lignes, sans photo), colonnes de jours plus fines, tout défile au pouce.
+type Dims = {
+  col: number;
+  sidebar: number;
+  row: number;
+  headerMonth: number;
+  headerDays: number;
+  detailRow: number;
+  compact: boolean;
+};
+const DIMS_BUREAU: Dims = { col: 64, sidebar: 260, row: 64, headerMonth: 56, headerDays: 64, detailRow: 44, compact: false };
+const DIMS_MOBILE: Dims = { col: 52, sidebar: 104, row: 60, headerMonth: 48, headerDays: 56, detailRow: 44, compact: true };
+
+function subscribeMobile(cb: () => void) {
+  const mq = window.matchMedia("(max-width: 767px)");
+  mq.addEventListener("change", cb);
+  return () => mq.removeEventListener("change", cb);
+}
+function useEstMobile(): boolean {
+  return useSyncExternalStore(
+    subscribeMobile,
+    () => window.matchMedia("(max-width: 767px)").matches,
+    () => false,
+  );
+}
 
 // Lignes de détail affichées sous une villa dépliée, dans l'ordre de SuperHote v2.
 const LIGNES_DETAIL = [
@@ -322,6 +344,7 @@ function TarificationCalendrier({
   onReservationSupprimee: (villaId: string, reservationId: string) => void;
 }) {
   const [resaSelectionnee, setResaSelectionnee] = useState<ReservationSelectionnee | null>(null);
+  const estMobile = useEstMobile();
 
   function handleNotesSaved(notes: string) {
     if (!resaSelectionnee) return;
@@ -331,12 +354,7 @@ function TarificationCalendrier({
 
   return (
     <>
-      <div className="hidden md:block">
-        <TarificationDesktopGrid villas={villas} onSelectReservation={setResaSelectionnee} />
-      </div>
-      <div className="space-y-3 md:hidden">
-        <TarificationMobileList villas={villas} onSelectReservation={setResaSelectionnee} />
-      </div>
+      <TarificationGrid villas={villas} dims={estMobile ? DIMS_MOBILE : DIMS_BUREAU} onSelectReservation={setResaSelectionnee} />
       <ReservationRecapDialog
         reservation={resaSelectionnee}
         onOpenChange={(open) => !open && setResaSelectionnee(null)}
@@ -369,13 +387,16 @@ function libelleMois(d: Date): string {
 
 // Grille villas × jours (logements en lignes, colonne fixe à gauche ; dates en colonnes avec
 // défilement horizontal), mise en forme SuperHote v2.
-function TarificationDesktopGrid({
+function TarificationGrid({
   villas,
+  dims,
   onSelectReservation,
 }: {
   villas: TarificationVilla[];
+  dims: Dims;
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
+  const { col: COL_WIDTH, sidebar: SIDEBAR_WIDTH, row: ROW_HEIGHT, headerMonth: HEADER_MONTH_HEIGHT, headerDays: HEADER_DAYS_HEIGHT, detailRow: DETAIL_ROW_HEIGHT, compact } = dims;
   const dateList = useMemo(() => {
     const debut = addDays(debutDuJour(new Date()), -JOURS_PASSES_PLANNING);
     return Array.from({ length: CALENDAR_DAYS + JOURS_PASSES_PLANNING }, (_, i) => addDays(debut, i));
@@ -432,7 +453,7 @@ function TarificationDesktopGrid({
     maj();
     const timer = setInterval(maj, 5 * 60 * 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [COL_WIDTH]);
 
   return (
     <div className="space-y-3">
@@ -440,9 +461,9 @@ function TarificationDesktopGrid({
         <Button variant="outline" onClick={() => scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
           Aujourd&apos;hui
         </Button>
-        <span className="text-sm font-medium">Allez à</span>
+        <span className="text-sm font-medium">{compact ? "Aller à" : "Allez à"}</span>
         <Select value={format(dateEnTete, "yyyy-MM")} onValueChange={allerAuMois}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className={compact ? "w-40 flex-1" : "w-48"}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -453,7 +474,7 @@ function TarificationDesktopGrid({
             ))}
           </SelectContent>
         </Select>
-        <div className="ml-auto flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex w-full flex-wrap items-center gap-3 text-xs text-muted-foreground md:ml-auto md:w-auto">
           {(["airbnb", "booking", "direct"] as const).map((key) => (
             <span key={key} className="inline-flex items-center gap-1.5">
               <CanalDot source={key} size="xs" />
@@ -467,10 +488,10 @@ function TarificationDesktopGrid({
         <div className="flex">
           <div className="shrink-0 border-r bg-card" style={{ width: SIDEBAR_WIDTH }}>
             <div
-              className="flex flex-col justify-center gap-3 border-b px-4"
+              className={`flex flex-col justify-center border-b ${compact ? "gap-1.5 px-2" : "gap-3 px-4"}`}
               style={{ height: HEADER_MONTH_HEIGHT + HEADER_DAYS_HEIGHT }}
             >
-              <span className="text-sm font-semibold">
+              <span className={`font-semibold ${compact ? "text-xs leading-tight" : "text-sm"}`}>
                 {villas.length} hébergement{villas.length > 1 ? "s" : ""}
               </span>
               <button
@@ -478,7 +499,7 @@ function TarificationDesktopGrid({
                 onClick={toutBasculer}
                 title={toutOuvert ? "Replier tous les hébergements" : "Déplier tous les hébergements"}
                 aria-label={toutOuvert ? "Replier tous les hébergements" : "Déplier tous les hébergements"}
-                className="flex h-9 w-12 items-center justify-center rounded-lg border bg-background hover:bg-muted"
+                className={`flex items-center justify-center rounded-lg border bg-background hover:bg-muted ${compact ? "h-8 w-10" : "h-9 w-12"}`}
               >
                 {toutOuvert ? <ChevronUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
               </button>
@@ -493,10 +514,10 @@ function TarificationDesktopGrid({
                     type="button"
                     onClick={() => basculer(v.id)}
                     aria-expanded={ouverte}
-                    className="flex w-full items-center gap-3 border-b px-4 text-left transition-colors hover:bg-muted/50"
+                    className={`flex w-full items-center border-b text-left transition-colors hover:bg-muted/50 ${compact ? "gap-1 px-2" : "gap-3 px-4"}`}
                     style={{ height: ROW_HEIGHT }}
                   >
-                    {v.photoUrl ? (
+                    {compact ? null : v.photoUrl ? (
                       <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-md">
                         <Image src={v.photoUrl} alt="" fill sizes="36px" className="object-cover" />
                       </div>
@@ -505,25 +526,25 @@ function TarificationDesktopGrid({
                         <Building2 className="h-4 w-4 text-muted-foreground" />
                       </div>
                     )}
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{v.nom}</span>
+                    <span className={`min-w-0 flex-1 font-semibold ${compact ? "line-clamp-2 text-xs leading-tight" : "truncate text-sm"}`}>{v.nom}</span>
                     {/* Prix PriceLabs indisponibles : petit signal dans la colonne des villas plutôt
                         qu'un texte dans la ligne, qui passait sous les barres de réservation. */}
                     {v.error ? (
                       <span title="Prix temporairement indisponibles" aria-label="Prix temporairement indisponibles">
-                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                        <AlertTriangle className={`shrink-0 text-amber-500 ${compact ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
                       </span>
                     ) : null}
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${ouverte ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`shrink-0 text-muted-foreground transition-transform ${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${ouverte ? "rotate-180" : ""}`} />
                   </button>
                   {ouverte
                     ? LIGNES_DETAIL.map((ligne) => (
                         <div
                           key={ligne.key}
-                          className="flex items-center gap-1.5 border-b bg-muted/40 px-4 text-sm text-muted-foreground"
+                          className={`flex items-center gap-1.5 border-b bg-muted/40 text-muted-foreground ${compact ? "px-2 text-[11px] leading-tight" : "px-4 text-sm"}`}
                           style={{ height: DETAIL_ROW_HEIGHT }}
                         >
-                          <span className="truncate">{ligne.label}</span>
-                          {ligne.aide ? (
+                          <span className={compact ? "line-clamp-2" : "truncate"}>{ligne.label}</span>
+                          {ligne.aide && !compact ? (
                             <span title={ligne.aide} aria-label={ligne.aide} className="shrink-0">
                               <Info className="h-3.5 w-3.5" />
                             </span>
@@ -537,7 +558,7 @@ function TarificationDesktopGrid({
           </div>
 
           <div className="relative min-w-0 flex-1">
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-3" style={{ height: HEADER_MONTH_HEIGHT }}>
+            <div className={`pointer-events-none absolute inset-x-0 top-0 z-30 items-center justify-between px-3 ${compact ? "hidden" : "flex"}`} style={{ height: HEADER_MONTH_HEIGHT }}>
               <button
                 type="button"
                 aria-label="Semaine précédente"
@@ -555,8 +576,8 @@ function TarificationDesktopGrid({
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
-            <div className="pointer-events-none absolute top-0 left-16 z-30 flex flex-col justify-center leading-tight" style={{ height: HEADER_MONTH_HEIGHT }}>
-              <span className="text-lg font-bold" style={{ color: "var(--planning-today)" }}>
+            <div className={`pointer-events-none absolute top-0 z-30 flex flex-col justify-center leading-tight ${compact ? "left-2" : "left-16"}`} style={{ height: HEADER_MONTH_HEIGHT }}>
+              <span className={`font-bold ${compact ? "text-base" : "text-lg"}`} style={{ color: "var(--planning-today)" }}>
                 {libelleMois(dateEnTete)}
               </span>
               <span className="text-xs text-muted-foreground">{format(dateEnTete, "yyyy")}</span>
@@ -581,8 +602,8 @@ function TarificationDesktopGrid({
                           }`}
                           style={estAujourdhui ? { backgroundColor: "var(--planning-today)" } : undefined}
                         >
-                          <span className={`text-xs ${estAujourdhui ? "text-white/90" : "text-muted-foreground"}`}>{libelleJourCourt(d)}</span>
-                          <span className="mt-1 text-lg font-semibold tabular-nums">{format(d, "dd")}</span>
+                          <span className={`${compact ? "text-[10px]" : "text-xs"} ${estAujourdhui ? "text-white/90" : "text-muted-foreground"}`}>{libelleJourCourt(d)}</span>
+                          <span className={`mt-1 font-semibold tabular-nums ${compact ? "text-base" : "text-lg"}`}>{format(d, "dd")}</span>
                         </div>
                       </div>
                     );
@@ -596,9 +617,10 @@ function TarificationDesktopGrid({
                         villa={v}
                         dateStrings={dateStrings}
                         aujourdhui={aujourdhui}
+                        dims={dims}
                         onSelectReservation={onSelectReservation}
                       />
-                      {ouvertes.has(v.id) ? <VillaDetailRows villa={v} dateStrings={dateStrings} aujourdhui={aujourdhui} /> : null}
+                      {ouvertes.has(v.id) ? <VillaDetailRows villa={v} dateStrings={dateStrings} aujourdhui={aujourdhui} dims={dims} /> : null}
                     </div>
                   ))}
                   {positionMaintenant !== null ? (
@@ -622,13 +644,16 @@ function VillaCalendarRow({
   villa,
   dateStrings,
   aujourdhui,
+  dims,
   onSelectReservation,
 }: {
   villa: TarificationVilla;
   dateStrings: string[];
   aujourdhui: string;
+  dims: Dims;
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
+  const { col: COL_WIDTH, row: ROW_HEIGHT, compact } = dims;
   const largeurTotale = COL_WIDTH * dateStrings.length;
   const dayByDate = new Map(villa.days.map((d) => [d.date, d]));
   const resas = reservationsVisibles(villa.reservations, dateStrings);
@@ -646,7 +671,7 @@ function VillaCalendarRow({
           return (
             <div
               key={date}
-              className="flex shrink-0 items-center justify-end border-r px-2 text-sm tabular-nums"
+              className={`flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"}`}
               style={{
                 width: COL_WIDTH,
                 backgroundImage: bloque
@@ -661,7 +686,7 @@ function VillaCalendarRow({
       </div>
 
       {resas.map((r) => {
-        const { left, width } = barPosition(r, dateStrings);
+        const { left, width } = barPosition(r, dateStrings, COL_WIDTH);
         const termine = r.checkOut <= aujourdhui;
         const canal = normaliseCanal(r.canal);
         return (
@@ -670,13 +695,13 @@ function VillaCalendarRow({
             type="button"
             title={`${r.guestName} · ${format(parseISO(r.checkIn), "d MMM", { locale: fr })} → ${format(parseISO(r.checkOut), "d MMM", { locale: fr })}`}
             onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...r })}
-            className={`absolute top-1.5 bottom-1.5 z-10 flex min-w-0 items-center rounded-lg border px-1.5 text-left text-sm font-semibold transition-[filter] hover:brightness-95 dark:hover:brightness-125 ${
+            className={`absolute top-1.5 bottom-1.5 z-10 flex min-w-0 items-center rounded-lg border text-left font-semibold ${compact ? "px-1 text-xs" : "px-1.5 text-sm"} transition-[filter] hover:brightness-95 dark:hover:brightness-125 ${
               termine ? "opacity-50" : ""
             }`}
             style={{ left, width, ...canalPlanningStyle(canal) }}
           >
-            <span className="sticky left-1.5 flex min-w-0 items-center gap-2">
-              <CanalDot canal={r.canal} size="lg" />
+            <span className={`sticky left-1.5 flex min-w-0 items-center ${compact ? "gap-1" : "gap-2"}`}>
+              <CanalDot canal={r.canal} size={compact ? "md" : "lg"} />
               <span className="truncate">{r.guestName}</span>
             </span>
           </button>
@@ -702,7 +727,8 @@ const cacheDetails = new Map<string, DetailJour[]>();
 // Détails jour par jour d'une villa dépliée, lus dans Beds24 (là où PriceLabs pousse désormais
 // ses prix, et d'où partent les règles vers Airbnb/Booking). Villa pas encore reliée à Beds24 :
 // prix PriceLabs seulement, le reste en tiret.
-function VillaDetailRows({ villa, dateStrings, aujourdhui }: { villa: TarificationVilla; dateStrings: string[]; aujourdhui: string }) {
+function VillaDetailRows({ villa, dateStrings, aujourdhui, dims }: { villa: TarificationVilla; dateStrings: string[]; aujourdhui: string; dims: Dims }) {
+  const { col: COL_WIDTH, detailRow: DETAIL_ROW_HEIGHT, compact } = dims;
   const roomId = villa.beds24RoomId ? Number(villa.beds24RoomId) : null;
   const from = dateStrings[0];
   const to = dateStrings[dateStrings.length - 1];
@@ -761,7 +787,7 @@ function VillaDetailRows({ villa, dateStrings, aujourdhui }: { villa: Tarificati
             return (
               <div
                 key={date}
-                className={`flex shrink-0 items-center justify-end border-r px-2 text-sm tabular-nums ${
+                className={`flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"} ${
                   date < aujourdhui ? "text-muted-foreground" : ""
                 } ${bloque ? "font-semibold text-destructive" : ""}`}
                 style={{ width: COL_WIDTH }}
@@ -786,7 +812,7 @@ function VillaDetailRows({ villa, dateStrings, aujourdhui }: { villa: Tarificati
 // Barre de séjour : du milieu de la case d'arrivée au milieu de la case de départ (arrivée
 // l'après-midi, départ le matin), comme sur SuperHote. Un séjour commencé avant la fenêtre
 // affichée part du bord gauche ; un séjour qui la dépasse va jusqu'au bord droit.
-function barPosition(r: TarificationReservation, dateStrings: string[]): { left: number; width: number } {
+function barPosition(r: TarificationReservation, dateStrings: string[], COL_WIDTH: number): { left: number; width: number } {
   const debutIdx = dateStrings.indexOf(r.checkIn);
   const finIdx = dateStrings.indexOf(r.checkOut);
   const gauche = debutIdx === -1 ? 0 : debutIdx * COL_WIDTH + COL_WIDTH / 2 + 2;
@@ -794,220 +820,6 @@ function barPosition(r: TarificationReservation, dateStrings: string[]): { left:
   return { left: gauche, width: Math.max(droite - gauche, COL_WIDTH / 2) };
 }
 
-// Vue mois façon appli Airbnb (calendrier d'une seule annonce, semaines en lignes de 7 jours,
-// nom du mois qui reste affiché pendant qu'on descend) plutôt qu'une bande de jours par logement
-// — Kamel, après capture d'écran de l'appli Airbnb : "la version mobile je veux comme airbnb, vue
-// au mois directement". Un sélecteur choisit le logement affiché (comme Airbnb, une annonce à la
-// fois), le calendrier suit en dessous.
-function TarificationMobileList({
-  villas,
-  onSelectReservation,
-}: {
-  villas: TarificationVilla[];
-  onSelectReservation: (r: ReservationSelectionnee) => void;
-}) {
-  const [villaId, setVillaId] = useState(villas[0]?.id ?? "");
-  const villa = villas.find((v) => v.id === villaId) ?? villas[0] ?? null;
-  if (!villa) return null;
-
-  return (
-    <div className="space-y-3">
-      <Select value={villa.id} onValueChange={setVillaId}>
-        <SelectTrigger className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {villas.map((v) => (
-            <SelectItem key={v.id} value={v.id}>
-              {v.nom}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <VillaMonthCalendar villa={villa} onSelectReservation={onSelectReservation} />
-    </div>
-  );
-}
-
-// Semaines lundi→dimanche (convention française, comme sur la capture Airbnb "L M M J V S D") :
-// les jours avant aujourd'hui ou après la fin du calendrier de prix chargé (villa.days) restent
-// des cases vides plutôt que d'inventer une date sans prix.
-function buildWeeks(villa: TarificationVilla): (string | null)[][] {
-  if (villa.days.length === 0) return [];
-  const premiereDate = villa.days[0].date;
-  const derniereDate = villa.days[villa.days.length - 1].date;
-  const lundi = startOfWeek(parseISO(premiereDate), { weekStartsOn: 1 });
-  const fin = parseISO(derniereDate);
-
-  const semaines: (string | null)[][] = [];
-  for (let cursor = lundi; cursor <= fin; cursor = addDays(cursor, 7)) {
-    const semaine: (string | null)[] = [];
-    for (let i = 0; i < 7; i++) {
-      const iso = format(addDays(cursor, i), "yyyy-MM-dd");
-      semaine.push(iso >= premiereDate && iso <= derniereDate ? iso : null);
-    }
-    semaines.push(semaine);
-  }
-  return semaines;
-}
-
-const MOBILE_WEEK_ROW_HEIGHT = 60;
-
-function VillaMonthCalendar({
-  villa,
-  onSelectReservation,
-}: {
-  villa: TarificationVilla;
-  onSelectReservation: (r: ReservationSelectionnee) => void;
-}) {
-  const semaines = useMemo(() => semainesAvecMois(buildWeeks(villa)), [villa]);
-  const dayByDate = useMemo(() => new Map(villa.days.map((d) => [d.date, d])), [villa.days]);
-  const aujourdhui = villa.days[0]?.date;
-
-  if (villa.error) {
-    return (
-      <Card>
-        <CardContent className="py-6 text-center text-sm text-destructive">Prix temporairement indisponibles, réessayez plus tard.</CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-0 overflow-hidden rounded-2xl border">
-      <div className="sticky top-0 z-10 grid grid-cols-7 border-b bg-background text-center text-[11px] font-medium text-muted-foreground">
-        {["L", "M", "M", "J", "V", "S", "D"].map((jour, i) => (
-          <div key={i} className="py-1.5">
-            {jour}
-          </div>
-        ))}
-      </div>
-
-      {semaines.map(({ semaine, moisLabel }, semaineIdx) => (
-        <div key={semaineIdx}>
-          {moisLabel ? (
-            <div className="sticky top-[29px] z-10 border-b bg-background px-3 py-2 text-lg font-semibold capitalize">{moisLabel}</div>
-          ) : null}
-          <div className="relative grid grid-cols-7 border-b" style={{ gridAutoRows: MOBILE_WEEK_ROW_HEIGHT }}>
-            {semaine.map((date, i) => {
-              if (!date) return <div key={i} className="border-r last:border-r-0" style={{ gridColumn: i + 1, gridRow: 1 }} />;
-              const jour = dayByDate.get(date);
-              const bloque = !jour || jour.unbookable || jour.price == null;
-              return (
-                <div
-                  key={date}
-                  className="flex flex-col items-center gap-1 border-r pt-1.5 text-xs last:border-r-0"
-                  style={{
-                    gridColumn: i + 1,
-                    gridRow: 1,
-                    backgroundColor: bloque ? "var(--muted)" : undefined,
-                    backgroundImage: bloque
-                      ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 6px)"
-                      : undefined,
-                  }}
-                >
-                  <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full font-medium ${
-                      date === aujourdhui ? "bg-primary text-primary-foreground" : ""
-                    }`}
-                  >
-                    {format(parseISO(date), "d")}
-                  </span>
-                  {!bloque ? <span className="text-[11px] text-muted-foreground">{formatPrix(jour!.price!, villa.currency)}</span> : null}
-                </div>
-              );
-            })}
-
-            {/* Volontairement pas toute la hauteur de la case : le numéro du jour (en haut,
-                rendu juste au-dessus dans la grille des jours) doit rester visible quoi qu'il
-                arrive — Kamel, 2026-09-29, en voyant la barre couvrir le numéro : "laisse les
-                jours apparaitre [...] donc la bande violete reduis la comme ça on voit toujours
-                les jours aussi quoiqu'il arrive". La barre ne prend que le bas de la case, là où
-                le prix se serait affiché pour un jour libre. */}
-            {bargsForWeek(semaine, villa.reservations).map(({ start, end, arrondiGauche, arrondiDroite, reservation }) => (
-              <button
-                key={reservation.id}
-                type="button"
-                onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...reservation })}
-                className={`relative mb-1 flex h-5 min-w-0 items-center self-end pr-2 text-[11px] font-medium text-foreground active:brightness-95 ${
-                  arrondiGauche ? "rounded-l-full ml-1 pl-0.5" : "pl-1"
-                } ${arrondiDroite ? "rounded-r-full mr-1" : ""}`}
-                style={{
-                  gridColumn: `${start} / ${end}`,
-                  gridRow: 1,
-                  // Pas de border-l ici (barre en pilule) : la teinte + la pastille au début du
-                  // séjour suffisent à identifier le canal.
-                  ...canalBarStyle(normaliseCanal(reservation.canal), 20),
-                }}
-              >
-                <span className="sticky left-1 flex min-w-0 items-center gap-1">
-                  {arrondiGauche ? <CanalDot canal={reservation.canal} size="xs" /> : null}
-                  <span className="truncate">
-                    {reservation.guestName}
-                    {reservation.enCours ? " · En cours" : ""}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Regroupe les semaines avec, pour chacune, le nom du mois à afficher juste au-dessus si elle
-// est la première à contenir un jour de ce mois-là (null sinon) — calculé une fois en dehors du
-// rendu plutôt qu'avec une variable mutée pendant le .map() de la JSX (le linter React interdit
-// cette réassignation "impure" pendant le rendu).
-function semainesAvecMois(semaines: (string | null)[][]): { semaine: (string | null)[]; moisLabel: string | null }[] {
-  let dernierMoisAffiche = "";
-  return semaines.map((semaine) => {
-    const premierJourReel = semaine.find((d): d is string => d !== null);
-    const moisLabel = premierJourReel ? format(parseISO(premierJourReel), "MMMM yyyy", { locale: fr }) : null;
-    const nouveauMois = moisLabel !== null && moisLabel !== dernierMoisAffiche;
-    if (moisLabel) dernierMoisAffiche = moisLabel;
-    return { semaine, moisLabel: nouveauMois ? moisLabel : null };
-  });
-}
-
-// Un séjour peut chevaucher plusieurs semaines : chaque ligne de semaine ne dessine que le
-// segment de la barre qui tombe dans ses 7 jours, avec un bord arrondi seulement du côté où le
-// séjour commence/finit réellement cette semaine-là (sinon coin carré, pour que le regard
-// comprenne que ça continue sur la semaine suivante) — même logique que barGridColumns/
-// reservationsVisibles pour le desktop, adaptée à une semaine de 7 colonnes au lieu de toute la
-// fenêtre affichée.
-function bargsForWeek(
-  semaine: (string | null)[],
-  reservations: TarificationReservation[]
-): { start: number; end: number; arrondiGauche: boolean; arrondiDroite: boolean; reservation: TarificationReservation }[] {
-  const resultats: { start: number; end: number; arrondiGauche: boolean; arrondiDroite: boolean; reservation: TarificationReservation }[] = [];
-  for (const r of reservations) {
-    let startIdx = -1;
-    let endIdx = -1;
-    for (let i = 0; i < 7; i++) {
-      const d = semaine[i];
-      if (d && d >= r.checkIn && d < r.checkOut) {
-        if (startIdx === -1) startIdx = i;
-        endIdx = i;
-      }
-    }
-    if (startIdx === -1) continue;
-    resultats.push({
-      start: startIdx + 1,
-      end: endIdx + 2,
-      arrondiGauche: semaine[startIdx] === r.checkIn,
-      arrondiDroite: format(addDays(parseISO(semaine[endIdx]!), 1), "yyyy-MM-dd") === r.checkOut,
-      reservation: r,
-    });
-  }
-  return resultats;
-}
-
-// Un séjour dont le check-in ET le check-out tombent tous les deux hors de la fenêtre affichée ne
-// doit rien dessiner du tout — sans ce filtre, barGridColumns (qui cale sur les bords quand une
-// date est introuvable) ferait apparaître à tort une barre collée au bord gauche pour une
-// réservation en réalité entièrement future. Peu visible avec les 365 jours du desktop (l'écart
-// est rare), mais systématique avec les 45 jours du mobile.
 function reservationsVisibles(reservations: TarificationReservation[], dateStrings: string[]): TarificationReservation[] {
   const premiereDate = dateStrings[0];
   const derniereDate = dateStrings[dateStrings.length - 1];
