@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMessagesARepondre } from "@/lib/use-messages-a-repondre";
 import { navItems, isNavItemActive, mobilePrimaryHrefs } from "@/components/app/nav-items";
 import {
   Sheet,
@@ -13,7 +14,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-export function BottomNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
+export function BottomNav() {
+  // Pastille "Messages" : conversations en attente de réponse (WhatsApp, Airbnb, Booking.com).
+  const unreadChatCount = useMessagesARepondre();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);

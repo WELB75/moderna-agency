@@ -136,6 +136,13 @@ function pickStay(candidates: StayInfo[], now: Date): StayInfo | null {
 }
 
 export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKeyParam: string | undefined }) {
+  const { items, notice } = await chargerBoiteReception();
+  return <InboxClient conversations={items} initialKey={selectedKeyParam ?? null} notice={notice} />;
+}
+
+// Chargement des conversations, séparé du rendu pour que la pastille "Messages" du menu
+// (/api/messages/a-repondre) compte exactement les mêmes conversations que la boîte de réception.
+export async function chargerBoiteReception(): Promise<{ items: InboxConversation[]; notice: string | null }> {
   const db = getDb();
   const now = new Date();
 
@@ -388,5 +395,5 @@ export async function MessagesBoiteReception({ selectedKeyParam }: { selectedKey
 
   items.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
 
-  return <InboxClient conversations={items} initialKey={selectedKeyParam ?? null} notice={notice} />;
+  return { items, notice };
 }

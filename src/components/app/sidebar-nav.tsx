@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useMessagesARepondre } from "@/lib/use-messages-a-repondre";
 import { navGroups, isNavItemActive } from "@/components/app/nav-items";
 import { Logo } from "@/components/app/logo";
 
@@ -15,7 +16,9 @@ const COLLAPSED_KEY = "moderna:sidebar-collapsed";
 // "Communication & opérations", "Croissance & outils"), ligne active teintée de la couleur
 // d'accent, bouton pour replier le menu en simple colonne d'icônes, et carte du compte connecté
 // tout en bas. Couleurs : celles de l'app (violet), pas celles de SuperHote.
-export function SidebarNav({ unreadChatCount = 0 }: { unreadChatCount?: number }) {
+export function SidebarNav() {
+  // Pastille "Messages" : conversations en attente de réponse (WhatsApp, Airbnb, Booking.com).
+  const unreadChatCount = useMessagesARepondre();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { user } = useUser();
