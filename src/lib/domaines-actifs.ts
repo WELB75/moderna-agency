@@ -35,6 +35,21 @@ export function villaEstGeree(nom: string | null | undefined): boolean {
   return !VILLAS_MASQUEES_NORMALISEES.has(normaliserNom(nom));
 }
 
+// Logements de la "nouvelle version" (Beds24) tels que listés dans Hébergements : les villas des
+// domaines actifs, plus les appartements reliés à Beds24 (même dans un domaine masqué ailleurs,
+// comme Noria) ; jamais les logements retirés (VILLAS_MASQUEES) ni l'appartement Prestigia.
+// Partagé entre Hébergements et Sécurité pour que les deux listes ne divergent jamais.
+export function logementEstIntegre(logement: {
+  nom: string | null | undefined;
+  type: "villa" | "appartement";
+  beds24RoomId: string | number | null | undefined;
+  domaineNom: string | null | undefined;
+}): boolean {
+  if (!villaEstGeree(logement.nom)) return false;
+  if (logement.domaineNom === "Prestigia") return false;
+  return logement.type === "appartement" ? Boolean(logement.beds24RoomId) : domaineEstActif(logement.domaineNom);
+}
+
 export function filtrerDomainesActifs<T extends { nom: string }>(domaines: T[]): T[] {
   return domaines.filter((d) => domaineEstActif(d.nom));
 }
