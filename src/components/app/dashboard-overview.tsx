@@ -22,6 +22,7 @@ import { getDb } from "@/db";
 import { domaines, gendarmerieForms, interventions, reservations, villas } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { montantProrata, nuiteesDansLeMois, versEuros } from "@/lib/logement-stats";
+import { getMadParEur } from "@/lib/devises";
 import { cn } from "@/lib/utils";
 import { cautionEnAttente, estImpayee } from "@/lib/reservation-alerts";
 
@@ -38,6 +39,7 @@ const euros = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 export async function DashboardOverview({ now, unreadChatCount }: { now: Date; unreadChatCount: number }) {
   const db = getDb();
   const user = await currentUser().catch(() => null);
+  const madParEur = await getMadParEur();
   const prenom = user?.firstName ?? null;
   const todayStart = startOfDay(now);
   const todayEnd = endOfDay(now);
@@ -97,9 +99,9 @@ export async function DashboardOverview({ now, unreadChatCount }: { now: Date; u
       reservationsDuMois++;
     }
     if (loyer > 0) {
-      caMois += versEuros(montantProrata(loyer, checkIn, checkOut, year, monthIndex), r.devisePaiement);
+      caMois += versEuros(montantProrata(loyer, checkIn, checkOut, year, monthIndex), r.devisePaiement, madParEur);
       for (let m = 0; m <= monthIndex; m++) {
-        caAnnee += versEuros(montantProrata(loyer, checkIn, checkOut, year, m), r.devisePaiement);
+        caAnnee += versEuros(montantProrata(loyer, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
       }
     }
   }
