@@ -112,7 +112,8 @@ const STATUTS: Record<SecuriteStatut, { label: string; className: string }> = {
 
 function StatutBadge({ statut, canal }: { statut: SecuriteStatut; canal: string | null }) {
   const s = STATUTS[statut];
-  const label = statut === "bloque" && canal ? canal.replace(/^Blocage\s*·\s*/, "Bloqué · ") : s.label;
+  const label =
+    statut === "bloque" && canal?.startsWith("Blocage") ? canal.replace(/^Blocage\s*·\s*/, "Bloqué · ") : s.label;
   return (
     <span className={cn("inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold", s.className)}>
       {label}
@@ -122,7 +123,10 @@ function StatutBadge({ statut, canal }: { statut: SecuriteStatut; canal: string 
 
 function FicheChip({ sejour }: { sejour: Sejour }) {
   const { fiche, personnesEnregistrees: n, personnesAttendues: attendus } = sejour;
-  const compte = attendus !== null ? `${n}/${attendus} pers.` : `${n} pers.`;
+  // "2/4 pers." seulement s'il manque du monde ; sinon juste le nombre de personnes enregistrées
+  // (les effectifs de la réservation sont parfois sous-estimés : jamais de "6/5").
+  const compte =
+    attendus !== null && n < attendus ? `${n}/${attendus} pers.` : `${n} pers. enregistrée${n > 1 ? "s" : ""}`;
 
   let tone = "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400";
   let Icon = ShieldCheck;
