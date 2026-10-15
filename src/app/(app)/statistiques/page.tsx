@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { villas, domaines, reservations, cashEntries } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { anneeEnd, anneeStart, montantProrata, nuiteesDansLeMois, versEuros } from "@/lib/logement-stats";
+import { getMadParEur } from "@/lib/devises";
 import { StatistiquesTable, type LogementMoisStats, type LogementStatsRow } from "@/components/app/statistiques-table";
 import { StatistiquesCharts, type PortfolioMoisStats } from "@/components/app/statistiques-charts";
 import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
@@ -15,6 +16,7 @@ export default async function StatistiquesPage({
   const { annee } = await searchParams;
   const year = Number.isFinite(Number(annee)) && annee ? Math.trunc(Number(annee)) : new Date().getFullYear();
   const db = getDb();
+  const madParEur = await getMadParEur();
 
   const debutAnnee = anneeStart(year);
   const finAnneeExclusive = anneeEnd(year);
@@ -95,10 +97,10 @@ export default async function StatistiquesPage({
       aDesNuitsCetteAnnee = true;
       mois[m].nuitees += nuits;
       if (loyerTotal > 0) {
-        mois[m].ca += versEuros(montantProrata(loyerTotal, checkIn, checkOut, year, m), r.devisePaiement);
+        mois[m].ca += versEuros(montantProrata(loyerTotal, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
       }
       if (montantPaye > 0) {
-        mois[m].encaisse += versEuros(montantProrata(montantPaye, checkIn, checkOut, year, m), r.devisePaiement);
+        mois[m].encaisse += versEuros(montantProrata(montantPaye, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
       }
     }
     if (aDesNuitsCetteAnnee) {
@@ -112,7 +114,7 @@ export default async function StatistiquesPage({
     const mois = statsParVilla.get(d.villaId);
     if (!mois) continue;
     const m = new Date(d.createdAt).getMonth();
-    mois[m].depenses += versEuros(Number(d.montant), d.devise);
+    mois[m].depenses += versEuros(Number(d.montant), d.devise, madParEur);
   }
 
   for (const mois of statsParVilla.values()) {
