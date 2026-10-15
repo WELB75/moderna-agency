@@ -23,12 +23,12 @@ export default async function SecuriteDomainePage({
   return (
     <SecuriteShell
       eyebrow={`Contrôle sécurité — ${data.domaineNom}`}
-      subtitle={jourSeulement ? "Arrivées du jour uniquement. Lien toujours à jour." : "Toutes les villas du domaine. Lien toujours à jour."}
+      subtitle={jourSeulement ? "Arrivées du jour uniquement. Lien toujours à jour." : "Tous les logements du domaine. Lien toujours à jour."}
     >
       {data.villas.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
           <Users className="h-8 w-8" />
-          <p className="text-sm">{jourSeulement ? "Aucune arrivée aujourd'hui pour ce domaine." : "Aucune villa pour ce domaine."}</p>
+          <p className="text-sm">{jourSeulement ? "Aucune arrivée aujourd'hui pour ce domaine." : "Aucun logement pour ce domaine."}</p>
         </div>
       ) : (
         <div className="divide-y divide-border/60">
