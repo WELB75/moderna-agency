@@ -530,7 +530,7 @@ export default async function DashboardPage({
           seulement sur la semaine en cours : elle parle d'aujourd'hui, pas de la semaine affichée. */}
       {offsetSemaines === 0 ? (
         <>
-          <DashboardOverview now={now} unreadChatCount={unreadChatCount} />
+          <DashboardOverview now={now} />
           <h2 className="border-t pt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
             Opérations de la semaine
           </h2>

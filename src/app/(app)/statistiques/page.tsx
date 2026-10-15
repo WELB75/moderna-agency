@@ -6,6 +6,8 @@ import { anneeEnd, anneeStart, montantProrata, nuiteesDansLeMois, versEuros } fr
 import { getMadParEur } from "@/lib/devises";
 import { StatistiquesTable, type LogementMoisStats, type LogementStatsRow } from "@/components/app/statistiques-table";
 import { StatistiquesCharts, type PortfolioMoisStats } from "@/components/app/statistiques-charts";
+import { PerformanceEtActions } from "@/components/app/performance-et-actions";
+import { getUnreadChatCount } from "@/lib/actions/chat";
 import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 
 export default async function StatistiquesPage({
@@ -14,6 +16,7 @@ export default async function StatistiquesPage({
   searchParams: Promise<{ annee?: string }>;
 }) {
   const { annee } = await searchParams;
+  const unreadChatCount = await getUnreadChatCount();
   const year = Number.isFinite(Number(annee)) && annee ? Math.trunc(Number(annee)) : new Date().getFullYear();
   const db = getDb();
   const madParEur = await getMadParEur();
@@ -153,6 +156,8 @@ export default async function StatistiquesPage({
         <h1 className="text-2xl font-semibold tracking-tight">Statistiques</h1>
         <p className="text-sm text-muted-foreground">Nuitées, chiffre d&apos;affaires, trésorerie et dépenses par logement, mois par mois</p>
       </div>
+
+      <PerformanceEtActions now={new Date()} unreadChatCount={unreadChatCount} />
 
       {nbReservationsSansLoyer > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
