@@ -42,6 +42,7 @@ export type PricelabsListing = {
   base?: number;
   max?: number;
   isHidden?: boolean;
+  push_enabled?: boolean; // synchronisation des prix active vers le PMS (Beds24, Airbnb...)
 };
 
 export async function pricelabsGetListings(): Promise<PricelabsListing[]> {

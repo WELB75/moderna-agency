@@ -4,6 +4,7 @@ import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
+import { annoncesCandidates, choisirAnnonce } from "./annonce";
 
 // PriceLabs calcule des prix fiables sur un an complet (vérifié : 365/365 jours non-null pour
 // Villa Tania le 2026-09-28), donc l'onglet Tarification peut proposer un vrai sélecteur de mois
@@ -97,14 +98,14 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
     .where(or(isNotNull(villas.pricelabsListingId), isNotNull(villas.beds24RoomId)))
   )
     .filter((v) => villaEstGeree(v.nom)) // logements retirés (voir VILLAS_MASQUEES) : hors calendrier
-    .map((v) => ({ ...v, listingId: annoncePricelabs(v) }))
-    .filter((v): v is typeof v & { listingId: string } => Boolean(v.listingId));
+    .map((v) => ({ ...v, candidates: annoncesCandidates(v) }))
+    .filter((v) => v.candidates.length > 0);
 
   const staleVillas = rows.filter((v) => options.force || estPerimee(v.cacheSyncedAt));
 
   if (staleVillas.length > 0) {
     try {
-      await resyncVillas(staleVillas.map((v) => ({ id: v.id, pricelabsListingId: v.listingId })));
+      await resyncVillas(staleVillas.map((v) => ({ id: v.id, candidates: v.candidates })));
     } catch (err) {
       // Panne PriceLabs (clé absente, API down, quota dépassé...) : on n'écrase rien en base,
       // les villas déjà en cache continuent d'afficher leurs derniers prix connus, et celles
@@ -151,15 +152,9 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
   });
 }
 
-// Annonce PriceLabs d'une fiche : celle reliée à la main (pricelabsListingId) en priorité ; à
-// défaut, l'annonce Beds24 du logement, que PriceLabs identifie par "propriété___chambre"
-// (ex. 360242___742730). Fouad, 2026-10-14 : Villa Lila et Villa Nessya, reliées à Beds24 mais
-// jamais à PriceLabs dans l'app, n'apparaissaient pas dans le calendrier planning.
-function annoncePricelabs(v: { pricelabsListingId: string | null; beds24PropertyId: string | null; beds24RoomId: string | null }): string | null {
-  if (v.pricelabsListingId) return v.pricelabsListingId;
-  if (v.beds24PropertyId && v.beds24RoomId) return `${v.beds24PropertyId}___${v.beds24RoomId}`;
-  return null;
-}
+// Annonce PriceLabs d'une fiche : voir lib/pricelabs/annonce.ts (annonce Beds24 en priorité,
+// annonce reliée à la main en secours). Fouad, 2026-10-14 : Villa Lila et Villa Nessya, reliées à
+// Beds24 mais jamais à PriceLabs dans l'app, n'apparaissaient pas dans le calendrier planning.
 
 function datesEntre(checkIn: string, checkOut: string): string[] {
   const dates: string[] = [];
@@ -272,16 +267,16 @@ async function reloadCache(villaIds: string[]) {
   return rows;
 }
 
-async function resyncVillas(targets: { id: string; pricelabsListingId: string }[]) {
+async function resyncVillas(targets: { id: string; candidates: string[] }[]) {
   const db = getDb();
   const listings = await pricelabsGetListings();
   const listingById = new Map(listings.map((l) => [l.id, l]));
 
   const resolved = targets
-    .map((t) => ({ villaId: t.id, listing: listingById.get(t.pricelabsListingId) }))
+    .map((t) => ({ villaId: t.id, listing: choisirAnnonce(t.candidates, listingById) }))
     .filter((t): t is { villaId: string; listing: NonNullable<typeof t.listing> } => Boolean(t.listing));
 
-  const introuvables = targets.filter((t) => !listingById.has(t.pricelabsListingId));
+  const introuvables = targets.filter((t) => !choisirAnnonce(t.candidates, listingById));
   for (const t of introuvables) {
     await db
       .insert(pricelabsPriceCache)

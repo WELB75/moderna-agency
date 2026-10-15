@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { villas, pricelabsPriceCache } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices } from "./client";
 import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
+import { annoncesCandidates, choisirAnnonce } from "./annonce";
 
 // Prix d'un séjour selon PriceLabs : somme des tarifs de chaque nuit (de l'arrivée incluse au
 // départ exclu). Utilise le cache de l'onglet Tarification s'il est frais et complet ; sinon
@@ -65,8 +66,8 @@ async function calculerPrixSejourBrut(villaId: string, checkIn: string, checkOut
     .limit(1);
   if (!row) return vide("Logement introuvable.");
 
-  const listingId = row.pricelabsListingId ?? (row.beds24PropertyId && row.beds24RoomId ? `${row.beds24PropertyId}___${row.beds24RoomId}` : null);
-  if (!listingId) return vide("Ce logement n'est pas relié à PriceLabs.");
+  const candidates = annoncesCandidates(row);
+  if (candidates.length === 0) return vide("Ce logement n'est pas relié à PriceLabs.");
 
   const depuis = (days: { date: string; price: number | null }[], devise: string, source: "cache" | "direct"): PrixSejour | null => {
     const parDate = new Map(days.map((d) => [d.date, d.price]));
@@ -87,7 +88,7 @@ async function calculerPrixSejourBrut(villaId: string, checkIn: string, checkOut
 
   try {
     const listings = await pricelabsGetListings();
-    const listing = listings.find((l) => l.id === listingId);
+    const listing = choisirAnnonce(candidates, new Map(listings.map((l) => [l.id, l])));
     if (!listing) return depuisCache ?? vide("Annonce PriceLabs introuvable.");
     const [res] = await pricelabsGetPrices([{ id: listing.id, pms: listing.pms }], dates[0], checkOut);
     if (!res || res.error) return depuisCache ?? vide(res?.error ?? "Réponse PriceLabs vide.");
