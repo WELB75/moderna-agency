@@ -388,10 +388,13 @@ export type SecuriteDomaineResume = {
 
 const formatJourHeure = (d: Date) => format(d, "EEE d MMM '·' HH:mm", { locale: fr });
 
-// Blocages créés depuis l'assistant (propriétaire, travaux, autre) : personne à contrôler, pas de
-// fiche police. Les séjours "Famille" font entrer du monde mais sans fiche police demandée.
-const estBlocage = (canal: string | null) => (canal ?? "").startsWith("Blocage");
-const ficheRequise = (canal: string | null) => !estBlocage(canal) && canal !== "Famille";
+// Blocages : créés depuis l'assistant (propriétaire, travaux, autre) ou dates fermées importées
+// par iCal ("Date Bloquée - - Ical - …", "Not available") — personne à contrôler, pas de fiche
+// police. Les séjours "Famille" font entrer du monde mais sans fiche police demandée.
+const NOM_BLOCAGE = /^(date bloqu|not available|blocked|indisponible)/i;
+const estBlocage = (r: { canal: string | null; guestName: string }) =>
+  (r.canal ?? "").startsWith("Blocage") || NOM_BLOCAGE.test(r.guestName.trim());
+const ficheRequise = (r: { canal: string | null; guestName: string }) => !estBlocage(r) && r.canal !== "Famille";
 
 export async function getSecuriteOverview(): Promise<SecuriteDomaineResume[]> {
   const db = getDb();
@@ -466,7 +469,7 @@ export async function getSecuriteOverview(): Promise<SecuriteDomaineResume[]> {
     const adultes = fichesAdultes.reduce((s, f) => s + (adultesParFiche.get(f.id) ?? 0), 0);
     const enfants = [...completesResa, ...completesIndiv].reduce((s, f) => s + Number(f.nbPhotosEnfants ?? 0), 0);
     const nbEnfants = r.nbEnfants ?? 0;
-    const fiche: SecuriteFicheStatut = !ficheRequise(r.canal)
+    const fiche: SecuriteFicheStatut = !ficheRequise(r)
       ? "non_requise"
       : completesResa.length + completesIndiv.length > 0
         ? "complete"
@@ -496,11 +499,11 @@ export async function getSecuriteOverview(): Promise<SecuriteDomaineResume[]> {
       const arriveeDuJour = sesResas.find((r) => isSameDay(new Date(r.checkIn), now));
       const enCours = [...sesResas].reverse().find((r) => r.checkIn <= now && r.checkOut > now);
       const reference = arriveeDuJour ?? enCours ?? null;
-      const prochaine = sesResas.find((r) => r.checkIn > now && r.id !== reference?.id && !estBlocage(r.canal));
+      const prochaine = sesResas.find((r) => r.checkIn > now && r.id !== reference?.id && !estBlocage(r));
 
       let statut: SecuriteStatut = "libre";
       if (reference) {
-        if (estBlocage(reference.canal)) statut = "bloque";
+        if (estBlocage(reference)) statut = "bloque";
         else if (arriveeDuJour) statut = "arrivee";
         else if (isSameDay(new Date(reference.checkOut), now)) statut = "depart";
         else statut = "occupe";
