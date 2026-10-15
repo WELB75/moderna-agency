@@ -7,6 +7,7 @@ import { PrintButton } from "@/components/app/print-button";
 import { OccupantPhotoCard } from "@/components/app/occupant-photo-card";
 import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS } from "@/lib/gendarmerie-i18n";
 import { formatDateFr } from "@/lib/format-date";
+import { libelleLogement, numeroAffichable } from "@/lib/logement-format";
 
 export type SecurityOccupant = {
   id: string;
@@ -38,6 +39,9 @@ export type VillaSecurityData = {
   villaId: string;
   villaNom: string;
   villaNumero: string;
+  // Absent sur les anciennes données : villa par défaut. Les appartements (Noria) sont suivis par
+  // la Sécurité depuis la nouvelle version.
+  villaType?: "villa" | "appartement";
   arrivee: string | null;
   depart: string | null;
   nbAdultes: number | null;
@@ -68,6 +72,7 @@ export function VillaSecurityBlock({
   showVillaHeader?: boolean;
 }) {
   const { villaNom, villaNumero, arrivee, depart, nbAdultes, nbEnfants, occupants, arriveeAujourdhui } = data;
+  const numero = numeroAffichable(villaNumero);
   const total = (nbAdultes ?? 0) + nbEnfants;
   const adultes = occupants.filter((o) => !o.estEnfant);
 
@@ -83,9 +88,11 @@ export function VillaSecurityBlock({
                 </div>
                 <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
                   {villaNom}
-                  <Badge variant="outline" className="border-primary/25 bg-primary/5 font-semibold text-primary">
-                    n°{villaNumero}
-                  </Badge>
+                  {numero ? (
+                    <Badge variant="outline" className="border-primary/25 bg-primary/5 font-semibold text-primary">
+                      n°{numero}
+                    </Badge>
+                  ) : null}
                 </h2>
               </div>
               <div className="flex items-center gap-2 print:hidden">
@@ -158,9 +165,7 @@ export function VillaSecurityBlock({
                 <p className="text-center text-sm font-semibold uppercase tracking-wide">Fiche individuelle de police / gendarmerie</p>
                 <Image src="/logo-gendarmerie-royale.png" alt="Gendarmerie Royale" width={56} height={56} className="h-10 w-auto" />
               </div>
-              <p className="text-center text-xs text-muted-foreground">
-                {villaNom} (n°{villaNumero})
-              </p>
+              <p className="text-center text-xs text-muted-foreground">{libelleLogement(villaNom, villaNumero)}</p>
               <div className="rounded-lg border p-5">
                 <p className="mb-3 text-sm font-semibold text-muted-foreground">
                   Occupant {i + 1} / {adultes.length}

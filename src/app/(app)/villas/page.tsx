@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { AddVillaDialog } from "@/components/app/add-villa-dialog";
 import { AddDomaineDialog } from "@/components/app/add-domaine-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
-import { filtrerDomainesActifs, domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, logementEstIntegre } from "@/lib/domaines-actifs";
 import { Building2, ChevronRight } from "lucide-react";
 
 export default async function VillasPage() {
@@ -40,11 +40,10 @@ export default async function VillasPage() {
     // Beds24 (ceux réellement loués sur Airbnb/Booking.com), même dans un domaine masqué ailleurs
     // (Noria) ; les villas suivent la règle habituelle des domaines actifs. Les logements retirés
     // (VILLAS_MASQUEES) n'apparaissent plus.
-    .filter((v) => (v.type === "appartement" ? Boolean(v.beds24RoomId) : domaineEstActif(v.domaineNom)))
-    .filter((v) => villaEstGeree(v.nom))
     // Fouad, 2026-10-14 : "prestigia on le met pas" — l'appartement du domaine Prestigia ne
-    // figure pas dans Hébergements (il reste accessible depuis /appartements).
-    .filter((v) => v.domaineNom !== "Prestigia")
+    // figure pas dans Hébergements (il reste accessible depuis /appartements). Règle partagée
+    // avec la page Sécurité : voir logementEstIntegre (domaines-actifs.ts).
+    .filter((v) => logementEstIntegre(v))
     // Villas d'abord, puis appartements.
     .sort((a, b) => Number(a.type === "appartement") - Number(b.type === "appartement"));
 
