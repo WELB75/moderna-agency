@@ -2,7 +2,7 @@ import { and, asc, eq, isNotNull, isNull, gte, lt, inArray, notInArray } from "d
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
-import { villas, reservations, gendarmerieForms } from "@/db/schema";
+import { villas, reservations, gendarmerieForms, pricelabsPriceCache } from "@/db/schema";
 import {
   beds24AddInfoItems,
   beds24GetBookings,
@@ -16,6 +16,7 @@ import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
+import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
 // séjours réels (demande en attente, blocage manuel) et ne doivent pas apparaître dans l'app.
@@ -65,12 +66,57 @@ function mapCanal(booking: Beds24Booking): string {
   return referer || booking.channel || "Direct";
 }
 
-// Beds24 donne le prix sans devise : c'est celle de la propriété. Libellés alignés sur ceux de
-// l'app ("DH" pour les dirhams, comme payment-info). Sans devise connue, on ne touche à rien.
+// Beds24 donne le prix sans devise : c'est celle de la propriété. Sans devise connue, on ne
+// touche à rien.
 function mapDevise(currency: string | undefined): string | null {
   const code = (currency ?? "").trim().toUpperCase();
-  if (!code) return null;
-  return code === "MAD" ? "DH" : code;
+  return code || null;
+}
+
+type ConversionLoyer = { deviseOrigine: "MAD"; montantOrigine: number; madParEur: number };
+
+// Loyer toujours enregistré en euros, comme pour toutes les villas (Fouad, 2026-10-15 : Villa
+// Wimiliim affichait "6216,00 €" pour 6216 MAD). Un montant est en dirhams quand :
+// - la propriété Beds24 est en MAD ;
+// - ou c'est une résa Airbnb et l'annonce PriceLabs de la villa est en MAD : l'annonce Airbnb
+//   de Wimiliim est tarifée en dirhams et Airbnb transmet le montant dans la devise de
+//   l'annonce, alors que la propriété Beds24 est en euros (ses prix nuitée le sont). Wimiliim a
+//   aussi une annonce Airbnb en euros : garde-fou sur le montant par nuit, comparé au prix
+//   minimum PriceLabs (en MAD). Un loyer en euros par nuit reste sous ~4x le minimum en euros,
+//   un loyer en dirhams dépasse ~6x (≈ 11 MAD pour 1 €, moins les frais Airbnb) : seuil à
+//   0,45 x le minimum en dirhams (≈ 5x le minimum en euros) ;
+// - ou ce même montant a déjà été converti à une synchro précédente (l'annonce peut repasser en
+//   euros plus tard, une ancienne résa reste en dirhams chez Beds24).
+// Le montant d'origine et le taux sont gardés dans rawData ; le taux est réutilisé tant que le
+// montant ne change pas, pour que le loyer ne bouge pas d'une synchro à l'autre.
+async function loyerEnEuros(
+  booking: Beds24Booking,
+  contexte: {
+    canal: string;
+    deviseBeds24: string | undefined;
+    devisePricelabs: string | null;
+    minPricelabs: number | null;
+    nuits: number;
+    precedent: unknown;
+  }
+): Promise<{ loyerTotal: string | null; devise: string | undefined; conversion: ConversionLoyer | null }> {
+  const prix = Number(booking.price) || 0;
+  if (prix <= 0) return { loyerTotal: null, devise: estDirham(contexte.deviseBeds24) ? "EUR" : contexte.deviseBeds24, conversion: null };
+
+  const precedente = (contexte.precedent as { conversion?: Partial<ConversionLoyer> } | null)?.conversion;
+  const memeMontant = precedente?.deviseOrigine === "MAD" && precedente.montantOrigine === prix && Number(precedente.madParEur) > 0;
+  const parNuit = prix / Math.max(1, contexte.nuits);
+  const montantPlausibleEnDirhams = !contexte.minPricelabs || parNuit >= contexte.minPricelabs * 0.45;
+  const annonceAirbnbEnDirhams = contexte.canal === "Airbnb" && estDirham(contexte.devisePricelabs) && montantPlausibleEnDirhams;
+  const enDirhams = estDirham(contexte.deviseBeds24) || annonceAirbnbEnDirhams || memeMontant;
+  if (!enDirhams) return { loyerTotal: prix.toFixed(2), devise: contexte.deviseBeds24, conversion: null };
+
+  const madParEur = memeMontant ? Number(precedente!.madParEur) : await getMadParEur();
+  return {
+    loyerTotal: madVersEur(prix, madParEur).toFixed(2),
+    devise: "EUR",
+    conversion: { deviseOrigine: "MAD", montantOrigine: prix, madParEur },
+  };
 }
 
 function mapPhone(booking: Beds24Booking): string | null {
@@ -127,14 +173,15 @@ export async function runBeds24Sync(): Promise<
       numero: villas.numero,
       beds24RoomId: villas.beds24RoomId,
       beds24PropertyId: villas.beds24PropertyId,
+      devisePricelabs: pricelabsPriceCache.currency,
+      minPricelabs: pricelabsPriceCache.minPrice,
     })
     .from(villas)
+    .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
     .where(isNotNull(villas.beds24RoomId));
 
-  const targets = rows.filter(
-    (v): v is { id: string; nom: string; numero: string; beds24RoomId: string; beds24PropertyId: string | null } =>
-      Boolean(v.beds24RoomId)
-  );
+  type VillaBeds24 = (typeof rows)[number] & { beds24RoomId: string };
+  const targets = rows.filter((v): v is VillaBeds24 => Boolean(v.beds24RoomId));
 
   if (targets.length === 0) {
     return { success: false, error: "Aucune villa n'est encore connectée à Beds24." };
@@ -190,6 +237,25 @@ export async function runBeds24Sync(): Promise<
         const checkIn = toDateTime(booking.arrival, DEFAULT_CHECKIN_HOUR);
         const checkOut = toDateTime(booking.departure, DEFAULT_CHECKOUT_HOUR);
         const guestPhone = mapPhone(booking);
+        const canalBooking = mapCanal(booking);
+
+        const [existing] = await db
+          .select({ id: reservations.id, guestPhone: reservations.guestPhone, canal: reservations.canal, rawData: reservations.rawData })
+          .from(reservations)
+          .where(eq(reservations.beds24BookingId, bookingId))
+          .limit(1);
+
+        // Canal corrigé à la main dans l'app (résa Airbnb arrivée "Direct" par iCal) : c'est lui
+        // qui compte pour savoir dans quelle devise Airbnb a transmis le montant.
+        const canalEffectif = canalBooking === "Direct" && existing?.canal && existing.canal !== "Direct" ? existing.canal : canalBooking;
+        const loyer = await loyerEnEuros(booking, {
+          canal: canalEffectif,
+          deviseBeds24: deviseVilla,
+          devisePricelabs: villa.devisePricelabs,
+          minPricelabs: villa.minPricelabs ? Number(villa.minPricelabs) : null,
+          nuits: Math.round((toDateTime(booking.departure, 0).getTime() - toDateTime(booking.arrival, 0).getTime()) / DAY_MS),
+          precedent: existing?.rawData ?? null,
+        });
 
         const values = {
           villaId: villa.id,
@@ -202,20 +268,19 @@ export async function runBeds24Sync(): Promise<
           nbAdultes: booking.numAdult ?? null,
           nbEnfants: booking.numChild ?? null,
           guestsCount: (booking.numAdult ?? 0) + (booking.numChild ?? 0) || null,
-          canal: mapCanal(booking),
-          ...(deviseVilla ? { devisePaiement: deviseVilla } : {}),
+          canal: canalBooking,
+          ...(loyer.devise ? { devisePaiement: loyer.devise } : {}),
           status: isCancelled ? ("annulee" as const) : ("confirmee" as const),
           source: "beds24" as const,
-          loyerTotal: booking.price ? booking.price.toFixed(2) : null,
-          rawData: { beds24Status: booking.status, beds24Channel: booking.channel ?? null, beds24Referer: booking.referer ?? null },
+          loyerTotal: loyer.loyerTotal,
+          rawData: {
+            beds24Status: booking.status,
+            beds24Channel: booking.channel ?? null,
+            beds24Referer: booking.referer ?? null,
+            ...(loyer.conversion ? { conversion: loyer.conversion } : {}),
+          },
           updatedAt: new Date(),
         };
-
-        const [existing] = await db
-          .select({ id: reservations.id, guestPhone: reservations.guestPhone, canal: reservations.canal })
-          .from(reservations)
-          .where(eq(reservations.beds24BookingId, bookingId))
-          .limit(1);
 
         if (existing) {
           // Téléphone : comme pour la synchro iCal, un numéro corrigé à la main dans l'app ne
