@@ -499,7 +499,14 @@ export default async function DashboardPage({
           key: `in-${r.id}`,
           type: "checkin",
           at,
-          statut: r.checkinValideAt ? "fait" : "a_faire",
+          // Fiche police complète + contrat signé mais check-in pas encore validé : le dire
+          // clairement plutôt que "À faire" (Kamel, 2026-10-15 : "j'ai tout fait pourquoi c'est
+          // écrit à faire ?").
+          statut: r.checkinValideAt
+            ? "fait"
+            : r.ficheStatut === "complete" && r.contratStatut === "signe"
+              ? "a_valider"
+              : "a_faire",
           personnes: r.checkinValidePar ? [r.checkinValidePar] : [],
           extra: [
             { label: "Fiche police", ok: r.ficheStatut === "complete" },

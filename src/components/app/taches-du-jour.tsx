@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { VoisinResa } from "@/lib/taches-du-jour";
 
 export type TacheType = "checkin" | "checkout" | "menage" | "cuisine";
-export type TacheStatut = "non_assigne" | "assigne" | "fait" | "a_faire";
+export type TacheStatut = "non_assigne" | "assigne" | "fait" | "a_faire" | "a_valider";
 
 export type TacheJour = {
   key: string;
@@ -37,6 +37,7 @@ const STATUT_META: Record<TacheStatut, { label: string; className: string }> = {
   non_assigne: { label: "Non assigné", className: "bg-destructive/10 text-destructive" },
   assigne: { label: "Assigné", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
   a_faire: { label: "À faire", className: "bg-amber-500/15 text-amber-700 dark:text-amber-400" },
+  a_valider: { label: "Papiers OK · à valider", className: "bg-sky-500/15 text-sky-700 dark:text-sky-400" },
   fait: { label: "Fait", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" },
 };
 
