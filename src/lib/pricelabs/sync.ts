@@ -3,6 +3,7 @@ import { getDb } from "@/db";
 import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
 import { villaEstGeree } from "@/lib/domaines-actifs";
+import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
 
 // PriceLabs calcule des prix fiables sur un an complet (vérifié : 365/365 jours non-null pour
 // Villa Tania le 2026-09-28), donc l'onglet Tarification peut proposer un vrai sélecteur de mois
@@ -114,12 +115,20 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
 
   const freshRows = staleVillas.length > 0 ? await reloadCache(rows.map((v) => v.id)) : rows;
   const resaParVilla = await reservationsActivesParVilla(freshRows.map((v) => v.id));
+  // Annonce PriceLabs en dirhams (Villa Wimiliim) : prix convertis en euros comme toutes les
+  // autres villas, pour ne plus afficher "2894MAD" à côté de "333€" dans la grille.
+  const madParEur = freshRows.some((v) => estDirham(v.cacheCurrency)) ? await getMadParEur() : null;
 
   return freshRows.map((v) => {
     const resaVilla = resaParVilla.get(v.id) ?? [];
     const occupe = new Set(resaVilla.flatMap((r) => datesEntre(r.checkIn, r.checkOut)));
+    const taux = madParEur != null && estDirham(v.cacheCurrency) ? madParEur : null;
+    const enDirhams = taux != null;
+    const prix = (p: number | null | undefined): number | null =>
+      p == null ? null : taux != null ? madVersEur(Number(p), taux) : Number(p);
     const days = ((v.cacheDays as TarificationVilla["days"] | null) ?? []).map((d) => ({
       ...d,
+      price: prix(d.price),
       unbookable: d.unbookable || occupe.has(d.date),
     }));
     return {
@@ -130,10 +139,10 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
       domaineNom: v.domaineNom,
       photoUrl: v.photoUrl,
       beds24RoomId: v.beds24RoomId,
-      currency: v.cacheCurrency,
-      minPrice: v.cacheMinPrice ? Number(v.cacheMinPrice) : null,
-      basePrice: v.cacheBasePrice ? Number(v.cacheBasePrice) : null,
-      maxPrice: v.cacheMaxPrice ? Number(v.cacheMaxPrice) : null,
+      currency: enDirhams ? "EUR" : v.cacheCurrency,
+      minPrice: v.cacheMinPrice ? prix(Number(v.cacheMinPrice)) : null,
+      basePrice: v.cacheBasePrice ? prix(Number(v.cacheBasePrice)) : null,
+      maxPrice: v.cacheMaxPrice ? prix(Number(v.cacheMaxPrice)) : null,
       days,
       reservations: resaVilla,
       syncedAt: v.cacheSyncedAt ? v.cacheSyncedAt.toISOString() : null,

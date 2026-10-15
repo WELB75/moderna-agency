@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, pricelabsPriceCache } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices } from "./client";
+import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
 
 // Prix d'un séjour selon PriceLabs : somme des tarifs de chaque nuit (de l'arrivée incluse au
 // départ exclu). Utilise le cache de l'onglet Tarification s'il est frais et complet ; sinon
@@ -29,7 +30,21 @@ function nuitsEntre(checkIn: string, checkOut: string): string[] {
   return out;
 }
 
+// Annonce PriceLabs en dirhams (Villa Wimiliim) : séjour proposé en euros comme pour les autres
+// villas (le formulaire de réservation reprend alors l'euro comme devise du loyer).
+async function enEuros(sejour: PrixSejour): Promise<PrixSejour> {
+  if (!sejour.ok || !estDirham(sejour.devise)) return sejour;
+  const madParEur = await getMadParEur();
+  const parNuit = sejour.parNuit.map((n) => ({ date: n.date, prix: madVersEur(n.prix, madParEur) }));
+  const total = Math.round(parNuit.reduce((s, n) => s + n.prix, 0) * 100) / 100;
+  return { ...sejour, devise: "EUR", parNuit, total };
+}
+
 export async function calculerPrixSejour(villaId: string, checkIn: string, checkOut: string): Promise<PrixSejour> {
+  return enEuros(await calculerPrixSejourBrut(villaId, checkIn, checkOut));
+}
+
+async function calculerPrixSejourBrut(villaId: string, checkIn: string, checkOut: string): Promise<PrixSejour> {
   const vide = (message: string): PrixSejour => ({ ok: false, devise: "EUR", nuits: 0, total: 0, parNuit: [], source: null, message });
   const dates = nuitsEntre(checkIn, checkOut);
   if (dates.length === 0) return vide("Dates invalides.");
