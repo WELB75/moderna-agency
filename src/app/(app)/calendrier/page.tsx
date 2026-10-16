@@ -10,8 +10,8 @@ import { cn } from "@/lib/utils";
 type Vue = "jour" | "planning" | "liste";
 
 const VUES: { key: Vue; label: string; icon: typeof CalendarDays }[] = [
-  { key: "jour", label: "Vue jour", icon: CalendarDays },
   { key: "planning", label: "Vue planning", icon: GanttChartSquare },
+  { key: "jour", label: "Vue jour", icon: CalendarDays },
   { key: "liste", label: "Vue liste", icon: List },
 ];
 
@@ -38,7 +38,7 @@ export default async function CalendrierPage({
   searchParams: Promise<{ vue?: string; date?: string; onglet?: string; filtre?: string }>;
 }) {
   const params = await searchParams;
-  const vue: Vue = VUES.some((v) => v.key === params.vue) ? (params.vue as Vue) : "jour";
+  const vue: Vue = VUES.some((v) => v.key === params.vue) ? (params.vue as Vue) : "planning";
   const now = nowInMorocco();
 
   return (
