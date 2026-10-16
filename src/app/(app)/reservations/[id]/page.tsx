@@ -11,6 +11,10 @@ import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib
 import { buildPersonnelOptions, getQualiteMoyenneById } from "@/lib/personnel-options";
 import { phonesMatch } from "@/lib/phone";
 import { format } from "date-fns";
+import { ReservationHistorique } from "@/components/app/reservation-historique";
+import { journalDeLaReservation } from "@/lib/journal";
+import { normaliseCanal } from "@/lib/canal";
+import { nowInMorocco } from "@/lib/now";
 
 // Fiche complète d'une réservation, identique à sa carte du tableau de bord (ménage/cuisine
 // éditables, validation check-in/out, documents...), mais accessible directement par id — pour
@@ -164,6 +168,22 @@ export default async function ReservationDetailPage({ params }: { params: Promis
   const recapTotal = recapRow?.totalFinal ? Number(recapRow.totalFinal) : null;
   const recapAvance = recapRow?.avanceVersee ? Number(recapRow.avanceVersee) : null;
 
+  // Historique "qui a fait quoi" (journal) + date d'ajout réelle dans l'app.
+  const [meta] = await db
+    .select({ createdAt: reservations.createdAt, beds24RoomId: villas.beds24RoomId })
+    .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .where(eq(reservations.id, r.id))
+    .limit(1);
+  const journal = await journalDeLaReservation(r.id);
+  // Refermer sur Beds24 : seulement ce qui a été créé dans l'app (à la main ou par l'agent IA :
+  // c'est l'app qui ferme les dates à la création), pas Airbnb, et seulement pour un séjour pas encore terminé.
+  const peutRefermer =
+    (r.source === "manuel" || r.source === "whatsapp-ia") &&
+    normaliseCanal(r.canal) !== "airbnb" &&
+    Boolean(meta?.beds24RoomId) &&
+    new Date(r.checkOut).getTime() > nowInMorocco().getTime();
+
   const row: ReservationRow = {
     ...r,
     recap: recapRow
@@ -209,6 +229,13 @@ export default async function ReservationDetailPage({ params }: { params: Promis
         <ReservationRowCard r={row} kind="in" />
         <ReservationRowCard r={row} kind="out" />
       </div>
+
+      <ReservationHistorique
+        reservationId={r.id}
+        ajouteeLe={meta?.createdAt ? new Date(meta.createdAt).toISOString() : null}
+        entrees={journal}
+        peutRefermer={peutRefermer}
+      />
     </div>
   );
 }
