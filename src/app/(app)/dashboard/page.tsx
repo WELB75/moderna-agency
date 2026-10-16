@@ -37,6 +37,7 @@ import { type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { DomainePlanTrigger } from "@/components/app/domaine-plan-trigger";
 import { MenuGrid } from "@/components/app/menu-grid";
 import { DashboardOverview } from "@/components/app/dashboard-overview";
+import { SuiviArrivees } from "@/components/app/suivi-arrivees";
 import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
 import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
@@ -538,6 +539,7 @@ export default async function DashboardPage({
       {offsetSemaines === 0 ? (
         <>
           <DashboardOverview now={now} />
+          <SuiviArrivees now={now} />
           <h2 className="border-t pt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
             Opérations de la semaine
           </h2>

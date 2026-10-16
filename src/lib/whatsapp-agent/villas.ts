@@ -14,6 +14,8 @@
 // caution de 250€ ne s'applique qu'aux réservations Direct/Booking.com, jamais Airbnb — non
 // pertinent ici puisque l'agent WhatsApp réserve toujours en canal "Direct"). Villas : Gaspard
 // 1000€/60€ ; Eline, Azur, Tania, Wimiliim 950€/60€ ; Sofya, Lila 1000€/80€ ; Elysée 950€/80€.
+// Mise à jour 2026-10-16 : cautions alignées sur les groupes Beds24 (caution250/500/950/1000) qui
+// pilotent l'envoi automatique du lien Stripe — Tania passe à 1000€, Amal et Jade à 500€.
 // type "villa"/"appartement" confirmé par la vraie colonne `villas.type` en base (2026-08-04) —
 // la cuisinière (option payante) n'est proposée par l'agent que sur les vrais "villa", jamais
 // sur les appartements "cosy" (Kamel : "les cuisinières c'est que pour les Villa").
@@ -23,10 +25,10 @@ export const VILLAS: { id: string; nom: string; type: "villa" | "appartement"; b
   { id: "ac5b8ca3-f385-4b30-8430-9d9faaa881cd", nom: "Villa Elysée", type: "villa", blurb: "n°7, Domaine Zaraba — 5 chambres, piscine, jardin, proche Café Del Mar", prixNuit: 550, caution: 950, menage: 80, superhoteId: "propertyKeySkqBUeL4NVNiiYta0vE7Gmb5t" },
   { id: "cdd845b9-d7dd-4380-ace3-22bc0e58dfb2", nom: "Eva cosy", type: "appartement", blurb: "n°10, Noria — appart 1 chambre, balcon, résidence 4 piscines", prixNuit: 80, caution: 250, menage: 20, superhoteId: "propertyKeyLq3GM3gOzL42iXlHAq7YKswGX" },
   { id: "bda585e8-4ead-45d2-b12e-16c6125de237", nom: "Mama cosy", type: "appartement", blurb: "n°13, Noria — appart 3 pers, 1 chambre, balcon, résidence piscine", prixNuit: 80, caution: 250, menage: 20, superhoteId: "propertyKey13Kq0KepcBseY4lcd40SBsi2W" },
-  { id: "236653cb-77be-4fc9-b509-ffc050a93282", nom: "Amal cosy", type: "appartement", blurb: "Noria — appart 2 chambres, vue piscine", prixNuit: 110, caution: 250, menage: 20, superhoteId: "propertyKey3HRgu8CAjZvddwIQcUCgWTK6z" },
+  { id: "236653cb-77be-4fc9-b509-ffc050a93282", nom: "Amal cosy", type: "appartement", blurb: "Noria — appart 2 chambres, vue piscine", prixNuit: 110, caution: 500, menage: 20, superhoteId: "propertyKey3HRgu8CAjZvddwIQcUCgWTK6z" },
   { id: "754bcafb-81f9-4f3f-95e1-d0ba9d89bcdf", nom: "Maeva Cosy", type: "appartement", blurb: "n°5, Noria", prixNuit: 80, caution: 250, menage: 20, superhoteId: "propertyKey0pXI0iOjB2BSPOSaNv3m4pXF7" },
-  { id: "9184e01d-c133-4177-be5b-895efa22cd97", nom: "Jade Cosy", type: "appartement", blurb: "Noria", prixNuit: 110, caution: 250, menage: 20, superhoteId: "propertyKeykYV4MDLBbT9EctkUK9fco4J25" },
-  { id: "e7df576b-111b-4fcd-874b-c6885a6b95cb", nom: "Villa Tania", type: "villa", blurb: "n°3, Domaine Moderna II — 4 chambres, piscine (sans vis-à-vis), jardin", prixNuit: 350, caution: 950, menage: 60, superhoteId: "propertyKeyLgQVoZhTVRgsRU67zFgqf68fW" },
+  { id: "9184e01d-c133-4177-be5b-895efa22cd97", nom: "Jade Cosy", type: "appartement", blurb: "Noria", prixNuit: 110, caution: 500, menage: 20, superhoteId: "propertyKeykYV4MDLBbT9EctkUK9fco4J25" },
+  { id: "e7df576b-111b-4fcd-874b-c6885a6b95cb", nom: "Villa Tania", type: "villa", blurb: "n°3, Domaine Moderna II — 4 chambres, piscine (sans vis-à-vis), jardin", prixNuit: 350, caution: 1000, menage: 60, superhoteId: "propertyKeyLgQVoZhTVRgsRU67zFgqf68fW" },
   { id: "a912b77c-c543-46ba-a021-06233d03752f", nom: "Alba cosy", type: "appartement", blurb: "Noria — appart 2 chambres, vue piscine", prixNuit: 110, caution: 250, menage: 20, superhoteId: "propertyKeyvZlzqu6CLuqeBLjVpoFzmvTw1" },
   { id: "acdc1bfe-4f3b-4e5d-8223-1a68131ba66f", nom: "Livia Cosy", type: "appartement", blurb: "n°6, Noria", prixNuit: 80, caution: 250, menage: 20, superhoteId: "propertyKeyvkh5gYklaAbYtKCCs8HUeK3f3" },
   { id: "a166d7ad-66a8-439b-b4c3-a1c31f649ed6", nom: "Lina cosy", type: "appartement", blurb: "n°5, Noria — appart 1 chambre rez-de-chaussée, jardin privatif", prixNuit: 80, caution: 250, menage: 20, superhoteId: "propertyKeyU6A2rwjqsOeCB6LrDkAY1Jmzq" },

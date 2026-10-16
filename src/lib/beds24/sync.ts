@@ -17,6 +17,7 @@ import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
 import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
+import { BEDS24_VILLA_MAPPING } from "@/lib/beds24/mapping";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
 // séjours réels (demande en attente, blocage manuel) et ne doivent pas apparaître dans l'app.
@@ -47,6 +48,26 @@ function toDateTime(dateOnly: string, hour: number): Date {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Caution par lien Stripe — Fouad, 2026-10-16 : "je veux que ça nous indique si la caution a été
+// payée ou non via le lien". Quand le voyageur valide l'empreinte bancaire (lien bookpay.php
+// envoyé par les actions automatiques "Caution ... - lien J-1 10h"), Beds24 ajoute l'info code
+// STRIPEAUTHORIZE à la réservation — c'est aussi ce code qui empêche le rappel du jour J de
+// partir. La synchro le lit pour cocher "caution reçue" sans intervention.
+export const STRIPE_AUTORISATION_INFO_CODE = "STRIPEAUTHORIZE";
+
+export function cautionAutoriseeParStripe(booking: Beds24Booking): boolean {
+  return (booking.infoItems ?? []).some((item) => item.code === STRIPE_AUTORISATION_INFO_CODE);
+}
+
+// Montant de caution demandé par Beds24 pour ce séjour : celui du groupe de la propriété (voir
+// mapping.ts), seulement pour Booking.com et Direct — les actions caution ne partent jamais pour
+// Airbnb, qui n'a donc pas de caution à suivre.
+function cautionPrevue(roomId: string, canal: string | null): string | null {
+  if ((canal ?? "").toLowerCase().includes("airbnb")) return null;
+  const mapping = BEDS24_VILLA_MAPPING.find((m) => String(m.roomId) === roomId);
+  return mapping ? String(mapping.caution) : null;
+}
 
 // Canal normalisé sur les libellés déjà utilisés dans l'app ("Airbnb", "Booking.com", "Direct",
 // reconnus par platformFromCanal). Beds24 expose un code technique (channel : "airbnb",
@@ -141,6 +162,8 @@ async function findPreBeds24Duplicate(villaId: string, booking: Beds24Booking) {
       nbAdultes: reservations.nbAdultes,
       nbEnfants: reservations.nbEnfants,
       guestsCount: reservations.guestsCount,
+      caution: reservations.caution,
+      cautionPayee: reservations.cautionPayee,
     })
     .from(reservations)
     .where(
@@ -243,7 +266,14 @@ export async function runBeds24Sync(): Promise<
         const canalBooking = mapCanal(booking);
 
         const [existing] = await db
-          .select({ id: reservations.id, guestPhone: reservations.guestPhone, canal: reservations.canal, rawData: reservations.rawData })
+          .select({
+            id: reservations.id,
+            guestPhone: reservations.guestPhone,
+            canal: reservations.canal,
+            rawData: reservations.rawData,
+            caution: reservations.caution,
+            cautionPayee: reservations.cautionPayee,
+          })
           .from(reservations)
           .where(eq(reservations.beds24BookingId, bookingId))
           .limit(1);
@@ -259,6 +289,12 @@ export async function runBeds24Sync(): Promise<
           nuits: Math.round((toDateTime(booking.departure, 0).getTime() - toDateTime(booking.arrival, 0).getTime()) / DAY_MS),
           precedent: existing?.rawData ?? null,
         });
+
+        // Caution : montant rempli seulement s'il est vide (un montant saisi à la main dans l'app
+        // reste prioritaire), et "reçue" ne repasse jamais à faux toute seule (caution encaissée
+        // autrement, cochée à la main).
+        const montantCaution = cautionPrevue(villa.beds24RoomId, canalEffectif);
+        const stripeAutorise = cautionAutoriseeParStripe(booking);
 
         const values = {
           villaId: villa.id,
@@ -293,7 +329,13 @@ export async function runBeds24Sync(): Promise<
           const canal = values.canal === "Direct" && existing.canal && existing.canal !== "Direct" ? existing.canal : values.canal;
           await db
             .update(reservations)
-            .set({ ...values, canal, guestPhone: existing.guestPhone ?? values.guestPhone })
+            .set({
+              ...values,
+              canal,
+              guestPhone: existing.guestPhone ?? values.guestPhone,
+              caution: existing.caution ?? montantCaution,
+              cautionPayee: existing.cautionPayee || stripeAutorise,
+            })
             .where(eq(reservations.id, existing.id));
           totalSynced += 1;
           continue;
@@ -314,6 +356,8 @@ export async function runBeds24Sync(): Promise<
               nbAdultes: duplicate.nbAdultes ?? values.nbAdultes,
               nbEnfants: duplicate.nbEnfants ?? values.nbEnfants,
               guestsCount: duplicate.guestsCount ?? values.guestsCount,
+              caution: duplicate.caution ?? montantCaution,
+              cautionPayee: duplicate.cautionPayee || stripeAutorise,
             })
             .where(eq(reservations.id, duplicate.id));
           totalAdopted += 1;
@@ -325,7 +369,7 @@ export async function runBeds24Sync(): Promise<
         // seconde ne doit ni planter sur l'index unique ni notifier deux fois.
         const [inserted] = await db
           .insert(reservations)
-          .values(values)
+          .values({ ...values, caution: montantCaution, cautionPayee: stripeAutorise })
           .onConflictDoNothing({ target: reservations.beds24BookingId })
           .returning({ id: reservations.id });
         totalSynced += 1;
