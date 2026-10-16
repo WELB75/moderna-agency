@@ -12,7 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowLeft, ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, Info, RefreshCw, Search } from "lucide-react";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { DisponibiliteCalendar } from "@/components/app/disponibilite-calendar";
+import { AlertTriangle, ArrowLeft, ArrowRight, Building2, CalendarDays, ChevronDown, ChevronsUpDown, ChevronUp, Info, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
@@ -172,12 +174,31 @@ function DisponibiliteDot({ statut, label }: { statut: "disponible" | "indisponi
 // Tania, 3 nuits x 333€ = 999€), c'est bien ce total brut qui correspond, pas 999 + 19%.
 // Kamel, 2026-09-26, après une capture d'écran Airbnb montrant l'écart : "je crois qu'il faut
 // les retirer".
+//
+// Kamel, 2026-10-16 : "sur devis rapide le calendrier est pas connecté à pricelabs" — les champs
+// Du / Au étaient de simples dates du navigateur. Ils ouvrent maintenant le calendrier du
+// logement choisi : prix PriceLabs de chaque nuit sous la date, nuits déjà prises barrées et non
+// sélectionnables (mêmes données que la grille planning ci-dessous).
 function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
   const [villaId, setVillaId] = useState("");
   const [debut, setDebut] = useState("");
   const [fin, setFin] = useState("");
+  const [calendrierOuvert, setCalendrierOuvert] = useState(false);
+  const estMobile = useEstMobile();
 
   const villa = villas.find((v) => v.id === villaId) ?? null;
+
+  const calendrierVilla = useMemo(() => {
+    if (!villa) return { nuitsPrises: new Set<string>(), libellesPrix: undefined, dernierJour: undefined };
+    const nuitsPrises = new Set(villa.days.filter((d) => d.unbookable || d.price == null).map((d) => d.date));
+    const libellesPrix = new Map(
+      villa.days.filter((d) => d.price != null).map((d) => [d.date, formatPrixCompact(d.price as number, villa.currency)])
+    );
+    // Départ possible le lendemain de la dernière nuit connue de PriceLabs, pas au-delà.
+    const derniere = villa.days.reduce<string | null>((max, d) => (max == null || d.date > max ? d.date : max), null);
+    const dernierJour = derniere ? format(addDays(parseISO(derniere), 1), "yyyy-MM-dd") : undefined;
+    return { nuitsPrises, libellesPrix, dernierJour };
+  }, [villa]);
 
   const prixCeSoir = useMemo(() => {
     if (!villa) return null;
@@ -230,14 +251,50 @@ function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="devis-debut">Du</Label>
-            <Input id="devis-debut" type="date" value={debut} onChange={(e) => setDebut(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="devis-fin">Au</Label>
-            <Input id="devis-fin" type="date" value={fin} onChange={(e) => setFin(e.target.value)} />
-          </div>
+          <Popover open={calendrierOuvert} onOpenChange={setCalendrierOuvert}>
+            <PopoverAnchor asChild>
+              <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+                {(
+                  [
+                    ["devis-debut", "Du", debut, "Arrivée"],
+                    ["devis-fin", "Au", fin, "Départ"],
+                  ] as const
+                ).map(([id, label, valeur, placeholder]) => (
+                  <div key={id} className="space-y-1.5">
+                    <Label htmlFor={id}>{label}</Label>
+                    <Button
+                      id={id}
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCalendrierOuvert(true)}
+                      className={`w-full justify-start font-normal ${valeur ? "" : "text-muted-foreground"}`}
+                    >
+                      <CalendarDays className="h-4 w-4" />
+                      {valeur ? format(parseISO(valeur), "EEE d MMM yyyy", { locale: fr }) : placeholder}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </PopoverAnchor>
+            <PopoverContent align="start" className="w-auto max-w-[calc(100vw-2rem)] p-2">
+              {!villa ? (
+                <p className="px-1 text-xs text-muted-foreground">Choisis un logement pour voir ses prix PriceLabs et ses nuits déjà prises.</p>
+              ) : null}
+              <DisponibiliteCalendar
+                nuitsPrises={calendrierVilla.nuitsPrises}
+                libellesPrix={calendrierVilla.libellesPrix}
+                dernierJour={calendrierVilla.dernierJour}
+                nombreMois={estMobile ? 1 : 2}
+                arrivee={debut}
+                depart={fin}
+                onChange={(a, d) => {
+                  setDebut(a);
+                  setFin(d);
+                  if (a && d) setCalendrierOuvert(false);
+                }}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         {villa ? (
