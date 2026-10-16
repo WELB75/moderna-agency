@@ -9,6 +9,8 @@ import { initiateCuisineRequest, initiateMenageRequest, dayAfter } from "./staff
 import { recordStayRating } from "./rating";
 import { createPaymentSessionCore } from "@/lib/superhote/payment-session";
 import { getBaseUrl } from "@/lib/base-url";
+import { journaliser, type Beds24Statut } from "@/lib/journal";
+import { fermerDatesBeds24 } from "@/lib/beds24/fermeture";
 
 const client = new Anthropic();
 
@@ -269,6 +271,44 @@ export async function createBooking(input: Record<string, unknown>) {
   } catch (err) {
     console.error("Échec de l'écriture dans Moderna Agency:", err);
     return { erreur: "Un souci technique est survenu, la réservation n'a pas pu être enregistrée." };
+  }
+
+  // Fermeture des nuits sur Beds24 (donc Airbnb et Booking.com), comme pour une réservation
+  // saisie à la main — Fouad, 2026-10-16 : avant, c'était l'export iCal vers Superhote qui
+  // protégeait de la double réservation ; depuis le départ de Superhote (13/10/2026), une résa
+  // de l'agent IA ne fermait plus rien. Jamais bloquant pour la réservation elle-même. Résultat
+  // (relu et vérifié dans Beds24) gardé dans le journal "qui a fait quoi".
+  if (modernaBookingId) {
+    const arrivee = String(input.dateArrivee).slice(0, 10);
+    const depart = String(input.dateDepart).slice(0, 10);
+    const veilleDepart = new Date(`${depart}T12:00:00Z`);
+    veilleDepart.setUTCDate(veilleDepart.getUTCDate() - 1);
+    const derniere = veilleDepart.toISOString().slice(0, 10);
+    let beds24Statut: Beds24Statut = "non_concerne";
+    let beds24Detail = "Logement non relié à Beds24 : dates non fermées sur Airbnb/Booking.com.";
+    try {
+      const [v] = await db.select({ beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, villa.id)).limit(1);
+      if (v?.beds24RoomId && derniere >= arrivee) {
+        const resultat = await fermerDatesBeds24(Number(v.beds24RoomId), arrivee, derniere);
+        beds24Statut = resultat.statut;
+        beds24Detail = resultat.detail;
+        if (resultat.statut === "echec") console.error("Échec blocage calendrier Beds24 (agent IA):", resultat.detail);
+      }
+    } catch (err) {
+      beds24Statut = "echec";
+      beds24Detail = `Fermeture Beds24 impossible : ${err instanceof Error ? err.message : String(err)}`;
+      console.error("Échec blocage calendrier Beds24 (agent IA):", err);
+    }
+    await journaliser({
+      action: "creation",
+      auteur: { type: "systeme", id: null, nom: "Agent IA (WhatsApp / téléphone)", email: null },
+      reservationId: modernaBookingId,
+      villaId: villa.id,
+      villaNom: villa.nom,
+      resume: `${guestName} · Direct · du ${arrivee} au ${depart} · ${phone.value}`,
+      beds24Statut,
+      beds24Detail,
+    });
   }
 
   // Numéro de villa — pas dans le tableau hardcodé VILLAS (juste dans le blurb, texte libre),

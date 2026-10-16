@@ -18,6 +18,7 @@ import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
 import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
 import { BEDS24_VILLA_MAPPING } from "@/lib/beds24/mapping";
+import { AUTEUR_SYNCHRO_BEDS24, journaliser } from "@/lib/journal";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
 // séjours réels (demande en attente, blocage manuel) et ne doivent pas apparaître dans l'app.
@@ -379,6 +380,19 @@ export async function runBeds24Sync(): Promise<
           .returning({ id: reservations.id });
         totalSynced += 1;
 
+        // Journal "qui a fait quoi" : cette réservation est arrivée toute seule par Beds24
+        // (Airbnb, Booking.com, iCal...), pas par une personne de l'équipe.
+        if (inserted && !isCancelled) {
+          await journaliser({
+            action: "creation",
+            auteur: AUTEUR_SYNCHRO_BEDS24,
+            reservationId: inserted.id,
+            villaId: villa.id,
+            villaNom: villa.nom,
+            resume: `${guestName} · ${canalBooking} · du ${booking.arrival} au ${booking.departure} · Beds24 n°${bookingId}${booking.referer ? ` (${booking.referer})` : ""}`,
+          });
+        }
+
         // Séjour déjà terminé (remonté par departureFrom) : pas de notification ni de ménage.
         if (!inserted || isCancelled || checkOut < now) continue;
 
@@ -406,9 +420,26 @@ export async function runBeds24Sync(): Promise<
         .update(reservations)
         .set({ status: "annulee", updatedAt: new Date() })
         .where(cancelledFilter)
-        .returning({ guestName: reservations.guestName, checkIn: reservations.checkIn });
+        .returning({
+          id: reservations.id,
+          guestName: reservations.guestName,
+          canal: reservations.canal,
+          beds24BookingId: reservations.beds24BookingId,
+          checkIn: reservations.checkIn,
+          checkOut: reservations.checkOut,
+        });
       totalCancelled += cancelled.length;
       cancelled.forEach((c) => cancelledBookings.push({ villaNom: villa.nom, guestName: c.guestName, checkIn: c.checkIn }));
+      for (const c of cancelled) {
+        await journaliser({
+          action: "annulation",
+          auteur: AUTEUR_SYNCHRO_BEDS24,
+          reservationId: c.id,
+          villaId: villa.id,
+          villaNom: villa.nom,
+          resume: `${c.guestName}${c.canal ? ` · ${c.canal}` : ""} · du ${format(c.checkIn, "dd/MM/yyyy")} au ${format(c.checkOut, "dd/MM/yyyy")} · annulée dans Beds24${c.beds24BookingId ? ` (n°${c.beds24BookingId})` : ""}`,
+        });
+      }
     }
 
     // Lien fiche police de chaque séjour à venir, publié dans Beds24 pour le message automatique.

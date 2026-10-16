@@ -13,6 +13,7 @@ import {
   CalendarPlus,
   BarChart3,
   CalendarDays,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -42,6 +43,7 @@ export const navGroups: NavGroup[] = [
       { href: "/inventaire", label: "États des lieux", icon: ClipboardCheck },
       { href: "/maintenance", label: "Maintenance", icon: Wrench },
       { href: "/securite", label: "Sécurité", icon: ShieldCheck },
+      { href: "/journal", label: "Journal", icon: History },
       { href: "/documents", label: "Documents", icon: FileText },
     ],
   },

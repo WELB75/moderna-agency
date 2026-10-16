@@ -14,8 +14,15 @@ import { nowInMorocco } from "@/lib/now";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
-import { beds24UpdateCalendar, beds24WriteBookings } from "@/lib/beds24/client";
+import { beds24WriteBookings } from "@/lib/beds24/client";
+import { fermerDatesBeds24, rouvrirDatesBeds24 } from "@/lib/beds24/fermeture";
 import { normaliseCanal } from "@/lib/canal";
+import { auteurConnecte, datesFermeesParLApp, journaliser, type Beds24Statut } from "@/lib/journal";
+
+function resumeSejour(guestName: string, canal: string | null, checkIn: string, checkOut: string): string {
+  const jjmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
+  return `${guestName}${canal ? ` · ${canal}` : ""} · du ${jjmm(checkIn)} au ${jjmm(checkOut)}`;
+}
 
 // Beds24 (inventory/rooms/calendar) : "to" est la DERNIÈRE NUIT incluse, pas le jour du départ.
 // Bloquer jusqu'au jour du départ fermait à tort la nuit du départ (ex. résa Kawtar sur AZUR du
@@ -122,28 +129,40 @@ export async function createReservation(formData: FormData) {
   // d'une réservation annulée côté hôte — vérifié en pratique à deux reprises le 2026-09-14/15.
   // Un blocage de calendrier est un geste hôte normal (fermer/rouvrir des dates), sans
   // réservation associée, donc réversible sans aucun risque.
-  try {
-    // Bloque pour toute résa saisie à la main SAUF Airbnb : depuis la bascule du 12/10/2026,
-    // Airbnb passe par Beds24, la résa y existe déjà. Booking.com est bloqué aussi : pendant la
-    // bascule (et pour les villas encore gérées par SuperHote), une résa Booking saisie à la main
-    // n'existe pas dans Beds24 et Airbnb restait ouvert (villa AZUR, 13/10/2026).
-    const derniere = derniereNuit(checkIn, checkOut);
-    if (normaliseCanal(canal || "Direct") !== "airbnb" && villa?.beds24RoomId && derniere) {
-      await beds24UpdateCalendar([
-        {
-          roomId: Number(villa.beds24RoomId),
-          // Fermeture "blackout" (case "Remplacer" de Beds24) EN PLUS de numAvail:0. Test Villa
-          // Sofya du 14/10/2026 : avec numAvail:0 seul, Booking.com fermait en ~1 min mais
-          // Airbnb restait réservable 24 min à 2 h (Beds24 envoyait pourtant bien 0 à Airbnb).
-          // Le même jour, un blackout posé sur des dates déjà à numAvail:0 depuis 12 min (et
-          // toujours ouvertes sur Airbnb) les a fermées sur Airbnb en moins de 25 secondes.
-          calendar: [{ from: checkIn.slice(0, 10), to: derniere, numAvail: 0, override: "blackout" }],
-        },
-      ]);
-    }
-  } catch (err) {
-    console.error("Échec blocage calendrier Beds24:", err);
+  //
+  // Bloque pour toute résa saisie à la main SAUF Airbnb : depuis la bascule du 12/10/2026,
+  // Airbnb passe par Beds24, la résa y existe déjà. Booking.com est bloqué aussi : pendant la
+  // bascule (et pour les villas encore gérées par SuperHote), une résa Booking saisie à la main
+  // n'existe pas dans Beds24 et Airbnb restait ouvert (villa AZUR, 13/10/2026).
+  //
+  // Le résultat (fermeture relue et vérifiée dans Beds24) est renvoyé à l'assistant, qui affiche
+  // une alerte en cas d'échec, et gardé dans le journal (fiche réservation, calendrier, /journal).
+  let beds24Statut: Beds24Statut = "non_concerne";
+  let beds24Detail = "";
+  const derniere = derniereNuit(checkIn, checkOut);
+  if (normaliseCanal(canal || "Direct") === "airbnb") {
+    beds24Detail = "Réservation Airbnb : déjà présente dans Beds24, rien à fermer.";
+  } else if (!villa?.beds24RoomId) {
+    beds24Detail = "Logement non relié à Beds24 : dates non fermées sur Airbnb/Booking.com.";
+  } else if (!derniere) {
+    beds24Detail = "Aucune nuit à fermer.";
+  } else {
+    const resultat = await fermerDatesBeds24(Number(villa.beds24RoomId), checkIn.slice(0, 10), derniere);
+    beds24Statut = resultat.statut;
+    beds24Detail = resultat.detail;
+    if (resultat.statut === "echec") console.error("Échec blocage calendrier Beds24:", resultat.detail);
   }
+
+  await journaliser({
+    action: "creation",
+    auteur: await auteurConnecte(),
+    reservationId: reservation.id,
+    villaId,
+    villaNom: villa?.nom ?? null,
+    resume: resumeSejour(guestName, canal || "Direct", checkIn, checkOut),
+    beds24Statut,
+    beds24Detail,
+  });
 
   // Récapitulatif partageable (prix PriceLabs, promo, avance, remarque interne) + jeton du lien
   // public /s/[token] — jamais bloquant pour la création elle-même.
@@ -179,8 +198,10 @@ export async function createReservation(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
+  revalidatePath("/calendrier");
+  revalidatePath("/journal");
 
-  return { id: reservation.id, token };
+  return { id: reservation.id, token, beds24Statut, beds24Detail };
 }
 
 export async function updatePaymentInfo(formData: FormData) {
@@ -374,8 +395,11 @@ export async function deleteReservation(reservationId: string) {
       source: reservations.source,
       canal: reservations.canal,
       beds24BookingId: reservations.beds24BookingId,
+      guestName: reservations.guestName,
+      villaNom: villas.nom,
     })
     .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
     .where(eq(reservations.id, reservationId))
     .limit(1);
 
@@ -427,31 +451,98 @@ export async function deleteReservation(reservationId: string) {
   // doublon réel importé dans Beds24 ; rouvrir les dates en supprimant la copie manuelle
   // risquerait de rouvrir une nuit réellement réservée. Dans ce cas les dates restent bloquées
   // (à rouvrir à la main dans Beds24 si besoin) — on préfère un blocage en trop à un doublon.
+  let beds24Statut: Beds24Statut = "non_concerne";
+  let beds24Detail = annuleeSurBeds24
+    ? "Réservation annulée dans Beds24."
+    : "Dates laissées telles quelles dans Beds24 (réservation venant d'une plateforme ou non créée dans l'app).";
+  // Résa de l'agent IA : rouverte seulement si l'app avait elle-même fermé ses dates (journal).
+  const fermeeParAgentIa = reservation?.source === "whatsapp-ia" && (await datesFermeesParLApp(reservationId));
   if (
-    (reservation?.source === "manuel" || annuleeSurBeds24) &&
+    (reservation?.source === "manuel" || annuleeSurBeds24 || fermeeParAgentIa) &&
     ["direct", "bloque"].includes(normaliseCanal(reservation?.canal)) &&
     reservation?.villaId
   ) {
-    try {
-      const [villa] = await db.select({ beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, reservation.villaId)).limit(1);
-      const debut = format(reservation.checkIn, "yyyy-MM-dd");
-      const derniere = derniereNuit(debut, format(reservation.checkOut, "yyyy-MM-dd"));
-      if (villa?.beds24RoomId && derniere) {
-        await beds24UpdateCalendar([
-          {
-            roomId: Number(villa.beds24RoomId),
-            // Lève aussi la fermeture "blackout" posée à la création (voir createReservation).
-            calendar: [{ from: debut, to: derniere, numAvail: 1, override: "none" }],
-          },
-        ]);
-      }
-    } catch (err) {
-      console.error("Échec réouverture calendrier Beds24 après suppression:", err);
+    const [villa] = await db.select({ beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, reservation.villaId)).limit(1);
+    const debut = format(reservation.checkIn, "yyyy-MM-dd");
+    const derniere = derniereNuit(debut, format(reservation.checkOut, "yyyy-MM-dd"));
+    if (villa?.beds24RoomId && derniere) {
+      const resultat = await rouvrirDatesBeds24(Number(villa.beds24RoomId), debut, derniere);
+      beds24Statut = resultat.statut;
+      beds24Detail = resultat.detail;
+      if (resultat.statut === "echec") console.error("Échec réouverture calendrier Beds24 après suppression:", resultat.detail);
+    } else {
+      beds24Detail = "Logement non relié à Beds24 : rien à rouvrir.";
     }
+  }
+
+  if (reservation) {
+    await journaliser({
+      action: "suppression",
+      auteur: await auteurConnecte(),
+      reservationId,
+      villaId: reservation.villaId,
+      villaNom: reservation.villaNom,
+      resume: resumeSejour(
+        reservation.guestName,
+        reservation.canal,
+        format(reservation.checkIn, "yyyy-MM-dd"),
+        format(reservation.checkOut, "yyyy-MM-dd")
+      ),
+      beds24Statut,
+      beds24Detail,
+    });
   }
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
+  revalidatePath("/calendrier");
+  revalidatePath("/journal");
+}
+
+// Bouton "Refermer les dates sur Beds24" de la fiche réservation, quand la fermeture faite à la
+// création a échoué (ou pour s'assurer à nouveau qu'un blocage est bien en place partout).
+export async function refermerDatesBeds24(reservationId: string): Promise<{ statut: Beds24Statut; detail: string }> {
+  await auth.protect();
+  const db = getDb();
+  const [r] = await db
+    .select({
+      villaId: reservations.villaId,
+      villaNom: villas.nom,
+      beds24RoomId: villas.beds24RoomId,
+      guestName: reservations.guestName,
+      canal: reservations.canal,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+    })
+    .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!r) throw new Error("Réservation introuvable.");
+  if (normaliseCanal(r.canal) === "airbnb") return { statut: "non_concerne", detail: "Réservation Airbnb : déjà bloquée par Airbnb lui-même." };
+  if (!r.beds24RoomId) return { statut: "non_concerne", detail: "Logement non relié à Beds24." };
+
+  const debut = format(r.checkIn, "yyyy-MM-dd");
+  const fin = format(r.checkOut, "yyyy-MM-dd");
+  const derniere = derniereNuit(debut, fin);
+  if (!derniere) return { statut: "non_concerne", detail: "Aucune nuit à fermer." };
+
+  const resultat = await fermerDatesBeds24(Number(r.beds24RoomId), debut, derniere);
+  await journaliser({
+    action: "fermeture_beds24",
+    auteur: await auteurConnecte(),
+    reservationId,
+    villaId: r.villaId,
+    villaNom: r.villaNom,
+    resume: resumeSejour(r.guestName, r.canal, debut, fin),
+    beds24Statut: resultat.statut,
+    beds24Detail: resultat.detail,
+  });
+
+  revalidatePath(`/reservations/${reservationId}`);
+  revalidatePath("/calendrier");
+  revalidatePath("/journal");
+  return resultat;
 }
 
 // Superhote n'exporte pas toujours l'heure exacte dans son flux iCal (ex. réservations
@@ -469,8 +560,15 @@ export async function updateReservationTimes(reservationId: string, checkInTime:
 
   const db = getDb();
   const [current] = await db
-    .select({ checkIn: reservations.checkIn, checkOut: reservations.checkOut })
+    .select({
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      villaId: reservations.villaId,
+      villaNom: villas.nom,
+      guestName: reservations.guestName,
+    })
     .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
     .where(eq(reservations.id, reservationId))
     .limit(1);
   if (!current) throw new Error("Réservation introuvable.");
@@ -484,6 +582,17 @@ export async function updateReservationTimes(reservationId: string, checkInTime:
     .update(reservations)
     .set({ checkIn: newCheckIn, checkOut: newCheckOut, updatedAt: new Date() })
     .where(eq(reservations.id, reservationId));
+
+  // Heures stockées "telles qu'affichées" (heure du Maroc en composants UTC, voir nowInMorocco).
+  const hhmm = (d: Date) => `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+  await journaliser({
+    action: "modification_heures",
+    auteur: await auteurConnecte(),
+    reservationId,
+    villaId: current.villaId,
+    villaNom: current.villaNom,
+    resume: `${current.guestName} · arrivée ${hhmm(new Date(current.checkIn))} → ${hhmm(newCheckIn)}, départ ${hhmm(new Date(current.checkOut))} → ${hhmm(newCheckOut)}`,
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");

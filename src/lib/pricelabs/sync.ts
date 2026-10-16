@@ -5,6 +5,7 @@ import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type Pr
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
 import { annoncesCandidates, choisirAnnonce } from "./annonce";
+import { creationsParReservation } from "@/lib/journal";
 
 // PriceLabs calcule des prix fiables sur un an complet (vérifié : 365/365 jours non-null pour
 // Villa Tania le 2026-09-28), donc l'onglet Tarification peut proposer un vrai sélecteur de mois
@@ -40,6 +41,12 @@ export type TarificationReservation = {
   source: string; // origine : "manuel" (créée dans l'app, supprimable), "beds24", "superhote"...
   notes: string | null;
   enCours: boolean; // aujourd'hui tombe dans [checkIn, checkOut)
+  // Journal "qui a fait quoi" (voir src/lib/journal.ts) : quand la réservation a été ajoutée
+  // dans l'app (instant réel ISO), par qui (null si avant la mise en place du journal, le
+  // 16/10/2026) et si la fermeture des dates sur Beds24 a échoué à la création.
+  ajouteeLe?: string | null;
+  ajouteePar?: string | null;
+  beds24Echec?: boolean;
 };
 
 export type TarificationVilla = {
@@ -203,6 +210,7 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       canal: reservations.canal,
       source: reservations.source,
       notes: reservations.notes,
+      createdAt: reservations.createdAt,
     })
     .from(reservations)
     .where(
@@ -214,8 +222,11 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       )
     );
 
+  const creations = await creationsParReservation(rows.map((r) => r.id));
+
   for (const r of rows) {
     if (!r.villaId) continue;
+    const creation = creations.get(r.id);
     const checkIn = dateISO(new Date(r.checkIn));
     const checkOut = dateISO(new Date(r.checkOut));
     const list = parVilla.get(r.villaId) ?? [];
@@ -233,6 +244,9 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       source: r.source,
       notes: r.notes,
       enCours: checkIn <= aujourdhui && aujourdhui < checkOut,
+      ajouteeLe: creation?.createdAt ?? (r.createdAt ? new Date(r.createdAt).toISOString() : null),
+      ajouteePar: creation?.auteurNom ?? null,
+      beds24Echec: creation?.beds24Statut === "echec",
     });
     parVilla.set(r.villaId, list);
   }
