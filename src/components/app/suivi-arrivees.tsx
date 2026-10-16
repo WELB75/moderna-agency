@@ -24,6 +24,15 @@ import { cn } from "@/lib/utils";
 
 const NB_JOURS = 7;
 
+// Pas de voyageur à suivre : blocages (assistant "Blocage · ...", dates fermées iCal, résas Beds24
+// nommées "Blocage Airbnb"...) et séjours "Famille" (ni caution ni fiche police demandées) — même
+// esprit que estBlocage/ficheRequise dans security-data.ts.
+const NOM_SANS_VOYAGEUR = /^(blocage|date bloqu|not available|blocked|indisponible)/i;
+function aSuivre(r: { canal: string | null; guestName: string }): boolean {
+  const canal = r.canal ?? "";
+  return !canal.startsWith("Blocage") && canal !== "Famille" && !NOM_SANS_VOYAGEUR.test(r.guestName.trim());
+}
+
 type StatutTone = "ok" | "attente" | "urgent" | "neutre";
 
 type Statut = { tone: StatutTone; label: string; detail?: string };
@@ -132,7 +141,7 @@ export async function SuiviArrivees({ now }: { now: Date }) {
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .where(and(ne(reservations.status, "annulee"), gte(reservations.checkIn, debut), lte(reservations.checkIn, fin)))
       .orderBy(asc(reservations.checkIn))
-  ).filter((r) => villaEstGeree(r.villaNom));
+  ).filter((r) => villaEstGeree(r.villaNom) && aSuivre(r));
 
   const ids = arrivees.map((r) => r.id);
   const fiches =
