@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Search } from "lucide-react";
 import { CanalDot } from "@/components/app/canal-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
@@ -119,8 +119,6 @@ function MessageTexte({ text }: { text: string }) {
   );
 }
 
-const PAGE_SIZE = 20;
-
 export function InboxClient({
   conversations,
   initialKey,
@@ -133,7 +131,6 @@ export function InboxClient({
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"tous" | "a_repondre">("tous");
   const [channelFilter, setChannelFilter] = useState<InboxChannel | "all">("all");
-  const [page, setPage] = useState(0);
   const [selectedKey, setSelectedKey] = useState<string | null>(initialKey ?? conversations[0]?.key ?? null);
 
   const awaitingCount = conversations.filter((c) => c.awaitingReply).length;
@@ -159,9 +156,7 @@ export function InboxClient({
     });
   }, [conversations, query, tab, channelFilter]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, pageCount - 1);
-  const visible = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const visible = filtered;
   const selected = conversations.find((c) => c.key === selectedKey) ?? null;
 
   const aLire = selected && (!estMobile || mobileOuvert) && estNonLue(selected) ? selected.key : null;
@@ -174,6 +169,14 @@ export function InboxClient({
       })
       .catch(() => {});
   }, [aLire]);
+
+  // Le fil s'ouvre sur le message le plus récent (en bas), comme dans une messagerie.
+  const filMessagesRef = useRef<HTMLDivElement>(null);
+  const filCle = selected ? `${selected.key}:${selected.messages.length}` : "";
+  useEffect(() => {
+    const el = filMessagesRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [filCle, mobileOuvert]);
 
   // Traduction des messages des voyageurs Airbnb / Booking.com (cache par texte d'origine).
   const [traductions, setTraductions] = useState<Record<string, TraductionRecue>>({});
@@ -219,9 +222,9 @@ export function InboxClient({
   })();
 
   return (
-    <div className="flex h-[calc(100dvh-13rem)] min-h-[24rem] overflow-hidden rounded-xl border border-border bg-card md:h-[calc(100vh-19rem)] md:min-h-[32rem]">
+    <div className="flex h-[calc(100dvh-13rem)] min-h-[24rem] overflow-hidden rounded-xl border border-border bg-card md:h-[calc(100vh-9.5rem)] md:min-h-[32rem]">
       {/* Liste */}
-      <div className={cn("w-full shrink-0 flex-col border-r border-border md:flex md:max-w-sm", mobileOuvert ? "hidden" : "flex")}>
+      <div className={cn("w-full shrink-0 flex-col border-r border-border md:flex md:w-[24rem] lg:w-[28rem]", mobileOuvert ? "hidden" : "flex")}>
         <div className="space-y-3 border-b border-border p-4">
           <div>
             <p className="text-sm font-medium">
@@ -236,7 +239,6 @@ export function InboxClient({
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);
-                setPage(0);
               }}
               placeholder="Rechercher un voyageur, un logement..."
               className="h-11 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-base outline-none md:h-10 md:text-sm focus-visible:ring-2 focus-visible:ring-ring"
@@ -255,10 +257,9 @@ export function InboxClient({
                   type="button"
                   onClick={() => {
                     setTab(value);
-                    setPage(0);
                   }}
                   className={cn(
-                    "flex-1 rounded-md px-3 py-1.5 font-medium transition-colors",
+                    "flex-1 whitespace-nowrap rounded-md px-3 py-1.5 font-medium transition-colors",
                     tab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
                   )}
                 >
@@ -270,7 +271,6 @@ export function InboxClient({
               value={channelFilter}
               onChange={(e) => {
                 setChannelFilter(e.target.value as InboxChannel | "all");
-                setPage(0);
               }}
               className="h-11 rounded-lg border border-input bg-background px-2 text-base md:h-10 md:text-sm"
               aria-label="Filtrer par canal"
@@ -320,28 +320,6 @@ export function InboxClient({
             ))
           )}
         </div>
-
-        <div className="flex items-center justify-between border-t border-border p-3 text-sm">
-          <button
-            type="button"
-            disabled={safePage === 0}
-            onClick={() => setPage(safePage - 1)}
-            className="rounded-lg border border-input px-3 py-1.5 disabled:opacity-40"
-          >
-            ←
-          </button>
-          <span className="text-muted-foreground">
-            Page {safePage + 1} / {pageCount}
-          </span>
-          <button
-            type="button"
-            disabled={safePage >= pageCount - 1}
-            onClick={() => setPage(safePage + 1)}
-            className="rounded-lg border border-input px-3 py-1.5 disabled:opacity-40"
-          >
-            →
-          </button>
-        </div>
       </div>
 
       {/* Conversation */}
@@ -369,7 +347,7 @@ export function InboxClient({
               </div>
             </div>
 
-            <div className="flex-1 space-y-3 overflow-y-auto p-3 md:p-5">
+            <div ref={filMessagesRef} className="flex-1 space-y-3 overflow-y-auto p-3 md:p-5">
               {selected.messages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucun message dans cette conversation.</p>
               ) : (

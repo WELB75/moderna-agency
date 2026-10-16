@@ -13,8 +13,8 @@ export default async function MessagesPage({
   const { conv } = await searchParams;
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="space-y-4 md:space-y-3">
+      <div className="md:flex md:items-baseline md:gap-3">
         <h1 className="text-2xl font-semibold tracking-tight">Messages</h1>
         <p className="text-sm text-muted-foreground">Boîte de réception WhatsApp, Airbnb et Booking.com.</p>
       </div>
