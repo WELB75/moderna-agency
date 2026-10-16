@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gte, ilike, isNotNull, lte, ne, or } from "drizzle-
 import { addDays, subDays } from "date-fns";
 import { getDb } from "@/db";
 import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
+import { inboxReads } from "@/db/schema-recaps";
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
 import { beds24GetBookings, beds24GetMessagesBulk, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
@@ -394,6 +395,12 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
   }
 
   items.sort((a, b) => new Date(b.lastAt).getTime() - new Date(a.lastAt).getTime());
+
+  // Non lu = le voyageur a écrit en dernier ET la conversation n'a pas été ouverte depuis ce message.
+  const lectures = new Map((await db.select().from(inboxReads)).map((r) => [r.convKey, r.readAt.getTime()]));
+  for (const c of items) {
+    c.unread = c.awaitingReply && new Date(c.lastAt).getTime() > (lectures.get(c.key) ?? 0);
+  }
 
   return { items, notice };
 }

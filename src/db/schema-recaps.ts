@@ -23,3 +23,11 @@ export const reservationRecaps = pgTable("reservation_recaps", {
   remarqueInterne: text("remarque_interne"), // jamais affichée sur le lien public
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+// Suivi "lu" de la boîte de réception : une ligne par conversation (clé de l'inbox), avec l'heure
+// à laquelle elle a été ouverte. Une conversation est "non lue" si le dernier message du voyageur
+// est plus récent que cette heure. Alimente la pastille "Messages" du menu.
+export const inboxReads = pgTable("inbox_reads", {
+  convKey: text("conv_key").primaryKey(),
+  readAt: timestamp("read_at", { withTimezone: true }).defaultNow().notNull(),
+});

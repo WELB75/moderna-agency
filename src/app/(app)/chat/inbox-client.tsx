@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { ArrowLeft, Search } from "lucide-react";
 import { CanalDot } from "@/components/app/canal-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
 import { SOURCE_META } from "@/lib/canal";
 import { traduireMessagesRecus } from "@/lib/actions/traduction";
+import { marquerConversationLue } from "@/lib/actions/messages-lus";
+import { useEstMobile } from "@/lib/use-est-mobile";
 import type { TraductionRecue } from "@/lib/translate-ai";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +27,7 @@ export type InboxConversation = {
   lastAt: string; // ISO
   preview: string;
   awaitingReply: boolean;
+  unread?: boolean; // le voyageur a écrit en dernier et la conversation n'a pas encore été ouverte
   messages: InboxMessage[];
   phone: string | null;
   reservationId: string | null; // seulement pour Airbnb (réponse via Beds24)
@@ -135,6 +138,17 @@ export function InboxClient({
 
   const awaitingCount = conversations.filter((c) => c.awaitingReply).length;
 
+  // Mobile : une seule colonne à la fois, la liste puis (au toucher) la conversation avec un bouton
+  // retour. Ordinateur : liste et conversation côte à côte.
+  const estMobile = useEstMobile();
+  const [mobileOuvert, setMobileOuvert] = useState(Boolean(initialKey));
+
+  // Suivi "lu" : une conversation affichée à l'écran est marquée lue (la pastille du menu
+  // descend). Sur mobile, la conversation n'est "affichée" qu'une fois ouverte.
+  const [lus, setLus] = useState<Set<string>>(() => new Set());
+  const estNonLue = (c: InboxConversation) => Boolean(c.unread) && !lus.has(c.key);
+  const nonLusCount = conversations.filter(estNonLue).length;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return conversations.filter((c) => {
@@ -149,6 +163,17 @@ export function InboxClient({
   const safePage = Math.min(page, pageCount - 1);
   const visible = filtered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
   const selected = conversations.find((c) => c.key === selectedKey) ?? null;
+
+  const aLire = selected && (!estMobile || mobileOuvert) && estNonLue(selected) ? selected.key : null;
+  useEffect(() => {
+    if (!aLire) return;
+    marquerConversationLue(aLire)
+      .then(() => {
+        setLus((prev) => new Set(prev).add(aLire));
+        window.dispatchEvent(new Event("messages-lus"));
+      })
+      .catch(() => {});
+  }, [aLire]);
 
   // Traduction des messages des voyageurs Airbnb / Booking.com (cache par texte d'origine).
   const [traductions, setTraductions] = useState<Record<string, TraductionRecue>>({});
@@ -194,12 +219,13 @@ export function InboxClient({
   })();
 
   return (
-    <div className="flex h-[calc(100vh-19rem)] min-h-[32rem] overflow-hidden rounded-xl border border-border bg-card">
+    <div className="flex h-[calc(100dvh-13rem)] min-h-[24rem] overflow-hidden rounded-xl border border-border bg-card md:h-[calc(100vh-19rem)] md:min-h-[32rem]">
       {/* Liste */}
-      <div className="flex w-full max-w-sm shrink-0 flex-col border-r border-border">
+      <div className={cn("w-full shrink-0 flex-col border-r border-border md:flex md:max-w-sm", mobileOuvert ? "hidden" : "flex")}>
         <div className="space-y-3 border-b border-border p-4">
           <div>
             <p className="text-sm font-medium">
+              {nonLusCount > 0 ? `${nonLusCount} non lu${nonLusCount > 1 ? "s" : ""} · ` : ""}
               {awaitingCount === 0 ? "Rien à répondre" : `${awaitingCount} à répondre`}
             </p>
             {notice ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{notice}</p> : null}
@@ -213,7 +239,7 @@ export function InboxClient({
                 setPage(0);
               }}
               placeholder="Rechercher un voyageur, un logement..."
-              className="h-10 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="h-11 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-base outline-none md:h-10 md:text-sm focus-visible:ring-2 focus-visible:ring-ring"
             />
           </div>
           <div className="flex items-center gap-2">
@@ -246,7 +272,7 @@ export function InboxClient({
                 setChannelFilter(e.target.value as InboxChannel | "all");
                 setPage(0);
               }}
-              className="h-10 rounded-lg border border-input bg-background px-2 text-sm"
+              className="h-11 rounded-lg border border-input bg-background px-2 text-base md:h-10 md:text-sm"
               aria-label="Filtrer par canal"
             >
               <option value="all">Tous canaux</option>
@@ -265,9 +291,12 @@ export function InboxClient({
               <button
                 key={c.key}
                 type="button"
-                onClick={() => setSelectedKey(c.key)}
+                onClick={() => {
+                  setSelectedKey(c.key);
+                  setMobileOuvert(true);
+                }}
                 className={cn(
-                  "flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors",
+                  "flex w-full gap-3 border-b border-border px-4 py-3.5 text-left transition-colors md:py-3",
                   c.key === selectedKey ? "bg-accent" : "hover:bg-muted/60"
                 )}
               >
@@ -277,12 +306,12 @@ export function InboxClient({
                     <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", STATUS_CLASS[c.status])}>
                       {c.statusLabel}
                     </span>
-                    <span className={cn("shrink-0 text-xs", c.awaitingReply ? "font-semibold" : "text-muted-foreground")}>
+                    <span className={cn("shrink-0 text-xs", estNonLue(c) ? "font-semibold" : "text-muted-foreground")}>
                       {formatTime(c.lastAt)}
-                      {c.awaitingReply ? <span className="ml-1 text-destructive">•</span> : null}
+                      {estNonLue(c) ? <span className="ml-1 text-destructive">•</span> : null}
                     </span>
                   </div>
-                  <p className="truncate font-semibold">{c.name}</p>
+                  <p className={cn("truncate", estNonLue(c) ? "font-bold" : "font-semibold")}>{c.name}</p>
                   <p className="truncate text-sm text-muted-foreground">
                     {c.stay || c.logement ? [c.stay, c.logement].filter(Boolean).join(" · ") : c.preview}
                   </p>
@@ -316,10 +345,18 @@ export function InboxClient({
       </div>
 
       {/* Conversation */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={cn("min-w-0 flex-1 flex-col md:flex", mobileOuvert ? "flex" : "hidden")}>
         {selected ? (
           <>
-            <div className="flex items-center gap-3 border-b border-border px-5 py-3">
+            <div className="flex items-center gap-2 border-b border-border px-2 py-3 md:gap-3 md:px-5">
+              <button
+                type="button"
+                onClick={() => setMobileOuvert(false)}
+                aria-label="Retour à la liste des conversations"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-muted md:hidden"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
               <Avatar name={selected.name} channel={selected.channel} size="lg" />
               <div className="min-w-0">
                 <p className="truncate font-semibold">{selected.name}</p>
@@ -332,7 +369,7 @@ export function InboxClient({
               </div>
             </div>
 
-            <div className="flex-1 space-y-3 overflow-y-auto p-5">
+            <div className="flex-1 space-y-3 overflow-y-auto p-3 md:p-5">
               {selected.messages.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucun message dans cette conversation.</p>
               ) : (
@@ -340,7 +377,7 @@ export function InboxClient({
                   <div key={i} className={cn("flex", m.fromContact ? "justify-start" : "justify-end")}>
                     <div
                       className={cn(
-                        "max-w-[75%] rounded-2xl px-4 py-2 text-sm",
+                        "max-w-[88%] rounded-2xl px-3.5 py-2 text-sm md:max-w-[75%] md:px-4",
                         m.fromContact ? "bg-muted text-foreground" : "bg-primary text-primary-foreground",
                         m.tool && "text-xs italic opacity-80"
                       )}

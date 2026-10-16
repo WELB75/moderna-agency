@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 
-// Nombre de conversations à répondre (WhatsApp, Airbnb, Booking.com), rafraîchi toutes les
-// 2 minutes tant que l'onglet est visible — alimente la pastille "Messages" du menu.
+// Nombre de conversations non lues (WhatsApp, Airbnb, Booking.com), rafraîchi toutes les 2 minutes
+// tant que l'onglet est visible, et tout de suite quand une conversation est ouverte (évènement
+// "messages-lus") — alimente la pastille "Messages" du menu.
 export function useMessagesARepondre(): number {
   const [count, setCount] = useState(0);
   useEffect(() => {
@@ -22,10 +23,12 @@ export function useMessagesARepondre(): number {
     charger();
     const timer = setInterval(charger, 2 * 60 * 1000);
     document.addEventListener("visibilitychange", charger);
+    window.addEventListener("messages-lus", charger);
     return () => {
       annule = true;
       clearInterval(timer);
       document.removeEventListener("visibilitychange", charger);
+      window.removeEventListener("messages-lus", charger);
     };
   }, []);
   return count;

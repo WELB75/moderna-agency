@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useEstMobile } from "@/lib/use-est-mobile";
 import Image from "next/image";
 import Link from "next/link";
 import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO } from "date-fns";
@@ -298,19 +299,6 @@ type Dims = {
 };
 const DIMS_BUREAU: Dims = { col: 64, sidebar: 260, row: 64, headerMonth: 56, headerDays: 64, detailRow: 44, compact: false };
 const DIMS_MOBILE: Dims = { col: 52, sidebar: 104, row: 60, headerMonth: 48, headerDays: 56, detailRow: 44, compact: true };
-
-function subscribeMobile(cb: () => void) {
-  const mq = window.matchMedia("(max-width: 767px)");
-  mq.addEventListener("change", cb);
-  return () => mq.removeEventListener("change", cb);
-}
-function useEstMobile(): boolean {
-  return useSyncExternalStore(
-    subscribeMobile,
-    () => window.matchMedia("(max-width: 767px)").matches,
-    () => false,
-  );
-}
 
 // Lignes de détail affichées sous une villa dépliée, dans l'ordre de SuperHote v2.
 const LIGNES_DETAIL = [
