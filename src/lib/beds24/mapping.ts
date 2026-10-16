@@ -14,26 +14,30 @@ export type Beds24VillaMapping = {
   // true = jamais liée automatiquement (à faire à la main si besoin), mais gardée ici pour
   // mémoire des identifiants.
   skip?: boolean;
+  // Caution (EUR) demandée par le lien Stripe automatique de Beds24 : reprend le groupe de la
+  // propriété dans Beds24 (caution250/500/950/1000), qui choisit l'action automatique envoyée.
+  // Booking.com et Direct seulement (jamais Airbnb), voir cautionPrevue dans sync.ts.
+  caution: number;
 };
 
 export const BEDS24_VILLA_MAPPING: Beds24VillaMapping[] = [
-  { label: "Tania", keywords: ["Tania"], propertyId: 360239, roomId: 742727 },
-  { label: "Azur", keywords: ["Azur"], propertyId: 360233, roomId: 742721 },
-  { label: "Mama (N13)", keywords: ["Mama", "N13", "N 13"], propertyId: 360234, roomId: 742722 },
-  { label: "Maeva", keywords: ["Maeva"], propertyId: 360235, roomId: 742723 },
-  { label: "Livia", keywords: ["Livia"], propertyId: 360236, roomId: 742724 },
-  { label: "Mya", keywords: ["Mya"], propertyId: 360237, roomId: 742725 },
-  { label: "Lina", keywords: ["Lina"], propertyId: 360238, roomId: 742726 },
-  { label: "Sofya", keywords: ["Sofya"], propertyId: 360240, roomId: 742728 },
-  { label: "Gaspard", keywords: ["Gaspard"], propertyId: 360241, roomId: 742729 },
-  { label: "Lila", keywords: ["Lila", "Lilas"], propertyId: 360242, roomId: 742730 },
-  { label: "Amal", keywords: ["Amal"], propertyId: 360243, roomId: 742731 },
-  { label: "Nina", keywords: ["Nina"], propertyId: 360244, roomId: 742732 },
-  { label: "Mila", keywords: ["Mila"], propertyId: 360245, roomId: 742733 },
-  { label: "Jade", keywords: ["Jade"], propertyId: 360246, roomId: 742734 },
-  { label: "Nessya", keywords: ["Nessya"], propertyId: 360248, roomId: 742736 },
-  { label: "Wimiliim", keywords: ["Wimiliim", "Wimillim", "Villa 16"], propertyId: 360249, roomId: 742737 },
-  { label: "Eline", keywords: ["Eline"], propertyId: 360232, roomId: 742720, skip: true },
+  { label: "Tania", keywords: ["Tania"], propertyId: 360239, roomId: 742727, caution: 1000 },
+  { label: "Azur", keywords: ["Azur"], propertyId: 360233, roomId: 742721, caution: 950 },
+  { label: "Mama (N13)", keywords: ["Mama", "N13", "N 13"], propertyId: 360234, roomId: 742722, caution: 250 },
+  { label: "Maeva", keywords: ["Maeva"], propertyId: 360235, roomId: 742723, caution: 250 },
+  { label: "Livia", keywords: ["Livia"], propertyId: 360236, roomId: 742724, caution: 250 },
+  { label: "Mya", keywords: ["Mya"], propertyId: 360237, roomId: 742725, caution: 250 },
+  { label: "Lina", keywords: ["Lina"], propertyId: 360238, roomId: 742726, caution: 250 },
+  { label: "Sofya", keywords: ["Sofya"], propertyId: 360240, roomId: 742728, caution: 1000 },
+  { label: "Gaspard", keywords: ["Gaspard"], propertyId: 360241, roomId: 742729, caution: 1000 },
+  { label: "Lila", keywords: ["Lila", "Lilas"], propertyId: 360242, roomId: 742730, caution: 1000 },
+  { label: "Amal", keywords: ["Amal"], propertyId: 360243, roomId: 742731, caution: 500 },
+  { label: "Nina", keywords: ["Nina"], propertyId: 360244, roomId: 742732, caution: 250 },
+  { label: "Mila", keywords: ["Mila"], propertyId: 360245, roomId: 742733, caution: 250 },
+  { label: "Jade", keywords: ["Jade"], propertyId: 360246, roomId: 742734, caution: 500 },
+  { label: "Nessya", keywords: ["Nessya"], propertyId: 360248, roomId: 742736, caution: 1000 },
+  { label: "Wimiliim", keywords: ["Wimiliim", "Wimillim", "Villa 16"], propertyId: 360249, roomId: 742737, caution: 950 },
+  { label: "Eline", keywords: ["Eline"], propertyId: 360232, roomId: 742720, caution: 500, skip: true },
 ];
 
 // Minuscules, sans accents, tout ce qui n'est ni lettre ni chiffre remplacé par un espace —
