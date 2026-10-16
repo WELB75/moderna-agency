@@ -35,22 +35,17 @@ export async function DashboardOverview({ now }: { now: Date }) {
   const surPlace = resa.filter((r) => new Date(r.checkIn) < todayStart && new Date(r.checkOut) > todayEnd);
 
   return (
-    <div className="space-y-6">
-      <div>
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-6">
+      <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight">{prenom ? `Bonjour ${prenom}` : "Bonjour"} 👋</h1>
         <p className="text-sm text-muted-foreground">
-          {format(now, "EEEE d MMMM yyyy", { locale: fr })} — voici ce qui demande votre attention aujourd&apos;hui.
+          <span className="capitalize">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</span>
+          <span className="hidden md:inline"> — voici ce qui demande votre attention aujourd&apos;hui.</span>
         </p>
       </div>
 
-      <section className="space-y-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Votre journée</h2>
-          <Link href="/calendrier?vue=jour" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline">
-            Voir le calendrier du jour
-          </Link>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
+      <section className="md:w-[34rem] md:shrink-0" aria-label="Votre journée">
+        <div className="grid grid-cols-3 gap-2 md:gap-3">
           <DayStat icon={LogIn} label="Arrivées" count={arrivees.length} tone="emerald" />
           <DayStat icon={LogOut} label="Départs" count={departs.length} tone="amber" />
           <DayStat icon={BedDouble} label="Sur place" count={surPlace.length} tone="primary" />
@@ -70,13 +65,13 @@ function DayStat({ icon: Icon, label, count, tone }: { icon: LucideIcon; label: 
   return (
     <Link
       href="/calendrier?vue=jour"
-      className="flex items-center gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-primary/40 sm:p-4"
+      className="flex items-center gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-primary/40 md:px-3 md:py-2"
     >
-      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg", TONES[tone])}>
+      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg md:h-8 md:w-8", TONES[tone])}>
         <Icon className="h-4 w-4" />
       </span>
       <div className="min-w-0">
-        <p className="text-xl font-semibold tabular-nums sm:text-2xl">{count}</p>
+        <p className="text-xl font-semibold tabular-nums leading-tight">{count}</p>
         <p className="truncate text-xs text-muted-foreground sm:text-sm">{label}</p>
       </div>
     </Link>

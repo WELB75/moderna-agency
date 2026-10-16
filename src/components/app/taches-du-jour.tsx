@@ -86,6 +86,17 @@ function CarteSejour({ titre, icone, r, now }: { titre: string; icone: "out" | "
 
 export function TachesDuJour({ taches, now }: { taches: TacheJour[]; now: Date }) {
   const aFaire = taches.filter((t) => t.statut !== "fait").length;
+  if (taches.length === 0) {
+    // Rien à faire : une ligne fine plutôt qu'une grande carte vide.
+    return (
+      <Card className="h-full justify-center gap-0 py-3">
+        <CardContent className="flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span className="text-base font-medium">Tâches du jour</span>
+          <span className="text-muted-foreground">{format(now, "d MMMM", { locale: fr })} · aucune tâche aujourd&apos;hui</span>
+        </CardContent>
+      </Card>
+    );
+  }
   return (
     <Card>
       <CardHeader>

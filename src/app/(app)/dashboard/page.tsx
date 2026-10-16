@@ -532,22 +532,21 @@ export default async function DashboardPage({
   }
 
   return (
-    <div className="w-full max-w-full space-y-6 overflow-x-hidden">
+    <div className="w-full max-w-full space-y-4 overflow-x-hidden md:space-y-3">
       {/* Vue d'ensemble façon SuperHote v2 (performance du mois, actions à traiter, journée) —
           seulement sur la semaine en cours : elle parle d'aujourd'hui, pas de la semaine affichée. */}
       {offsetSemaines === 0 ? (
         <>
           <DashboardOverview now={now} />
-          <h2 className="border-t pt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          <h2 className="border-t pt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
             Opérations de la semaine
           </h2>
         </>
       ) : null}
-      {/* Une seule ligne de tête : navigateur de semaine + date en ligne (plus dessous), toutes
-          les icônes regroupées à droite — Kamel, 2026-09-08 : "je veux qu'il y ait toutes les
-          icônes listé là en haut [...] la date [...] tu me la mets propre sur le côté à côté de
-          cette semaine [...] raffiner vraiment partout". */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <Tabs defaultValue="Domaine Moderna II" className="space-y-3">
+        {/* Une seule ligne de tête sur ordinateur : navigateur de semaine, domaines (onglets) et
+            icônes d'options — Kamel, 2026-10-16 : "voir directement 2-3 jours à venir sans scroller". */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
             <Link
@@ -570,7 +569,7 @@ export default async function DashboardPage({
               <ChevronRight className="h-4 w-4" />
             </Link>
           </div>
-          <span className="text-sm text-muted-foreground">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</span>
+          <span className="text-sm text-muted-foreground md:hidden">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</span>
           {offsetSemaines !== 0 ? (
             <Link href="/dashboard" className="text-sm text-primary underline-offset-4 hover:underline">
               Aujourd&apos;hui
@@ -578,6 +577,18 @@ export default async function DashboardPage({
           ) : null}
         </div>
 
+
+          <TabsList className="order-3 h-11 w-full flex-nowrap justify-start gap-1 overflow-x-auto bg-muted p-1 md:order-none md:h-10 md:min-w-0 md:flex-1">
+            {DASHBOARD_DOMAINES.map((d) => (
+              <TabsTrigger
+                key={d}
+                value={d}
+                className="h-9 shrink-0 rounded-md px-4 text-sm font-semibold md:h-8 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
+              >
+                {d}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         {/* Actions de synchro/import : rarement utilisées au quotidien, donc repliées derrière
             un déclencheur discret plutôt que deux boutons pleine largeur en haut de l'accueil. */}
         <div className="flex items-center gap-2 self-start">
@@ -602,38 +613,25 @@ export default async function DashboardPage({
             </div>
           </details>
         </div>
-      </div>
-
       {/* Redondant sur desktop (le menu latéral donne déjà accès à tout, en toutes lettres) —
           utile seulement là où ce menu est masqué, donc tablette/smartphone. */}
-      <div className="md:hidden">
+      <div className="order-2 md:hidden">
         <MenuGrid unreadChatCount={unreadChatCount} />
       </div>
 
-      {/* Le domaine consulté détermine tout ce qui suit (check-in/out, villas libres, planning) —
-          Kamel, 2026-09-08 : "met les domaine en tout premier en haut stp, c'est le plus
-          important" : tout en haut de page, avant même les chiffres partagés. */}
-      <div className="space-y-1.5">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Domaine</p>
-        <Tabs defaultValue="Domaine Moderna II">
-          <TabsList className="h-12 w-full md:h-11 flex-nowrap justify-start gap-1 overflow-x-auto bg-muted p-1">
-            {DASHBOARD_DOMAINES.map((d) => (
-              <TabsTrigger
-                key={d}
-                value={d}
-                className="h-10 shrink-0 rounded-md px-4 md:h-9 text-sm font-semibold data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
-              >
-                {d}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+
+        </div>
 
         {DASHBOARD_DOMAINES.map((d) => (
-          <TabsContent key={d} value={d} className="space-y-6 pt-2">
-            {offsetSemaines === 0 ? (
-              <TachesDuJour taches={tachesDuJour.filter((t) => t.domaineNom === d)} now={now} />
-            ) : null}
-            <VillasLibresCard villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
+          <TabsContent key={d} value={d} className="space-y-3">
+            {/* Tâches du jour et villas libres côte à côte quand il n'y a pas de tâche (deux lignes
+                fines), sinon les tâches prennent toute la largeur. */}
+            <div className={tachesDuJour.some((t) => t.domaineNom === d) || offsetSemaines !== 0 ? "space-y-3" : "grid gap-3 lg:grid-cols-2"}>
+              {offsetSemaines === 0 ? (
+                <TachesDuJour taches={tachesDuJour.filter((t) => t.domaineNom === d)} now={now} />
+              ) : null}
+              <VillasLibresCard villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
+            </div>
             <PersonPanel
               reservations={upcomingByDomaine.get(d)!}
               maintenance={maintenanceByDomaine.get(d)!}
@@ -642,8 +640,7 @@ export default async function DashboardPage({
             />
           </TabsContent>
         ))}
-        </Tabs>
-      </div>
+      </Tabs>
     </div>
   );
 }
@@ -656,27 +653,16 @@ function VillasLibresCard({
   planVillas: PlanVilla[];
 }) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Villas libres en ce moment ({villas.length})</CardTitle>
-        {/* Plan du domaine réduit à une icône sur la même ligne que le titre (au lieu d'un bloc
-            "Voir le plan" permanent) — Kamel, 2026-08-17. Uniquement pour Moderna II, seul domaine
-            avec des positions de villas fiables (planVillas vide sinon). */}
-        {planVillas.length > 0 ? (
-          <CardAction>
-            <DomainePlanTrigger villas={planVillas} />
-          </CardAction>
-        ) : null}
-      </CardHeader>
-      <CardContent>
+    <Card className="h-full justify-center gap-0 py-3">
+      <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-base font-medium">Villas libres ({villas.length})</span>
+        {/* Juste le numéro, pas le nom de la villa (Kamel, 2026-08-17) : plus rapide à scanner. */}
         {villas.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Toutes tes villas sont occupées en ce moment.</p>
+          <span className="text-sm text-muted-foreground">Tout est occupé en ce moment.</span>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-1 flex-wrap gap-1.5">
             {villas.map((v) => (
               <Link key={v.id} href={`/villas/${v.id}`}>
-                {/* Juste le numéro, pas le nom de la villa (Kamel, 2026-08-17) : plus rapide à
-                    scanner d'un coup d'œil, le nom reste accessible sur la fiche villa. */}
                 <Badge
                   variant="outline"
                   className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
@@ -687,6 +673,8 @@ function VillasLibresCard({
             ))}
           </div>
         )}
+        {/* Plan du domaine : uniquement Moderna II (planVillas vide sinon). */}
+        {planVillas.length > 0 ? <DomainePlanTrigger villas={planVillas} /> : null}
       </CardContent>
     </Card>
   );
@@ -806,8 +794,19 @@ function DayCard({
     return { domaineName, checkIns: domaineCheckIns, checkOuts: domaineCheckOuts, items };
   });
 
+  if (total === 0) {
+    return (
+      <Card className="gap-0 py-3">
+        <CardContent className="flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span className="text-base font-medium capitalize">{title}</span>
+          <span className="text-muted-foreground">{format(date, "d MMMM", { locale: fr })} · rien à signaler</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
-    <Card>
+    <Card className="gap-3 py-3">
       <CardHeader>
         <CardTitle className="flex flex-wrap items-baseline gap-x-2 text-base">
           <span className="capitalize">{title}</span>
@@ -828,7 +827,7 @@ function DayCard({
           <>
             {/* Plus un pavé encadré : juste une légende légère au-dessus des cartes, moins lourd
                 visuellement (Kamel, 2026-08-17 : "ça fait trop pavé"). */}
-            <div className="mb-3 space-y-0.5">
+            <div className="mb-2 space-y-0.5">
               {domaineGroups.map((g) => (
                 <p key={g.domaineName} className="text-xs text-muted-foreground">
                   {buildResumeDomaine(g.domaineName, g.checkIns, g.checkOuts)}
