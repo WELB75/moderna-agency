@@ -22,6 +22,7 @@ import { deleteReservation } from "@/lib/actions/reservations";
 import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
 import { canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
+import { formatHeureMaroc } from "@/lib/journal-format";
 
 export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
   const [villasTarifs, setVillasTarifs] = useState(initialVillas);
@@ -939,6 +940,23 @@ function ReservationRecapDialog({
                   <span className="text-muted-foreground">Téléphone</span>
                   <PhoneLink phone={reservation.guestPhone} />
                 </div>
+              ) : null}
+              {reservation.ajouteeLe ? (
+                <div className="flex items-start justify-between gap-2">
+                  <span className="shrink-0 text-muted-foreground">Ajoutée</span>
+                  <span className="text-right font-medium">
+                    {formatHeureMaroc(reservation.ajouteeLe)}
+                    {reservation.ajouteePar ? (
+                      <span className="block text-xs font-normal text-muted-foreground">par {reservation.ajouteePar}</span>
+                    ) : null}
+                  </span>
+                </div>
+              ) : null}
+              {reservation.beds24Echec ? (
+                <p className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive">
+                  Attention : la fermeture des dates sur Beds24 a échoué à la création. Airbnb et Booking.com peuvent
+                  encore être ouverts : ouvre la réservation complète et clique sur « Refermer les dates ».
+                </p>
               ) : null}
               <div className="flex items-start justify-between gap-2">
                 <span className="shrink-0 text-muted-foreground">Note</span>

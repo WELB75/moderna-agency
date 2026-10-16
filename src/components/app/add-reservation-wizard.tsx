@@ -304,6 +304,14 @@ export function AddReservationWizard({
       try {
         const result = await createReservation(formData);
         toast.success("Réservation ajoutée.");
+        // Dates pas (ou pas sûrement) fermées sur Beds24 : alerte qui reste affichée tant qu'on ne
+        // la ferme pas, pour ne jamais croire à tort qu'Airbnb/Booking.com sont bloqués.
+        if (result.beds24Statut === "echec") {
+          toast.error(
+            `Attention : dates NON fermées sur Airbnb/Booking.com. ${result.beds24Detail} Ouvre la réservation et clique sur « Refermer les dates ».`,
+            { duration: Infinity }
+          );
+        }
         setCreatedReservationId(result.id);
         setShareToken(result.token ?? null);
         setStep(personnelStepIndex);
