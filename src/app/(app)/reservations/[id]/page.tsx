@@ -193,7 +193,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
 
   return (
     <div className="max-w-2xl space-y-4">
-      <Link href="/dashboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/dashboard" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground md:min-h-0">
         <ArrowLeft className="h-4 w-4" />
         Retour à l&apos;accueil
       </Link>

@@ -121,7 +121,7 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
 
   return (
     <div className="max-w-2xl space-y-4">
-      <Link href="/personnel" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/personnel" className="inline-flex min-h-11 items-center gap-1.5 text-sm md:min-h-0 text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-4 w-4" />
         Retour à Personnel
       </Link>
@@ -179,10 +179,10 @@ export default async function PersonnelDetailPage({ params }: { params: Promise<
                   {stats.details.map((d, i) => (
                     <div key={i} className="flex items-center justify-between gap-3 border border-border p-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium">
+                        <p className="break-words text-sm font-medium md:truncate">
                           {d.villaNom ? `${d.villaNom} (n°${d.villaNumero})` : "Villa non renseignée"}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="break-words text-xs text-muted-foreground md:truncate">
                           {d.guestName} · {format(d.date, "d MMM", { locale: fr })}
                         </p>
                       </div>

@@ -68,11 +68,11 @@ export default async function ClientsPage() {
               {clientsWithStays.map((c) => (
                 <div key={c.id} className="space-y-2 rounded-md border p-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <p className="font-medium">{c.nom}</p>
+                    <div className="min-w-0 space-y-1">
+                      <p className="break-words font-medium">{c.nom}</p>
                       <div className="flex flex-wrap items-center gap-1.5">
                         {c.telephone ? <PhoneLink phone={c.telephone} /> : null}
-                        {c.email ? <span className="text-sm text-muted-foreground">{c.email}</span> : null}
+                        {c.email ? <span className="break-all text-sm text-muted-foreground">{c.email}</span> : null}
                         {c.stays.length > 0 ? (
                           <Badge variant="secondary">
                             {c.stays.length} séjour{c.stays.length > 1 ? "s" : ""}
@@ -80,7 +80,7 @@ export default async function ClientsPage() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex shrink-0 items-center gap-2">
                       <EditClientDialog clientId={c.id} nom={c.nom} telephone={c.telephone} email={c.email} notes={c.notes} />
                       <ConfirmDeleteButton
                         action={deleteClient.bind(null, c.id)}
@@ -99,8 +99,8 @@ export default async function ClientsPage() {
                   {c.stays.length > 0 ? (
                     <div className="space-y-1 border-t pt-2 text-sm text-muted-foreground">
                       {c.stays.map((s) => (
-                        <div key={s.id} className="flex flex-wrap items-center justify-between gap-2">
-                          <span>
+                        <div key={s.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+                          <span className="min-w-0 break-words">
                             {s.villaNom ? `${s.villaNom} (n°${s.villaNumero})` : "Villa non renseignée"}
                             {s.guestName !== c.nom ? ` · réservé au nom de ${s.guestName}` : ""}
                           </span>

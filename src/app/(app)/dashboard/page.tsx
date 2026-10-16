@@ -552,7 +552,7 @@ export default async function DashboardPage({
           <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
             <Link
               href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded-md p-3.5 text-muted-foreground hover:bg-muted hover:text-foreground md:p-1.5"
               aria-label="Semaine précédente"
               title="Semaine précédente"
             >
@@ -563,7 +563,7 @@ export default async function DashboardPage({
             </h1>
             <Link
               href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
-              className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded-md p-3.5 text-muted-foreground hover:bg-muted hover:text-foreground md:p-1.5"
               aria-label="Semaine suivante"
               title="Semaine suivante"
             >
@@ -583,10 +583,10 @@ export default async function DashboardPage({
         <div className="flex items-center gap-2 self-start">
           <GlobalSearchOverlay />
           <details className="group relative">
-            <summary className="flex cursor-pointer list-none items-center justify-center border border-border p-2 text-muted-foreground marker:content-none hover:text-foreground">
+            <summary className="flex cursor-pointer list-none items-center justify-center border border-border p-3.5 md:p-2 text-muted-foreground marker:content-none hover:text-foreground">
               <MoreVertical className="h-4 w-4" />
             </summary>
-            <div className="absolute right-0 top-full z-20 mt-1 w-72 space-y-2 border border-border bg-popover p-3 shadow-lg">
+            <div className="absolute right-0 top-full z-20 mt-1 w-[min(18rem,calc(100vw-2rem))] space-y-2 border border-border bg-popover p-3 shadow-lg">
               <p className="text-xs font-medium text-muted-foreground">Options</p>
               <div className="flex flex-col gap-1.5">
                 <SyncIcalButton className="w-full" />
@@ -616,12 +616,12 @@ export default async function DashboardPage({
       <div className="space-y-1.5">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Domaine</p>
         <Tabs defaultValue="Domaine Moderna II">
-          <TabsList className="h-11 w-full flex-nowrap justify-start gap-1 overflow-x-auto bg-muted p-1">
+          <TabsList className="h-12 w-full md:h-11 flex-nowrap justify-start gap-1 overflow-x-auto bg-muted p-1">
             {DASHBOARD_DOMAINES.map((d) => (
               <TabsTrigger
                 key={d}
                 value={d}
-                className="h-9 shrink-0 rounded-md px-4 text-sm font-semibold data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
+                className="h-10 shrink-0 rounded-md px-4 md:h-9 text-sm font-semibold data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
               >
                 {d}
               </TabsTrigger>
@@ -733,9 +733,9 @@ function PersonPanel({
                 <Link
                   key={m.id}
                   href="/maintenance"
-                  className="flex items-center justify-between gap-3 rounded-md border p-3 hover:border-primary/50"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 hover:border-primary/50"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
                       <Wrench className="h-4 w-4" />
                     </div>
@@ -809,7 +809,7 @@ function DayCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-baseline gap-2 text-base">
+        <CardTitle className="flex flex-wrap items-baseline gap-x-2 text-base">
           <span className="capitalize">{title}</span>
           <span className="text-sm font-normal text-muted-foreground">
             {format(date, "d MMMM", { locale: fr })}

@@ -59,7 +59,7 @@ export function ContactsSection({
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline">{CONTACT_ROLE_LABELS[c.role] ?? c.role}</Badge>
-                    <p className="font-medium">{c.nom}</p>
+                    <p className="break-words font-medium">{c.nom}</p>
                     {!c.villaId && c.domaineId ? (
                       <Badge variant="secondary" className="text-xs">
                         Domaine entier
@@ -67,7 +67,7 @@ export function ContactsSection({
                     ) : null}
                   </div>
                   {c.telephone ? <PhoneLink phone={c.telephone} className="mt-1.5" /> : null}
-                  {c.notes ? <p className="mt-1 text-sm text-muted-foreground">{c.notes}</p> : null}
+                  {c.notes ? <p className="mt-1 break-words text-sm text-muted-foreground">{c.notes}</p> : null}
                   {count > 0 ? (
                     <p className="mt-1 text-xs text-muted-foreground">
                       {count} intervention{count > 1 ? "s" : ""} déjà réalisée{count > 1 ? "s" : ""}

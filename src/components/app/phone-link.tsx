@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 export function PhoneLink({ phone, className }: { phone: string; className?: string }) {
   return (
-    <Badge asChild variant="outline" className={cn("cursor-pointer", className)}>
+    <Badge asChild variant="outline" className={cn("cursor-pointer max-md:min-h-9 max-md:px-3 max-md:text-sm", className)}>
       <a href={toWhatsAppUrl(phone)} target="_blank" rel="noreferrer">
         <MessageCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
         {phone}

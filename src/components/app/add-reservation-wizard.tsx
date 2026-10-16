@@ -331,7 +331,7 @@ export function AddReservationWizard({
     <div className="relative">
       <div
         aria-hidden
-        className="search-ring-spin pointer-events-none absolute inset-[-15%] rounded-3xl opacity-40 blur-2xl"
+        className="search-ring-spin pointer-events-none max-md:hidden absolute inset-[-15%] rounded-3xl opacity-40 blur-2xl"
         style={{
           background: "conic-gradient(from 0deg, #93c5fd, #c4b5fd, #f9a8d4, #fdba74, #93c5fd)",
         }}
@@ -358,7 +358,7 @@ export function AddReservationWizard({
             >
               {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
             </div>
-            <span className={cn("text-xs font-medium", i === step ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+            <span className={cn("text-xs font-medium", i === step ? "text-foreground" : "hidden text-muted-foreground sm:inline")}>{label}</span>
             {i < STEPS.length - 1 ? <div className="h-px flex-1 bg-border" /> : null}
           </div>
         ))}
@@ -371,7 +371,7 @@ export function AddReservationWizard({
               <div className="space-y-1.5">
                 <Label>Domaine</Label>
                 <Select value={domaineId} onValueChange={handleDomaineChange}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full data-[size=default]:h-11 md:data-[size=default]:h-8">
                     <SelectValue placeholder="Choisir un domaine" />
                   </SelectTrigger>
                   <SelectContent>
@@ -387,7 +387,7 @@ export function AddReservationWizard({
             <div className="space-y-1.5">
               <Label>Logement</Label>
               <Select value={villaId} onValueChange={handleVillaChange} disabled={Boolean(domaines) && !domaineId}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full data-[size=default]:h-11 md:data-[size=default]:h-8">
                   <SelectValue placeholder={domaines && !domaineId ? "Choisis d'abord un domaine" : "Choisir un logement"} />
                 </SelectTrigger>
                 <SelectContent>
@@ -430,21 +430,21 @@ export function AddReservationWizard({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="checkInTime">Heure d&apos;arrivée</Label>
-                <Input id="checkInTime" type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
+                <Input className="h-11 md:h-8" id="checkInTime" type="time" value={checkInTime} onChange={(e) => setCheckInTime(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="checkOutTime">Heure de départ</Label>
-                <Input id="checkOutTime" type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} />
+                <Input className="h-11 md:h-8" id="checkOutTime" type="time" value={checkOutTime} onChange={(e) => setCheckOutTime(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="nbAdultes">Adultes</Label>
-                <Input id="nbAdultes" type="number" min="0" value={nbAdultes} onChange={(e) => setNbAdultes(e.target.value)} />
+                <Input className="h-11 md:h-8" id="nbAdultes" type="number" min="0" value={nbAdultes} onChange={(e) => setNbAdultes(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="nbEnfants">Enfants</Label>
-                <Input id="nbEnfants" type="number" min="0" value={nbEnfants} onChange={(e) => setNbEnfants(e.target.value)} />
+                <Input className="h-11 md:h-8" id="nbEnfants" type="number" min="0" value={nbEnfants} onChange={(e) => setNbEnfants(e.target.value)} />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -476,7 +476,7 @@ export function AddReservationWizard({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="guestName">{estClient ? "Nom du client" : "Nom (optionnel)"}</Label>
-              <Input
+              <Input className="h-11 md:h-8"
                 id="guestName"
                 value={guestName}
                 onChange={(e) => setGuestName(e.target.value)}
@@ -488,7 +488,7 @@ export function AddReservationWizard({
               <Label htmlFor="guestPhone">Téléphone</Label>
               <div className="flex gap-2">
                 <Select value={indicatif} onValueChange={setIndicatif}>
-                  <SelectTrigger className="w-28 shrink-0">
+                  <SelectTrigger className="w-28 shrink-0 data-[size=default]:h-11 md:data-[size=default]:h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -498,7 +498,7 @@ export function AddReservationWizard({
                     <SelectItem value="autre">Autre</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input
+                <Input className="h-11 md:h-8"
                   id="guestPhone"
                   value={phoneLocal}
                   onChange={(e) => setPhoneLocal(e.target.value)}
@@ -508,7 +508,7 @@ export function AddReservationWizard({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="guestEmail">Email (optionnel)</Label>
-              <Input id="guestEmail" type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
+              <Input className="h-11 md:h-8" id="guestEmail" type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} />
             </div>
           </div>
         ) : null}
@@ -524,7 +524,7 @@ export function AddReservationWizard({
               <div className="space-y-1.5">
                 <Label htmlFor="fraisMenageFamille">Frais de ménage de départ</Label>
                 <div className="flex items-center gap-2">
-                  <Input
+                  <Input className="h-11 md:h-8"
                     id="fraisMenageFamille"
                     type="number"
                     step="0.01"
@@ -533,7 +533,7 @@ export function AddReservationWizard({
                     onChange={(e) => setFraisMenage(e.target.value)}
                   />
                   <Select value={devisePaiement} onValueChange={(v) => setDevisePaiement(v as (typeof DEVISES)[number])}>
-                    <SelectTrigger className="w-28 shrink-0">
+                    <SelectTrigger className="w-28 shrink-0 data-[size=default]:h-11 md:data-[size=default]:h-8">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -580,7 +580,7 @@ export function AddReservationWizard({
                     Moyenne {Math.round((prixPl.total / prixPl.nuits) * 100) / 100} {prixPl.devise} / nuit
                     {prixPl.source === "cache" ? " · prix en cache (moins de 2 h)" : ""}
                     {" · "}
-                    <button type="button" className="underline underline-offset-2" onClick={() => setShowNuits((v) => !v)}>
+                    <button type="button" className="py-2 underline underline-offset-2 md:py-0" onClick={() => setShowNuits((v) => !v)}>
                       {showNuits ? "masquer le détail" : "voir le détail"}
                     </button>
                   </p>
@@ -615,7 +615,7 @@ export function AddReservationWizard({
                     if (prixPl?.ok) recalculerLoyer(prixPl.total, t, t === "aucune" ? "" : promoValeur);
                   }}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full data-[size=default]:h-11 md:data-[size=default]:h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -624,7 +624,7 @@ export function AddReservationWizard({
                     <SelectItem value="montant">Somme ({devisePaiement})</SelectItem>
                   </SelectContent>
                 </Select>
-                <Input
+                <Input className="h-11 md:h-8"
                   type="number"
                   step="0.01"
                   min="0"
@@ -647,7 +647,7 @@ export function AddReservationWizard({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="loyerTotal">Loyer total</Label>
-                <Input
+                <Input className="h-11 md:h-8"
                   id="loyerTotal"
                   type="number"
                   step="0.01"
@@ -662,7 +662,7 @@ export function AddReservationWizard({
               <div className="space-y-1.5">
                 <Label>Devise</Label>
                 <Select value={devisePaiement} onValueChange={(v) => setDevisePaiement(v as (typeof DEVISES)[number])}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full data-[size=default]:h-11 md:data-[size=default]:h-8">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -680,12 +680,12 @@ export function AddReservationWizard({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="avanceVersee">Avance déjà versée</Label>
-                <Input id="avanceVersee" type="number" step="0.01" min="0" value={avanceVersee} onChange={(e) => setAvanceVersee(e.target.value)} />
+                <Input className="h-11 md:h-8" id="avanceVersee" type="number" step="0.01" min="0" value={avanceVersee} onChange={(e) => setAvanceVersee(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label>Reste à récupérer</Label>
                 <Select value={modeReglement} onValueChange={(v) => setModeReglement(v as typeof modeReglement)}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="w-full data-[size=default]:h-11 md:data-[size=default]:h-8">
                     <SelectValue placeholder="Sur place / virement" />
                   </SelectTrigger>
                   <SelectContent>
@@ -715,7 +715,7 @@ export function AddReservationWizard({
             <div className="space-y-1.5">
               <Label>Moyen de paiement</Label>
               <Select value={moyenPaiement} onValueChange={setMoyenPaiement}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="w-full data-[size=default]:h-11 md:data-[size=default]:h-8">
                   <SelectValue placeholder="Optionnel" />
                 </SelectTrigger>
                 <SelectContent>
@@ -730,11 +730,11 @@ export function AddReservationWizard({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="caution">Caution</Label>
-                <Input id="caution" type="number" step="0.01" min="0" value={caution} onChange={(e) => setCaution(e.target.value)} />
+                <Input className="h-11 md:h-8" id="caution" type="number" step="0.01" min="0" value={caution} onChange={(e) => setCaution(e.target.value)} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="fraisMenage">Frais de ménage de départ</Label>
-                <Input id="fraisMenage" type="number" step="0.01" min="0" value={fraisMenage} onChange={(e) => setFraisMenage(e.target.value)} />
+                <Input className="h-11 md:h-8" id="fraisMenage" type="number" step="0.01" min="0" value={fraisMenage} onChange={(e) => setFraisMenage(e.target.value)} />
               </div>
             </div>
             <div className="space-y-1.5">
@@ -784,25 +784,26 @@ export function AddReservationWizard({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pb-[env(safe-area-inset-bottom)]">
         <Button
           type="button"
           variant="ghost"
+          className="h-11 px-4 md:h-8 md:px-2.5"
           disabled={step === 0 || step === personnelStepIndex}
           onClick={() => setStep((s) => Math.max(s - 1, 0))}
         >
           Précédent
         </Button>
         {step === personnelStepIndex ? (
-          <Button type="button" onClick={handleFinish}>
+          <Button type="button" className="h-11 px-6 md:h-8 md:px-2.5" onClick={handleFinish}>
             Terminé
           </Button>
         ) : step < prixStepIndex ? (
-          <Button type="button" onClick={handleNext}>
+          <Button type="button" className="h-11 px-6 md:h-8 md:px-2.5" onClick={handleNext}>
             Suivant
           </Button>
         ) : (
-          <Button type="button" disabled={isPending} onClick={handleSubmit}>
+          <Button type="button" className="h-11 px-6 md:h-8 md:px-2.5" disabled={isPending} onClick={handleSubmit}>
             {isPending ? "Ajout..." : "Créer la réservation"}
           </Button>
         )}
@@ -826,6 +827,7 @@ function ShareRecapCard({ token, guestName }: { token: string; guestName: string
           type="button"
           size="sm"
           variant="outline"
+          className="h-11 md:h-7"
           onClick={() => {
             navigator.clipboard
               .writeText(url)
@@ -835,7 +837,7 @@ function ShareRecapCard({ token, guestName }: { token: string; guestName: string
         >
           <Copy className="h-3.5 w-3.5" /> Copier le lien
         </Button>
-        <Button type="button" size="sm" variant="outline" asChild>
+        <Button type="button" size="sm" variant="outline" className="h-11 md:h-7" asChild>
           <a href={`https://wa.me/?text=${encodeURIComponent(texte)}`} target="_blank" rel="noopener noreferrer">
             <MessageCircle className="h-3.5 w-3.5" /> Envoyer par WhatsApp
           </a>

@@ -54,7 +54,7 @@ export default async function CalendrierPage({
                 : "Départs, arrivées et ménages à organiser, jour par jour."}
           </p>
         </div>
-        <nav className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1" aria-label="Vues du calendrier">
+        <nav className="flex w-full gap-1 overflow-x-auto rounded-lg border bg-card p-1 sm:w-auto" aria-label="Vues du calendrier">
           {VUES.map((v) => {
             const Icon = v.icon;
             return (
@@ -62,7 +62,7 @@ export default async function CalendrierPage({
                 key={v.key}
                 href={`/calendrier?vue=${v.key}`}
                 className={cn(
-                  "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+                  "inline-flex min-h-11 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors sm:min-h-0 sm:flex-none",
                   vue === v.key ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >

@@ -32,7 +32,7 @@ export function CopyLinkButton({
         variant="ghost"
         size="icon"
         onClick={handleCopy}
-        className="shrink-0"
+        className="shrink-0 max-md:size-11"
         aria-label={label}
         title={label}
       >
@@ -42,7 +42,7 @@ export function CopyLinkButton({
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" onClick={handleCopy}>
+    <Button type="button" variant="outline" size="sm" onClick={handleCopy} className="max-md:h-10">
       <Copy className="h-3.5 w-3.5" />
       {label}
     </Button>

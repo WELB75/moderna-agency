@@ -168,17 +168,17 @@ export default async function PublicPlanningPage({
           <div className="inline-flex items-center rounded-full bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.04] dark:bg-white/[0.04] dark:ring-white/[0.06]">
             <Link
               href={planningHref(token, subWeeks(debutSemaine, 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 md:h-7 md:w-7 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
               aria-label="Semaine précédente"
             >
               <ChevronLeft className="h-4 w-4" />
             </Link>
-            <p className="min-w-48 px-1.5 text-center text-sm font-medium capitalize">
+            <p className="min-w-36 px-1.5 sm:min-w-48 text-center text-sm font-medium capitalize">
               {format(debutSemaine, "d MMM", { locale: fr })} → {format(finSemaine, "d MMM yyyy", { locale: fr })}
             </p>
             <Link
               href={planningHref(token, addWeeks(debutSemaine, 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
+              className="flex h-11 w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 md:h-7 md:w-7 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
               aria-label="Semaine suivante"
             >
               <ChevronRight className="h-4 w-4" />

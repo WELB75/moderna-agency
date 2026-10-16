@@ -78,32 +78,33 @@ export function IdPhotoCapture({
               width={220}
               height={140}
               unoptimized
-              className="h-32 w-auto rounded-md border object-cover"
+              className="h-32 w-auto max-w-full rounded-md border object-cover"
             />
             <Button
               type="button"
               variant="destructive"
               size="icon"
-              className="absolute -right-2 -top-2 h-6 w-6"
+              className="absolute right-1 top-1 h-8 w-8 md:-right-2 md:-top-2 md:h-6 md:w-6"
               onClick={() => onChange("")}
             >
               <X className="h-3.5 w-3.5" />
             </Button>
           </div>
           <div className="flex flex-col gap-1">
-            <Button type="button" variant="outline" size="icon" onClick={() => handleRotate(-90)}>
+            <Button type="button" variant="outline" size="icon" className="size-11 md:size-8" onClick={() => handleRotate(-90)}>
               <RotateCcw className="h-3.5 w-3.5" />
             </Button>
-            <Button type="button" variant="outline" size="icon" onClick={() => handleRotate(90)}>
+            <Button type="button" variant="outline" size="icon" className="size-11 md:size-8" onClick={() => handleRotate(90)}>
               <RotateCw className="h-3.5 w-3.5" />
             </Button>
           </div>
         </div>
       ) : (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
           <Button
             type="button"
             variant="outline"
+            className="h-11 md:h-8"
             disabled={isProcessing}
             onClick={() => cameraInputRef.current?.click()}
           >
@@ -113,6 +114,7 @@ export function IdPhotoCapture({
           <Button
             type="button"
             variant="outline"
+            className="h-11 md:h-8"
             disabled={isProcessing}
             onClick={() => fileInputRef.current?.click()}
           >

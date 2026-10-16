@@ -53,8 +53,8 @@ export default async function ContratDocumentPage({ params }: { params: Promise<
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 print:p-0">
-      <div className="flex items-center justify-between print:hidden">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="flex min-w-0 items-center gap-2">
           <Logo size={40} />
           <div>
             <p className="font-semibold">Contrat de location saisonnière</p>

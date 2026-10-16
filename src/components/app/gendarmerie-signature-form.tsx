@@ -48,11 +48,11 @@ export function GendarmerieSignatureForm({
 
   if (!lang) {
     return (
-      <div className="mx-auto max-w-md space-y-4 py-12 text-center">
+      <div className="mx-auto max-w-md space-y-4 px-1 py-8 text-center md:py-12">
         <p className="text-lg font-medium">Choose your language / Choisissez votre langue / Kies uw taal / اختر لغتك</p>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(LANG_LABELS) as GendarmerieLang[]).map((l) => (
-            <Button key={l} variant="outline" onClick={() => setLang(l)}>
+            <Button key={l} variant="outline" className="h-12 text-base md:h-8 md:text-sm" onClick={() => setLang(l)}>
               {LANG_LABELS[l]}
             </Button>
           ))}
@@ -104,7 +104,7 @@ export function GendarmerieSignatureForm({
       <div className="space-y-4">
         {occupants.map((occupant, index) => (
           <Card key={occupant.id}>
-            <CardContent className="space-y-3 py-4">
+            <CardContent className="space-y-3 px-3 py-4 sm:px-4">
               <p className="font-medium">
                 {t.occupant} {index + 1}
               </p>
@@ -119,6 +119,7 @@ export function GendarmerieSignatureForm({
               <div className="space-y-1.5 border-t pt-3">
                 <Label>{t.signOnlyConfirmName}</Label>
                 <Input
+                  className="h-11 md:h-8"
                   value={noms[index] ?? ""}
                   onChange={(e) => setNoms((prev) => prev.map((n, i) => (i === index ? e.target.value : n)))}
                   dir={dir}
@@ -136,8 +137,8 @@ export function GendarmerieSignatureForm({
         ))}
       </div>
 
-      <div className="flex justify-end">
-        <Button type="button" disabled={isPending} onClick={handleSubmit}>
+      <div className="flex justify-end pb-[env(safe-area-inset-bottom)]">
+        <Button type="button" disabled={isPending} onClick={handleSubmit} className="h-12 w-full text-base md:h-8 md:w-auto md:text-sm">
           {isPending ? t.submitting : t.submit}
         </Button>
       </div>

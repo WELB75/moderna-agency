@@ -43,7 +43,7 @@ export function ProcedureCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setChecked({})}>
+          <Button variant="ghost" size="sm" className="h-10 md:h-7" onClick={() => setChecked({})}>
             <RotateCcw className="h-3.5 w-3.5" />
             Réinitialiser
           </Button>
@@ -57,7 +57,7 @@ export function ProcedureCard({
                 onCheckedChange={() => toggle(index)}
                 className="shrink-0"
               />
-              <span className={checked[index] ? "flex-1 text-sm line-through text-muted-foreground" : "flex-1 text-sm"}>
+              <span className={checked[index] ? "min-w-0 flex-1 break-words text-sm line-through text-muted-foreground" : "min-w-0 flex-1 break-words text-sm"}>
                 {etape}
               </span>
               <div className="flex shrink-0 gap-0.5">
@@ -65,7 +65,7 @@ export function ProcedureCard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="size-10 md:size-7"
                   disabled={isPending || index === 0}
                   onClick={() => startTransition(() => moveProcedureStep(procedure.id, index, "up"))}
                 >
@@ -75,7 +75,7 @@ export function ProcedureCard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7"
+                  className="size-10 md:size-7"
                   disabled={isPending || index === procedure.etapes.length - 1}
                   onClick={() => startTransition(() => moveProcedureStep(procedure.id, index, "down"))}
                 >
@@ -85,7 +85,7 @@ export function ProcedureCard({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  className="size-10 text-destructive hover:text-destructive md:size-7"
                   disabled={isPending}
                   onClick={() => startTransition(() => removeProcedureStep(procedure.id, index))}
                 >
@@ -108,7 +108,7 @@ export function ProcedureCard({
               }
             }}
           />
-          <Button type="button" variant="outline" size="icon" disabled={isPending} onClick={handleAdd}>
+          <Button type="button" variant="outline" size="icon" className="size-10 shrink-0 md:size-8" disabled={isPending} onClick={handleAdd}>
             <Plus className="h-4 w-4" />
           </Button>
         </div>

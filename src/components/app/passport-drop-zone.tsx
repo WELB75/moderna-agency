@@ -182,7 +182,7 @@ export function PassportDropZone({ domaines, villas }: { domaines: LieuDomaine[]
                 <CardContent className="space-y-3 py-4">
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 flex-1 truncate text-sm font-medium">{row.fileName}</p>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => removeRow(row.id)}>
+                    <Button type="button" variant="ghost" size="sm" className="max-md:size-11" onClick={() => removeRow(row.id)}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -210,10 +210,10 @@ export function PassportDropZone({ domaines, villas }: { domaines: LieuDomaine[]
                             className="h-28 w-auto rounded-md border object-cover"
                           />
                           <div className="flex flex-col gap-1">
-                            <Button type="button" variant="outline" size="icon" onClick={() => rotateRow(row.id, -90)}>
+                            <Button type="button" variant="outline" size="icon" className="max-md:size-11" onClick={() => rotateRow(row.id, -90)}>
                               <RotateCcw className="h-3.5 w-3.5" />
                             </Button>
-                            <Button type="button" variant="outline" size="icon" onClick={() => rotateRow(row.id, 90)}>
+                            <Button type="button" variant="outline" size="icon" className="max-md:size-11" onClick={() => rotateRow(row.id, 90)}>
                               <RotateCw className="h-3.5 w-3.5" />
                             </Button>
                           </div>

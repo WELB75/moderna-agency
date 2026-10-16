@@ -37,7 +37,7 @@ export function MarkPaidButton({
   }
 
   return (
-    <Button type="button" variant="outline" size="sm" disabled={isPending} onClick={handleClick}>
+    <Button type="button" variant="outline" size="sm" className="max-md:h-10" disabled={isPending} onClick={handleClick}>
       <CircleCheck className="h-3.5 w-3.5" />
       Marquer payé
     </Button>

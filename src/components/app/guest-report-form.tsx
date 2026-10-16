@@ -86,7 +86,7 @@ export function GuestReportForm({ token }: { token: string }) {
         onChange={(e) => setProbleme(e.target.value)}
         placeholder="Ex. La climatisation de la chambre ne fonctionne pas"
       />
-      <Button type="button" variant="outline" size="sm" disabled={uploading} asChild>
+      <Button type="button" variant="outline" size="sm" disabled={uploading} className="h-11 w-full md:h-7 md:w-auto" asChild>
         <label className="cursor-pointer">
           {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
           Ajouter une photo (optionnel)
@@ -105,14 +105,14 @@ export function GuestReportForm({ token }: { token: string }) {
           {attachments.map((a) => (
             <li key={a.url} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
               <span className="truncate">{a.name}</span>
-              <button type="button" onClick={() => removeAttachment(a.url)} className="shrink-0 text-muted-foreground hover:text-foreground">
+              <button type="button" onClick={() => removeAttachment(a.url)} className="-m-2 shrink-0 p-2 text-muted-foreground hover:text-foreground">
                 <X className="h-3.5 w-3.5" />
               </button>
             </li>
           ))}
         </ul>
       ) : null}
-      <Button type="button" disabled={isPending || uploading} className="w-full" onClick={handleSubmit}>
+      <Button type="button" disabled={isPending || uploading} className="h-12 w-full text-base md:h-8 md:text-sm" onClick={handleSubmit}>
         {isPending ? "Envoi..." : "Envoyer"}
       </Button>
     </div>

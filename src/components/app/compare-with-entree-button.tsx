@@ -43,7 +43,7 @@ export function CompareWithEntreeButton({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant="outline" size="sm" onClick={handleClick} disabled={isPending}>
+      <Button type="button" variant="outline" size="sm" className="h-10 md:h-7" onClick={handleClick} disabled={isPending}>
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
         {comparedAt ? "Relancer la comparaison" : "Comparer avec l'état d'entrée"}
       </Button>

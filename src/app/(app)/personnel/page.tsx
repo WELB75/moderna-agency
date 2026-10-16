@@ -792,18 +792,18 @@ export default async function PersonnelPage({
             <div className="inline-flex items-center rounded-full bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)] ring-1 ring-black/[0.04] dark:bg-white/[0.04] dark:ring-white/[0.06]">
               <Link
                 href={planningHref(subWeeks(debutSemaine, 1))}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground max-md:h-11 max-md:w-11 hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
                 aria-label="Semaine précédente"
                 title="Semaine précédente"
               >
                 <ChevronLeft className="h-4 w-4" />
               </Link>
-              <p className="min-w-48 px-1.5 text-center text-sm font-medium capitalize">
+              <p className="min-w-40 px-1.5 text-center text-sm font-medium capitalize md:min-w-48">
                 {format(debutSemaine, "d MMM", { locale: fr })} → {format(finSemaine, "d MMM yyyy", { locale: fr })}
               </p>
               <Link
                 href={planningHref(addWeeks(debutSemaine, 1))}
-                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
+                className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground max-md:h-11 max-md:w-11 hover:bg-[#2B1F33]/10 hover:text-[#2B1F33] dark:hover:bg-white/10 dark:hover:text-[#C0AECB]"
                 aria-label="Semaine suivante"
                 title="Semaine suivante"
               >
@@ -811,7 +811,7 @@ export default async function PersonnelPage({
               </Link>
             </div>
             {!isSameDay(debutSemaine, startOfWeek(now, { weekStartsOn: 1 })) ? (
-              <Link href="/personnel?onglet=planning" className="text-sm font-medium text-[#2B1F33] underline-offset-4 hover:underline dark:text-[#C0AECB]">
+              <Link href="/personnel?onglet=planning" className="inline-flex min-h-11 items-center text-sm font-medium text-[#2B1F33] underline-offset-4 hover:underline md:min-h-0 dark:text-[#C0AECB]">
                 Cette semaine
               </Link>
             ) : null}
@@ -825,8 +825,8 @@ export default async function PersonnelPage({
             BottomNav (z-50) et de AppHeader (z-40, sticky) — voir (app)/layout.tsx. TabsContent
             n'est monté que pour l'onglet actif (comportement par défaut de Radix Tabs), donc cet
             overlay disparaît complètement dès qu'on quitte l'onglet Carte. */}
-        <TabsContent value="carte" className="fixed inset-0 z-[70] flex flex-col overflow-y-auto bg-background">
-          <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b bg-background px-4 py-2.5">
+        <TabsContent value="carte" className="fixed inset-0 z-[70] flex flex-col overflow-y-auto bg-background pb-[env(safe-area-inset-bottom)]">
+          <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b bg-background px-4 py-2.5 max-md:pt-[calc(env(safe-area-inset-top)+0.625rem)]">
             <p className="text-sm font-medium">Carte du personnel</p>
             <CloseCarteButton />
           </div>
@@ -845,18 +845,18 @@ export default async function PersonnelPage({
               <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
                 <Link
                   href={statsPeriodeHref(vueStats === "annee" ? subYears(moisAncre, 1) : subMonths(moisAncre, 1), vueStats)}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground max-md:p-3"
                   aria-label={vueStats === "annee" ? "Année précédente" : "Mois précédent"}
                   title={vueStats === "annee" ? "Année précédente" : "Mois précédent"}
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Link>
-                <p className="min-w-32 px-1.5 text-center text-sm font-medium capitalize">
+                <p className="min-w-28 px-1.5 text-center text-sm font-medium capitalize md:min-w-32">
                   {vueStats === "annee" ? moisAncre.getFullYear() : format(moisAncre, "MMMM yyyy", { locale: fr })}
                 </p>
                 <Link
                   href={statsPeriodeHref(vueStats === "annee" ? addYears(moisAncre, 1) : addMonths(moisAncre, 1), vueStats)}
-                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground max-md:p-3"
                   aria-label={vueStats === "annee" ? "Année suivante" : "Mois suivant"}
                   title={vueStats === "annee" ? "Année suivante" : "Mois suivant"}
                 >
@@ -867,7 +867,7 @@ export default async function PersonnelPage({
                 <Link
                   href={statsPeriodeHref(moisAncre, "mois")}
                   className={cn(
-                    "rounded-md px-2.5 py-1",
+                    "rounded-md px-2.5 py-1 max-md:px-4 max-md:py-3",
                     vueStats === "mois" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -876,7 +876,7 @@ export default async function PersonnelPage({
                 <Link
                   href={statsPeriodeHref(moisAncre, "annee")}
                   className={cn(
-                    "rounded-md px-2.5 py-1",
+                    "rounded-md px-2.5 py-1 max-md:px-4 max-md:py-3",
                     vueStats === "annee" ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -885,7 +885,7 @@ export default async function PersonnelPage({
               </div>
               {(vueStats === "mois" && format(moisAncre, "yyyy-MM") !== format(now, "yyyy-MM")) ||
               (vueStats === "annee" && moisAncre.getFullYear() !== now.getFullYear()) ? (
-                <Link href="/personnel?onglet=statistiques" className="text-sm text-primary underline-offset-4 hover:underline">
+                <Link href="/personnel?onglet=statistiques" className="inline-flex min-h-11 items-center text-sm text-primary underline-offset-4 hover:underline md:min-h-0">
                   Aujourd&apos;hui
                 </Link>
               ) : null}
@@ -1075,9 +1075,9 @@ function RosterSection({
               const qualite = moyenneQualite(p.id);
               return (
               <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <Link href={`/personnel/${p.id}`} className="font-medium hover:underline">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Link href={`/personnel/${p.id}`} className="inline-block font-medium hover:underline max-md:py-2">
                       {p.nom}
                     </Link>
                     {!p.actif ? <Badge variant="outline">Inactif</Badge> : null}
@@ -1096,7 +1096,7 @@ function RosterSection({
                   {p.telephone ? <PhoneLink phone={p.telephone} /> : null}
                   {p.notes ? <p className="mt-0.5 text-sm text-muted-foreground">{p.notes}</p> : null}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <EditPersonnelDialog personnelId={p.id} nom={p.nom} telephone={p.telephone} notes={p.notes} />
                   <PersonnelActifToggle personnelId={p.id} actif={p.actif} />
                   <ConfirmDeleteButton
@@ -1163,7 +1163,7 @@ function Leaderboard({
                   >
                     {i + 1}
                   </span>
-                  <span className="flex-1 truncate font-medium">
+                  <span className="min-w-0 flex-1 break-words font-medium md:truncate">
                     {r.nom}
                     {!r.actif ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">(inactif)</span> : null}
                   </span>
@@ -1364,7 +1364,7 @@ function PaymentsSection({
                     <p className="font-medium">{r.nom}</p>
                     {!r.actif ? <Badge variant="outline">Inactif</Badge> : null}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge className="bg-amber-600 hover:bg-amber-600">{r.montant} MAD dus</Badge>
                     <MarkPaidButton affectationIds={r.affectationIds} personnelNom={r.nom} role={role} details={r.details} />
                   </div>
@@ -1373,11 +1373,11 @@ function PaymentsSection({
                     "c'est pour quoi ?" à chaque fois qu'un montant apparaît ici. */}
                 <div className="space-y-1 border-t pt-2 text-sm text-muted-foreground">
                   {r.details.map((d, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2">
-                      <span>
+                    <div key={i} className="flex items-start justify-between gap-2">
+                      <span className="min-w-0">
                         {d.villaNom ? `${d.villaNom} (n°${d.villaNumero})` : "Villa non renseignée"} · {d.guestName}
                       </span>
-                      <span>{d.montant} MAD</span>
+                      <span className="shrink-0">{d.montant} MAD</span>
                     </div>
                   ))}
                 </div>

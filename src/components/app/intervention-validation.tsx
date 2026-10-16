@@ -77,7 +77,7 @@ export function InterventionValidation({
               </span>
             ) : null}
             {!readOnly ? (
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setEditing(true)}>
+              <Button variant="ghost" size="icon" className="size-9 md:size-6" onClick={() => setEditing(true)}>
                 <Pencil className="h-3 w-3" />
               </Button>
             ) : null}
@@ -92,7 +92,7 @@ export function InterventionValidation({
               variant={choice === "accepte" ? "default" : "outline"}
               size="sm"
               onClick={() => setChoice("accepte")}
-              className={choice === "accepte" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
+              className={cn("h-10 md:h-7", choice === "accepte" && "bg-emerald-600 hover:bg-emerald-700")}
             >
               <Check className="h-3.5 w-3.5" />
               Accepté
@@ -101,6 +101,7 @@ export function InterventionValidation({
               type="button"
               variant={choice === "refuse" ? "destructive" : "outline"}
               size="sm"
+              className="h-10 md:h-7"
               onClick={() => setChoice("refuse")}
             >
               <X className="h-3.5 w-3.5" />
@@ -114,11 +115,11 @@ export function InterventionValidation({
             placeholder="Note (optionnelle)"
           />
           <div className="flex gap-2">
-            <Button type="button" size="sm" disabled={isPending} onClick={handleSubmit}>
+            <Button type="button" size="sm" className="h-10 md:h-7" disabled={isPending} onClick={handleSubmit}>
               {isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
             {validationStatut ? (
-              <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
+              <Button type="button" variant="ghost" size="sm" className="h-10 md:h-7" onClick={() => setEditing(false)}>
                 Annuler
               </Button>
             ) : null}

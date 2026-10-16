@@ -34,14 +34,14 @@ export function StockRow({
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
-      <span className="text-sm">{label}</span>
+      <span className="min-w-0 break-words text-sm">{label}</span>
       {editing ? (
-        <div className="flex items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
           <Button
             type="button"
             variant="outline"
             size="icon"
-            className="h-7 w-7"
+            className="size-10 md:size-7"
             disabled={isPending}
             onClick={() => save(value - 1)}
           >
@@ -52,13 +52,13 @@ export function StockRow({
             min="0"
             value={value}
             onChange={(e) => setValue(Number(e.target.value))}
-            className="h-7 w-14 text-center"
+            className="h-10 w-16 text-center md:h-7 md:w-14"
           />
           <Button
             type="button"
             variant="outline"
             size="icon"
-            className="h-7 w-7"
+            className="size-10 md:size-7"
             disabled={isPending}
             onClick={() => save(value + 1)}
           >
@@ -67,7 +67,7 @@ export function StockRow({
           <Button
             type="button"
             size="icon"
-            className="h-7 w-7"
+            className="size-10 md:size-7"
             disabled={isPending}
             onClick={() => save(value)}
           >
@@ -81,7 +81,7 @@ export function StockRow({
             setValue(quantite);
             setEditing(true);
           }}
-          className="flex items-center gap-2 rounded-md px-2 py-1 text-sm font-semibold hover:bg-muted"
+          className="flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 py-1 text-sm font-semibold hover:bg-muted md:min-h-0 md:px-2"
         >
           {quantite}
           <Pencil className="h-3 w-3 text-muted-foreground" />

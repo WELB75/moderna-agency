@@ -33,7 +33,7 @@ export function PaymentForm({
       setStripe(s);
       const elements = s.elements();
       const card = elements.create("card", {
-        style: { base: { fontSize: "14px", color: "#18181b", "::placeholder": { color: "#a1a1aa" } } },
+        style: { base: { fontSize: "16px", color: "#18181b", "::placeholder": { color: "#a1a1aa" } } },
       });
       card.mount(cardMountRef.current);
       card.on("ready", () => setCardReady(true));
@@ -104,7 +104,7 @@ export function PaymentForm({
       <button
         type="submit"
         disabled={!cardReady || submitting}
-        className="w-full rounded-md bg-[#18181b] py-2.5 text-sm font-medium text-white transition-opacity disabled:opacity-50 dark:bg-white dark:text-[#18181b]"
+        className="w-full rounded-md bg-[#18181b] py-3.5 text-base font-medium text-white md:py-2.5 md:text-sm transition-opacity disabled:opacity-50 dark:bg-white dark:text-[#18181b]"
       >
         {submitting ? "Paiement en cours..." : "Payer maintenant"}
       </button>

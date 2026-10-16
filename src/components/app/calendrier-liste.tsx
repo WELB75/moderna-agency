@@ -86,13 +86,13 @@ export async function CalendrierListe({ filtre, now }: { filtre: FiltreListe; no
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1">
+      <div className="-mx-4 flex gap-1 overflow-x-auto rounded-none border-x-0 border-y bg-card p-1 sm:mx-0 sm:rounded-lg sm:border-x">
         {FILTRES.map((f) => (
           <Link
             key={f.key}
             href={`/calendrier?vue=liste${f.key !== "a-venir" ? `&filtre=${f.key}` : ""}`}
             className={cn(
-              "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+              "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors md:min-h-0",
               filtre === f.key ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
@@ -115,7 +115,48 @@ export async function CalendrierListe({ filtre, now }: { filtre: FiltreListe; no
         {liste.length === 0 ? (
           <p className="px-4 py-10 text-center text-sm text-muted-foreground">Aucune réservation dans cet onglet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ul className="divide-y md:hidden">
+            {liste.map((r) => {
+              const nuits = differenceInCalendarDays(r.checkOut, r.checkIn);
+              const loyer = r.loyerTotal ? Number(r.loyerTotal) : 0;
+              const paye = r.montantPaye ? Number(r.montantPaye) : 0;
+              const voyageurs = (r.nbAdultes ?? 0) + (r.nbEnfants ?? 0) || r.guestsCount || null;
+              return (
+                <li key={r.id}>
+                  <Link href={`/reservations/${r.id}`} className="block space-y-2 px-4 py-3 active:bg-muted/60">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">{r.guestName}</p>
+                        <p className="text-xs text-muted-foreground">{r.villaNom ?? "—"}</p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <p className="text-sm font-medium tabular-nums">
+                          {loyer > 0 ? montantFmt(loyer, r.devisePaiement) : <span className="text-muted-foreground">—</span>}
+                        </p>
+                        <CanalBadge canal={r.canal} />
+                      </div>
+                    </div>
+                    <p className="text-sm">
+                      {format(r.checkIn, "EEE d MMM", { locale: fr })} {formatUtcTime(r.checkIn)} → {format(r.checkOut, "EEE d MMM", { locale: fr })} {formatUtcTime(r.checkOut)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {voyageurs ? `${voyageurs} voyageur${voyageurs > 1 ? "s" : ""} · ` : ""}
+                      {nuits} nuit{nuits > 1 ? "s" : ""}
+                    </p>
+                    <PaiementChip
+                      prepaye={estPrepayeeParPlateforme(r.canal)}
+                      loyer={loyer}
+                      paye={paye}
+                      devise={r.devisePaiement}
+                      cautionDue={cautionEnAttente(r, now)}
+                    />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] text-left">
               <thead>
                 <tr className="border-b bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -203,6 +244,7 @@ export async function CalendrierListe({ filtre, now }: { filtre: FiltreListe; no
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>

@@ -158,22 +158,22 @@ export async function CalendrierJour({ date, onglet, now }: { date: Date; onglet
     <div className="space-y-4">
       {/* Navigation jour par jour + bandeau des 7 jours */}
       <div className="flex flex-wrap items-center gap-2">
-        <Link href={lienJour(addDays(jour, -1))} className="rounded-md border bg-card p-1.5 text-muted-foreground hover:text-foreground" aria-label="Jour précédent">
+        <Link href={lienJour(addDays(jour, -1))} className="flex h-11 w-11 items-center justify-center rounded-md border bg-card text-muted-foreground md:block md:h-auto md:w-auto md:p-1.5 hover:text-foreground" aria-label="Jour précédent">
           <ChevronLeft className="h-4 w-4" />
         </Link>
         <Link
           href={lienJour(now)}
           className={cn(
-            "rounded-md border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted",
+            "flex h-11 items-center rounded-md border bg-card px-3 py-1.5 text-sm font-medium hover:bg-muted md:block md:h-auto",
             isSameDay(jour, now) && "border-primary/40 text-primary"
           )}
         >
           Aujourd&apos;hui
         </Link>
-        <Link href={lienJour(addDays(jour, 1))} className="rounded-md border bg-card p-1.5 text-muted-foreground hover:text-foreground" aria-label="Jour suivant">
+        <Link href={lienJour(addDays(jour, 1))} className="flex h-11 w-11 items-center justify-center rounded-md border bg-card text-muted-foreground md:block md:h-auto md:w-auto md:p-1.5 hover:text-foreground" aria-label="Jour suivant">
           <ChevronRight className="h-4 w-4" />
         </Link>
-        <span className="ml-1 text-sm font-medium first-letter:uppercase">{format(jour, "EEEE d MMMM yyyy", { locale: fr })}</span>
+        <span className="w-full text-sm font-medium first-letter:uppercase sm:ml-1 sm:w-auto">{format(jour, "EEEE d MMMM yyyy", { locale: fr })}</span>
       </div>
 
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
@@ -184,7 +184,7 @@ export async function CalendrierJour({ date, onglet, now }: { date: Date; onglet
               key={jourKey(d)}
               href={lienJour(d)}
               className={cn(
-                "min-w-[9.5rem] flex-1 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/40",
+                "min-w-[9.5rem] flex-1 shrink-0 rounded-lg border bg-card px-3 py-2 transition-colors hover:border-primary/40",
                 actif && "border-primary bg-primary/5 ring-1 ring-primary/30"
               )}
             >
@@ -213,13 +213,13 @@ export async function CalendrierJour({ date, onglet, now }: { date: Date; onglet
       </div>
 
       {/* Onglets */}
-      <div className="flex flex-wrap gap-1 rounded-lg border bg-card p-1">
+      <div className="flex gap-1 overflow-x-auto rounded-lg border bg-card p-1 md:flex-wrap md:overflow-visible">
         {onglets.map((o) => (
           <Link
             key={o.key}
             href={lienJour(jour, o.key)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+              "inline-flex min-h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors md:min-h-0",
               onglet === o.key ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
           >
@@ -385,7 +385,20 @@ function Section({
       {lignes.length === 0 ? (
         <p className="px-4 py-6 text-center text-sm text-muted-foreground">{vide}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <>
+        <ul className="divide-y md:hidden">
+          {lignes.map((l) => (
+            <li key={l.id} className="relative space-y-2 px-4 py-3">
+              {l.cellules.map((c, i) => (
+                <div key={i} className={cn(i > 0 && "flex items-start justify-between gap-3 text-sm")}>
+                  {i > 0 ? <span className="shrink-0 pt-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">{colonnes[i]}</span> : null}
+                  {i > 0 ? <div className="min-w-0 text-right">{c}</div> : c}
+                </div>
+              ))}
+            </li>
+          ))}
+        </ul>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[640px] text-left">
             <thead>
               <tr className="border-b text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -415,6 +428,7 @@ function Section({
             </tbody>
           </table>
         </div>
+        </>
       )}
     </section>
   );
@@ -437,8 +451,8 @@ function HebergementCell({ r, badge }: { r: Resa; badge?: string }) {
         <CanalDot canal={r.canal} size="sm" className="absolute -right-1.5 -bottom-1.5 ring-2 ring-card" />
       </span>
       <div className="min-w-0 leading-tight">
-        <p className="flex items-center gap-1.5 truncate text-sm font-medium">
-          <span className="truncate">{r.villaNom ?? "Logement non rattaché"}</span>
+        <p className="flex items-center gap-1.5 text-sm font-medium md:truncate">
+          <span className="md:truncate">{r.villaNom ?? "Logement non rattaché"}</span>
           {badge ? (
             <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-primary">
               <RefreshCcw className="h-2.5 w-2.5" />
@@ -446,7 +460,7 @@ function HebergementCell({ r, badge }: { r: Resa; badge?: string }) {
             </span>
           ) : null}
         </p>
-        <p className="truncate text-xs text-muted-foreground">
+        <p className="text-xs text-muted-foreground md:truncate">
           {r.guestName}
           {r.domaineNom ? ` · ${r.domaineNom}` : ""}
         </p>

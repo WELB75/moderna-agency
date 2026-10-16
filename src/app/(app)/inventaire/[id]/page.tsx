@@ -128,7 +128,7 @@ export default async function ChecklistDetailPage({ params }: { params: Promise<
   return (
     <div className="space-y-6 pb-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">
             {checklist.type === "entree" ? "État des lieux d'entrée" : "État des lieux de sortie"}
           </h1>

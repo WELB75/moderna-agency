@@ -41,7 +41,7 @@ export default async function AppartementsPage() {
             {allAppartements.length} appartement(s) enregistré(s)
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <AddDomaineDialog />
           <AddVillaDialog domaines={allDomaines} type="appartement" />
         </div>
@@ -71,14 +71,14 @@ export default async function AppartementsPage() {
                   </div>
                 ) : null}
                 <CardHeader className="flex flex-row items-center justify-between gap-2 pt-6">
-                  <div>
+                  <div className="min-w-0">
                     {appartement.domaineNom ? (
                       <DomaineBadge nom={appartement.domaineNom} className="mb-1 text-xs" />
                     ) : null}
-                    <CardTitle className="text-base">{appartement.nom}</CardTitle>
+                    <CardTitle className="break-words text-base">{appartement.nom}</CardTitle>
                     <p className="text-sm text-muted-foreground">Appartement n°{appartement.numero}</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2 pb-6">
                   {appartement.icalUrl ? (
@@ -87,7 +87,7 @@ export default async function AppartementsPage() {
                     <Badge variant="outline">Non lié à Superhote</Badge>
                   )}
                   {appartement.adresse ? (
-                    <span className="text-xs text-muted-foreground">{appartement.adresse}</span>
+                    <span className="min-w-0 break-words text-xs text-muted-foreground">{appartement.adresse}</span>
                   ) : null}
                 </CardContent>
               </Card>

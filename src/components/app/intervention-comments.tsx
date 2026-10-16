@@ -149,7 +149,7 @@ export function InterventionComments({
         <div className="space-y-1">
           <p className="text-xs text-muted-foreground">Vous écrivez en tant que :</p>
           <Select value={selectedAuteur} onValueChange={handleAuteurChange}>
-            <SelectTrigger className="h-8 w-40 text-sm">
+            <SelectTrigger className="h-10 w-40 text-sm md:h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -170,7 +170,7 @@ export function InterventionComments({
               <button
                 type="button"
                 onClick={() => setPendingAttachments((prev) => prev.filter((u) => u !== url))}
-                className="text-muted-foreground hover:text-destructive"
+                className="-m-2 p-2 text-muted-foreground hover:text-destructive"
                 aria-label="Retirer"
               >
                 <X className="h-3 w-3" />
@@ -192,6 +192,7 @@ export function InterventionComments({
           type="button"
           size="icon"
           variant="outline"
+          className="size-11 md:size-8"
           disabled={uploading}
           onClick={() => fileInputRef.current?.click()}
           aria-label="Joindre une photo, vidéo ou audio"
@@ -204,9 +205,9 @@ export function InterventionComments({
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Écrire un message..."
           rows={2}
-          className="flex-1"
+          className="flex-1 text-base md:text-sm"
         />
-        <Button type="button" size="icon" disabled={isPending || uploading} onClick={handleSend}>
+        <Button type="button" size="icon" className="size-11 md:size-8" disabled={isPending || uploading} onClick={handleSend}>
           <Send className="h-4 w-4" />
         </Button>
       </div>
@@ -289,7 +290,7 @@ export function CommentItem({
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded p-2.5 text-muted-foreground md:p-1 hover:bg-muted hover:text-foreground"
               aria-label="Modifier"
             >
               <Pencil className="h-3 w-3" />
@@ -298,7 +299,7 @@ export function CommentItem({
               type="button"
               onClick={handleDelete}
               disabled={isPending}
-              className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
+              className="rounded p-2.5 text-muted-foreground md:p-1 hover:bg-muted hover:text-destructive"
               aria-label="Supprimer"
             >
               <Trash2 className="h-3 w-3" />
@@ -310,7 +311,7 @@ export function CommentItem({
         <div className="mt-1 space-y-1.5">
           {authorOptions ? (
             <Select value={editAuteur} onValueChange={setEditAuteur}>
-              <SelectTrigger className="h-8 w-40 text-sm">
+              <SelectTrigger className="h-10 w-40 text-sm md:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -326,10 +327,10 @@ export function CommentItem({
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
             rows={2}
-            className="text-sm"
+            className="text-base md:text-sm"
           />
           <div className="flex gap-1.5">
-            <Button type="button" size="sm" disabled={isPending} onClick={handleSave}>
+            <Button type="button" size="sm" className="h-10 md:h-7" disabled={isPending} onClick={handleSave}>
               <Check className="h-3.5 w-3.5" />
               Enregistrer
             </Button>

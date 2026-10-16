@@ -41,7 +41,7 @@ export function VillaStockPanel({
   return (
     <div className="space-y-4">
       <Select value={villaId} onValueChange={setVillaId}>
-        <SelectTrigger className="w-full sm:w-72">
+        <SelectTrigger className="h-11 w-full sm:w-72 md:h-8">
           <SelectValue placeholder="Sélectionner une villa" />
         </SelectTrigger>
         <SelectContent>

@@ -72,7 +72,7 @@ export function EditVillaInfoDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" className="h-10 md:h-7">
           <Pencil className="h-4 w-4" />
           Modifier
         </Button>
@@ -86,7 +86,7 @@ export function EditVillaInfoDialog({
           <div className="space-y-1.5">
             <Label>Domaine</Label>
             <Select value={selectedDomaine} onValueChange={setSelectedDomaine}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-11 w-full md:h-8">
                 <SelectValue placeholder="Aucun / sélectionner un domaine" />
               </SelectTrigger>
               <SelectContent>
@@ -101,16 +101,16 @@ export function EditVillaInfoDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="numero">Numéro</Label>
-              <Input id="numero" name="numero" defaultValue={numero} required />
+              <Input id="numero" name="numero" defaultValue={numero} required className="h-11 md:h-8" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="nom">Nom</Label>
-              <Input id="nom" name="nom" defaultValue={nom} required />
+              <Input id="nom" name="nom" defaultValue={nom} required className="h-11 md:h-8" />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="adresse">Adresse (ou lien Google Maps si pas d&apos;adresse précise)</Label>
-            <Input id="adresse" name="adresse" defaultValue={adresse ?? ""} placeholder="Ex. https://maps.app.goo.gl/..." />
+            <Input id="adresse" name="adresse" defaultValue={adresse ?? ""} placeholder="Ex. https://maps.app.goo.gl/..." className="h-11 md:h-8" />
           </div>
           {isAppartement && (
             <div className="space-y-1.5">
@@ -119,8 +119,7 @@ export function EditVillaInfoDialog({
                 id="numeroImmeuble"
                 name="numeroImmeuble"
                 defaultValue={numeroImmeuble ?? ""}
-                placeholder="Ex. Immeuble B"
-              />
+                placeholder="Ex. Immeuble B" className="h-11 md:h-8" />
             </div>
           )}
           <div className="space-y-1.5">
@@ -129,8 +128,7 @@ export function EditVillaInfoDialog({
               id="portailAuteurs"
               name="portailAuteurs"
               defaultValue={(portailAuteurs ?? []).join(", ")}
-              placeholder="Ex. Lila, Kamel, Mustapha"
-            />
+              placeholder="Ex. Lila, Kamel, Mustapha" className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="notes">Notes internes (ex. qui gère le ménage/la cuisine ici)</Label>
@@ -150,15 +148,14 @@ export function EditVillaInfoDialog({
               id="personnelPayeParProprietaireNoms"
               name="personnelPayeParProprietaireNoms"
               defaultValue={(personnelPayeParProprietaireNoms ?? []).join(", ")}
-              placeholder="Ex. Khaoula, Aisha"
-            />
+              placeholder="Ex. Khaoula, Aisha" className="h-11 md:h-8" />
             <p className="text-xs text-muted-foreground">
               Uniquement pour ces personnes précises sur cette villa : masque leurs montants et
               désactive le paiement via le système. Le reste de l&apos;équipe reste payé normalement.
             </p>
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+            <Button type="submit" disabled={isPending} className="h-11 w-full sm:w-auto md:h-8">
               {isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </DialogFooter>

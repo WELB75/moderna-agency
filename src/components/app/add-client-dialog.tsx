@@ -37,7 +37,7 @@ export function AddClientDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" className="h-10 md:h-7">
           <Plus className="h-4 w-4" />
           Ajouter
         </Button>
@@ -50,22 +50,22 @@ export function AddClientDialog() {
         <form action={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="nom">Nom complet</Label>
-            <Input id="nom" name="nom" placeholder="Ex. Hanane Akka" required />
+            <Input id="nom" name="nom" placeholder="Ex. Hanane Akka" required className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="telephone">Téléphone</Label>
-            <Input id="telephone" name="telephone" type="tel" placeholder="06 XX XX XX XX" />
+            <Input id="telephone" name="telephone" type="tel" placeholder="06 XX XX XX XX" className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" placeholder="Optionnel" />
+            <Input id="email" name="email" type="email" placeholder="Optionnel" className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="notes">Habitudes / préférences</Label>
             <Textarea id="notes" name="notes" rows={3} placeholder="Ex. demande toujours un lit bébé, aime les fruits secs..." />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+            <Button type="submit" disabled={isPending} className="h-11 w-full sm:w-auto md:h-8">
               {isPending ? "Ajout..." : "Ajouter"}
             </Button>
           </DialogFooter>

@@ -25,7 +25,7 @@ export function PersonnelEnqueteBadge({ personnelId, enquete }: { personnelId: s
 
   if (enquete) {
     return (
-      <button type="button" onClick={toggle} disabled={isPending}>
+      <button type="button" onClick={toggle} disabled={isPending} className="max-md:min-h-10">
         <Badge className="cursor-pointer border-orange-500/40 bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 dark:text-orange-400">
           ENQUÊTE
         </Badge>
@@ -38,7 +38,7 @@ export function PersonnelEnqueteBadge({ personnelId, enquete }: { personnelId: s
       type="button"
       onClick={toggle}
       disabled={isPending}
-      className={cn("text-muted-foreground/30 hover:text-orange-500", isPending && "opacity-50")}
+      className={cn("text-muted-foreground/30 hover:text-orange-500 max-md:flex max-md:size-10 max-md:items-center max-md:justify-center", isPending && "opacity-50")}
       aria-label="Marquer en enquête"
       title="Marquer en enquête"
     >

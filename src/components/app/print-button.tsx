@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 export function PrintButton() {
   return (
-    <Button type="button" size="sm" onClick={() => window.print()}>
+    <Button type="button" size="sm" onClick={() => window.print()} className="max-md:h-10">
       <Printer className="h-4 w-4" />
       Imprimer / PDF
     </Button>

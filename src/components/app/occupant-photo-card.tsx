@@ -48,7 +48,7 @@ export function OccupantPhotoCard({
           width={300}
           height={200}
           unoptimized
-          className="h-40 w-64 rounded object-cover"
+          className="h-40 w-64 max-w-full rounded object-cover"
         />
         <div className="flex flex-col gap-1 print:hidden">
           <Button

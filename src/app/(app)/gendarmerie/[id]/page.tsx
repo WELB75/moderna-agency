@@ -74,12 +74,12 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
             className="h-9 w-auto sm:h-12"
           />
         </div>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-muted-foreground">
             {form.villaNom ? `${form.villaNom} (n°${form.villaNumero})` : "Logement non renseigné"}
             {form.checkIn ? ` · ${format(new Date(form.checkIn), "d MMM yyyy", { locale: fr })}` : ""}
           </p>
-          <div className="flex items-center gap-2 print:hidden">
+          <div className="flex flex-wrap items-center gap-2 print:hidden">
             <Logo size={28} />
             {form.statut === "complete" && form.reservationId ? (
               <CopyLinkButton
@@ -98,7 +98,7 @@ export default async function GendarmerieDocumentPage({ params }: { params: Prom
       ) : (
         <div className="space-y-8">
           {occupants.map((o, i) => (
-            <div key={o.id} className="break-inside-avoid rounded-lg border p-5">
+            <div key={o.id} className="break-inside-avoid rounded-lg border p-3 md:p-5">
               <p className="mb-3 text-sm font-semibold text-muted-foreground">
                 Occupant {i + 1} / {occupants.length}
               </p>

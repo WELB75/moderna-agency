@@ -47,7 +47,7 @@ export function EditPersonnelDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" className="max-md:h-10">
           <Pencil className="h-4 w-4" />
         </Button>
       </DialogTrigger>

@@ -66,9 +66,9 @@ function ReferenceRow({ reference }: { reference: UsureReference }) {
         onBlur={save}
         placeholder="Ce qui distingue usure normale et dégât facturable pour ce type d'objet"
         rows={2}
-        className="text-sm"
+        className="text-base md:text-sm"
       />
-      <Button type="button" variant="ghost" size="icon" onClick={handleDelete} disabled={isPending}>
+      <Button type="button" variant="ghost" size="icon" className="size-10 justify-self-end md:size-8" onClick={handleDelete} disabled={isPending}>
         {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-destructive" />}
       </Button>
     </div>
@@ -119,7 +119,7 @@ export function UsureReferenceTable({ references }: { references: UsureReference
         </div>
       )}
 
-      <Button type="button" variant="outline" size="sm" onClick={handleAdd} disabled={isPending}>
+      <Button type="button" variant="outline" size="sm" className="h-10 md:h-7" onClick={handleAdd} disabled={isPending}>
         <Plus className="h-4 w-4" />
         Ajouter un type d&apos;objet
       </Button>

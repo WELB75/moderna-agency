@@ -18,5 +18,9 @@ export function PersonnelActifToggle({ personnelId, actif }: { personnelId: stri
     });
   }
 
-  return <Switch checked={actif} onCheckedChange={handleChange} disabled={isPending} />;
+  return (
+    <span className="flex items-center max-md:min-h-11 max-md:px-1">
+      <Switch checked={actif} onCheckedChange={handleChange} disabled={isPending} />
+    </span>
+  );
 }

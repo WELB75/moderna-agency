@@ -125,7 +125,7 @@ export function TechnicianInterventionCard({
                 disabled={isPending}
                 onClick={() => handleStepTap(s.key)}
                 className={cn(
-                  "flex min-w-0 flex-col items-center gap-1 rounded-lg border p-2 text-center transition-colors",
+                  "flex min-w-0 flex-col items-center gap-1 min-h-16 rounded-lg border p-1.5 text-center transition-colors sm:p-2",
                   active && "border-primary bg-primary/10",
                   done && !active && "border-emerald-500/40 bg-emerald-500/5",
                   !active && !done && "border-transparent"
@@ -137,8 +137,8 @@ export function TechnicianInterventionCard({
                     active ? "text-primary" : done ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"
                   )}
                 />
-                <span className="text-[9px] font-medium leading-tight">{s.label}</span>
-                <span className="text-[9px] leading-tight text-muted-foreground" dir="rtl">
+                <span className="text-[10px] font-medium leading-tight md:text-[9px]">{s.label}</span>
+                <span className="text-[10px] leading-tight text-muted-foreground md:text-[9px]" dir="rtl">
                   {s.labelAr}
                 </span>
               </button>
@@ -151,7 +151,7 @@ export function TechnicianInterventionCard({
             type="button"
             disabled={uploading}
             onClick={() => fileInputRef.current?.click()}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed p-3 text-sm font-medium hover:bg-muted/50"
+            className="flex w-full items-center justify-center gap-2 min-h-14 rounded-lg border border-dashed p-3 text-base font-medium hover:bg-muted/50"
           >
             {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
             Photo / صورة

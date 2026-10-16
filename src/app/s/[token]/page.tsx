@@ -77,16 +77,16 @@ export default async function RecapPublicPage({ params }: { params: Promise<{ to
 
   return (
     <main className="mx-auto max-w-lg space-y-4 p-4 pb-10">
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex items-center justify-between gap-2 pt-2">
         <Logo />
         <span className="text-xs text-muted-foreground">Récapitulatif de réservation</span>
       </div>
 
       <Card>
-        <CardContent className="space-y-4 p-5">
+        <CardContent className="space-y-4 p-4 sm:p-5">
           <div>
             <p className="text-xs uppercase tracking-wide text-muted-foreground">Réservation au nom de</p>
-            <p className="text-xl font-semibold">{row.guestName}</p>
+            <p className="break-words text-xl font-semibold">{row.guestName}</p>
           </div>
 
           <div className="space-y-1">
@@ -142,47 +142,47 @@ export default async function RecapPublicPage({ params }: { params: Promise<{ to
             </p>
             <dl className="space-y-1.5 text-sm">
               {prixPl != null && promoLigne ? (
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <dt className="text-muted-foreground">Séjour ({nuits} nuits)</dt>
-                  <dd>{montant(prixPl, devise)}</dd>
+                  <dd className="shrink-0 text-right">{montant(prixPl, devise)}</dd>
                 </div>
               ) : null}
               {promoLigne ? (
-                <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                <div className="flex justify-between gap-3 text-emerald-700 dark:text-emerald-400">
                   <dt>{promoLigne}</dt>
-                  <dd>
+                  <dd className="shrink-0 text-right">
                     −{montant(reduction, devise)}
                   </dd>
                 </div>
               ) : null}
-              <div className="flex justify-between border-t pt-2 text-base font-semibold">
+              <div className="flex justify-between gap-3 border-t pt-2 text-base font-semibold">
                 <dt>Total du séjour</dt>
-                <dd>{montant(total, devise)}</dd>
+                <dd className="shrink-0 text-right">{montant(total, devise)}</dd>
               </div>
               {avance > 0 ? (
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <dt className="text-muted-foreground">Avance déjà versée</dt>
-                  <dd>−{montant(avance, devise)}</dd>
+                  <dd className="shrink-0 text-right">−{montant(avance, devise)}</dd>
                 </div>
               ) : null}
               {reste != null ? (
-                <div className="flex justify-between font-semibold">
+                <div className="flex justify-between gap-3 font-semibold">
                   <dt>Reste à régler{mode ? ` (${mode})` : ""}</dt>
-                  <dd>{montant(reste, devise)}</dd>
+                  <dd className="shrink-0 text-right">{montant(reste, devise)}</dd>
                 </div>
               ) : null}
               {row.caution && Number(row.caution) > 0 ? (
-                <div className="flex justify-between text-muted-foreground">
+                <div className="flex justify-between gap-3 text-muted-foreground">
                   <dt className="flex items-center gap-1.5">
                     <KeyRound className="h-3.5 w-3.5" /> Caution
                   </dt>
-                  <dd>{montant(Number(row.caution), devise)}</dd>
+                  <dd className="shrink-0 text-right">{montant(Number(row.caution), devise)}</dd>
                 </div>
               ) : null}
               {row.fraisMenage && Number(row.fraisMenage) > 0 ? (
-                <div className="flex justify-between text-muted-foreground">
+                <div className="flex justify-between gap-3 text-muted-foreground">
                   <dt>Frais de ménage de départ</dt>
-                  <dd>{montant(Number(row.fraisMenage), devise)}</dd>
+                  <dd className="shrink-0 text-right">{montant(Number(row.fraisMenage), devise)}</dd>
                 </div>
               ) : null}
             </dl>

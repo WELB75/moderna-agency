@@ -41,11 +41,11 @@ export function GuestAccessButton({ villaId, token }: { villaId: string; token: 
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Button type="button" variant="outline" size="sm" onClick={copyLink}>
+      <Button type="button" variant="outline" size="sm" className="h-10 md:h-7" onClick={copyLink}>
         <Share2 className="h-3.5 w-3.5" />
         Copier le lien d&apos;accueil
       </Button>
-      <Button type="button" variant="outline" size="sm" asChild>
+      <Button type="button" variant="outline" size="sm" className="h-10 md:h-7" asChild>
         <Link href={`/villas/${villaId}/qr`} target="_blank">
           <QrCode className="h-3.5 w-3.5" />
           Voir / imprimer le QR
@@ -53,7 +53,7 @@ export function GuestAccessButton({ villaId, token }: { villaId: string; token: 
       </Button>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button type="button" variant="ghost" size="icon" className="h-8 w-8" title="Régénérer le lien">
+          <Button type="button" variant="ghost" size="icon" className="size-10 md:size-8" title="Régénérer le lien">
             <RotateCw className="h-3.5 w-3.5 text-muted-foreground" />
           </Button>
         </AlertDialogTrigger>

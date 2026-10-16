@@ -32,7 +32,7 @@ export function ConfirmDeleteButton({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+        <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive max-md:h-10 max-md:min-w-10">
           <Trash2 className="h-4 w-4" />
           {label}
         </Button>

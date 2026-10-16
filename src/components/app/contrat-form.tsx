@@ -47,9 +47,9 @@ export function ContratForm({ contrat }: { contrat: ContratDocumentData & { id: 
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 py-6">
+    <div className="mx-auto max-w-2xl space-y-6 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <Card>
-        <CardContent className="py-4">
+        <CardContent className="px-3 py-4 sm:px-4">
           <ContratDocument contrat={contrat} />
         </CardContent>
       </Card>
@@ -77,17 +77,17 @@ export function ContratForm({ contrat }: { contrat: ContratDocumentData & { id: 
           <p className="text-sm font-semibold">Signature du Locataire</p>
           <div className="space-y-1.5">
             <Label>Nom complet</Label>
-            <Input value={nom} onChange={(e) => setNom(e.target.value)} />
+            <Input className="h-11 md:h-8" value={nom} onChange={(e) => setNom(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Numéro de pièce d&apos;identité (CIN / passeport)</Label>
-            <Input value={piece} onChange={(e) => setPiece(e.target.value)} />
+            <Input className="h-11 md:h-8" value={piece} onChange={(e) => setPiece(e.target.value)} />
           </div>
           <SignaturePad ref={sigRef} label="Signature (avec le doigt ou la souris)" clearLabel="Effacer" />
         </CardContent>
       </Card>
 
-      <Button type="button" disabled={isPending} onClick={handleSubmit} className="w-full">
+      <Button type="button" disabled={isPending} onClick={handleSubmit} className="h-12 w-full text-base md:h-8 md:text-sm">
         {isPending ? "Envoi..." : "Signer et envoyer"}
       </Button>
     </div>

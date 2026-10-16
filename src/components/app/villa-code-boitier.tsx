@@ -62,18 +62,18 @@ function VillaCodeField({
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3">
-      <div className="flex items-center gap-2.5">
-        <div className="rounded-full bg-primary/10 p-2 text-primary">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <div className="shrink-0 rounded-full bg-primary/10 p-2 text-primary">
           <Icon className="h-4 w-4" />
         </div>
-        <div>
+        <div className="min-w-0">
           <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="text-lg font-semibold tracking-wider">{value ?? "Non renseigné"}</p>
+          <p className="break-all text-lg font-semibold tracking-wider">{value ?? "Non renseigné"}</p>
         </div>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" className="size-10 shrink-0 md:size-auto md:h-7">
             <Pencil className="h-4 w-4" />
           </Button>
         </DialogTrigger>
@@ -85,10 +85,10 @@ function VillaCodeField({
           <form action={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor={fieldName}>Code</Label>
-              <Input id={fieldName} name={fieldName} defaultValue={value ?? ""} placeholder={placeholder} />
+              <Input id={fieldName} name={fieldName} defaultValue={value ?? ""} placeholder={placeholder} className="h-11 md:h-8" />
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+              <Button type="submit" disabled={isPending} className="h-11 w-full sm:w-auto md:h-8">
                 {isPending ? "Enregistrement..." : "Enregistrer"}
               </Button>
             </DialogFooter>

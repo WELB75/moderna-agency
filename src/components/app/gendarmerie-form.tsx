@@ -97,11 +97,11 @@ export function GendarmerieForm({
 
   if (!lang) {
     return (
-      <div className="mx-auto max-w-md space-y-4 py-12 text-center">
+      <div className="mx-auto max-w-md space-y-4 px-1 py-8 text-center md:py-12">
         <p className="text-lg font-medium">Choose your language / Choisissez votre langue / Kies uw taal / اختر لغتك</p>
         <div className="grid grid-cols-2 gap-2">
           {(Object.keys(LANG_LABELS) as GendarmerieLang[]).map((l) => (
-            <Button key={l} variant="outline" onClick={() => setLang(l)}>
+            <Button key={l} variant="outline" className="h-12 text-base md:h-8 md:text-sm" onClick={() => setLang(l)}>
               {LANG_LABELS[l]}
             </Button>
           ))}
@@ -154,7 +154,7 @@ export function GendarmerieForm({
       <div className="space-y-4">
         {occupants.map((occupant, index) => (
           <Card key={index}>
-            <CardContent className="space-y-3 py-4">
+            <CardContent className="space-y-3 px-3 py-4 sm:px-4">
               <div className="flex items-center justify-between">
                 <p className="font-medium">
                   {t.occupant} {index + 1}
@@ -164,6 +164,7 @@ export function GendarmerieForm({
                     type="button"
                     variant="ghost"
                     size="sm"
+                    className="h-10 md:h-7"
                     onClick={() => {
                       setOccupants((prev) => prev.filter((_, i) => i !== index));
                       sigRefs.current = sigRefs.current.filter((_, i) => i !== index);
@@ -192,6 +193,7 @@ export function GendarmerieForm({
                 <Button
                   type="button"
                   variant="outline"
+                  className="h-11 w-full whitespace-normal md:h-8 md:w-auto"
                   disabled={scanningIndex !== null}
                   onClick={() => scanInputRefs.current[index]?.click()}
                 >
@@ -215,6 +217,7 @@ export function GendarmerieForm({
                   <div key={key} className="space-y-1.5">
                     <Label>{labels[key]}</Label>
                     <Input
+                      className="h-11 md:h-8"
                       type={DATE_FIELD_KEYS.includes(key) ? "date" : "text"}
                       value={occupant[key]}
                       onChange={(e) => updateOccupant(index, key, e.target.value)}
@@ -262,6 +265,7 @@ export function GendarmerieForm({
                       type="button"
                       variant="ghost"
                       size="sm"
+                      className="h-10 md:h-7"
                       onClick={() => setEnfantsPhotos((prev) => prev.filter((_, i) => i !== index))}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -273,24 +277,25 @@ export function GendarmerieForm({
             </CardContent>
           </Card>
         ) : null}
-        <Button type="button" variant="outline" onClick={() => setEnfantsPhotos((prev) => [...prev, ""])}>
+        <Button type="button" variant="outline" className="h-11 w-full md:h-8 md:w-auto" onClick={() => setEnfantsPhotos((prev) => [...prev, ""])}>
           <Plus className="h-4 w-4" />
           {t.addChild}
         </Button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 pb-[env(safe-area-inset-bottom)] sm:flex-row sm:flex-wrap sm:items-center">
         {!hideAddOccupant ? (
           <Button
             type="button"
             variant="outline"
+            className="h-11 md:h-8"
             onClick={() => setOccupants((prev) => [...prev, emptyOccupant()])}
           >
             <Plus className="h-4 w-4" />
             {t.addOccupant}
           </Button>
         ) : null}
-        <Button type="button" disabled={isPending} onClick={handleSubmit} className="ml-auto">
+        <Button type="button" disabled={isPending} onClick={handleSubmit} className="h-12 text-base sm:ml-auto md:h-8 md:text-sm">
           {isPending ? t.submitting : t.submit}
         </Button>
       </div>

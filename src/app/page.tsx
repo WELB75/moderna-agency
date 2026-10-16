@@ -52,7 +52,7 @@ export default async function HomePage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-6">
           <div className="flex items-center gap-2">
             <Logo size={40} />
-            <span className="font-heading text-lg font-semibold">Moderna Agency</span>
+            <span className="hidden font-heading text-lg font-semibold min-[400px]:inline">Moderna Agency</span>
           </div>
           <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
             <a href="#services" className="hover:text-foreground">Ce qu&apos;on fait</a>
@@ -61,10 +61,10 @@ export default async function HomePage() {
             <a href="#contact" className="hover:text-foreground">Contact</a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" asChild>
+            <Button variant="ghost" className="h-10 md:h-8" asChild>
               <Link href="/dashboard">Se connecter</Link>
             </Button>
-            <Button asChild>
+            <Button className="hidden h-10 sm:inline-flex md:h-8" asChild>
               <a href="#contact">
                 Confiez-nous votre villa
                 <ArrowRight />
@@ -75,12 +75,12 @@ export default async function HomePage() {
       </header>
 
       {/* Hero */}
-      <section className="mx-auto max-w-6xl px-4 pb-20 pt-16 text-center md:px-6 md:pt-24">
-        <span className="mx-auto inline-flex items-center gap-2 rounded-full border border-border bg-white/70 px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
+      <section className="mx-auto max-w-6xl px-4 pb-14 pt-10 text-center md:px-6 md:pb-20 md:pt-24">
+        <span className="mx-auto inline-flex max-w-full items-center gap-2 rounded-full border border-border bg-white/70 px-4 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
           <Sparkles className="h-3.5 w-3.5 text-primary" />
           MODERNA AGENCY · MARRAKECH
         </span>
-        <h1 className="mx-auto mt-6 max-w-3xl text-4xl leading-tight font-semibold md:text-6xl">
+        <h1 className="mx-auto mt-6 max-w-3xl text-3xl leading-tight font-semibold sm:text-4xl md:text-6xl">
           La gestion{" "}
           <em className="bg-gradient-to-r from-violet-600 to-fuchsia-400 bg-clip-text italic text-transparent">
             intelligente
@@ -92,14 +92,14 @@ export default async function HomePage() {
           Réservations, ménage, cuisine, maintenance, sécurité et comptabilité — coordonnés par notre équipe et nos
           agents IA, pendant que vous restez tranquille.
         </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Button size="lg" asChild>
+        <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+          <Button size="lg" className="h-12 text-base sm:h-9 sm:text-sm" asChild>
             <a href="#contact">
               Confiez-nous votre villa
               <ArrowRight />
             </a>
           </Button>
-          <Button size="lg" variant="outline" asChild>
+          <Button size="lg" variant="outline" className="h-12 whitespace-normal text-base sm:h-9 sm:text-sm" asChild>
             <a href="#services">Découvrir comment ça marche</a>
           </Button>
         </div>
@@ -115,10 +115,10 @@ export default async function HomePage() {
       </section>
 
       {/* Services */}
-      <section id="services" className="mx-auto max-w-6xl px-4 py-16 md:px-6">
+      <section id="services" className="mx-auto max-w-6xl px-4 py-12 md:px-6 md:py-16">
         <div className="mx-auto max-w-2xl text-center">
           <span className="text-xs font-semibold uppercase tracking-wider text-primary">Ce qu&apos;on fait</span>
-          <h2 className="mt-2 text-3xl font-semibold md:text-4xl">Tout ce que demande une villa, géré à votre place</h2>
+          <h2 className="mt-2 text-2xl font-semibold sm:text-3xl md:text-4xl">Tout ce que demande une villa, géré à votre place</h2>
           <p className="mt-3 text-muted-foreground">
             {domainesCount[0].n} domaines, {villasCount[0].n} villas, une seule équipe qui s&apos;occupe de tout —
             avec des outils qu&apos;on a construits nous-mêmes pour ne rien laisser passer.
@@ -176,7 +176,7 @@ export default async function HomePage() {
       </section>
 
       {/* Agents IA */}
-      <section id="agents" className="bg-[#150f2e] py-20 text-[#edeafb]">
+      <section id="agents" className="bg-[#150f2e] py-14 md:py-20 text-[#edeafb]">
         <div className="mx-auto max-w-6xl px-4 md:px-6">
           <div className="mx-auto max-w-2xl text-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium">
@@ -220,7 +220,7 @@ export default async function HomePage() {
       </section>
 
       {/* Propriétaires */}
-      <section id="proprietaires" className="mx-auto max-w-6xl px-4 py-20 md:px-6">
+      <section id="proprietaires" className="mx-auto max-w-6xl px-4 py-14 md:px-6 md:py-20">
         <div className="grid items-center gap-10 md:grid-cols-2">
           <div>
             <span className="text-xs font-semibold uppercase tracking-wider text-primary">Propriétaires</span>
@@ -264,19 +264,19 @@ export default async function HomePage() {
 
       {/* Contact / CTA */}
       <section id="contact" className="mx-auto max-w-4xl px-4 pb-24 md:px-6">
-        <Card className="flex flex-col items-center gap-5 p-10 text-center">
+        <Card className="flex flex-col items-center gap-5 p-6 text-center sm:p-10">
           <h2 className="text-3xl font-semibold md:text-4xl">Confiez-nous votre villa</h2>
           <p className="max-w-md text-muted-foreground">
             Parlons de votre bien à Marrakech — on vous explique comment on travaille, sans engagement.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Button size="lg" asChild>
+          <div className="flex w-full flex-col items-stretch justify-center gap-3 sm:w-auto sm:flex-row sm:items-center">
+            <Button size="lg" className="h-12 text-base sm:h-9 sm:text-sm" asChild>
               <a href={toWhatsAppUrl(CONTACT_PHONE, "Bonjour, je souhaite en savoir plus sur la gestion de villa avec Moderna Agency.")} target="_blank" rel="noreferrer">
                 <MessageCircle />
                 Nous écrire sur WhatsApp
               </a>
             </Button>
-            <Button size="lg" variant="outline" asChild>
+            <Button size="lg" variant="outline" className="h-12 text-base sm:h-9 sm:text-sm" asChild>
               <a href="tel:+212668730909">+212 6 68 73 09 09</a>
             </Button>
           </div>

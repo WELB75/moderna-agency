@@ -86,7 +86,7 @@ export function AddOwnerContactDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm">
+        <Button type="button" size="sm" className="h-10 md:h-7">
           <Plus className="h-3.5 w-3.5" />
           Ajouter quelqu&apos;un
         </Button>
@@ -118,7 +118,7 @@ export function AddOwnerContactDialog({
                     type="button"
                     disabled={isPending}
                     onClick={() => handlePickTechnician(t.id)}
-                    className="flex w-full items-center justify-between gap-2 rounded-md border p-2.5 text-left text-sm hover:bg-muted"
+                    className="flex w-full items-center justify-between gap-2 min-h-11 rounded-md border p-2.5 text-left text-sm hover:bg-muted"
                   >
                     <span>
                       <span className="font-medium">{t.nom}</span>
@@ -135,7 +135,7 @@ export function AddOwnerContactDialog({
             <div className="space-y-1.5">
               <Label>Rôle</Label>
               <Select value={role} onValueChange={setRole}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="h-11 w-full md:h-8">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -149,11 +149,12 @@ export function AddOwnerContactDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="owner-contact-nom">Nom</Label>
-              <Input id="owner-contact-nom" value={nom} onChange={(e) => setNom(e.target.value)} required />
+              <Input className="h-11 md:h-8" id="owner-contact-nom" value={nom} onChange={(e) => setNom(e.target.value)} required />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="owner-contact-tel">Téléphone</Label>
               <Input
+                className="h-11 md:h-8"
                 id="owner-contact-tel"
                 value={telephone}
                 onChange={(e) => setTelephone(e.target.value)}
@@ -165,7 +166,7 @@ export function AddOwnerContactDialog({
                 type="button"
                 disabled={isPending || !nom.trim()}
                 onClick={handleManualSubmit}
-                className="w-full sm:w-auto"
+                className="h-12 w-full text-base sm:h-8 sm:w-auto sm:text-sm"
               >
                 {isPending ? "Ajout..." : "Ajouter"}
               </Button>

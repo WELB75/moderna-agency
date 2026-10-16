@@ -542,14 +542,14 @@ export function PersonnelCarte({ staff, domaines }: { staff: CarteStaff[]; domai
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}
                 placeholder="Chercher un prénom..."
-                className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-foreground/30"
+                className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-7 text-base outline-none placeholder:text-muted-foreground focus:border-foreground/30 max-md:min-h-11 md:text-sm"
               />
               {recherche ? (
                 <button
                   type="button"
                   onClick={() => setRecherche("")}
                   aria-label="Effacer"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground max-md:right-0 max-md:h-11 max-md:w-11"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>

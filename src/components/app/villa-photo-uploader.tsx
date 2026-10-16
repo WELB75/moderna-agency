@@ -53,7 +53,7 @@ export function VillaPhotoUploader({
         type="button"
         variant="secondary"
         size="sm"
-        className="absolute bottom-2 right-2"
+        className="absolute bottom-2 right-2 h-10 md:h-7"
         disabled={uploading}
         onClick={() => fileInputRef.current?.click()}
       >

@@ -128,7 +128,7 @@ export function PublicPlanningGrid({
                     if (!recherche) setRechercheOuverte(false);
                   }}
                   placeholder="Nom, villa..."
-                  className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-1.5 pl-8 pr-7 text-sm shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-[#2B1F33]/40 dark:border-white/[0.06] dark:bg-white/[0.04]"
+                  className="w-full min-w-0 rounded-full border border-black/[0.06] bg-white py-2 pl-8 pr-7 text-base shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none placeholder:text-muted-foreground focus:border-[#2B1F33]/40 dark:border-white/[0.06] dark:bg-white/[0.04]"
                 />
                 <button
                   type="button"
@@ -147,7 +147,7 @@ export function PublicPlanningGrid({
                 type="button"
                 onClick={() => setRechercheOuverte(true)}
                 aria-label="Chercher"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-black/[0.06] bg-white text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:text-foreground dark:border-white/[0.06] dark:bg-white/[0.04]"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-black/[0.06] bg-white text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] hover:text-foreground dark:border-white/[0.06] dark:bg-white/[0.04]"
               >
                 <Search className="h-4 w-4" />
               </button>
@@ -298,7 +298,7 @@ function InlineSelect<T extends string>({
     <SelectPrimitive.Root value={value} disabled={disabled} onValueChange={(v) => onChange(v as T)}>
       <SelectPrimitive.Trigger
         className={cn(
-          "flex w-fit min-w-0 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded border-none bg-transparent p-0 text-left font-medium outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60",
+          "flex w-fit min-w-0 shrink-0 cursor-pointer items-center gap-1 whitespace-nowrap rounded border-none bg-transparent py-1.5 text-left md:py-0 font-medium outline-none transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60",
           className
         )}
       >
@@ -481,7 +481,7 @@ function MissionRow({
             rel="noreferrer"
             title={e.telephone}
             aria-label={`WhatsApp ${e.personnelNom}`}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full md:h-7 md:w-7 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 dark:text-emerald-400"
           >
             <MessageCircle className="h-3.5 w-3.5" />
           </a>
@@ -491,7 +491,7 @@ function MissionRow({
           onClick={handleToggleConfirme}
           disabled={isPending}
           className={cn(
-            "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+            "flex h-11 w-11 shrink-0 items-center justify-center rounded-full md:h-7 md:w-7",
             e.confirmeAt
               ? "bg-emerald-500 text-white hover:bg-emerald-500/90"
               : "text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
@@ -505,7 +505,7 @@ function MissionRow({
           type="button"
           onClick={handleRemove}
           disabled={isPending}
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full md:h-7 md:w-7 text-muted-foreground hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/10"
           aria-label={`Retirer ${e.personnelNom}`}
           title="Retirer"
         >

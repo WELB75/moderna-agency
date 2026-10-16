@@ -51,7 +51,7 @@ export function AddVillaDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" className="h-10 md:h-7">
           <Plus className="h-4 w-4" />
           {isAppartement ? "Nouvel appartement" : "Nouvelle villa"}
         </Button>
@@ -69,7 +69,7 @@ export function AddVillaDialog({
           <div className="space-y-1.5">
             <Label htmlFor="domaineId">Domaine</Label>
             <Select name="domaineId">
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-11 w-full md:h-8">
                 <SelectValue placeholder="Aucun / sélectionner un domaine" />
               </SelectTrigger>
               <SelectContent>
@@ -84,7 +84,7 @@ export function AddVillaDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="numero">Numéro</Label>
-              <Input id="numero" name="numero" placeholder="Ex. 12" required />
+              <Input id="numero" name="numero" placeholder="Ex. 12" required className="h-11 md:h-8" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="nom">Nom</Label>
@@ -92,36 +92,35 @@ export function AddVillaDialog({
                 id="nom"
                 name="nom"
                 placeholder={isAppartement ? "Ex. Appartement Zen" : "Ex. Villa Corail"}
-                required
-              />
+                required className="h-11 md:h-8" />
             </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="adresse">Adresse</Label>
-            <Input id="adresse" name="adresse" placeholder="Adresse complète" />
+            <Input id="adresse" name="adresse" placeholder="Adresse complète" className="h-11 md:h-8" />
           </div>
           {isAppartement && (
             <div className="space-y-1.5">
               <Label htmlFor="numeroImmeuble">Numéro de l&apos;immeuble</Label>
-              <Input id="numeroImmeuble" name="numeroImmeuble" placeholder="Ex. Immeuble B" />
+              <Input id="numeroImmeuble" name="numeroImmeuble" placeholder="Ex. Immeuble B" className="h-11 md:h-8" />
             </div>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="codeBoitier">Code du boîtier à clés</Label>
-            <Input id="codeBoitier" name="codeBoitier" placeholder="Ex. 1526" />
+            <Input id="codeBoitier" name="codeBoitier" placeholder="Ex. 1526" className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="codePorteEntree">Code de la porte d&apos;entrée (si différent)</Label>
-            <Input id="codePorteEntree" name="codePorteEntree" placeholder="Ex. 082421#" />
+            <Input id="codePorteEntree" name="codePorteEntree" placeholder="Ex. 082421#" className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="superhoteListingId">
               Identifiant Superhote (property_key)
             </Label>
-            <Input id="superhoteListingId" name="superhoteListingId" placeholder="Optionnel" />
+            <Input id="superhoteListingId" name="superhoteListingId" placeholder="Optionnel" className="h-11 md:h-8" />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+            <Button type="submit" disabled={isPending} className="h-11 w-full sm:w-auto md:h-8">
               {isPending ? "Ajout..." : isAppartement ? "Ajouter l'appartement" : "Ajouter la villa"}
             </Button>
           </DialogFooter>

@@ -56,7 +56,7 @@ export function NewChecklistForm({
         <div className="space-y-1.5">
           <Label>Villa</Label>
           <Select value={villaId} onValueChange={setVillaId}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-11 w-full md:h-8">
               <SelectValue placeholder="Sélectionner une villa" />
             </SelectTrigger>
             <SelectContent>
@@ -71,7 +71,7 @@ export function NewChecklistForm({
         <div className="space-y-1.5">
           <Label>Type</Label>
           <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-11 w-full md:h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -80,7 +80,7 @@ export function NewChecklistForm({
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={handleSubmit} disabled={isPending} className="w-full">
+        <Button onClick={handleSubmit} disabled={isPending} className="h-11 w-full md:h-8">
           {isPending ? "Création..." : "Créer et commencer"}
         </Button>
       </CardContent>

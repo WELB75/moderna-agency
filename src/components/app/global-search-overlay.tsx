@@ -87,7 +87,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
           <button
             type="button"
             aria-label="Rechercher"
-            className="flex h-9 w-full max-w-sm items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+            className="flex h-11 w-full max-w-sm md:h-9 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
           >
             <Search className="h-4 w-4 shrink-0" />
             <span className="flex-1 truncate text-left">Voyageur, villa, intervention…</span>
@@ -99,7 +99,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
           <button
             type="button"
             aria-label="Rechercher"
-            className="flex items-center justify-center border border-border p-2 text-muted-foreground hover:text-foreground"
+            className="flex items-center justify-center border border-border p-3.5 text-muted-foreground hover:text-foreground md:p-2"
           >
             <Search className="h-4 w-4" />
           </button>
@@ -113,7 +113,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
             document.getElementById("global-search-input")?.focus();
           }}
           onPointerMove={handlePointerMove}
-          className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-[28px] p-px outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
+          className="fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-50 w-[calc(100%-2rem)] max-w-2xl -translate-x-1/2 md:top-1/2 md:-translate-y-1/2 overflow-hidden rounded-[28px] p-px outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0"
           style={{ "--mx": "50%", "--my": "0%" } as React.CSSProperties}
         >
           {/* Anneau lumineux : conic-gradient en niveaux de gris qui tourne lentement,
@@ -129,7 +129,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
           <div
             ref={panelRef}
             className={
-              "relative max-h-[calc(100dvh-2.2rem)] overflow-y-auto rounded-[27px] border border-white/25 text-popover-foreground shadow-[0_20px_70px_rgb(0,0,0,0.4)] outline-none backdrop-saturate-150 transition-[backdrop-filter,background-color] duration-300 ease-out " +
+              "relative max-h-[calc(100dvh-2rem)] md:max-h-[calc(100dvh-2.2rem)] overflow-y-auto rounded-[27px] border border-white/25 text-popover-foreground shadow-[0_20px_70px_rgb(0,0,0,0.4)] outline-none backdrop-saturate-150 transition-[backdrop-filter,background-color] duration-300 ease-out " +
               (showResults ? "bg-background/92 backdrop-blur-3xl" : "bg-background/72 backdrop-blur-2xl")
             }
           >
@@ -142,7 +142,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
             />
 
             <DialogTitle className="sr-only">Recherche</DialogTitle>
-            <div className="relative flex items-center gap-4 overflow-hidden px-6 py-6">
+            <div className="relative flex items-center gap-3 overflow-hidden px-4 py-4 md:gap-4 md:px-6 md:py-6">
               {isPending ? (
                 <Loader2 className="h-6 w-6 shrink-0 animate-spin text-muted-foreground" />
               ) : (
@@ -153,7 +153,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Rechercher..."
-                className="relative z-10 w-full min-w-0 bg-transparent text-2xl font-semibold tracking-tight outline-none placeholder:font-normal placeholder:text-muted-foreground/70 sm:text-3xl"
+                className="relative z-10 w-full min-w-0 bg-transparent text-xl font-semibold tracking-tight md:text-2xl outline-none placeholder:font-normal placeholder:text-muted-foreground/70 sm:text-3xl"
               />
               {/* Balayage lumineux pendant le calcul des résultats. */}
               {isPending ? (
@@ -165,7 +165,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
             </div>
 
             {showResults ? (
-              <div className="relative max-h-96 overflow-y-auto border-t border-white/15">
+              <div className="relative max-h-[45dvh] overflow-y-auto md:max-h-96 border-t border-white/15">
                 {isPending && results.length === 0 ? (
                   <p className="p-5 text-base text-muted-foreground">Recherche...</p>
                 ) : results.length === 0 ? (
@@ -177,7 +177,7 @@ export function GlobalSearchOverlay({ variant = "icon" }: { variant?: "icon" | "
                         <Link
                           href={r.href}
                           onClick={() => setOpen(false)}
-                          className="flex items-center justify-between gap-3 px-6 py-4 transition-colors duration-150 hover:bg-foreground/5"
+                          className="flex items-center justify-between gap-3 px-4 py-3.5 transition md:px-6 md:py-4-colors duration-150 hover:bg-foreground/5"
                         >
                           <div className="min-w-0">
                             <p className="truncate text-base font-medium">{r.title}</p>

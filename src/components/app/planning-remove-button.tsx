@@ -27,7 +27,7 @@ export function PlanningRemoveButton({ affectationId, nom }: { affectationId: st
       type="button"
       onClick={handleClick}
       disabled={isPending}
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+      className="flex h-6 w-6 max-md:h-10 max-md:w-10 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
       aria-label={`Retirer ${nom}`}
       title="Retirer"
     >

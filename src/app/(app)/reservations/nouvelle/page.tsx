@@ -52,7 +52,7 @@ export default async function NouvelleReservationPage() {
     <div className="mx-auto max-w-xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Nouvelle réservation</h1>
-        <p className="text-sm text-muted-foreground">Réservations en direct : prix PriceLabs, promo, suivi de l'avance et lien de partage.</p>
+        <p className="text-sm text-muted-foreground">Réservations en direct : prix PriceLabs, promo, suivi de l&apos;avance et lien de partage.</p>
       </div>
 
       <Card>

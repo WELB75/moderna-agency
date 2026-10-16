@@ -327,7 +327,7 @@ export function PersonnelAffectationEditor({
                 type="button"
                 onClick={() => handleRemove(a.affectationId)}
                 disabled={isPending}
-                className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+                className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 max-md:p-3"
                 title="Retirer"
               >
                 <X className="h-3.5 w-3.5" />
@@ -368,7 +368,7 @@ export function PersonnelAffectationEditor({
             onClick={handleNotifyBrahim}
             disabled={isNotifyingBrahim}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs disabled:pointer-events-none disabled:opacity-50",
+              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs disabled:pointer-events-none disabled:opacity-50 max-md:min-h-10",
               brahimPrevenu
                 ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600/90"
                 : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -385,7 +385,7 @@ export function PersonnelAffectationEditor({
         ) : null}
         {availableOptions.length > 0 ? (
           <Select value="" onValueChange={handleAdd} disabled={isPending}>
-            <SelectTrigger className="h-7 w-32 text-xs">
+            <SelectTrigger className="h-7 w-32 text-xs max-md:h-10 max-md:w-40 max-md:text-sm">
               <SelectValue placeholder="+ Ajouter" />
             </SelectTrigger>
             {/* Distance au domaine (à vol d'oiseau depuis la dernière position WhatsApp connue),
@@ -456,7 +456,7 @@ function QualiteNoteControl({
           disabled={disabled}
           title={title}
           className={cn(
-            "flex items-center gap-0.5 border px-1.5 py-0.5 text-xs",
+            "flex items-center gap-0.5 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
             qualiteNote
               ? "border-foreground bg-foreground text-background"
               : "border-border bg-transparent text-muted-foreground hover:bg-muted"
@@ -519,7 +519,7 @@ function CommentaireControl({
           disabled={disabled}
           title={title}
           className={cn(
-            "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
+            "flex items-center gap-1 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
             commentaire
               ? "border-foreground bg-foreground text-background"
               : "border-border bg-transparent text-muted-foreground hover:bg-muted"
@@ -528,7 +528,7 @@ function CommentaireControl({
           <StickyNote className="h-3 w-3" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64" align="start">
+      <PopoverContent className="w-64 max-w-[calc(100vw-2rem)]" align="start">
         <Textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -536,7 +536,7 @@ function CommentaireControl({
           rows={3}
           autoFocus
         />
-        <Button type="button" size="sm" className="w-full" onClick={handleSave}>
+        <Button type="button" size="sm" className="w-full max-md:h-10" onClick={handleSave}>
           Enregistrer
         </Button>
       </PopoverContent>
@@ -571,7 +571,7 @@ function CommentaireInput({
       disabled={disabled}
       placeholder="note"
       title="Remarque libre sur cette affectation"
-      className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
+      className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-28 max-md:border max-md:px-2 max-md:text-base"
     />
   );
 }
@@ -586,7 +586,7 @@ function WhatsAppContactButton({ telephone, nom }: { telephone: string; nom: str
       target="_blank"
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className="rounded-full p-1 text-emerald-600 hover:bg-muted dark:text-emerald-400"
+      className="rounded-full p-1 text-emerald-600 hover:bg-muted dark:text-emerald-400 max-md:p-3"
       aria-label={`Contacter ${nom} sur WhatsApp`}
       title={`Contacter ${nom} sur WhatsApp`}
     >
@@ -658,7 +658,7 @@ function MenageBadge({
         // (ex. "Khamissa") pousser le bouton plus large que "Nawal", donc "200 MAD" ne
         // s'alignait toujours pas d'une ligne à l'autre. Kamel, 2026-08-17 : "je vois toujours
         // le decalage... les 200 doivent etre bien alignée aussi, paralelle etc".
-        className="h-6 w-28 shrink-0 justify-start overflow-hidden"
+        className="h-6 w-28 shrink-0 justify-start overflow-hidden max-md:h-10"
         title={fait ? "Confirmé fait — cliquer pour annuler" : "Cliquer pour confirmer que le travail a été fait"}
       >
         {fait ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0" />}
@@ -675,7 +675,7 @@ function MenageBadge({
             disabled={disabled}
             placeholder="1"
             title="Nombre de jours travaillés (si sollicitée pendant le séjour, pas seulement au départ)"
-            className="h-5 w-7 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
+            className="h-5 w-7 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-14 max-md:border max-md:text-base"
           />
           <span className="text-muted-foreground">{joursApercu > 1 ? "jours" : "jour"}</span>
         </>
@@ -710,7 +710,7 @@ function MenageBadge({
         type="button"
         onClick={() => onRemove(a.affectationId)}
         disabled={disabled}
-        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground max-md:p-3"
         aria-label={`Retirer ${a.nom}`}
         title="Retirer"
       >
@@ -780,7 +780,7 @@ function CuisineBadge({
         disabled={disabled}
         placeholder="nb"
         title="Nombre de jours si ce n'est pas tout le séjour"
-        className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1"
+        className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-14 max-md:border max-md:text-base"
       />
       <span className="text-muted-foreground">{jours === "1" ? "jour" : "jours"}</span>
       {montantVisible ? (
@@ -789,7 +789,7 @@ function CuisineBadge({
           onClick={() => onTogglePaid(a.affectationId, paye)}
           disabled={disabled}
           className={cn(
-            "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
+            "flex items-center gap-1 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
             paye
               ? "border-foreground bg-foreground text-background"
               : "border-border bg-transparent text-muted-foreground hover:bg-muted"
@@ -812,7 +812,7 @@ function CuisineBadge({
         onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}
         disabled={disabled}
         className={cn(
-          "flex items-center gap-1 border px-1.5 py-0.5 text-xs",
+          "flex items-center gap-1 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
           a.avecDejeuner
             ? "border-foreground bg-foreground text-background hover:bg-foreground"
             : "border-border bg-transparent text-muted-foreground hover:bg-muted"
@@ -839,14 +839,14 @@ function CuisineBadge({
         disabled={disabled}
         placeholder="note"
         title="Remarque libre sur cette affectation"
-        className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1"
+        className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-28 max-md:border max-md:px-2 max-md:text-base"
       />
       {a.telephone ? <WhatsAppContactButton telephone={a.telephone} nom={a.nom} /> : null}
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
         disabled={disabled}
-        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground max-md:p-3"
         aria-label={`Retirer ${a.nom}`}
         title="Retirer"
       >

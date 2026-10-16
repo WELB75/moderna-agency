@@ -40,7 +40,7 @@ export function AddPersonnelDialog({ defaultRole }: { defaultRole?: "menage" | "
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button size="sm" className="max-md:h-10">
           <Plus className="h-4 w-4" />
           Ajouter
         </Button>

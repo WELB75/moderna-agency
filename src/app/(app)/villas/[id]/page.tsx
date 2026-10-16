@@ -255,10 +255,10 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           {villa.domaineNom ? <DomaineBadge nom={villa.domaineNom} className="mb-1" /> : null}
-          <h1 className="text-2xl font-semibold tracking-tight">{villa.nom}</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="break-words text-2xl font-semibold tracking-tight">{villa.nom}</h1>
+          <p className="break-words text-sm text-muted-foreground">
             {typeLabel} n°{villa.numero}
             {villa.numeroImmeuble ? ` · Immeuble ${villa.numeroImmeuble}` : ""}
             {villa.adresse ? ` · ${villa.adresse}` : ""}
@@ -290,7 +290,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       {villa.notes ? (
         <div className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-400">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{villa.notes}</span>
+          <span className="min-w-0 break-words">{villa.notes}</span>
         </div>
       ) : null}
 
@@ -451,9 +451,9 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
               <Link
                 key={c.id}
                 href={`/inventaire/${c.id}`}
-                className="flex items-center justify-between rounded-md border p-3 hover:border-primary/50"
+                className="flex items-center justify-between gap-3 rounded-md border p-3 hover:border-primary/50"
               >
-                <div>
+                <div className="min-w-0">
                   <p className="font-medium">{c.type === "entree" ? "État des lieux d'entrée" : "État des lieux de sortie"}</p>
                   <p className="text-sm text-muted-foreground">
                     {format(new Date(c.createdAt), "d MMM yyyy HH:mm", { locale: fr })}
@@ -480,10 +480,10 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
             villaMaintenance.map((m) => (
               <div key={m.id} className="rounded-md border p-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">{m.categorie}</Badge>
-                      <p className="font-medium">{m.equipement}</p>
+                      <p className="break-words font-medium">{m.equipement}</p>
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {format(new Date(m.dateIntervention), "d MMM yyyy", { locale: fr })}
@@ -546,10 +546,10 @@ function ReservationListItem({
 
   return (
     <div className={"rounded-md border p-3" + (muted ? " opacity-70" : "")}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-1.5">
-            <p className="font-medium">{r.guestName}</p>
+            <p className="break-words font-medium">{r.guestName}</p>
             <EditGuestNameButton reservationId={r.id} guestName={r.guestName} />
             {isProprietaire ? (
               <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-400">
@@ -594,7 +594,7 @@ function ReservationListItem({
       {r.notes ? (
         <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-sm text-amber-800 dark:text-amber-400">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          <span>{r.notes}</span>
+          <span className="min-w-0 break-words">{r.notes}</span>
         </div>
       ) : null}
       <OperationalSummary

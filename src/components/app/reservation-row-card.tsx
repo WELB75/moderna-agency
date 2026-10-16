@@ -208,13 +208,13 @@ export function ReservationRowCard({
           La seule façon vraiment fiable d'éviter ça est de ne pas mettre ces boutons dans le
           <Link> du tout. */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 pb-0 hover:bg-muted/50">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 md:flex-nowrap">
           {isIn ? (
             <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
           ) : (
             <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
           )}
-          <p className="truncate font-medium">{r.guestName}</p>
+          <p className="min-w-0 break-words font-medium md:truncate">{r.guestName}</p>
           {/* Icône WhatsApp juste à côté du nom (Kamel, 2026-08-16), pas seulement en bas de
               carte. Composant client à part : ReservationRowCard est rendu côté serveur, qui
               ne peut pas passer de onClick directement à un élément. */}
@@ -562,13 +562,13 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
         {/* Colonne 1 : le séjour */}
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 md:flex-nowrap">
               {isIn ? (
                 <LogIn className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               ) : (
                 <LogOut className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
               )}
-              <p className="truncate font-medium">{r.guestName}</p>
+              <p className="min-w-0 break-words font-medium md:truncate">{r.guestName}</p>
               {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
               <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
               <EditNotesButton reservationId={r.id} notes={r.notes} />

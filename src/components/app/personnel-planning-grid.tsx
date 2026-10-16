@@ -51,20 +51,20 @@ export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; n
           <LegendChip color="violet">Cuisinière</LegendChip>
         </div>
 
-        <div className="relative w-full max-w-56">
+        <div className="relative w-full md:max-w-56">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input
             value={recherche}
             onChange={(e) => setRecherche(e.target.value)}
             placeholder="Chercher (nom, villa, appart...)"
-            className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-7 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:ring-3 focus:ring-ring/50"
+            className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-7 text-base outline-none max-md:min-h-11 md:text-sm placeholder:text-muted-foreground focus:border-ring focus:ring-3 focus:ring-ring/50"
           />
           {recherche ? (
             <button
               type="button"
               onClick={() => setRecherche("")}
               aria-label="Effacer"
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-foreground max-md:h-11 max-md:w-11 md:right-2"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -180,7 +180,7 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
           >
             {initiale(e.personnelNom)}
           </div>
-          <span className="min-w-0 truncate text-sm font-medium leading-tight">{e.personnelNom}</span>
+          <span className="min-w-0 break-words text-sm font-medium leading-tight md:truncate">{e.personnelNom}</span>
         </div>
         <PlanningRemoveButton affectationId={e.affectationId} nom={e.personnelNom} />
       </div>
@@ -210,15 +210,15 @@ function MissionBlock({ entry: e }: { entry: PlanningEntry }) {
 
       <Link
         href={`/reservations/${e.reservationId}`}
-        className="mt-1.5 flex min-w-0 items-baseline gap-1.5 text-sm text-foreground/80 hover:text-foreground hover:underline"
+        className="mt-1.5 flex min-w-0 items-baseline gap-1.5 text-sm text-foreground/80 hover:text-foreground hover:underline max-md:flex-wrap max-md:py-1"
       >
-        <span className="min-w-0 truncate">{e.villaNom ?? "Villa non renseignée"}</span>
+        <span className="min-w-0 md:truncate">{e.villaNom ?? "Villa non renseignée"}</span>
         {e.villaNumero ? (
           <span className="shrink-0 rounded-md bg-foreground px-1.5 py-0.5 text-[11px] font-medium text-background">
             n°{e.villaNumero}
           </span>
         ) : null}
-        <span className="min-w-0 truncate text-muted-foreground">· {e.guestName}</span>
+        <span className="min-w-0 text-muted-foreground md:truncate">· {e.guestName}</span>
       </Link>
     </div>
   );

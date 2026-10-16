@@ -90,10 +90,10 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs value={onglet} onValueChange={(v) => setOnglet(v as Onglet)}>
-          <TabsList>
+        <Tabs value={onglet} onValueChange={(v) => setOnglet(v as Onglet)} className="max-w-full">
+          <TabsList className="max-w-full justify-start overflow-x-auto">
             {ONGLETS.map((o) => (
-              <TabsTrigger key={o.value} value={o.value}>
+              <TabsTrigger key={o.value} value={o.value} className="shrink-0 px-3">
                 {o.label}
               </TabsTrigger>
             ))}
@@ -102,14 +102,14 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
         <div className="flex items-center gap-2 text-sm">
           <Link
             href={`/statistiques?annee=${year - 1}`}
-            className="rounded-md border px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="inline-flex min-h-10 items-center rounded-md border px-3 py-1 text-muted-foreground hover:bg-muted hover:text-foreground md:min-h-0 md:px-2"
           >
             {year - 1}
           </Link>
           <span className="font-medium">{year}</span>
           <Link
             href={`/statistiques?annee=${year + 1}`}
-            className="rounded-md border px-2 py-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="inline-flex min-h-10 items-center rounded-md border px-3 py-1 text-muted-foreground hover:bg-muted hover:text-foreground md:min-h-0 md:px-2"
           >
             {year + 1}
           </Link>
@@ -120,7 +120,7 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background">Hébergement</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background max-md:border-r">Hébergement</TableHead>
               {MOIS_LABELS.map((label) => (
                 <TableHead key={label} className="text-right">
                   {label}
@@ -131,8 +131,8 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.villaId}>
-                <TableCell className="sticky left-0 z-10 bg-background font-medium">
-                  <Link href={`/villas/${row.villaId}`} className="hover:underline">
+                <TableCell className="sticky left-0 z-10 bg-background font-medium max-md:max-w-28 max-md:whitespace-normal max-md:border-r max-md:text-xs">
+                  <Link href={`/villas/${row.villaId}`} className="hover:underline max-md:inline-block max-md:py-2">
                     {row.nom}
                   </Link>
                 </TableCell>
@@ -149,7 +149,7 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
               </TableRow>
             ))}
             <TableRow className="border-t-2 font-medium">
-              <TableCell className="sticky left-0 z-10 bg-background">Total</TableCell>
+              <TableCell className="sticky left-0 z-10 bg-background max-md:border-r">Total</TableCell>
               {totauxParMois.map((total, i) => (
                 <TableCell key={i} className="text-right tabular-nums">
                   {formatValeur(total, onglet)}
@@ -160,7 +160,7 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
         </Table>
       </div>
 
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
         <span>Faible</span>
         <div className="flex overflow-hidden rounded">
           {PALIERS.map((p, i) => (

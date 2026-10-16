@@ -127,9 +127,9 @@ export default async function InventairePage() {
                 <Link
                   key={c.id}
                   href={`/inventaire/${c.id}`}
-                  className="flex items-center justify-between rounded-md border bg-card p-3 hover:border-primary/50"
+                  className="flex items-center justify-between gap-3 rounded-md border bg-card p-3 hover:border-primary/50"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-medium">
                       {c.villaNom ? `${c.villaNom} (n°${c.villaNumero})` : "Villa supprimée"} ·{" "}
                       {c.type === "entree" ? "Entrée" : "Sortie"}

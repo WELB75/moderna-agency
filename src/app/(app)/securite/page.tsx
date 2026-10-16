@@ -90,7 +90,7 @@ export default async function SecuritePage() {
                     <Link
                       href={`/securite/domaine/${d.id}`}
                       target="_blank"
-                      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      className="inline-flex min-h-11 items-center gap-1 text-xs font-medium text-primary hover:underline md:min-h-0"
                     >
                       Voir comme la sécurité
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -142,7 +142,7 @@ function Stat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: str
       </span>
       <div className="min-w-0">
         <p className="text-xl font-semibold tabular-nums sm:text-2xl">{value}</p>
-        <p className="truncate text-xs text-muted-foreground sm:text-sm">{label}</p>
+        <p className="text-xs leading-tight text-muted-foreground sm:text-sm md:truncate">{label}</p>
       </div>
     </div>
   );

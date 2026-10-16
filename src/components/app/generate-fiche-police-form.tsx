@@ -87,11 +87,11 @@ export function GenerateFichePoliceForm({
         />
 
         <Tabs defaultValue="unique">
-          <TabsList className="w-full">
-            <TabsTrigger value="unique" className="flex-1">
+          <TabsList className="w-full max-md:group-data-horizontal/tabs:h-auto">
+            <TabsTrigger value="unique" className="flex-1 max-md:whitespace-normal max-md:py-2 max-md:text-center">
               Un seul lien pour tout le monde
             </TabsTrigger>
-            <TabsTrigger value="individuel" className="flex-1">
+            <TabsTrigger value="individuel" className="flex-1 max-md:whitespace-normal max-md:py-2 max-md:text-center">
               Un lien par adulte
             </TabsTrigger>
           </TabsList>
@@ -102,7 +102,7 @@ export function GenerateFichePoliceForm({
               même page.
             </p>
             <div className="flex flex-wrap gap-4">
-              <div className="w-[160px] space-y-1.5">
+              <div className="w-[calc(50%-0.5rem)] space-y-1.5 md:w-[160px]">
                 <Label>Nombre d&apos;adultes</Label>
                 <Input
                   type="number"
@@ -112,7 +112,7 @@ export function GenerateFichePoliceForm({
                   onChange={(e) => setNbAdultes(e.target.value)}
                 />
               </div>
-              <div className="w-[160px] space-y-1.5">
+              <div className="w-[calc(50%-0.5rem)] space-y-1.5 md:w-[160px]">
                 <Label>Nombre d&apos;enfants</Label>
                 <Input
                   type="number"
@@ -135,7 +135,7 @@ export function GenerateFichePoliceForm({
                 </p>
                 <div className="flex items-center justify-between gap-2 rounded-md bg-background p-2">
                   <p className="min-w-0 flex-1 truncate text-sm">{groupLink}</p>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => copyLink(groupLink)}>
+                  <Button type="button" variant="ghost" size="sm" className="max-md:size-11" onClick={() => copyLink(groupLink)}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                 </div>
@@ -148,7 +148,7 @@ export function GenerateFichePoliceForm({
               Un Bulletin Individuel par adulte : indique le nombre d&apos;adultes, un lien distinct sera
               généré pour chacun.
             </p>
-            <div className="max-w-[160px] space-y-1.5">
+            <div className="max-w-[calc(50%-0.5rem)] space-y-1.5 md:w-[160px]">
               <Label>Nombre d&apos;adultes</Label>
               <Input
                 type="number"
@@ -165,11 +165,11 @@ export function GenerateFichePoliceForm({
 
             {generatedLinks.length > 0 ? (
               <div className="space-y-2 rounded-md border bg-muted/30 p-3">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Liens générés
                   </p>
-                  <Button type="button" variant="ghost" size="sm" onClick={copyAll}>
+                  <Button type="button" variant="ghost" size="sm" className="max-md:h-10" onClick={copyAll}>
                     <Copy className="h-3.5 w-3.5" />
                     Copier tout
                   </Button>
@@ -179,7 +179,7 @@ export function GenerateFichePoliceForm({
                     <p className="min-w-0 flex-1 truncate text-sm">
                       Adulte {i + 1} — {link}
                     </p>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => copyLink(link)}>
+                    <Button type="button" variant="ghost" size="sm" className="max-md:size-11" onClick={() => copyLink(link)}>
                       <Copy className="h-3.5 w-3.5" />
                     </Button>
                   </div>

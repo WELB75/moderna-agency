@@ -100,7 +100,7 @@ export function IdPhotoGallery({ occupants }: { occupants: GalleryOccupant[] }) 
                 href={current.photoPieceUrl!}
                 download={`piece-identite-${[current.prenom, current.nom].filter(Boolean).join("-") || current.id}.jpg`}
                 onClick={(e) => e.stopPropagation()}
-                className="text-white/80 hover:text-white"
+                className="-m-1 p-2 text-white/80 hover:text-white"
                 aria-label="Télécharger"
               >
                 <Download className="h-5 w-5" />
@@ -108,7 +108,7 @@ export function IdPhotoGallery({ occupants }: { occupants: GalleryOccupant[] }) 
               <button
                 type="button"
                 onClick={() => setOpenIndex(null)}
-                className="text-white/80 hover:text-white"
+                className="-m-1 p-2 text-white/80 hover:text-white"
                 aria-label="Fermer"
               >
                 <X className="h-6 w-6" />

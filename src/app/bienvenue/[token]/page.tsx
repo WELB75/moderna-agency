@@ -73,7 +73,7 @@ export default async function BienvenuePage({ params }: { params: Promise<{ toke
                   href={row.domaineMapsUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent md:min-h-0"
                 >
                   <MapPin className="h-3.5 w-3.5" />
                   Google Maps
@@ -84,7 +84,7 @@ export default async function BienvenuePage({ params }: { params: Promise<{ toke
                   href={row.domaineWazeUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent"
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm hover:bg-accent md:min-h-0"
                 >
                   <Navigation className="h-3.5 w-3.5" />
                   Waze
@@ -107,7 +107,7 @@ export default async function BienvenuePage({ params }: { params: Promise<{ toke
                   <c.icon className="h-4 w-4" />
                   {c.label}
                 </span>
-                <span className="font-mono text-sm font-medium">{c.value}</span>
+                <span className="break-all text-right font-mono text-base font-medium md:text-sm">{c.value}</span>
               </div>
             ))}
           </CardContent>
@@ -120,7 +120,7 @@ export default async function BienvenuePage({ params }: { params: Promise<{ toke
             href={row.guideBienvenueUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent md:min-h-0"
           >
             <BookOpen className="h-4 w-4" />
             Guide de bienvenue
@@ -131,7 +131,7 @@ export default async function BienvenuePage({ params }: { params: Promise<{ toke
             href={toWhatsAppUrl(row.securitePhone, `Bonjour, je suis à la ${row.villaNom} (n°${row.villaNumero}).`)}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 py-2 text-sm hover:bg-accent md:min-h-0"
           >
             <ShieldCheck className="h-4 w-4" />
             Contacter la sécurité

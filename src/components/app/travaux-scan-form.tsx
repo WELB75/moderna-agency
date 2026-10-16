@@ -116,7 +116,7 @@ export function TravauxScanForm({ token }: { token: string }) {
         <p className="text-xs text-muted-foreground">
           Une photo suffit : le problème, la catégorie et l&apos;urgence se remplissent tout seuls.
         </p>
-        <Button type="button" variant="outline" size="sm" disabled={uploading || analyzing} asChild>
+        <Button type="button" variant="outline" size="sm" disabled={uploading || analyzing} className="h-11 w-full whitespace-normal md:h-7 md:w-auto" asChild>
           <label className="cursor-pointer">
             {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
             Prendre / ajouter une photo ou vidéo
@@ -141,7 +141,7 @@ export function TravauxScanForm({ token }: { token: string }) {
             {attachments.map((a) => (
               <li key={a.url} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
                 <span className="truncate">{a.name}</span>
-                <button type="button" onClick={() => removeAttachment(a.url)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                <button type="button" onClick={() => removeAttachment(a.url)} className="-m-2 shrink-0 p-2 text-muted-foreground hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </li>
@@ -161,11 +161,11 @@ export function TravauxScanForm({ token }: { token: string }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Catégorie</Label>
           <Select value={categorie} onValueChange={(v) => setCategorie(v as Categorie)}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-11 w-full md:h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -183,7 +183,7 @@ export function TravauxScanForm({ token }: { token: string }) {
         <div className="space-y-1.5">
           <Label>Urgence</Label>
           <Select value={urgence} onValueChange={(v) => setUrgence(v as Urgence)}>
-            <SelectTrigger className="w-full">
+            <SelectTrigger className="h-11 w-full md:h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -199,7 +199,7 @@ export function TravauxScanForm({ token }: { token: string }) {
         </div>
       </div>
 
-      <Button type="button" disabled={isPending || uploading || analyzing} className="w-full" onClick={handleSubmit}>
+      <Button type="button" disabled={isPending || uploading || analyzing} className="h-12 w-full text-base md:h-8 md:text-sm" onClick={handleSubmit}>
         {isPending ? "Envoi..." : "Ajouter"}
       </Button>
     </div>

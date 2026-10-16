@@ -49,7 +49,7 @@ export function EditClientDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="sm">
+        <Button variant="ghost" size="sm" className="h-10 md:h-7">
           <Pencil className="h-4 w-4" />
         </Button>
       </DialogTrigger>
@@ -61,22 +61,22 @@ export function EditClientDialog({
         <form action={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="nom">Nom complet</Label>
-            <Input id="nom" name="nom" defaultValue={nom} required />
+            <Input id="nom" name="nom" defaultValue={nom} required className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="telephone">Téléphone</Label>
-            <Input id="telephone" name="telephone" type="tel" defaultValue={telephone ?? ""} placeholder="06 XX XX XX XX" />
+            <Input id="telephone" name="telephone" type="tel" defaultValue={telephone ?? ""} placeholder="06 XX XX XX XX" className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" defaultValue={email ?? ""} placeholder="Optionnel" />
+            <Input id="email" name="email" type="email" defaultValue={email ?? ""} placeholder="Optionnel" className="h-11 md:h-8" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="notes">Habitudes / préférences</Label>
             <Textarea id="notes" name="notes" rows={3} defaultValue={notes ?? ""} placeholder="Ex. demande toujours un lit bébé..." />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+            <Button type="submit" disabled={isPending} className="h-11 w-full sm:w-auto md:h-8">
               {isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </DialogFooter>

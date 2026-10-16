@@ -84,14 +84,14 @@ export function ChecklistItemRow({
   return (
     <div className="space-y-2 rounded-md border p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-medium">{item.libelle}</p>
+        <p className="min-w-0 break-words text-sm font-medium">{item.libelle}</p>
         {!readOnly && (
           <div className="flex shrink-0 gap-1">
             <Button
               type="button"
               size="sm"
               variant={status === "ok" ? "default" : "outline"}
-              className={cn("h-8 px-2.5", status === "ok" && "bg-emerald-600 hover:bg-emerald-700")}
+              className={cn("h-11 w-11 px-0 md:h-8 md:w-auto md:px-2.5", status === "ok" && "bg-emerald-600 hover:bg-emerald-700")}
               onClick={() => handleStatusChange("ok")}
             >
               <Check className="h-4 w-4" />
@@ -100,7 +100,7 @@ export function ChecklistItemRow({
               type="button"
               size="sm"
               variant={status === "probleme" ? "default" : "outline"}
-              className={cn("h-8 px-2.5", status === "probleme" && "bg-destructive hover:bg-destructive/90")}
+              className={cn("h-11 w-11 px-0 md:h-8 md:w-auto md:px-2.5", status === "probleme" && "bg-destructive hover:bg-destructive/90")}
               onClick={() => handleStatusChange("probleme")}
             >
               <X className="h-4 w-4" />
@@ -128,7 +128,7 @@ export function ChecklistItemRow({
           onBlur={handleCommentBlur}
           placeholder="Commentaire (optionnel)"
           rows={1}
-          className="min-h-9 text-sm"
+          className="min-h-9 text-base md:text-sm"
         />
       ) : commentaire ? (
         <p className="text-sm text-muted-foreground">{commentaire}</p>
@@ -142,7 +142,7 @@ export function ChecklistItemRow({
               <button
                 type="button"
                 onClick={() => handleRemovePhoto(url)}
-                className="absolute right-0 top-0 rounded-bl-md bg-black/60 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                aria-label="Supprimer la photo" className="absolute right-0 top-0 rounded-bl-md bg-black/60 p-1.5 text-white transition-opacity md:p-0.5 md:opacity-0 md:group-hover:opacity-100"
               >
                 <Trash2 className="h-3 w-3" />
               </button>

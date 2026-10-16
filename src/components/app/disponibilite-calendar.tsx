@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { addDays, format, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { toast } from "sonner";
+import { getDefaultClassNames } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
 
 // Calendrier d'arrivée / départ branché sur la disponibilité réelle du logement : les nuits déjà
@@ -83,7 +84,8 @@ export function DisponibiliteCalendar({
           depart: "[&>button]:!bg-primary [&>button]:!text-primary-foreground [&>button]:!opacity-100",
           sejour: "[&>button]:!bg-primary/20 [&>button]:!opacity-100",
         }}
-        className="rounded-lg border"
+        classNames={{ root: `${getDefaultClassNames().root} w-full md:w-fit` }}
+        className="w-full rounded-lg border [--cell-size:--spacing(11)] md:w-fit md:[--cell-size:--spacing(7)]"
       />
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">

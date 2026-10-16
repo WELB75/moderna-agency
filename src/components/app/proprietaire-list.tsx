@@ -46,13 +46,13 @@ export function ProprietaireList({ logements }: { logements: Logement[] }) {
           {items.map((l) => (
             <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-card p-3">
               <Link href={`/villas/${l.id}`} className="min-w-0 hover:opacity-80">
-                <p className="truncate font-medium">{l.nom}</p>
+                <p className="break-words font-medium">{l.nom}</p>
                 <p className="text-xs text-muted-foreground">
                   {l.type === "appartement" ? "Appartement" : "Villa"} n°{l.numero}
                 </p>
               </Link>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <p className="text-sm font-medium">{l.proprietaireNom ?? "Non renseigné"}</p>
+              <div className="flex min-w-0 flex-col gap-1 sm:shrink-0 sm:items-end">
+                <p className="break-words text-sm font-medium">{l.proprietaireNom ?? "Non renseigné"}</p>
                 {l.proprietaireTelephone ? <PhoneLink phone={l.proprietaireTelephone} /> : null}
               </div>
             </div>

@@ -62,7 +62,7 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" size="sm">
+        <Button type="button" size="sm" className="h-10 md:h-7">
           <Plus className="h-3.5 w-3.5" />
           Demander un travaux
         </Button>
@@ -76,6 +76,7 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
           <div className="space-y-1.5">
             <Label htmlFor="titre">Titre</Label>
             <Input
+              className="h-11 md:h-8"
               id="titre"
               value={titre}
               onChange={(e) => setTitre(e.target.value)}
@@ -96,7 +97,7 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
           <div className="space-y-1.5">
             <Label>À quel point c&apos;est urgent pour vous ?</Label>
             <Select value={urgence} onValueChange={(v) => setUrgence(v as Urgence)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-11 w-full md:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -111,7 +112,7 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
           <div className="space-y-1.5">
             <Label>Catégorie</Label>
             <Select value={categorie} onValueChange={(v) => setCategorie(v as Categorie)}>
-              <SelectTrigger className="w-full">
+              <SelectTrigger className="h-11 w-full md:h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -127,7 +128,7 @@ export function AddTravauxRequestDialog({ villaId }: { villaId: string }) {
             </Select>
           </div>
           <DialogFooter>
-            <Button type="button" disabled={isPending || !titre.trim()} onClick={handleSubmit} className="w-full sm:w-auto">
+            <Button type="button" disabled={isPending || !titre.trim()} onClick={handleSubmit} className="h-12 w-full text-base sm:h-8 sm:w-auto sm:text-sm">
               {isPending ? "Envoi..." : "Envoyer"}
             </Button>
           </DialogFooter>

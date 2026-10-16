@@ -37,17 +37,17 @@ export function VillaIcalUrl({ villaId, icalUrl }: { villaId: string; icalUrl: s
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3">
       <div className="flex min-w-0 items-center gap-2.5">
-        <div className="rounded-full bg-primary/10 p-2 text-primary">
+        <div className="shrink-0 rounded-full bg-primary/10 p-2 text-primary">
           <CalendarSync className="h-4 w-4" />
         </div>
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">Synchro calendrier (iCal Superhote, legacy)</p>
-          <p className="truncate text-sm font-medium">{icalUrl ?? "Non configuré"}</p>
+          <p className="break-all text-sm font-medium">{icalUrl ?? "Non configuré"}</p>
         </div>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" className="size-10 shrink-0 md:size-auto md:h-7">
             <Pencil className="h-4 w-4" />
           </Button>
         </DialogTrigger>
@@ -66,10 +66,11 @@ export function VillaIcalUrl({ villaId, icalUrl }: { villaId: string; icalUrl: s
                 name="icalUrl"
                 defaultValue={icalUrl ?? ""}
                 placeholder="https://.../calendar.ics"
+                className="h-11 md:h-8"
               />
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+              <Button type="submit" disabled={isPending} className="h-11 w-full sm:w-auto md:h-8">
                 {isPending ? "Enregistrement..." : "Enregistrer"}
               </Button>
             </DialogFooter>
@@ -113,19 +114,19 @@ export function VillaDirectIcalUrls({
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border bg-card p-3">
       <div className="flex min-w-0 items-center gap-2.5">
-        <div className="rounded-full bg-primary/10 p-2 text-primary">
+        <div className="shrink-0 rounded-full bg-primary/10 p-2 text-primary">
           <CalendarSync className="h-4 w-4" />
         </div>
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">Synchro directe Airbnb / Booking.com (sans channel manager)</p>
-          <p className="truncate text-sm font-medium">
+          <p className="break-all text-sm font-medium">
             Airbnb : {airbnbIcalUrl ?? "Non configuré"} · Booking.com : {bookingIcalUrl ?? "Non configuré"}
           </p>
         </div>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" className="size-10 shrink-0 md:size-auto md:h-7">
             <Pencil className="h-4 w-4" />
           </Button>
         </DialogTrigger>
@@ -145,6 +146,7 @@ export function VillaDirectIcalUrls({
                 name="airbnbIcalUrl"
                 defaultValue={airbnbIcalUrl ?? ""}
                 placeholder="https://www.airbnb.com/calendar/ical/....ics"
+                className="h-11 md:h-8"
               />
             </div>
             <div className="space-y-1.5">
@@ -154,6 +156,7 @@ export function VillaDirectIcalUrls({
                 name="bookingIcalUrl"
                 defaultValue={bookingIcalUrl ?? ""}
                 placeholder="https://admin.booking.com/.../ical.ics"
+                className="h-11 md:h-8"
               />
             </div>
             <div className="space-y-1.5 rounded-md bg-muted/50 p-3 text-xs">
@@ -163,7 +166,7 @@ export function VillaDirectIcalUrls({
               <p className="break-all font-mono">{exportBooking}</p>
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={isPending} className="w-full sm:w-auto">
+              <Button type="submit" disabled={isPending} className="h-11 w-full sm:w-auto md:h-8">
                 {isPending ? "Enregistrement..." : "Enregistrer"}
               </Button>
             </DialogFooter>

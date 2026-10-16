@@ -215,7 +215,7 @@ function SectionHeader({ title, href, linkLabel }: { title: string; href?: strin
 
 function KpiTile({ icon: Icon, label, value, unit }: { icon: LucideIcon; label: string; value: string; unit?: string }) {
   return (
-    <div className="space-y-2 bg-card p-4">
+    <div className="space-y-2 bg-card p-3 sm:p-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
         <span className="flex h-7 w-7 items-center justify-center rounded-md border bg-background">
           <Icon className="h-3.5 w-3.5" />

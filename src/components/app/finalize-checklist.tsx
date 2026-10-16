@@ -82,12 +82,12 @@ export function FinalizeChecklist({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="lg" className="w-full">
+        <Button size="lg" className="h-11 w-full md:h-9">
           <PenLine className="h-4 w-4" />
           Valider et faire signer le client
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Signature de l&apos;état des lieux</DialogTitle>
           <DialogDescription>
@@ -103,7 +103,7 @@ export function FinalizeChecklist({
           <SignaturePad ref={agentSigRef} label={`Signature de l'agent${agentNom ? ` (${agentNom})` : ""}`} />
         </div>
         <DialogFooter>
-          <Button onClick={handleSubmit} disabled={isPending} className="w-full">
+          <Button onClick={handleSubmit} disabled={isPending} className="h-11 w-full md:h-8">
             {isPending ? "Enregistrement..." : "Confirmer la signature"}
           </Button>
         </DialogFooter>

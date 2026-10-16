@@ -284,7 +284,7 @@ export default async function DocumentsPage({
         </TabsContent>
 
         <TabsContent value="pieces-identite" className="space-y-4">
-          <div className="flex items-center justify-between print:hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
             <p className="text-sm text-muted-foreground">
               Photos des pièces d&apos;identité transmises via les fiches police — pour la sécurité aux
               entrées de domaine.
@@ -322,17 +322,17 @@ export default async function DocumentsPage({
                         </span>
                       </a>
                       <CardContent className="space-y-0.5 p-3">
-                        <p className="truncate text-sm font-medium">
+                        <p className="break-words text-sm font-medium md:truncate">
                           {[p.prenom, p.nom].filter(Boolean).join(" ") || "Nom non renseigné"}
                         </p>
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p className="break-words text-xs text-muted-foreground md:truncate">
                           {p.villaNom ? `${p.villaNom} (n°${p.villaNumero})` : "Logement non renseigné"}
                         </p>
                         {p.numeroPiece ? (
-                          <p className="truncate text-xs text-muted-foreground">Pièce : {p.numeroPiece}</p>
+                          <p className="break-words text-xs text-muted-foreground md:truncate">Pièce : {p.numeroPiece}</p>
                         ) : null}
                         {p.nationalite ? (
-                          <p className="truncate text-xs text-muted-foreground">{p.nationalite}</p>
+                          <p className="break-words text-xs text-muted-foreground md:truncate">{p.nationalite}</p>
                         ) : null}
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(p.createdAt), "d MMM yyyy", { locale: fr })}
