@@ -1,0 +1,246 @@
+import Link from "next/link";
+import { and, asc, eq, gte, inArray, lte, ne } from "drizzle-orm";
+import { addDays, endOfDay, format, startOfDay } from "date-fns";
+import { fr } from "date-fns/locale";
+import { Clock, FileText, ShieldCheck, type LucideIcon } from "lucide-react";
+import { getDb } from "@/db";
+import { gendarmerieForms, reservations, villas } from "@/db/schema";
+import { CanalDot } from "@/components/app/canal-badge";
+import { villaEstGeree } from "@/lib/domaines-actifs";
+import { cn } from "@/lib/utils";
+
+// Suivi des arrivées (accueil) — Fouad, 2026-10-16 : "je veux que tout soit connecté : s'ils ont
+// fait la fiche police ou pas via le lien, s'ils ont payé via Stripe ou pas, et que nous, en
+// interne dans le logiciel, on le voie. On voit où ça en est et combien de temps il reste."
+//
+// Pour chaque arrivée des 7 prochains jours : fiche police (remplie par le voyageur sur /g/[id],
+// lien envoyé par Beds24), caution (empreinte Stripe détectée par la synchro Beds24 via l'info
+// code STRIPEAUTHORIZE, voir sync.ts) et temps restant avant l'arrivée.
+//
+// Les heures d'envoi reprennent les actions automatiques Beds24 : fiche police J-2 à 10h (action
+// "10 - J-2 10h : fiche police"), lien caution J-1 à 10h puis rappel le jour J à 10h ("Caution
+// ... - lien J-1 10h"). Ce sont les heures prévues, pas une confirmation d'envoi : une réservation
+// faite à la dernière minute reçoit ses liens dès la réservation.
+
+const NB_JOURS = 7;
+
+type StatutTone = "ok" | "attente" | "urgent" | "neutre";
+
+type Statut = { tone: StatutTone; label: string; detail?: string };
+
+const TONE_CLASSES: Record<StatutTone, string> = {
+  ok: "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:border-emerald-500/20 dark:text-emerald-400",
+  attente: "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:border-amber-500/20 dark:text-amber-400",
+  urgent: "border-red-500/30 bg-red-500/5 text-red-700 dark:border-red-500/20 dark:text-red-400",
+  neutre: "border-border bg-muted/40 text-muted-foreground",
+};
+
+// Même convention que toDateTime() dans beds24/sync.ts : les dates de l'app portent l'heure
+// "affichée" au Maroc dans leurs champs UTC (voir nowInMorocco).
+function aJourHeure(reference: Date, decalageJours: number, heure: number): Date {
+  return new Date(
+    Date.UTC(reference.getUTCFullYear(), reference.getUTCMonth(), reference.getUTCDate() + decalageJours, heure, 0, 0)
+  );
+}
+
+function tempsRestant(cible: Date, now: Date): string {
+  const ms = cible.getTime() - now.getTime();
+  if (ms <= 0) return "Arrivé";
+  const minutes = Math.round(ms / 60_000);
+  if (minutes < 60) return `dans ${Math.max(1, minutes)} min`;
+  const heures = Math.floor(ms / 3_600_000);
+  if (heures < 24) return `dans ${heures} h`;
+  const jours = Math.floor(heures / 24);
+  const reste = heures % 24;
+  return reste > 0 ? `dans ${jours} j ${reste} h` : `dans ${jours} j`;
+}
+
+function quand(date: Date): string {
+  return format(date, "EEE d MMM 'à' HH'h'", { locale: fr });
+}
+
+function formatMontant(montant: number): string {
+  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(montant)} €`;
+}
+
+export function statutCaution(
+  r: { canal: string | null; caution: string | null; cautionPayee: boolean; checkIn: Date },
+  now: Date
+): Statut {
+  const montant = r.caution ? Number(r.caution) : 0;
+  if (r.cautionPayee) return { tone: "ok", label: montant > 0 ? `Reçue · ${formatMontant(montant)}` : "Reçue" };
+  if (montant <= 0) {
+    return { tone: "neutre", label: (r.canal ?? "").toLowerCase().includes("airbnb") ? "Pas de caution (Airbnb)" : "Pas de caution" };
+  }
+  const lien = aJourHeure(r.checkIn, -1, 10);
+  if (now < lien) return { tone: "neutre", label: `${formatMontant(montant)} · lien pas encore envoyé`, detail: `Envoi prévu ${quand(lien)}` };
+  if (now >= r.checkIn) return { tone: "urgent", label: `Non reçue · ${formatMontant(montant)}`, detail: "Voyageur arrivé sans empreinte" };
+  const rappel = aJourHeure(r.checkIn, 0, 10);
+  return {
+    tone: "attente",
+    label: `En attente · ${formatMontant(montant)}`,
+    detail: now < rappel ? `Lien envoyé · rappel ${quand(rappel)}` : "Lien et rappel envoyés",
+  };
+}
+
+export function statutFichePolice(r: { checkIn: Date }, fiche: "complete" | "en_attente" | null, now: Date): Statut {
+  if (fiche === "complete") return { tone: "ok", label: "Faite" };
+  const lien = aJourHeure(r.checkIn, -2, 10);
+  if (now >= r.checkIn) return { tone: "urgent", label: "Manquante", detail: "Voyageur arrivé sans fiche" };
+  if (now < lien) return { tone: "neutre", label: "Lien pas encore envoyé", detail: `Envoi prévu ${quand(lien)}` };
+  return { tone: "attente", label: "En attente", detail: "Lien envoyé, pas encore remplie" };
+}
+
+function StatutChip({ icon: Icon, titre, statut, href }: { icon: LucideIcon; titre: string; statut: Statut; href?: string }) {
+  const contenu = (
+    <>
+      <span className="flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 shrink-0" />
+        <span className="text-muted-foreground">{titre} ·</span>
+        <span className="font-medium">{statut.label}</span>
+      </span>
+      {statut.detail ? <span className="block text-[11px] text-muted-foreground">{statut.detail}</span> : null}
+    </>
+  );
+  const classes = cn("block min-w-0 rounded-md border px-2 py-1 text-xs", TONE_CLASSES[statut.tone]);
+  return href ? (
+    <Link href={href} className={cn(classes, "transition-opacity hover:opacity-80")}>
+      {contenu}
+    </Link>
+  ) : (
+    <div className={classes}>{contenu}</div>
+  );
+}
+
+export async function SuiviArrivees({ now }: { now: Date }) {
+  const db = getDb();
+  const debut = startOfDay(now);
+  const fin = endOfDay(addDays(now, NB_JOURS - 1));
+
+  const arrivees = (
+    await db
+      .select({
+        id: reservations.id,
+        guestName: reservations.guestName,
+        checkIn: reservations.checkIn,
+        canal: reservations.canal,
+        caution: reservations.caution,
+        cautionPayee: reservations.cautionPayee,
+        villaNom: villas.nom,
+      })
+      .from(reservations)
+      .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkIn, debut), lte(reservations.checkIn, fin)))
+      .orderBy(asc(reservations.checkIn))
+  ).filter((r) => villaEstGeree(r.villaNom));
+
+  const ids = arrivees.map((r) => r.id);
+  const fiches =
+    ids.length > 0
+      ? await db
+          .select({ id: gendarmerieForms.id, reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
+          .from(gendarmerieForms)
+          .where(inArray(gendarmerieForms.reservationId, ids))
+      : [];
+  // Une fiche "complete" l'emporte sur une fiche en attente créée en double pour le même séjour.
+  const ficheParResa = new Map<string, { id: string; statut: "complete" | "en_attente" }>();
+  for (const f of fiches) {
+    if (!f.reservationId) continue;
+    const actuelle = ficheParResa.get(f.reservationId);
+    if (!actuelle || (f.statut === "complete" && actuelle.statut !== "complete")) {
+      ficheParResa.set(f.reservationId, { id: f.id, statut: f.statut === "complete" ? "complete" : "en_attente" });
+    }
+  }
+
+  const lignes = arrivees.map((r) => {
+    const fiche = ficheParResa.get(r.id) ?? null;
+    return {
+      ...r,
+      fiche,
+      caution: statutCaution(r, now),
+      police: statutFichePolice(r, fiche?.statut ?? null, now),
+    };
+  });
+
+  const cautionsEnAttente = lignes.filter((l) => l.caution.tone === "attente" || l.caution.tone === "urgent").length;
+  const fichesEnAttente = lignes.filter((l) => l.police.tone === "attente" || l.police.tone === "urgent").length;
+  const urgents = lignes.filter((l) => l.caution.tone === "urgent" || l.police.tone === "urgent").length;
+  // Prochaine arrivée qui attend encore quelque chose du voyageur : affichée dans la ligne repliée.
+  const prochaine = lignes.find(
+    (l) => l.checkIn > now && (l.caution.tone === "attente" || l.police.tone === "attente")
+  );
+
+  // Replié par défaut pour ne pas repousser la semaine sous la ligne de flottaison (Kamel,
+  // 2026-10-16 : "voir directement 2-3 jours à venir sans scroller") ; ouvert d'office dès qu'un
+  // voyageur est arrivé sans fiche police ou sans caution.
+  return (
+    <details open={urgents > 0} className="group rounded-xl border bg-card">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 marker:content-none">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Caution et fiche police</span>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+          <Compteur tone={cautionsEnAttente > 0 ? "attente" : "ok"} label={`${cautionsEnAttente} caution${cautionsEnAttente > 1 ? "s" : ""} en attente`} />
+          <Compteur tone={fichesEnAttente > 0 ? "attente" : "ok"} label={`${fichesEnAttente} fiche${fichesEnAttente > 1 ? "s" : ""} police en attente`} />
+          {urgents > 0 ? <Compteur tone="urgent" label={`${urgents} arrivé${urgents > 1 ? "s" : ""} sans fiche ou caution`} /> : null}
+          {prochaine ? (
+            <span className="text-muted-foreground">
+              Prochaine : {prochaine.villaNom ?? "Logement"} {tempsRestant(prochaine.checkIn, now)}
+            </span>
+          ) : null}
+        </span>
+        <span className="ml-auto text-xs text-primary group-open:hidden">
+          {lignes.length === 0 ? "Aucune arrivée sur 7 jours" : `Voir ${lignes.length > 1 ? `les ${lignes.length} arrivées` : "l'arrivée"}`}
+        </span>
+        <span className="ml-auto hidden text-xs text-primary group-open:inline">Masquer</span>
+      </summary>
+
+      {lignes.length === 0 ? (
+        <p className="border-t p-3 text-sm text-muted-foreground">Aucune arrivée dans les 7 prochains jours.</p>
+      ) : (
+        <ul className="divide-y border-t">
+          {lignes.map((l) => {
+            const urgent = l.caution.tone === "urgent" || l.police.tone === "urgent";
+            const restant = tempsRestant(l.checkIn, now);
+            return (
+              <li key={l.id} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-center sm:gap-3">
+                <Link href={`/reservations/${l.id}`} className="flex min-w-0 items-center gap-2.5 hover:opacity-80">
+                  <CanalDot canal={l.canal} size="md" />
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-medium">{l.villaNom ?? "Logement"} · {l.guestName}</span>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3 shrink-0" />
+                      {format(l.checkIn, "EEE d MMM", { locale: fr })} ·{" "}
+                      <span className={cn("font-medium", urgent ? "text-red-600 dark:text-red-400" : "text-foreground")}>{restant}</span>
+                    </span>
+                  </span>
+                </Link>
+                <StatutChip
+                  icon={FileText}
+                  titre="Fiche police"
+                  statut={l.police}
+                  href={l.fiche ? (l.fiche.statut === "complete" ? `/gendarmerie/${l.fiche.id}` : `/g/${l.fiche.id}`) : undefined}
+                />
+                <StatutChip icon={ShieldCheck} titre="Caution" statut={l.caution} href={`/reservations/${l.id}`} />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </details>
+  );
+}
+
+const DOT_CLASSES: Record<StatutTone, string> = {
+  ok: "bg-emerald-500",
+  attente: "bg-amber-500",
+  urgent: "bg-red-500",
+  neutre: "bg-muted-foreground/40",
+};
+
+function Compteur({ tone, label }: { tone: StatutTone; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className={cn("h-2 w-2 shrink-0 rounded-full", DOT_CLASSES[tone])} />
+      <span className={tone === "urgent" ? "font-medium text-red-600 dark:text-red-400" : "text-foreground"}>{label}</span>
+    </span>
+  );
+}
