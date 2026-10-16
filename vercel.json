@@ -27,6 +27,38 @@
     {
       "path": "/api/beds24/sync",
       "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 17 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 19 * * *"
+    },
+    {
+      "path": "/api/beds24/sync",
+      "schedule": "0 21 * * *"
     }
   ]
 }
