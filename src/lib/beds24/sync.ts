@@ -63,8 +63,13 @@ export function cautionAutoriseeParStripe(booking: Beds24Booking): boolean {
 // Montant de caution demandé par Beds24 pour ce séjour : celui du groupe de la propriété (voir
 // mapping.ts), seulement pour Booking.com et Direct — les actions caution ne partent jamais pour
 // Airbnb, qui n'a donc pas de caution à suivre.
-function cautionPrevue(roomId: string, canal: string | null): string | null {
+// Réservation Beds24 qui ne correspond à aucun voyageur ("Blocage Airbnb", dates fermées...) : pas
+// de caution à attendre.
+const NOM_BLOCAGE_BEDS24 = /^(blocage|date bloqu|not available|blocked|indisponible)/i;
+
+function cautionPrevue(roomId: string, canal: string | null, guestName: string): string | null {
   if ((canal ?? "").toLowerCase().includes("airbnb")) return null;
+  if (NOM_BLOCAGE_BEDS24.test(guestName.trim())) return null;
   const mapping = BEDS24_VILLA_MAPPING.find((m) => String(m.roomId) === roomId);
   return mapping ? String(mapping.caution) : null;
 }
@@ -293,7 +298,7 @@ export async function runBeds24Sync(): Promise<
         // Caution : montant rempli seulement s'il est vide (un montant saisi à la main dans l'app
         // reste prioritaire), et "reçue" ne repasse jamais à faux toute seule (caution encaissée
         // autrement, cochée à la main).
-        const montantCaution = cautionPrevue(villa.beds24RoomId, canalEffectif);
+        const montantCaution = cautionPrevue(villa.beds24RoomId, canalEffectif, guestName);
         const stripeAutorise = cautionAutoriseeParStripe(booking);
 
         const values = {
