@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { createHash } from "node:crypto";
+import { and, asc, eq, gt } from "drizzle-orm";
 import { getDb } from "@/db";
-import { villas } from "@/db/schema";
+import { reservations } from "@/db/schema";
 import { getTarification, type TarificationVilla } from "@/lib/pricelabs/sync";
-import { calendrierToken, calendrierTokenValide } from "@/lib/calendrier-partage";
+import { CANAL_SEJOUR_PROPRIETAIRE, villaDuCalendrierToken } from "@/lib/calendrier-partage";
+import { nowInMorocco } from "@/lib/now";
 import { TarificationView } from "@/components/app/tarification-view";
+import { ProprietaireReservation, type SejourProprietaire } from "@/components/app/proprietaire-reservation";
 import { Logo } from "@/components/app/logo";
 
 export const metadata: Metadata = {
@@ -34,19 +38,45 @@ function versionPublique(villa: TarificationVilla): TarificationVilla {
   };
 }
 
-// Lien public "calendrier seul" d'un logement — voir lib/calendrier-partage.ts.
+// Lien public "calendrier seul" d'un logement — voir lib/calendrier-partage.ts. Le propriétaire
+// peut aussi y réserver (et annuler) ses propres séjours, voir actions/calendrier-proprietaire.ts.
 export default async function CalendrierPartagePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  if (!token || token.length !== 24) notFound();
-
-  const db = getDb();
-  const candidats = await db
-    .select({ id: villas.id, nom: villas.nom, lienProprietaireToken: villas.lienProprietaireToken })
-    .from(villas);
-  const villa = candidats.find((v) => calendrierTokenValide(calendrierToken(v.lienProprietaireToken), token));
+  const villa = await villaDuCalendrierToken(token);
   if (!villa) notFound();
 
   const tarifs = (await getTarification({ villaId: villa.id })).map(versionPublique);
+
+  // Séjours propriétaire pas encore commencés : les seuls annulables depuis ce lien (même règle
+  // que annulerSejourProprietaire).
+  const demain = nowInMorocco();
+  demain.setUTCHours(0, 0, 0, 0);
+  demain.setUTCDate(demain.getUTCDate() + 1);
+  const sejours: SejourProprietaire[] = (
+    await getDb()
+      .select({ id: reservations.id, nom: reservations.guestName, checkIn: reservations.checkIn, checkOut: reservations.checkOut })
+      .from(reservations)
+      .where(
+        and(
+          eq(reservations.villaId, villa.id),
+          eq(reservations.source, "manuel"),
+          eq(reservations.canal, CANAL_SEJOUR_PROPRIETAIRE),
+          gt(reservations.checkIn, demain)
+        )
+      )
+      .orderBy(asc(reservations.checkIn))
+  ).map((s) => ({
+    id: s.id,
+    nom: s.nom,
+    arrivee: new Date(s.checkIn).toISOString().slice(0, 10),
+    depart: new Date(s.checkOut).toISOString().slice(0, 10),
+  }));
+
+  // Clé de la grille : la recrée quand les réservations changent (après une réservation ou une
+  // annulation, router.refresh() renvoie de nouvelles données mais le composant garde son état).
+  const cleGrille = createHash("sha1")
+    .update(tarifs.flatMap((v) => v.reservations.map((r) => `${r.id}:${r.checkIn}:${r.checkOut}`)).join("|"))
+    .digest("hex");
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-8">
@@ -58,7 +88,8 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
         <h1 className="text-2xl font-semibold tracking-tight">{villa.nom}</h1>
         <p className="text-sm text-muted-foreground">Réservations et prix en direct.</p>
       </div>
-      <TarificationView initialVillas={tarifs} lectureSeule />
+      <ProprietaireReservation token={token} nomParDefaut={villa.proprietaireNom || "Propriétaire"} sejours={sejours} />
+      <TarificationView key={cleGrille} initialVillas={tarifs} lectureSeule />
     </div>
   );
 }
