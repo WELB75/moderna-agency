@@ -14,6 +14,7 @@ import {
   BarChart3,
   CalendarDays,
   History,
+  Calculator,
   type LucideIcon,
 } from "lucide-react";
 
@@ -31,6 +32,7 @@ export const navGroups: NavGroup[] = [
       { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
       { href: "/calendrier", label: "Calendrier", icon: CalendarDays },
       { href: "/reservations/nouvelle", label: "Nouvelle réservation", icon: CalendarPlus },
+      { href: "/devis", label: "Devis rapide", icon: Calculator },
       { href: "/villas", label: "Hébergements", icon: Building2 },
       { href: "/personnel", label: "Ménages et équipe", icon: ChefHat },
       { href: "/caisse", label: "Caisse", icon: Wallet },

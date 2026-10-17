@@ -13,7 +13,7 @@ import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 // Kamel, 2026-10-14 : "si on choisit une date et que c'est pas dispo ça sera impossible à réserver".
 //
 // libellesPrix (optionnel) : prix PriceLabs de la nuit affiché sous chaque date libre, comme sur
-// Airbnb — utilisé par le Devis rapide du calendrier (Kamel, 2026-10-16 : "sur devis rapide le
+// Airbnb — utilisé par la page Devis rapide, /devis (Kamel, 2026-10-16 : "sur devis rapide le
 // calendrier est pas connecté à pricelabs").
 
 const iso = (d: Date) => format(d, "yyyy-MM-dd");
