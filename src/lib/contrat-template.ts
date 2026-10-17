@@ -2,6 +2,18 @@ export const AGENCE_NOM = "Moderna Agency";
 export const AGENCE_ADRESSE = "Lahbichate, Marrakech";
 export const AGENCE_REPRESENTANT_DEFAUT = "Moderna Agency";
 
+// Les contrats signés AVANT cette date l'ont été avec l'ancien texte (13 articles, ci-dessous) :
+// ils restent affichés tel quel (voir ContratDocumentV1). Tout contrat signé ensuite — ou encore
+// en attente de signature — utilise les Conditions de séjour (lib/conditions-sejour.ts).
+export const CONDITIONS_SEJOUR_DEPUIS = new Date("2026-10-18T00:45:00Z");
+
+export function estContratV1(signedAt: Date | string | null | undefined): boolean {
+  if (!signedAt) return false;
+  return new Date(signedAt).getTime() < CONDITIONS_SEJOUR_DEPUIS.getTime();
+}
+
+// Ancien texte (contrats signés avant CONDITIONS_SEJOUR_DEPUIS) — ne plus modifier : c'est ce que
+// les clients concernés ont signé.
 export const CONTRAT_ARTICLES_FIXES = [
   {
     titre: "Article 5 : Obligations du Locataire",
