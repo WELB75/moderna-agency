@@ -15,9 +15,7 @@ export default async function DevisPage() {
           Choisis un logement et des dates : disponibilité et prix total calculés depuis PriceLabs.
         </p>
       </div>
-      <div className="max-w-3xl">
-        <DevisRapide villas={villas} />
-      </div>
+      <DevisRapide villas={villas} />
     </div>
   );
 }

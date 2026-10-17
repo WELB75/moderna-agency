@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { addDays, format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { CalendarDays } from "lucide-react";
+import { Building2, CalendarDays } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -38,6 +38,32 @@ function DisponibiliteDot({ statut, label }: { statut: "disponible" | "indisponi
       <span className={texte}>{label}</span>
     </span>
   );
+}
+
+type StatutSejour = "disponible" | "indisponible" | "invalide";
+
+// Une nuit manquante dans le calendrier PriceLabs rend le séjour invalide ; une seule nuit prise
+// suffit à le rendre indisponible. Partagé par le devis et par la grille des logements.
+function evaluerSejour(villa: TarificationVilla, debut: string, fin: string): { statut: StatutSejour; nuits: number; total: number } {
+  const debutDate = parseISO(debut);
+  const finDate = parseISO(fin);
+  if (finDate <= debutDate) return { statut: "invalide", nuits: 0, total: 0 };
+  let total = 0;
+  let nuits = 0;
+  let manquantes = 0;
+  let prises = 0;
+  for (let cursor = debutDate; cursor < finDate; cursor = addDays(cursor, 1)) {
+    const jour = villa.days.find((d) => d.date === format(cursor, "yyyy-MM-dd"));
+    if (!jour) manquantes++;
+    else if (jour.unbookable || jour.price == null) prises++;
+    else {
+      nuits++;
+      total += jour.price;
+    }
+  }
+  if (manquantes > 0) return { statut: "invalide", nuits, total };
+  if (prises > 0) return { statut: "indisponible", nuits, total };
+  return { statut: "disponible", nuits, total };
 }
 
 // Sélection d'une villa → prix du jour affiché immédiatement (pas besoin d'ouvrir la fiche
@@ -82,30 +108,19 @@ export function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
 
   const devis = useMemo<DevisResultat | null>(() => {
     if (!villa || !debut || !fin) return null;
-    const debutDate = parseISO(debut);
-    const finDate = parseISO(fin);
-    if (finDate <= debutDate) return { statut: "invalide", message: "La date de fin doit être après la date de début." };
-
-    const nuits: number[] = [];
-    let manquantes = 0;
-    let indisponibles = 0;
-    for (let cursor = debutDate; cursor < finDate; cursor = addDays(cursor, 1)) {
-      const jour = villa.days.find((d) => d.date === format(cursor, "yyyy-MM-dd"));
-      if (!jour) manquantes++;
-      else if (jour.unbookable || jour.price == null) indisponibles++;
-      else nuits.push(jour.price);
-    }
-    if (manquantes > 0) return { statut: "invalide", message: "Période hors du calendrier de prix disponible (1 an)." };
+    if (parseISO(fin) <= parseISO(debut)) return { statut: "invalide", message: "La date de fin doit être après la date de début." };
+    const r = evaluerSejour(villa, debut, fin);
+    if (r.statut === "invalide") return { statut: "invalide", message: "Période hors du calendrier de prix disponible (1 an)." };
     // Une seule nuit déjà prise suffit à rendre le séjour demandé impossible tel quel — pas la
     // peine de détailler combien, "elle" a juste besoin de savoir si ça passe ou pas.
-    if (indisponibles > 0) return { statut: "indisponible" };
-
-    return { statut: "disponible", nuits: nuits.length, total: nuits.reduce((s, p) => s + p, 0) };
+    if (r.statut === "indisponible") return { statut: "indisponible" };
+    return { statut: "disponible", nuits: r.nuits, total: r.total };
   }, [villa, debut, fin]);
 
   return (
-    // Pas de titre de carte : la page porte déjà le titre "Devis rapide".
-    <Card>
+    <div className="space-y-5">
+    {/* Pas de titre de carte : la page porte déjà le titre "Devis rapide". */}
+    <Card className="max-w-3xl">
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
@@ -204,6 +219,160 @@ export function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
         ) : null}
       </CardContent>
     </Card>
+
+    <ApercuLogements
+      villas={villas}
+      villaId={villaId}
+      onChoisir={setVillaId}
+      sejour={debut && fin && parseISO(fin) > parseISO(debut) ? { debut, fin } : null}
+    />
+    </div>
+  );
+}
+
+type FiltreApercu = "tous" | "disponible" | "indisponible";
+
+// Kamel, 2026-10-17 : "quand on clique sur Devis rapide, j'aimerais qu'on voit directement quelle
+// villa est dispo et laquelle est occupée, avant même de cliquer". Sans dates : état de ce soir ;
+// avec des dates : état sur la période choisie + total. Un clic sur une carte la sélectionne dans
+// le formulaire du devis.
+function ApercuLogements({
+  villas,
+  villaId,
+  onChoisir,
+  sejour,
+}: {
+  villas: TarificationVilla[];
+  villaId: string;
+  onChoisir: (id: string) => void;
+  sejour: { debut: string; fin: string } | null;
+}) {
+  const [filtre, setFiltre] = useState<FiltreApercu>("tous");
+  const aujourdhui = format(new Date(), "yyyy-MM-dd");
+
+  const lignes = useMemo(() => {
+    return villas.map((v) => {
+      const ceSoir = v.days.find((d) => d.date === aujourdhui) ?? null;
+      const prisCeSoir = ceSoir ? ceSoir.unbookable || ceSoir.price == null : null;
+      // Prochain changement d'état à partir d'aujourd'hui : "libre le ..." si occupé ce soir,
+      // "libre jusqu'au ..." (prochaine nuit prise) si libre.
+      const futurs = v.days.filter((d) => d.date >= aujourdhui).sort((a, b) => a.date.localeCompare(b.date));
+      const estPris = (d: { unbookable: boolean; price: number | null }) => d.unbookable || d.price == null;
+      let prochain: string | null = null;
+      if (prisCeSoir === false) prochain = futurs.find(estPris)?.date ?? null;
+      else if (prisCeSoir === true) prochain = futurs.find((d) => !estPris(d))?.date ?? null;
+      const resultat = sejour ? evaluerSejour(v, sejour.debut, sejour.fin) : null;
+      const statut: "disponible" | "indisponible" | "inconnu" = resultat
+        ? resultat.statut === "disponible"
+          ? "disponible"
+          : resultat.statut === "indisponible"
+            ? "indisponible"
+            : "inconnu"
+        : prisCeSoir == null
+          ? "inconnu"
+          : prisCeSoir
+            ? "indisponible"
+            : "disponible";
+      return { villa: v, ceSoir, prisCeSoir, prochain, resultat, statut };
+    });
+  }, [villas, aujourdhui, sejour]);
+
+  const nbDispo = lignes.filter((l) => l.statut === "disponible").length;
+  const nbOccupe = lignes.filter((l) => l.statut === "indisponible").length;
+
+  const visibles = lignes
+    .filter((l) => filtre === "tous" || l.statut === filtre)
+    // Les disponibles d'abord (c'est ce qu'on cherche pour proposer un logement), puis l'ordre d'origine.
+    .map((l, i) => ({ l, i }))
+    .sort((a, b) => (a.l.statut === "disponible" ? 0 : 1) - (b.l.statut === "disponible" ? 0 : 1) || a.i - b.i)
+    .map((x) => x.l);
+
+  const titre = sejour
+    ? `Du ${format(parseISO(sejour.debut), "d MMM", { locale: fr })} au ${format(parseISO(sejour.fin), "d MMM", { locale: fr })}`
+    : "Ce soir";
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h2 className="text-base font-semibold">{titre}</h2>
+          <span className="text-sm text-green-600 dark:text-green-400">{nbDispo} disponible(s)</span>
+          <span className="text-sm text-red-600 dark:text-red-400">{nbOccupe} occupé(s)</span>
+        </div>
+        <div className="flex gap-1.5">
+          {(
+            [
+              ["tous", "Tous"],
+              ["disponible", "Disponibles"],
+              ["indisponible", "Occupés"],
+            ] as const
+          ).map(([valeur, label]) => (
+            <Button key={valeur} type="button" size="sm" variant={filtre === valeur ? "secondary" : "ghost"} onClick={() => setFiltre(valeur)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+        {visibles.map(({ villa: v, ceSoir, prochain, resultat, statut }) => {
+          const label = sejour
+            ? statut === "disponible"
+              ? "Disponible"
+              : statut === "indisponible"
+                ? "Occupé sur la période"
+                : "Hors calendrier"
+            : statut === "disponible"
+              ? "Disponible ce soir"
+              : statut === "indisponible"
+                ? "Occupé ce soir"
+                : "Prix inconnu";
+          let detail: string | null = null;
+          if (!sejour && prochain) {
+            const date = format(parseISO(prochain), "EEE d MMM", { locale: fr });
+            detail = statut === "disponible" ? `Libre jusqu'au ${date}` : `Libre le ${date}`;
+          }
+          const prix = sejour
+            ? statut === "disponible" && resultat
+              ? { montant: resultat.total, suffixe: `${resultat.nuits} nuit(s)` }
+              : null
+            : ceSoir && ceSoir.price != null && !ceSoir.unbookable
+              ? { montant: ceSoir.price, suffixe: "ce soir" }
+              : null;
+          return (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => onChoisir(v.id)}
+              className={`flex items-center gap-3 rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/40 ${
+                v.id === villaId ? "border-primary ring-1 ring-primary" : ""
+              }`}
+            >
+              {v.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={v.photoUrl} alt="" className="h-14 w-14 shrink-0 rounded-md border object-cover" />
+              ) : (
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border bg-muted/40 text-muted-foreground">
+                  <Building2 className="h-5 w-5" />
+                </div>
+              )}
+              <div className="min-w-0 flex-1 space-y-0.5">
+                <p className="truncate text-sm font-medium">{v.nom}</p>
+                <DisponibiliteDot statut={statut} label={label} />
+                {detail ? <p className="truncate text-xs text-muted-foreground">{detail}</p> : null}
+              </div>
+              {prix ? (
+                <div className="shrink-0 text-right">
+                  <p className="text-sm font-semibold">{formatPrix(prix.montant, v.currency)}</p>
+                  <p className="text-xs text-muted-foreground">{prix.suffixe}</p>
+                </div>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+      {visibles.length === 0 ? <p className="text-sm text-muted-foreground">Aucun logement dans cette catégorie.</p> : null}
+    </section>
   );
 }
 
