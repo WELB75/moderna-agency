@@ -144,7 +144,7 @@ ${sejourTexte}
 
 ${blocLogement(sejour, maintenant)}
 
-Infos générales : arrivée à partir de 15h, départ avant 11h. Toutes les piscines de l'agence sont chauffées (inclus). Aucun logement n'a de vis-à-vis.
+Infos générales : arrivée à partir de 15h, départ avant 11h. La piscine chauffée est une option payante : 30 € par jour (en euros), à demander avant l'arrivée. Aucun logement n'a de vis-à-vis.
 
 Règles :
 - Écris en français, quelle que soit la langue du voyageur (la traduction est faite à l'envoi). Ton chaleureux, poli, bref, style message de plateforme — pas de pavé, pas d'émojis.
