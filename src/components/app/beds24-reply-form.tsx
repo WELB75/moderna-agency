@@ -2,12 +2,13 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Send } from "lucide-react";
+import { Loader2, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { sendBeds24InquiryMessage, sendBeds24Message } from "@/lib/actions/beds24";
 import { traduireReponse } from "@/lib/actions/traduction";
+import { suggererReponseIA } from "@/lib/actions/messages-agent";
 
 // Répondre à un voyageur Airbnb/Booking.com depuis l'app — Kamel, 2026-09-15 : "je veux pouvoir
 // aussi y répondre sur l'app". router.refresh() plutôt qu'une mise à jour optimiste : le message
@@ -16,6 +17,8 @@ import { traduireReponse } from "@/lib/actions/traduction";
 // sans réservation (lue directement dans Beds24).
 // langue : langue du voyageur si ce n'est pas du français — la réponse écrite en français est alors
 // traduite automatiquement avant l'envoi (Kamel, 2026-10-13).
+// Bouton "Suggérer une réponse" (Kamel, 2026-10-17) : l'agent IA prépare un brouillon en français
+// dans la zone de saisie, jamais envoyé tout seul — l'équipe relit, modifie et envoie.
 export function Beds24ReplyForm({
   reservationId,
   beds24InquiryId,
@@ -28,8 +31,24 @@ export function Beds24ReplyForm({
   const [message, setMessage] = useState("");
   const [traduire, setTraduire] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const [suggestionEnCours, setSuggestionEnCours] = useState(false);
+  const [noteAgent, setNoteAgent] = useState<{ texte: string; humain: boolean } | null>(null);
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+
+  async function suggerer() {
+    setSuggestionEnCours(true);
+    setNoteAgent(null);
+    try {
+      const s = await suggererReponseIA({ reservationId, beds24InquiryId });
+      if (s.reponseFr) setMessage(s.reponseFr);
+      setNoteAgent({ texte: s.reponseFr ? s.raison : s.raison || "Pas de réponse nécessaire.", humain: s.besoinHumain || !s.reponseFr });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Suggestion indisponible.");
+    } finally {
+      setSuggestionEnCours(false);
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -53,6 +72,18 @@ export function Beds24ReplyForm({
 
   return (
     <div className="border-t border-border">
+      <div className="flex flex-wrap items-center gap-2 px-3 pt-2">
+        <Button type="button" variant="outline" size="sm" onClick={suggerer} disabled={suggestionEnCours || isPending}>
+          {suggestionEnCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          Suggérer une réponse
+        </Button>
+        {noteAgent ? (
+          <span className={`text-xs ${noteAgent.humain ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
+            {noteAgent.humain ? "À vérifier par un humain : " : "Brouillon IA : "}
+            {noteAgent.texte}
+          </span>
+        ) : null}
+      </div>
       {langue ? (
         <label className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
           <input type="checkbox" checked={traduire} onChange={(e) => setTraduire(e.target.checked)} />
