@@ -36,6 +36,7 @@ const isPublicRoute = createRouteMatcher([
   "/securite/villa/(.*)",
   "/securite/domaine/(.*)",
   "/planning/(.*)",
+  "/cal/(.*)", // calendrier seul d'un logement, en lecture seule (lien à part pour un propriétaire, voir lib/calendrier-partage.ts)
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

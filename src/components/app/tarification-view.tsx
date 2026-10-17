@@ -21,7 +21,17 @@ import { canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 import { formatHeureMaroc } from "@/lib/journal-format";
 
-export function TarificationView({ initialVillas }: { initialVillas: TarificationVilla[] }) {
+// lectureSeule : lien public "calendrier seul" d'un logement (/cal/[token], voir
+// lib/calendrier-partage.ts) — même grille, mais sans recherche/filtres, sans bouton
+// "Actualiser les prix" ni détails Beds24 (routes réservées à l'équipe connectée), et un
+// récapitulatif de réservation sans téléphone, montants, notes ni actions.
+export function TarificationView({
+  initialVillas,
+  lectureSeule = false,
+}: {
+  initialVillas: TarificationVilla[];
+  lectureSeule?: boolean;
+}) {
   const [villasTarifs, setVillasTarifs] = useState(initialVillas);
   const [search, setSearch] = useState("");
   // Bascule en un clic entre tous les logements, les appartements (les "cosy") et les villas —
@@ -76,6 +86,13 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
 
   return (
     <div className="space-y-4">
+      {lectureSeule ? (
+        plusAncienneSynchro ? (
+          <p className="text-xs text-muted-foreground">
+            Prix mis à jour {formatDistanceToNow(parseISO(plusAncienneSynchro), { addSuffix: true, locale: fr })}
+          </p>
+        ) : null
+      ) : (
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -114,6 +131,7 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           </Button>
         </div>
       </div>
+      )}
 
       {loadError ? (
         <Card>
@@ -133,7 +151,12 @@ export function TarificationView({ initialVillas }: { initialVillas: Tarificatio
           <CardContent className="py-8 text-center text-sm text-muted-foreground">Aucun logement ne correspond à la recherche.</CardContent>
         </Card>
       ) : (
-        <TarificationCalendrier villas={villasFiltrees} onNotesUpdated={handleNotesUpdated} onReservationSupprimee={handleReservationSupprimee} />
+        <TarificationCalendrier
+          villas={villasFiltrees}
+          lectureSeule={lectureSeule}
+          onNotesUpdated={handleNotesUpdated}
+          onReservationSupprimee={handleReservationSupprimee}
+        />
       )}
     </div>
   );
@@ -185,10 +208,12 @@ type ReservationSelectionnee = { villaId: string; villaNom: string } & Tarificat
 // a sa propre mise en page, une carte par logement avec sa bande de jours défilable au pouce.
 function TarificationCalendrier({
   villas,
+  lectureSeule,
   onNotesUpdated,
   onReservationSupprimee,
 }: {
   villas: TarificationVilla[];
+  lectureSeule: boolean;
   onNotesUpdated: (villaId: string, reservationId: string, notes: string) => void;
   onReservationSupprimee: (villaId: string, reservationId: string) => void;
 }) {
@@ -203,9 +228,15 @@ function TarificationCalendrier({
 
   return (
     <>
-      <TarificationGrid villas={villas} dims={estMobile ? DIMS_MOBILE : DIMS_BUREAU} onSelectReservation={setResaSelectionnee} />
+      <TarificationGrid
+        villas={villas}
+        dims={estMobile ? DIMS_MOBILE : DIMS_BUREAU}
+        lectureSeule={lectureSeule}
+        onSelectReservation={setResaSelectionnee}
+      />
       <ReservationRecapDialog
         reservation={resaSelectionnee}
+        lectureSeule={lectureSeule}
         onOpenChange={(open) => !open && setResaSelectionnee(null)}
         onNotesSaved={handleNotesSaved}
         onSupprimee={() => {
@@ -239,10 +270,12 @@ function libelleMois(d: Date): string {
 function TarificationGrid({
   villas,
   dims,
+  lectureSeule,
   onSelectReservation,
 }: {
   villas: TarificationVilla[];
   dims: Dims;
+  lectureSeule: boolean;
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
   const { col: COL_WIDTH, sidebar: SIDEBAR_WIDTH, row: ROW_HEIGHT, headerMonth: HEADER_MONTH_HEIGHT, headerDays: HEADER_DAYS_HEIGHT, detailRow: DETAIL_ROW_HEIGHT, compact } = dims;
@@ -343,6 +376,7 @@ function TarificationGrid({
               <span className={`font-semibold ${compact ? "text-xs leading-tight" : "text-sm"}`}>
                 {villas.length} hébergement{villas.length > 1 ? "s" : ""}
               </span>
+              {lectureSeule ? null : (
               <button
                 type="button"
                 onClick={toutBasculer}
@@ -352,6 +386,7 @@ function TarificationGrid({
               >
                 {toutOuvert ? <ChevronUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
               </button>
+              )}
             </div>
             {villas.map((v) => {
               const ouverte = ouvertes.has(v.id);
@@ -361,9 +396,9 @@ function TarificationGrid({
                       arrivées/départs bloqués), comme sur SuperHote — plus de lien vers la fiche. */}
                   <button
                     type="button"
-                    onClick={() => basculer(v.id)}
-                    aria-expanded={ouverte}
-                    className={`flex w-full items-center border-b text-left transition-colors hover:bg-muted/50 ${compact ? "gap-1 px-2" : "gap-3 px-4"}`}
+                    onClick={lectureSeule ? undefined : () => basculer(v.id)}
+                    aria-expanded={lectureSeule ? undefined : ouverte}
+                    className={`flex w-full items-center border-b text-left transition-colors ${lectureSeule ? "cursor-default" : "hover:bg-muted/50"} ${compact ? "gap-1 px-2" : "gap-3 px-4"}`}
                     style={{ height: ROW_HEIGHT }}
                   >
                     {compact ? null : v.photoUrl ? (
@@ -383,7 +418,9 @@ function TarificationGrid({
                         <AlertTriangle className={`shrink-0 text-amber-500 ${compact ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
                       </span>
                     ) : null}
-                    <ChevronDown className={`shrink-0 text-muted-foreground transition-transform ${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${ouverte ? "rotate-180" : ""}`} />
+                    {lectureSeule ? null : (
+                      <ChevronDown className={`shrink-0 text-muted-foreground transition-transform ${compact ? "h-3.5 w-3.5" : "h-4 w-4"} ${ouverte ? "rotate-180" : ""}`} />
+                    )}
                   </button>
                   {ouverte
                     ? LIGNES_DETAIL.map((ligne) => (
@@ -677,11 +714,13 @@ function reservationsVisibles(reservations: TarificationReservation[], dateStrin
 
 function ReservationRecapDialog({
   reservation,
+  lectureSeule,
   onOpenChange,
   onNotesSaved,
   onSupprimee,
 }: {
   reservation: ReservationSelectionnee | null;
+  lectureSeule: boolean;
   onOpenChange: (open: boolean) => void;
   onNotesSaved: (notes: string) => void;
   onSupprimee: () => void;
@@ -755,6 +794,8 @@ function ReservationRecapDialog({
                   </span>
                 </div>
               ) : null}
+              {lectureSeule ? null : (
+              <>
               {reservation.beds24Echec ? (
                 <p className="rounded-md bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive">
                   Attention : la fermeture des dates sur Beds24 a échoué à la création. Airbnb et Booking.com peuvent
@@ -772,7 +813,11 @@ function ReservationRecapDialog({
                   <EditNotesButton reservationId={reservation.id} notes={null} variant="add" onSaved={onNotesSaved} />
                 )}
               </div>
+              </>
+              )}
             </div>
+            {lectureSeule ? null : (
+            <>
             <Button asChild className="w-full">
               <Link href={`/reservations/${reservation.id}`}>Voir la réservation complète</Link>
             </Button>
@@ -792,6 +837,8 @@ function ReservationRecapDialog({
                 />
               </div>
             ) : null}
+            </>
+            )}
           </>
         ) : null}
       </DialogContent>

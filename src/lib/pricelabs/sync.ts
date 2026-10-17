@@ -71,7 +71,9 @@ export type TarificationVilla = {
 // cache a dépassé PRICELABS_CACHE_TTL_HOURS (par défaut 2h) — ou toutes si force=true (bouton
 // "Actualiser les prix"). Ne renvoie jamais la clé API : seules les données déjà nettoyées par
 // le client PriceLabs transitent par ici.
-export async function getTarification(options: { force?: boolean } = {}): Promise<TarificationVilla[]> {
+// villaId : un seul logement (lien public calendrier /cal/[token]) — ne resynchronise alors que
+// celui-ci, jamais tout le parc depuis une page publique.
+export async function getTarification(options: { force?: boolean; villaId?: string } = {}): Promise<TarificationVilla[]> {
   const db = getDb();
 
   // Villas ET appartements : toute fiche reliée à PriceLabs (pricelabsListingId renseigné)
@@ -102,7 +104,12 @@ export async function getTarification(options: { force?: boolean } = {}): Promis
     .from(villas)
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
-    .where(or(isNotNull(villas.pricelabsListingId), isNotNull(villas.beds24RoomId)))
+    .where(
+      and(
+        or(isNotNull(villas.pricelabsListingId), isNotNull(villas.beds24RoomId)),
+        options.villaId ? eq(villas.id, options.villaId) : undefined
+      )
+    )
   )
     .filter((v) => villaEstGeree(v.nom)) // logements retirés (voir VILLAS_MASQUEES) : hors calendrier
     .map((v) => ({ ...v, candidates: annoncesCandidates(v) }))
