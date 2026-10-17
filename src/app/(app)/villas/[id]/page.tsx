@@ -41,6 +41,8 @@ import {
 import { VillaProprietaire } from "@/components/app/villa-proprietaire";
 import { ContactsSection } from "@/components/app/contacts-section";
 import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-button";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
+import { calendrierToken } from "@/lib/calendrier-partage";
 import { GuestAccessButton } from "@/components/app/guest-access-button";
 import { VillaIcalUrl, VillaDirectIcalUrls } from "@/components/app/villa-ical-url";
 import { DomaineBadge } from "@/components/app/domaine-badge";
@@ -312,6 +314,23 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
           doit jamais pouvoir montrer les occupants d'un séjour suivant. Kamel, 2026-08-20. */}
       <div className="flex flex-wrap items-center gap-2">
         <ProprietaireAccessButton villaId={villa.id} token={villa.lienProprietaireToken} />
+      </div>
+      {/* Lien à part "calendrier seul" (planning de ce logement, lecture seule) — voir
+          lib/calendrier-partage.ts. Change aussi si le lien propriétaire est régénéré. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <CopyLinkButton
+          path={`/cal/${calendrierToken(villa.lienProprietaireToken)}`}
+          label="Copier le lien calendrier"
+          successMessage="Lien calendrier copié : il ne montre que le planning de ce logement."
+        />
+        <Link
+          href={`/cal/${calendrierToken(villa.lienProprietaireToken)}`}
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+        >
+          Aperçu du lien calendrier
+        </Link>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <GuestAccessButton villaId={villa.id} token={villa.lienClientToken} />
