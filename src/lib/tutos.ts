@@ -21,7 +21,7 @@ export const TUTOS: Tuto[] = [
     code: "D340B8guNH1J",
     titre: "Allumer le chauffage de la piscine",
     resume: "Valable pour toutes les villas : 5 étapes, du local technique à la pompe à chaleur.",
-    brouillon: true,
+    brouillon: false,
     etapes: [
       {
         image: "/tutos/chauffage-piscine/etape-1.jpg",
