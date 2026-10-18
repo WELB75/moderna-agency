@@ -18,7 +18,7 @@ import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
 import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
 import { BEDS24_VILLA_MAPPING } from "@/lib/beds24/mapping";
-import { sejourSansVoyageur } from "@/lib/conditions-sejour";
+import { estSejourProprietaire, sejourSansVoyageur } from "@/lib/conditions-sejour";
 import { AUTEUR_SYNCHRO_BEDS24, journaliser } from "@/lib/journal";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
@@ -71,7 +71,7 @@ const NOM_BLOCAGE_BEDS24 = /^(blocage|date bloqu|not available|blocked|indisponi
 
 function cautionPrevue(roomId: string, canal: string | null, guestName: string): string | null {
   if ((canal ?? "").toLowerCase().includes("airbnb")) return null;
-  if (NOM_BLOCAGE_BEDS24.test(guestName.trim())) return null;
+  if (NOM_BLOCAGE_BEDS24.test(guestName.trim()) || estSejourProprietaire(guestName)) return null;
   const mapping = BEDS24_VILLA_MAPPING.find((m) => String(m.roomId) === roomId);
   return mapping ? String(mapping.caution) : null;
 }
@@ -319,9 +319,10 @@ export async function runBeds24Sync(): Promise<
           status: isCancelled ? ("annulee" as const) : ("confirmee" as const),
           source: "beds24" as const,
           loyerTotal: loyer.loyerTotal,
-          // Airbnb encaisse le voyageur lui-même : le loyer est déjà payé, il n'y a pas de solde à
-          // recevoir sur place (Kamel, 2026-10-18) — et il doit compter dans l'encaissé des stats.
-          ...(!isCancelled && loyer.loyerTotal && canalEffectif.toLowerCase().includes("airbnb")
+          // Airbnb et Booking.com encaissent le voyageur eux-mêmes : le loyer est déjà payé, il n'y a
+          // pas de solde à recevoir sur place (Kamel, 2026-10-18) — et il doit compter dans
+          // l'encaissé des stats.
+          ...(!isCancelled && loyer.loyerTotal && /airbnb|booking/i.test(canalEffectif)
             ? { montantPaye: loyer.loyerTotal }
             : {}),
           rawData: {
