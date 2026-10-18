@@ -5,7 +5,7 @@ export const AGENCE_REPRESENTANT_DEFAUT = "Moderna Agency";
 // Les contrats signés AVANT cette date l'ont été avec l'ancien texte (13 articles, ci-dessous) :
 // ils restent affichés tel quel (voir ContratDocumentV1). Tout contrat signé ensuite — ou encore
 // en attente de signature — utilise les Conditions de séjour (lib/conditions-sejour.ts).
-export const CONDITIONS_SEJOUR_DEPUIS = new Date("2026-10-18T00:45:00Z");
+export const CONDITIONS_SEJOUR_DEPUIS = new Date("2026-10-18T00:25:00Z");
 
 export function estContratV1(signedAt: Date | string | null | undefined): boolean {
   if (!signedAt) return false;
