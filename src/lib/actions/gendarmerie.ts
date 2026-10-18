@@ -10,6 +10,21 @@ import { normalizeIdPhotoBuffer, normalizeIdPhotoDataUrl, loadImageBuffer } from
 import { sendWhatsAppText } from "@/lib/whatsapp-agent/send";
 import { buildSecurityMessage } from "@/lib/message-templates";
 import { getBaseUrl } from "@/lib/base-url";
+import { signerConditionsFiche } from "@/lib/contrat-donnees";
+
+// Conditions de séjour acceptées en fin de fiche police (case cochée + signature de l'occupant 1) :
+// enregistrées comme contrat signé. Jamais bloquant : la fiche police reste enregistrée même si
+// cette étape échoue.
+async function enregistrerConditions(
+  formId: string,
+  signataire: { nom: string; piece: string; signatureImage: string }
+) {
+  try {
+    await signerConditionsFiche(formId, signataire);
+  } catch (err) {
+    console.error("Échec enregistrement des conditions de séjour (fiche police):", err);
+  }
+}
 
 export type OccupantInput = {
   nom: string;
@@ -147,7 +162,8 @@ export async function submitGendarmerieOccupants(
   formId: string,
   langue: string,
   occupants: OccupantInput[],
-  enfantsPassportUrls: string[] = []
+  enfantsPassportUrls: string[] = [],
+  accepteConditions = false
 ) {
   const db = getDb();
 
@@ -195,9 +211,19 @@ export async function submitGendarmerieOccupants(
     .set({ statut: "complete", langue, enfantsPassportUrls: normalizedEnfantsPassportUrls, completedAt: new Date() })
     .where(eq(gendarmerieForms.id, formId));
 
+  const signataire = normalizedOccupants[0];
+  if (accepteConditions && signataire?.signatureImage) {
+    await enregistrerConditions(formId, {
+      nom: signataire.signatureNom.trim() || [signataire.prenom.trim(), signataire.nom.trim()].filter(Boolean).join(" "),
+      piece: signataire.numeroPiece,
+      signatureImage: signataire.signatureImage,
+    });
+  }
+
   await notifySecurityIfNeeded(form.reservationId);
 
   revalidatePath("/villas");
+  revalidatePath("/documents");
   revalidatePath(`/g/${formId}`);
 }
 
@@ -259,7 +285,8 @@ export async function prefillGendarmerieOccupants(
 export async function signGendarmerieOccupants(
   formId: string,
   langue: string,
-  signatures: { occupantId: string; signatureNom: string; signatureImage: string }[]
+  signatures: { occupantId: string; signatureNom: string; signatureImage: string }[],
+  accepteConditions = false
 ) {
   const db = getDb();
 
@@ -281,9 +308,24 @@ export async function signGendarmerieOccupants(
     .set({ statut: "complete", langue, completedAt: new Date() })
     .where(eq(gendarmerieForms.id, formId));
 
+  const premiere = validSignatures[0];
+  if (accepteConditions && premiere) {
+    const [occupant] = await db
+      .select({ numeroPiece: gendarmerieOccupants.numeroPiece })
+      .from(gendarmerieOccupants)
+      .where(and(eq(gendarmerieOccupants.id, premiere.occupantId), eq(gendarmerieOccupants.formId, formId)))
+      .limit(1);
+    await enregistrerConditions(formId, {
+      nom: premiere.signatureNom.trim(),
+      piece: occupant?.numeroPiece ?? "",
+      signatureImage: premiere.signatureImage,
+    });
+  }
+
   await notifySecurityIfNeeded(form.reservationId);
 
   revalidatePath("/villas");
+  revalidatePath("/documents");
   revalidatePath(`/g/${formId}`);
 }
 

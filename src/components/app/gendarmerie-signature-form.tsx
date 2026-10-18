@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SignaturePad, type SignaturePadHandle } from "@/components/app/signature-pad";
 import { signGendarmerieOccupants } from "@/lib/actions/gendarmerie";
 import { FIELD_KEYS, FIELD_LABELS, LANG_LABELS, UI_TEXT, type GendarmerieLang } from "@/lib/gendarmerie-i18n";
+import { ConditionsAcceptation } from "@/components/app/conditions-acceptation";
+import { ACCEPTATION_TEXTE, type ConditionsSejourData } from "@/lib/conditions-sejour";
 
 export type PrefilledOccupant = {
   id: string;
@@ -35,14 +37,17 @@ export function GendarmerieSignatureForm({
   formId,
   villaNom,
   occupants,
+  conditions = null,
 }: {
   formId: string;
   villaNom: string;
   occupants: PrefilledOccupant[];
+  conditions?: ConditionsSejourData | null;
 }) {
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
   const [noms, setNoms] = useState<string[]>(() => occupants.map(() => ""));
   const [submitted, setSubmitted] = useState(false);
+  const [accepteConditions, setAccepteConditions] = useState(false);
   const [isPending, startTransition] = useTransition();
   const sigRefs = useRef<(SignaturePadHandle | null)[]>([]);
 
@@ -76,6 +81,18 @@ export function GendarmerieSignatureForm({
   }
 
   function handleSubmit() {
+    if (conditions) {
+      const texte = ACCEPTATION_TEXTE[lang!];
+      if (!accepteConditions) {
+        toast.error(texte.erreurCase);
+        return;
+      }
+      const premiereSignature = sigRefs.current[0];
+      if (!premiereSignature || premiereSignature.isEmpty() || !(noms[0] ?? "").trim()) {
+        toast.error(texte.erreurSignature);
+        return;
+      }
+    }
     const signatures = occupants.map((o, i) => {
       const pad = sigRefs.current[i];
       return {
@@ -86,7 +103,7 @@ export function GendarmerieSignatureForm({
     });
     startTransition(async () => {
       try {
-        await signGendarmerieOccupants(formId, lang!, signatures);
+        await signGendarmerieOccupants(formId, lang!, signatures, Boolean(conditions));
         setSubmitted(true);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur / Error");
@@ -136,6 +153,15 @@ export function GendarmerieSignatureForm({
           </Card>
         ))}
       </div>
+
+      {conditions ? (
+        <ConditionsAcceptation
+          data={conditions}
+          lang={lang}
+          accepte={accepteConditions}
+          onAccepteChange={setAccepteConditions}
+        />
+      ) : null}
 
       <div className="flex justify-end pb-[env(safe-area-inset-bottom)]">
         <Button type="button" disabled={isPending} onClick={handleSubmit} className="h-12 w-full text-base md:h-8 md:w-auto md:text-sm">

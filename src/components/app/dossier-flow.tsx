@@ -3,24 +3,31 @@
 import { useState } from "react";
 import { GendarmerieForm } from "@/components/app/gendarmerie-form";
 import { ContratForm } from "@/components/app/contrat-form";
-import type { ContratDocumentData } from "@/components/app/contrat-document";
+import type { ConditionsSejourData } from "@/lib/conditions-sejour";
 
-type FormRow = { id: string; statut: string };
+type FormRow = { id: string; statut: string; nbAdultes: number; nbEnfants: number };
 
+// Dossier généré depuis Documents : fiche police (une fiche de groupe — ou, pour les anciens
+// dossiers, une fiche par adulte) puis signature des Conditions de séjour, en une seule visite.
 export function DossierFlow({
   forms,
   villaNom,
-  contrat,
+  contratId,
+  conditions,
+  signatureAgenceImage,
 }: {
   forms: FormRow[];
   villaNom: string;
-  contrat: ContratDocumentData & { id: string; signatureAgenceImage: string | null };
+  contratId: string;
+  conditions: ConditionsSejourData;
+  signatureAgenceImage: string | null;
 }) {
   const [doneIds, setDoneIds] = useState<Set<string>>(
     new Set(forms.filter((f) => f.statut === "complete").map((f) => f.id))
   );
 
   const remaining = forms.filter((f) => !doneIds.has(f.id));
+  const parAdulte = forms.length > 1;
 
   if (remaining.length > 0) {
     const current = remaining[0];
@@ -28,13 +35,15 @@ export function DossierFlow({
     return (
       <div className="space-y-4">
         <p className="text-center text-sm text-muted-foreground">
-          Étape {stepNumber} / {forms.length + 1} — Identité de la personne {stepNumber}
+          Étape {stepNumber} / {forms.length + 1} — {parAdulte ? `Identité de la personne ${stepNumber}` : "Fiche de police"}
         </p>
         <GendarmerieForm
           key={current.id}
           formId={current.id}
           villaNom={villaNom}
-          hideAddOccupant
+          hideAddOccupant={parAdulte}
+          nbAdultes={parAdulte ? 1 : current.nbAdultes}
+          nbEnfants={parAdulte ? 0 : current.nbEnfants}
           onSubmitted={() => setDoneIds((prev) => new Set(prev).add(current.id))}
         />
       </div>
@@ -44,9 +53,9 @@ export function DossierFlow({
   return (
     <div className="space-y-4">
       <p className="text-center text-sm text-muted-foreground">
-        Étape {forms.length + 1} / {forms.length + 1} — Contrat de location
+        Étape {forms.length + 1} / {forms.length + 1} — Conditions de séjour
       </p>
-      <ContratForm contrat={contrat} />
+      <ContratForm contratId={contratId} conditions={conditions} signatureAgenceImage={signatureAgenceImage} />
     </div>
   );
 }

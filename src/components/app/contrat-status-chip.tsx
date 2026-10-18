@@ -38,7 +38,7 @@ export function ContratStatusChip({
     >
       <FileSignature className={cn("h-3.5 w-3.5 shrink-0", done ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")} />
       <span className="min-w-0 truncate">
-        <span className="text-muted-foreground">Contrat · </span>
+        <span className="text-muted-foreground">Conditions · </span>
         <span className="font-medium text-foreground">{value}</span>
       </span>
     </Link>

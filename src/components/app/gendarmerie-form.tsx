@@ -11,6 +11,8 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/app/signatur
 import { IdPhotoCapture } from "@/components/app/id-photo-capture";
 import { submitGendarmerieOccupants, type OccupantInput } from "@/lib/actions/gendarmerie";
 import { analyzePassportImagePublic } from "@/lib/actions/gendarmerie-import";
+import { ConditionsAcceptation } from "@/components/app/conditions-acceptation";
+import { ACCEPTATION_TEXTE, type ConditionsSejourData } from "@/lib/conditions-sejour";
 import {
   FIELD_KEYS,
   FIELD_LABELS,
@@ -46,6 +48,7 @@ export function GendarmerieForm({
   nbAdultes = 1,
   nbEnfants = 0,
   onSubmitted,
+  conditions = null,
 }: {
   formId: string;
   villaNom: string;
@@ -53,6 +56,8 @@ export function GendarmerieForm({
   nbAdultes?: number;
   nbEnfants?: number;
   onSubmitted?: () => void;
+  // Conditions de séjour à accepter en fin de fiche (voir chargerConditionsFiche) ; null = aucune.
+  conditions?: ConditionsSejourData | null;
 }) {
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
   const [occupants, setOccupants] = useState<OccupantInput[]>(() =>
@@ -62,6 +67,7 @@ export function GendarmerieForm({
     Array.from({ length: Math.max(0, nbEnfants) }, () => "")
   );
   const [submitted, setSubmitted] = useState(false);
+  const [accepteConditions, setAccepteConditions] = useState(false);
   const [isPending, startTransition] = useTransition();
   const sigRefs = useRef<(SignaturePadHandle | null)[]>([]);
   const [scanningIndex, setScanningIndex] = useState<number | null>(null);
@@ -127,6 +133,18 @@ export function GendarmerieForm({
   }
 
   function handleSubmit() {
+    if (conditions) {
+      const texte = ACCEPTATION_TEXTE[lang!];
+      if (!accepteConditions) {
+        toast.error(texte.erreurCase);
+        return;
+      }
+      const premiereSignature = sigRefs.current[0];
+      if (!premiereSignature || premiereSignature.isEmpty()) {
+        toast.error(texte.erreurSignature);
+        return;
+      }
+    }
     const occupantsWithSignature = occupants.map((o, i) => {
       const pad = sigRefs.current[i];
       const signatureImage = pad && !pad.isEmpty() ? pad.toDataUrl() : "";
@@ -135,7 +153,7 @@ export function GendarmerieForm({
     const enfantsPassportUrls = enfantsPhotos.filter(Boolean);
     startTransition(async () => {
       try {
-        await submitGendarmerieOccupants(formId, lang!, occupantsWithSignature, enfantsPassportUrls);
+        await submitGendarmerieOccupants(formId, lang!, occupantsWithSignature, enfantsPassportUrls, Boolean(conditions));
         setSubmitted(true);
         onSubmitted?.();
       } catch (err) {
@@ -282,6 +300,15 @@ export function GendarmerieForm({
           {t.addChild}
         </Button>
       </div>
+
+      {conditions ? (
+        <ConditionsAcceptation
+          data={conditions}
+          lang={lang}
+          accepte={accepteConditions}
+          onAccepteChange={setAccepteConditions}
+        />
+      ) : null}
 
       <div className="flex flex-col gap-2 pb-[env(safe-area-inset-bottom)] sm:flex-row sm:flex-wrap sm:items-center">
         {!hideAddOccupant ? (

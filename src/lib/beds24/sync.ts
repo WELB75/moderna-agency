@@ -18,6 +18,7 @@ import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
 import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
 import { BEDS24_VILLA_MAPPING } from "@/lib/beds24/mapping";
+import { sejourSansVoyageur } from "@/lib/conditions-sejour";
 import { AUTEUR_SYNCHRO_BEDS24, journaliser } from "@/lib/journal";
 
 // Réservations vraiment actives côté Beds24 ; "request"/"inquiry"/"black" ne sont pas des
@@ -486,11 +487,14 @@ async function publierLiensFichePolice(bookings: Beds24Booking[], now: Date): Pr
     if ((booking.infoItems ?? []).some((item) => item.code === FICHE_POLICE_INFO_CODE)) continue;
 
     const [resa] = await db
-      .select({ id: reservations.id, villaId: reservations.villaId })
+      .select({ id: reservations.id, villaId: reservations.villaId, guestName: reservations.guestName, canal: reservations.canal })
       .from(reservations)
       .where(eq(reservations.beds24BookingId, String(booking.id)))
       .limit(1);
     if (!resa) continue;
+    // Blocage / travaux / séjour Famille : aucun voyageur à enregistrer, pas de fiche (Fouad,
+    // 2026-10-18 : "Blocage Airbnb", "Travaux Azur"... gonflaient les fiches "en attente").
+    if (sejourSansVoyageur(resa)) continue;
 
     // Fiche déjà créée à la main depuis la réservation : on réutilise la plus ancienne.
     let [fiche] = await db

@@ -1,55 +1,21 @@
-import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { getDb } from "@/db";
-import { contratsLocation, villas } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { PrintButton } from "@/components/app/print-button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ContratDocument } from "@/components/app/contrat-document";
+import { ConditionsSejourDocument, ContratDocumentV1 } from "@/components/app/contrat-document";
+import { chargerContrat } from "@/lib/contrat-donnees";
+import { estContratV1 } from "@/lib/contrat-template";
 
 export default async function ContratDocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const db = getDb();
-
-  const [contrat] = await db
-    .select({
-      id: contratsLocation.id,
-      statut: contratsLocation.statut,
-      agenceRepresentant: contratsLocation.agenceRepresentant,
-      locataireNom: contratsLocation.locataireNom,
-      locataireAdresse: contratsLocation.locataireAdresse,
-      nbAdultes: contratsLocation.nbAdultes,
-      nbEnfants: contratsLocation.nbEnfants,
-      dateArrivee: contratsLocation.dateArrivee,
-      dateDepart: contratsLocation.dateDepart,
-      devise: contratsLocation.devise,
-      montantTotal: contratsLocation.montantTotal,
-      acompteMontant: contratsLocation.acompteMontant,
-      soldeMontant: contratsLocation.soldeMontant,
-      soldeDateLimite: contratsLocation.soldeDateLimite,
-      depotGarantieMontant: contratsLocation.depotGarantieMontant,
-      depotRestitutionDate: contratsLocation.depotRestitutionDate,
-      lieuSignature: contratsLocation.lieuSignature,
-      dateSignatureAgence: contratsLocation.dateSignatureAgence,
-      signatureAgenceNom: contratsLocation.signatureAgenceNom,
-      signatureAgenceImage: contratsLocation.signatureAgenceImage,
-      signatureClientNom: contratsLocation.signatureClientNom,
-      signatureClientPiece: contratsLocation.signatureClientPiece,
-      signatureClientImage: contratsLocation.signatureClientImage,
-      signedAt: contratsLocation.signedAt,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-      villaAdresse: villas.adresse,
-    })
-    .from(contratsLocation)
-    .leftJoin(villas, eq(contratsLocation.villaId, villas.id))
-    .where(eq(contratsLocation.id, id))
-    .limit(1);
-
+  const contrat = await chargerContrat(id);
   if (!contrat) notFound();
+
+  // Contrat signé avec l'ancien texte : réaffiché tel quel (c'est ce que le client a signé).
+  const ancienTexte = estContratV1(contrat.signedAt);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 print:p-0">
@@ -57,7 +23,7 @@ export default async function ContratDocumentPage({ params }: { params: Promise<
         <div className="flex min-w-0 items-center gap-2">
           <Logo size={40} />
           <div>
-            <p className="font-semibold">Contrat de location saisonnière</p>
+            <p className="font-semibold">{ancienTexte ? "Contrat de location saisonnière" : "Conditions de séjour"}</p>
             <p className="text-sm text-muted-foreground">
               {contrat.villaNom ? `${contrat.villaNom} (n°${contrat.villaNumero})` : "Logement non renseigné"}
               {contrat.locataireNom ? ` · ${contrat.locataireNom}` : ""}
@@ -68,7 +34,14 @@ export default async function ContratDocumentPage({ params }: { params: Promise<
       </div>
 
       {contrat.statut !== "signe" ? (
-        <p className="text-sm text-muted-foreground">Ce contrat n&apos;a pas encore été signé par le client.</p>
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">Pas encore signé par le client — aperçu du texte qu&apos;il verra :</p>
+          <Card>
+            <CardContent className="py-4">
+              <ConditionsSejourDocument data={contrat.conditions} />
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <div className="space-y-4">
           <Card className="hidden print:block print:border-none">
@@ -79,7 +52,7 @@ export default async function ContratDocumentPage({ params }: { params: Promise<
 
           <Card>
             <CardContent className="py-4">
-              <ContratDocument contrat={contrat} />
+              {ancienTexte ? <ContratDocumentV1 contrat={contrat} /> : <ConditionsSejourDocument data={contrat.conditions} />}
             </CardContent>
           </Card>
 
