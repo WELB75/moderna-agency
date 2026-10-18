@@ -13,6 +13,48 @@ import { analyzeInterventionPhoto } from "@/lib/intervention-photo-ai";
 import { getBaseUrl } from "@/lib/base-url";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
 import { isValidMaintenanceToken } from "@/lib/maintenance-access-token";
+import { tracer, type Auteur } from "@/lib/journal";
+
+const AUTEUR_PROPRIO: Auteur = { type: "humain", id: null, nom: "Propriétaire (lien)", email: null };
+const AUTEUR_VOYAGEUR: Auteur = { type: "humain", id: null, nom: "Voyageur (lien)", email: null };
+const AUTEUR_MAINTENANCE: Auteur = { type: "humain", id: null, nom: "Maintenance (lien)", email: null };
+
+// Journal : catégorie + intitulé/villa de l'intervention (résumé lisible), lu AVANT une suppression.
+async function infosIntervention(interventionId: string, detail?: string) {
+  const [i] = await getDb()
+    .select({ titre: interventions.titre, villaId: interventions.villaId, villaNom: villas.nom })
+    .from(interventions)
+    .leftJoin(villas, eq(interventions.villaId, villas.id))
+    .where(eq(interventions.id, interventionId))
+    .limit(1);
+  return {
+    categorie: "maintenance",
+    resume: [i ? `"${i.titre}"${i.villaNom ? ` - ${i.villaNom}` : ""}` : null, detail].filter(Boolean).join(" : ") || null,
+    villaId: i?.villaId ?? null,
+    villaNom: i?.villaNom ?? null,
+  };
+}
+
+async function tracerIntervention(
+  interventionId: string,
+  action: string,
+  libelle: string,
+  detail?: string,
+  auteur?: Auteur
+) {
+  await tracer({ ...(await infosIntervention(interventionId, detail)), action, libelle, auteur });
+}
+
+async function nomTechnicien(technicianId: string | null): Promise<string> {
+  if (!technicianId) return "aucun technicien";
+  const [t] = await getDb().select({ nom: technicians.nom }).from(technicians).where(eq(technicians.id, technicianId)).limit(1);
+  return t?.nom ?? "technicien inconnu";
+}
+
+async function auteurTechnicien(token: string): Promise<Auteur> {
+  const [t] = await getDb().select({ nom: technicians.nom }).from(technicians).where(eq(technicians.accessToken, token)).limit(1);
+  return { type: "humain", id: null, nom: t ? `Technicien : ${t.nom}` : "Technicien (lien)", email: null };
+}
 
 // Dès qu'un problème décrit ET au moins une photo sont réunis sur une intervention SANS
 // technicien déjà choisi à la main, on laisse l'IA proposer elle-même le technicien le plus
@@ -141,6 +183,8 @@ export async function createIntervention(formData: FormData) {
     await maybeAutoDispatchMaintenance(created.id);
   }
 
+  await tracerIntervention(created.id, "intervention_creee", "Intervention créée", `${categorie}, urgence ${urgence}`);
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -196,6 +240,8 @@ export async function createInterventionByToken(
 
   await maybeAutoDispatchMaintenance(created.id);
 
+  await tracerIntervention(created.id, "intervention_creee", "Intervention créée (lien propriétaire)", `${safeCategorie}, urgence ${safeUrgence}`, AUTEUR_PROPRIO);
+
   revalidatePath(`/travaux/${token}`);
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -237,6 +283,8 @@ export async function createInterventionByGuestToken(
 
   await maybeAutoDispatchMaintenance(created.id);
 
+  await tracerIntervention(created.id, "intervention_creee", "Problème signalé par un voyageur", undefined, AUTEUR_VOYAGEUR);
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -250,7 +298,9 @@ export async function deleteInterventionByToken(token: string, interventionId: s
   const db = getDb();
   const [existing] = await db.select({ villaId: interventions.villaId }).from(interventions).where(eq(interventions.id, interventionId)).limit(1);
   if (!existing || existing.villaId !== villaId) throw new Error("Fiche introuvable.");
+  const infos = await infosIntervention(interventionId);
   await db.delete(interventions).where(eq(interventions.id, interventionId));
+  await tracer({ ...infos, action: "intervention_supprimee", libelle: "Intervention supprimée (lien propriétaire)", auteur: AUTEUR_PROPRIO });
   revalidatePath(`/travaux/${token}`);
 }
 
@@ -290,6 +340,17 @@ export async function createInterventionByOwner(
       `Demande TRÈS URGENTE du propriétaire : "${trimmedTitre}"${villa ? ` — ${villa.nom} (n°${villa.numero})` : ""}.`
     );
   }
+
+  const [villaProprio] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+  await tracer({
+    categorie: "maintenance",
+    action: "intervention_creee",
+    libelle: "Demande de travaux du propriétaire",
+    resume: `"${trimmedTitre}"${villaProprio ? ` - ${villaProprio.nom}` : ""} : ${safeCategorie}, urgence ${safeUrgence}`,
+    villaId,
+    villaNom: villaProprio?.nom ?? null,
+    auteur: AUTEUR_PROPRIO,
+  });
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -333,6 +394,8 @@ export async function setInterventionEtape(interventionId: string, etape: Etape)
     .set({ etape, [timestampField]: new Date(), updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
 
+  await tracerIntervention(interventionId, "intervention_etape", "Étape d'intervention modifiée", `étape ${etape}`);
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -362,6 +425,8 @@ export async function setInterventionUrgence(interventionId: string, urgence: Ur
     }
   }
 
+  await tracerIntervention(interventionId, "intervention_urgence", "Urgence d'intervention modifiée", `urgence ${urgence}`);
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
   revalidatePath("/dashboard");
@@ -380,6 +445,8 @@ export async function setInterventionEtapePublic(interventionId: string, etape: 
     .update(interventions)
     .set({ etape, [timestampField]: new Date(), updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
+
+  await tracerIntervention(interventionId, "intervention_etape", "Étape d'intervention modifiée (lien propriétaire)", `étape ${etape}`, AUTEUR_PROPRIO);
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -409,6 +476,8 @@ export async function setInterventionUrgencePublic(interventionId: string, urgen
     }
   }
 
+  await tracerIntervention(interventionId, "intervention_urgence", "Urgence d'intervention modifiée (lien propriétaire)", `urgence ${urgence}`, AUTEUR_PROPRIO);
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
   revalidatePath("/dashboard");
@@ -421,6 +490,8 @@ export async function setInterventionCategorie(interventionId: string, categorie
   const db = getDb();
   await db.update(interventions).set({ categorie, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
 
+  await tracerIntervention(interventionId, "intervention_categorie", "Catégorie d'intervention modifiée", `catégorie ${categorie}`);
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -431,6 +502,8 @@ export async function setInterventionCategoriePublic(interventionId: string, cat
 
   const db = getDb();
   await db.update(interventions).set({ categorie, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  await tracerIntervention(interventionId, "intervention_categorie", "Catégorie d'intervention modifiée (lien propriétaire)", `catégorie ${categorie}`, AUTEUR_PROPRIO);
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -457,6 +530,8 @@ export async function setInterventionTechnician(interventionId: string, technici
     // jointe.
     await maybeAutoDispatchMaintenance(interventionId);
   }
+
+  await tracerIntervention(interventionId, "intervention_technicien", "Technicien d'intervention modifié", await nomTechnicien(technicianId));
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -490,6 +565,8 @@ export async function setInterventionEtapeByTechnician(token: string, interventi
     .set({ etape, [timestampField]: new Date(), updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
 
+  await tracerIntervention(interventionId, "intervention_etape", "Étape d'intervention modifiée (technicien)", `étape ${etape}`, await auteurTechnicien(token));
+
   revalidatePath(`/t/${token}`);
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -517,6 +594,8 @@ export async function updateInterventionNotes(interventionId: string, notes: str
     .update(interventions)
     .set({ notes: notes || null, updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
+  await tracerIntervention(interventionId, "intervention_notes", "Notes d'intervention modifiées");
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -545,6 +624,8 @@ export async function updateInterventionLieu(interventionId: string, lieu: strin
     .update(interventions)
     .set({ lieu: lieu || null, updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
+  await tracerIntervention(interventionId, "intervention_lieu", "Lieu d'intervention modifié", lieu || undefined);
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -552,7 +633,9 @@ export async function updateInterventionLieu(interventionId: string, lieu: strin
 export async function deleteIntervention(interventionId: string) {
   await auth.protect();
   const db = getDb();
+  const infos = await infosIntervention(interventionId);
   await db.delete(interventions).where(eq(interventions.id, interventionId));
+  await tracer({ ...infos, action: "intervention_supprimee", libelle: "Intervention supprimée" });
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -572,6 +655,8 @@ export async function addDevis(interventionId: string, devis: Devis) {
     .set({ devis: [...(current.devis ?? []), devis], updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
 
+  await tracerIntervention(interventionId, "intervention_devis_ajoute", "Devis ajouté à une intervention");
+
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
 }
@@ -590,6 +675,8 @@ export async function deleteDevis(interventionId: string, index: number) {
     .update(interventions)
     .set({ devis: (current.devis ?? []).filter((_, i) => i !== index), updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
+
+  await tracerIntervention(interventionId, "intervention_devis_supprime", "Devis supprimé d'une intervention");
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -664,6 +751,8 @@ export async function createInterventionByMaintenanceToken(token: string, formDa
     await maybeAutoDispatchMaintenance(created.id);
   }
 
+  await tracerIntervention(created.id, "intervention_creee", "Intervention créée (espace maintenance)", `${categorie}, urgence ${urgence}`, AUTEUR_MAINTENANCE);
+
   revalidatePath(`/m/${token}`);
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -679,6 +768,8 @@ export async function setInterventionEtapeByMaintenanceToken(token: string, inte
     .update(interventions)
     .set({ etape, [timestampField]: new Date(), updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
+
+  await tracerIntervention(interventionId, "intervention_etape", "Étape d'intervention modifiée (espace maintenance)", `étape ${etape}`, AUTEUR_MAINTENANCE);
 
   revalidatePath(`/m/${token}`);
   revalidatePath("/interventions");
@@ -706,6 +797,8 @@ export async function setInterventionUrgenceByMaintenanceToken(token: string, in
     }
   }
 
+  await tracerIntervention(interventionId, "intervention_urgence", "Urgence d'intervention modifiée (espace maintenance)", `urgence ${urgence}`, AUTEUR_MAINTENANCE);
+
   revalidatePath(`/m/${token}`);
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -718,6 +811,8 @@ export async function setInterventionCategorieByMaintenanceToken(token: string, 
 
   const db = getDb();
   await db.update(interventions).set({ categorie, updatedAt: new Date() }).where(eq(interventions.id, interventionId));
+
+  await tracerIntervention(interventionId, "intervention_categorie", "Catégorie d'intervention modifiée (espace maintenance)", `catégorie ${categorie}`, AUTEUR_MAINTENANCE);
 
   revalidatePath(`/m/${token}`);
   revalidatePath("/interventions");
@@ -743,6 +838,8 @@ export async function setInterventionTechnicianByMaintenanceToken(
   } else {
     await maybeAutoDispatchMaintenance(interventionId);
   }
+
+  await tracerIntervention(interventionId, "intervention_technicien", "Technicien d'intervention modifié (espace maintenance)", await nomTechnicien(technicianId), AUTEUR_MAINTENANCE);
 
   revalidatePath(`/m/${token}`);
   revalidatePath("/interventions");
@@ -775,6 +872,8 @@ export async function updateInterventionNotesByMaintenanceToken(token: string, i
     .set({ notes: notes || null, updatedAt: new Date() })
     .where(eq(interventions.id, interventionId));
 
+  await tracerIntervention(interventionId, "intervention_notes", "Notes d'intervention modifiées (espace maintenance)", undefined, AUTEUR_MAINTENANCE);
+
   revalidatePath(`/m/${token}`);
   revalidatePath("/interventions");
   revalidatePath("/maintenance");
@@ -799,6 +898,8 @@ export async function submitInterventionValidation(
       updatedAt: new Date(),
     })
     .where(eq(interventions.id, interventionId));
+
+  await tracerIntervention(interventionId, "intervention_validation", statut === "accepte" ? "Devis accepté par le propriétaire" : "Devis refusé par le propriétaire", note.trim() || undefined, AUTEUR_PROPRIO);
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");

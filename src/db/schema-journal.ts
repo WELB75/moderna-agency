@@ -29,6 +29,15 @@ export const reservationJournal = pgTable(
     auteurEmail: text("auteur_email"),
     beds24Statut: text("beds24_statut"), // "ok" | "echec" | "non_concerne" | null
     beds24Detail: text("beds24_detail"),
+    // Journal élargi (2026-10-18) : au-delà des réservations, toute action faite dans l'app et
+    // chaque connexion. libelle = phrase lisible ("Solde reçu"), categorie = rangement/filtre
+    // ("reservation", "caisse", "connexion"...), appareil/ip = d'où l'action a été faite,
+    // sessionId = session Clerk (une seule ligne "connexion" par session).
+    libelle: text("libelle"),
+    categorie: text("categorie"),
+    appareil: text("appareil"),
+    ip: text("ip"),
+    sessionId: text("session_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [

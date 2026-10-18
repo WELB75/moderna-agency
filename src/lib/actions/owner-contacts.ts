@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { proprieteContacts, technicians } from "@/db/schema";
+import { proprieteContacts, technicians, villas } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 
 const CONTACT_ROLES = [
   "proprietaire",
@@ -43,6 +44,17 @@ export async function createContactByOwner(villaId: string, formData: FormData) 
     telephone: telephone || null,
   });
 
+  const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+  await tracer({
+    categorie: "logement",
+    action: "contact_ajoute_proprietaire",
+    libelle: "Contact ajouté par le propriétaire",
+    resume: `${nom} (${safeRole})${villa ? ` - ${villa.nom}` : ""}`,
+    villaId,
+    villaNom: villa?.nom ?? null,
+    auteur: { type: "humain", id: null, nom: "Propriétaire (lien)", email: null },
+  });
+
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -59,6 +71,17 @@ export async function addTechnicianAsContactByOwner(villaId: string, technicianI
     role: guessRoleFromFonction(technician.fonction),
     nom: technician.nom,
     telephone: technician.telephone,
+  });
+
+  const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+  await tracer({
+    categorie: "logement",
+    action: "contact_ajoute_proprietaire",
+    libelle: "Prestataire ajouté à l'équipe par le propriétaire",
+    resume: `${technician.nom}${villa ? ` - ${villa.nom}` : ""}`,
+    villaId,
+    villaNom: villa?.nom ?? null,
+    auteur: { type: "humain", id: null, nom: "Propriétaire (lien)", email: null },
   });
 
   revalidatePath("/villas");

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { technicians } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 
 export async function createTechnician(formData: FormData) {
   await auth.protect();
@@ -25,6 +26,7 @@ export async function createTechnician(formData: FormData) {
     telephone,
     notes: notes || null,
   });
+  await tracer({ categorie: "maintenance", action: "technicien_cree", libelle: "Technicien ajouté", resume: `${nom} (${fonction})` });
 
   revalidatePath("/maintenance");
 }
@@ -32,6 +34,8 @@ export async function createTechnician(formData: FormData) {
 export async function deleteTechnician(technicianId: string) {
   await auth.protect();
   const db = getDb();
+  const [t] = await db.select({ nom: technicians.nom, fonction: technicians.fonction }).from(technicians).where(eq(technicians.id, technicianId)).limit(1);
   await db.delete(technicians).where(eq(technicians.id, technicianId));
+  await tracer({ categorie: "maintenance", action: "technicien_supprime", libelle: "Technicien supprimé", resume: t ? `${t.nom} (${t.fonction})` : null });
   revalidatePath("/maintenance");
 }

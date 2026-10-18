@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import { superhotePaymentSessions, villas } from "@/db/schema";
 import { getVillaStripePublicKey, submitBooking } from "@/lib/superhote/client";
 import { createPaymentSessionCore } from "@/lib/superhote/payment-session";
+import { tracer } from "@/lib/journal";
 
 // Réservé à l'équipe (page protégée) : crée un lien de paiement à envoyer au client. Le prix est
 // figé ici — get-availabilities est interrogé une seule fois, à la création — pour que le
@@ -35,6 +36,16 @@ export async function createPaymentSession(input: {
     ...input,
     createdByUserId: user?.id ?? null,
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
+  });
+
+  const [villa] = await getDb().select({ nom: villas.nom }).from(villas).where(eq(villas.id, input.villaId)).limit(1);
+  await tracer({
+    categorie: "paiement",
+    action: "lien_paiement_cree",
+    libelle: "Lien de paiement créé",
+    resume: `${input.prenom} ${input.nom} · du ${input.dateArrivee} au ${input.dateDepart} · ${input.nbAdultes} adulte(s), ${input.nbEnfants} enfant(s)`,
+    villaId: input.villaId,
+    villaNom: villa?.nom ?? null,
   });
 
   revalidatePath(`/villas/${input.villaId}`);

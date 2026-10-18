@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { chatMessages } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 
 export type ChatCategorie =
   | "menage_cuisine"
@@ -30,6 +31,14 @@ export async function postChatMessage(categorie: ChatCategorie, message: string,
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
   });
 
+  await tracer({
+    categorie: "messagerie",
+    action: "message_poste",
+    libelle: "Message posté dans le chat",
+    resume: `${categorie} : ${trimmed.slice(0, 120)}`,
+    villaId,
+  });
+
   revalidatePath("/chat");
 }
 
@@ -52,6 +61,14 @@ export async function replyToChatMessage(parentId: string, message: string) {
     message: trimmed,
     createdByUserId: user?.id ?? "inconnu",
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
+  });
+
+  await tracer({
+    categorie: "messagerie",
+    action: "message_reponse",
+    libelle: "Réponse dans le chat",
+    resume: `${parent.categorie} : ${trimmed.slice(0, 120)}`,
+    villaId: parent.villaId,
   });
 
   revalidatePath("/chat");
@@ -79,7 +96,15 @@ export async function toggleChatMessageTraite(id: string, traite: boolean) {
 export async function deleteChatMessage(id: string) {
   await auth.protect();
   const db = getDb();
+  const [avant] = await db.select().from(chatMessages).where(eq(chatMessages.id, id)).limit(1);
   await db.delete(chatMessages).where(eq(chatMessages.id, id));
+  await tracer({
+    categorie: "messagerie",
+    action: "message_supprime",
+    libelle: "Message du chat supprimé",
+    resume: avant ? `${avant.createdByName} : ${avant.message.slice(0, 120)}` : null,
+    villaId: avant?.villaId ?? null,
+  });
   revalidatePath("/chat");
 }
 

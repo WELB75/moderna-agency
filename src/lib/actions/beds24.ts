@@ -6,6 +6,7 @@ import { eq, isNotNull } from "drizzle-orm";
 import { getDb } from "@/db";
 import { reservations, villas } from "@/db/schema";
 import { runBeds24Sync } from "@/lib/beds24/sync";
+import { tracer } from "@/lib/journal";
 import { beds24GetBookings, beds24SendMessage } from "@/lib/beds24/client";
 import { BEDS24_VILLA_MAPPING, villaNameMatchesMapping } from "@/lib/beds24/mapping";
 
@@ -41,13 +42,23 @@ export async function sendBeds24Message(reservationId: string, message: string) 
 
   const db = getDb();
   const [reservation] = await db
-    .select({ beds24BookingId: reservations.beds24BookingId })
+    .select({ beds24BookingId: reservations.beds24BookingId, guestName: reservations.guestName, villaId: reservations.villaId, villaNom: villas.nom })
     .from(reservations)
+    .leftJoin(villas, eq(villas.id, reservations.villaId))
     .where(eq(reservations.id, reservationId))
     .limit(1);
   if (!reservation?.beds24BookingId) throw new Error("Cette réservation n'est pas liée à un canal Beds24.");
 
   await beds24SendMessage(Number(reservation.beds24BookingId), trimmed);
+  await tracer({
+    categorie: "messagerie",
+    action: "message_voyageur_envoye",
+    libelle: "Message envoyé au voyageur (Beds24)",
+    resume: reservation.guestName,
+    villaId: reservation.villaId,
+    villaNom: reservation.villaNom,
+    reservationId,
+  });
   revalidatePath("/chat");
 }
 
@@ -65,12 +76,21 @@ export async function sendBeds24InquiryMessage(beds24BookingId: number, message:
   if (!booking) throw new Error("Cette demande n'existe plus dans Beds24.");
 
   const db = getDb();
-  const villasBeds24 = await db.select({ roomId: villas.beds24RoomId }).from(villas).where(isNotNull(villas.beds24RoomId));
+  const villasBeds24 = await db.select({ roomId: villas.beds24RoomId, id: villas.id, nom: villas.nom }).from(villas).where(isNotNull(villas.beds24RoomId));
   if (!villasBeds24.some((v) => Number(v.roomId) === Number(booking.roomId))) {
     throw new Error("Cette demande ne concerne pas un logement de l'agence.");
   }
 
   await beds24SendMessage(beds24BookingId, trimmed);
+  const villaDemande = villasBeds24.find((v) => Number(v.roomId) === Number(booking.roomId));
+  await tracer({
+    categorie: "messagerie",
+    action: "message_demande_envoye",
+    libelle: "Réponse envoyée à une demande d'information (Beds24)",
+    resume: `Demande Beds24 n°${beds24BookingId}`,
+    villaId: villaDemande?.id ?? null,
+    villaNom: villaDemande?.nom ?? null,
+  });
   revalidatePath("/chat");
 }
 
@@ -170,6 +190,13 @@ export async function linkVillasToBeds24(): Promise<LinkVillasToBeds24Report> {
   if (report.notFound.length > 0) parts.push(`introuvables : ${report.notFound.join(", ")}`);
   if (report.skipped.length > 0) parts.push(`non liées volontairement : ${report.skipped.join(", ")}`);
   report.message = parts.join(" · ") + ".";
+
+  await tracer({
+    categorie: "logement",
+    action: "villas_liees_beds24",
+    libelle: "Villas liées à Beds24",
+    resume: report.linked.length > 0 ? report.linked.map((l) => `${l.villa} (chambre ${l.roomId})`).join(", ") : report.message,
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");

@@ -31,3 +31,19 @@ export const LIBELLES_BEDS24: Record<string, string> = {
   echec: "Beds24 en échec",
   non_concerne: "Beds24 non concerné",
 };
+
+export const LIBELLES_CATEGORIE: Record<string, string> = {
+  connexion: "Connexions",
+  reservation: "Réservations et blocages",
+  paiement: "Paiements et caution",
+  caisse: "Caisse",
+  logement: "Logements",
+  client: "Clients",
+  contrat: "Contrats et documents",
+  personnel: "Ménage et équipe",
+  maintenance: "Maintenance et interventions",
+  gendarmerie: "Fiches police",
+  inventaire: "États des lieux",
+  messagerie: "Messages",
+  autre: "Autre",
+};

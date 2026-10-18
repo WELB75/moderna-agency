@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clients } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 
 export async function createClient(formData: FormData) {
   await auth.protect();
@@ -23,6 +24,8 @@ export async function createClient(formData: FormData) {
     email: email || null,
     notes: notes || null,
   });
+
+  await tracer({ categorie: "client", action: "client_cree", libelle: "Client ajouté", resume: nom });
 
   revalidatePath("/clients");
   revalidatePath("/dashboard");
@@ -44,6 +47,8 @@ export async function updateClient(clientId: string, formData: FormData) {
     .set({ nom, telephone: telephone || null, email: email || null, notes: notes || null, updatedAt: new Date() })
     .where(eq(clients.id, clientId));
 
+  await tracer({ categorie: "client", action: "client_modifie", libelle: "Client modifié", resume: nom });
+
   revalidatePath("/clients");
   revalidatePath("/dashboard");
 }
@@ -51,7 +56,9 @@ export async function updateClient(clientId: string, formData: FormData) {
 export async function deleteClient(clientId: string) {
   await auth.protect();
   const db = getDb();
+  const [client] = await db.select({ nom: clients.nom }).from(clients).where(eq(clients.id, clientId)).limit(1);
   await db.delete(clients).where(eq(clients.id, clientId));
+  await tracer({ categorie: "client", action: "client_supprime", libelle: "Client supprimé", resume: client?.nom ?? null });
   revalidatePath("/clients");
   revalidatePath("/dashboard");
 }

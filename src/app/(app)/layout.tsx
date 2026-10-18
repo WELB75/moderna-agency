@@ -1,11 +1,14 @@
 import { SidebarNav } from "@/components/app/sidebar-nav";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { AppHeader } from "@/components/app/app-header";
+import { enregistrerConnexion } from "@/lib/journal";
 
 // Toutes les pages dépendent de données live (DB + session) : jamais de rendu statique.
 export const dynamic = "force-dynamic";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  // Journal : une ligne "connexion" par session (qui, quand, depuis quel appareil).
+  await enregistrerConnexion();
   return (
     <div className="relative flex min-h-screen flex-1 bg-muted/40">
       <SidebarNav />

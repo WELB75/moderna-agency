@@ -17,11 +17,25 @@ import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { beds24WriteBookings } from "@/lib/beds24/client";
 import { fermerDatesBeds24, rouvrirDatesBeds24 } from "@/lib/beds24/fermeture";
 import { normaliseCanal } from "@/lib/canal";
-import { auteurConnecte, datesFermeesParLApp, journaliser, type Beds24Statut } from "@/lib/journal";
+import { auteurConnecte, datesFermeesParLApp, journaliser, tracer, type Beds24Statut } from "@/lib/journal";
 
 function resumeSejour(guestName: string, canal: string | null, checkIn: string, checkOut: string): string {
   const jjmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}`;
   return `${guestName}${canal ? ` · ${canal}` : ""} · du ${jjmm(checkIn)} au ${jjmm(checkOut)}`;
+}
+
+// Villa + séjour lisible d'une réservation, pour le résumé du journal (une seule requête légère).
+async function infoResaJournal(reservationId: string) {
+  const db = getDb();
+  const [r] = await db
+    .select({ villaId: reservations.villaId, villaNom: villas.nom, guestName: reservations.guestName, checkIn: reservations.checkIn, checkOut: reservations.checkOut, canal: reservations.canal })
+    .from(reservations)
+    .leftJoin(villas, eq(villas.id, reservations.villaId))
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!r) return { reservationId, villaId: null, villaNom: null, sejour: "" };
+  const iso = (d: Date) => d.toISOString().slice(0, 10);
+  return { reservationId, villaId: r.villaId, villaNom: r.villaNom, sejour: resumeSejour(r.guestName, r.canal, iso(r.checkIn), iso(r.checkOut)) };
 }
 
 // Beds24 (inventory/rooms/calendar) : "to" est la DERNIÈRE NUIT incluse, pas le jour du départ.
@@ -239,6 +253,15 @@ export async function updatePaymentInfo(formData: FormData) {
     })
     .where(eq(reservations.id, reservationId));
 
+  const info = await infoResaJournal(reservationId);
+  await tracer({
+    categorie: "paiement",
+    action: "paiement_modifie",
+    libelle: "Paiement modifié",
+    resume: `${info.sejour} · loyer ${loyerTotal ?? "-"} ${devisePaiement}, reçu ${montantPaye ?? "-"} ${devisePaiement}, caution ${caution ?? "-"} (${cautionPayee ? "payée" : "non payée"})${moyenPaiement ? ` · ${moyenPaiement}` : ""}`,
+    ...info,
+  });
+
   revalidatePath("/dashboard");
   revalidatePath("/villas");
 }
@@ -264,6 +287,15 @@ export async function markSoldeRecu(reservationId: string, moyen: "especes" | "v
     })
     .where(eq(reservations.id, reservationId));
 
+  const info = await infoResaJournal(reservationId);
+  await tracer({
+    categorie: "paiement",
+    action: "solde_recu",
+    libelle: "Solde reçu",
+    resume: `${info.sejour} · ${reservation.loyerTotal ?? "-"} (${moyen === "especes" ? "espèces" : "virement"})`,
+    ...info,
+  });
+
   revalidatePath("/dashboard");
   revalidatePath("/villas");
 }
@@ -274,6 +306,9 @@ export async function markCautionRecue(reservationId: string) {
 
   const db = getDb();
   await db.update(reservations).set({ cautionPayee: true, updatedAt: new Date() }).where(eq(reservations.id, reservationId));
+
+  const info = await infoResaJournal(reservationId);
+  await tracer({ categorie: "paiement", action: "caution_recue", libelle: "Caution reçue", resume: info.sejour, ...info });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
@@ -294,6 +329,9 @@ export async function updateGuestPhone(reservationId: string, phone: string) {
     .set({ guestPhone: phone.trim() || null, updatedAt: new Date() })
     .where(eq(reservations.id, reservationId));
 
+  const info = await infoResaJournal(reservationId);
+  await tracer({ categorie: "reservation", action: "telephone_modifie", libelle: "Téléphone du voyageur modifié", resume: info.sejour, ...info });
+
   revalidatePath("/dashboard");
   revalidatePath("/villas");
   revalidatePath(`/reservations/${reservationId}`);
@@ -310,7 +348,9 @@ export async function updateGuestName(reservationId: string, name: string) {
   if (!nom) throw new Error("Le nom ne peut pas être vide.");
 
   const db = getDb();
+  const avant = await infoResaJournal(reservationId);
   await db.update(reservations).set({ guestName: nom, updatedAt: new Date() }).where(eq(reservations.id, reservationId));
+  await tracer({ categorie: "reservation", action: "nom_modifie", libelle: "Nom du voyageur modifié", resume: `${avant.sejour} → ${nom}`, ...avant });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
@@ -330,6 +370,9 @@ export async function updateReservationNotes(reservationId: string, notes: strin
     .update(reservations)
     .set({ notes: notes.trim() || null, updatedAt: new Date() })
     .where(eq(reservations.id, reservationId));
+
+  const info = await infoResaJournal(reservationId);
+  await tracer({ categorie: "reservation", action: "note_modifiee", libelle: "Note de réservation modifiée", resume: info.sejour, ...info });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
@@ -357,6 +400,9 @@ export async function marquerMessageEnvoye(reservationId: string, type: TypeMess
     .set({ [CHAMP_PAR_TYPE_MESSAGE[type]]: new Date() })
     .where(eq(reservations.id, reservationId));
 
+  const info = await infoResaJournal(reservationId);
+  await tracer({ categorie: "messagerie", action: "message_checkin_envoye", libelle: `Message WhatsApp "${type}" marqué envoyé`, resume: info.sejour, ...info });
+
   revalidatePath("/dashboard");
   revalidatePath(`/reservations/${reservationId}`);
 }
@@ -378,6 +424,9 @@ export async function updateOperationalInfo(formData: FormData) {
       updatedAt: new Date(),
     })
     .where(eq(reservations.id, reservationId));
+
+  const info = await infoResaJournal(reservationId);
+  await tracer({ categorie: "reservation", action: "infos_operationnelles_modifiees", libelle: "Infos opérationnelles modifiées", resume: info.sejour, ...info });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
@@ -615,6 +664,15 @@ export async function validateReservationEvent(reservationId: string, kind: "in"
     )
     .where(eq(reservations.id, reservationId));
 
+  const info = await infoResaJournal(reservationId);
+  await tracer({
+    categorie: "reservation",
+    action: kind === "in" ? "checkin_valide" : "checkout_valide",
+    libelle: kind === "in" ? "Check-in validé" : "Check-out validé",
+    resume: info.sejour,
+    ...info,
+  });
+
   revalidatePath("/dashboard");
   revalidatePath("/villas");
 }
@@ -630,6 +688,15 @@ export async function unvalidateReservationEvent(reservationId: string, kind: "i
         : { checkoutValideAt: null, checkoutValidePar: null }
     )
     .where(eq(reservations.id, reservationId));
+
+  const info = await infoResaJournal(reservationId);
+  await tracer({
+    categorie: "reservation",
+    action: kind === "in" ? "checkin_devalide" : "checkout_devalide",
+    libelle: kind === "in" ? "Validation du check-in annulée" : "Validation du check-out annulée",
+    resume: info.sejour,
+    ...info,
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
@@ -698,6 +765,13 @@ export async function importSuperhoteCsv(csvText: string) {
 
     matched++;
   }
+
+  await tracer({
+    categorie: "reservation",
+    action: "import_csv_superhote",
+    libelle: "Import CSV Superhote",
+    resume: `${matched} réservation(s) mise(s) à jour, ${unmatched.length} sans correspondance`,
+  });
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");

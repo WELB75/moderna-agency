@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { clients, ignoredBookings, reservations, villas } from "@/db/schema";
 import { parseSuperhoteCsv } from "@/lib/superhote-csv";
+import { tracer } from "@/lib/journal";
 import {
   normaliserLignes,
   planifierImportSuperhote,
@@ -101,6 +102,13 @@ export async function importerHistoriqueSuperhote(csvText: string, options: Opti
   await parLots(nouveauxClients, 100, async (lot) => {
     const res = await db.insert(clients).values(lot).returning({ id: clients.id });
     clientsCrees += res.length;
+  });
+
+  await tracer({
+    categorie: "reservation",
+    action: "import_historique_superhote",
+    libelle: "Import de l'historique Superhote",
+    resume: `${crees} réservation(s) créée(s), ${completees} complétée(s), ${clientsCrees} client(s) créé(s)`,
   });
 
   revalidatePath("/statistiques");

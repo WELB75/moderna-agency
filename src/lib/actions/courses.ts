@@ -5,6 +5,12 @@ import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { products, domaineStock, villaStock, domaines, villas } from "@/db/schema";
+import { tracer } from "@/lib/journal";
+
+async function nomProduit(db: ReturnType<typeof getDb>, productId: string) {
+  const [p] = await db.select({ nom: products.nom }).from(products).where(eq(products.id, productId)).limit(1);
+  return p?.nom ?? "produit";
+}
 
 async function getBaseDomaine(db: ReturnType<typeof getDb>) {
   const [base] = await db.select().from(domaines).where(eq(domaines.estBase, true)).limit(1);
@@ -75,6 +81,12 @@ export async function setDomaineStock(domaineId: string, productId: string, quan
       target: [domaineStock.domaineId, domaineStock.productId],
       set: { quantite, updatedAt: new Date() },
     });
+  await tracer({
+    categorie: "inventaire",
+    action: "stock_domaine_modifie",
+    libelle: "Stock du domaine modifié",
+    resume: `${domaine.nom} - ${await nomProduit(db, productId)} : ${quantite}`,
+  });
 
   revalidatePath("/inventaire");
 }
@@ -114,6 +126,14 @@ export async function setVillaStock(villaId: string, productId: string, quantite
       target: [villaStock.villaId, villaStock.productId],
       set: { quantite, updatedAt: new Date() },
     });
+  await tracer({
+    categorie: "inventaire",
+    action: "stock_villa_modifie",
+    libelle: "Stock du logement modifié",
+    resume: `${villa.nom} - ${await nomProduit(db, productId)} : ${quantite}`,
+    villaId,
+    villaNom: villa.nom,
+  });
 
   revalidatePath("/inventaire");
 }

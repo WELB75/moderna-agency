@@ -4,7 +4,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { gendarmerieForms, gendarmerieOccupants } from "@/db/schema";
+import { gendarmerieForms, gendarmerieOccupants, villas } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 import { extractPassport } from "@/lib/passport-ocr";
 import { extractPassportAI } from "@/lib/passport-ai";
 import { normalizeIdPhotoDataUrl } from "@/lib/id-photo-normalize";
@@ -129,6 +130,17 @@ export async function saveImportedGendarmerieForm(villaId: string, occupants: Oc
       photoPieceUrl: o.photoPieceUrl || null,
     }))
   );
+
+  const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+  const noms = normalizedOccupants.map((o) => [o.prenom.trim(), o.nom.trim()].filter(Boolean).join(" ")).join(", ");
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiche_police_importee",
+    libelle: "Fiche police importée depuis passeport",
+    resume: `${noms}${villa ? ` - ${villa.nom}` : ""}`,
+    villaId,
+    villaNom: villa?.nom ?? null,
+  });
 
   revalidatePath("/documents");
   return { id: form.id };

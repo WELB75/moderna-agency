@@ -9,6 +9,36 @@ import { montantMenageDu, montantCuisineDu } from "@/lib/personnel-tarifs";
 import { finTravailleSiPartagee } from "@/lib/planning-jours-affectation";
 import { nowInMorocco } from "@/lib/now";
 import { notifyBrahimForReservation } from "@/lib/whatsapp-agent/brahim";
+import { tracer } from "@/lib/journal";
+
+async function nomPersonnel(personnelId: string): Promise<string | null> {
+  const [p] = await getDb().select({ nom: personnel.nom }).from(personnel).where(eq(personnel.id, personnelId)).limit(1);
+  return p?.nom ?? null;
+}
+
+// Qui / quelle mission / quelle villa pour une affectation, afin que le journal soit lisible.
+async function decrireAffectation(affectationId: string) {
+  const [r] = await getDb()
+    .select({
+      personneNom: personnel.nom,
+      role: personnel.role,
+      moment: personnelAffectations.moment,
+      reservationId: personnelAffectations.reservationId,
+      guestName: reservations.guestName,
+      villaId: reservations.villaId,
+      villaNom: villas.nom,
+    })
+    .from(personnelAffectations)
+    .innerJoin(personnel, eq(personnel.id, personnelAffectations.personnelId))
+    .leftJoin(reservations, eq(reservations.id, personnelAffectations.reservationId))
+    .leftJoin(villas, eq(villas.id, reservations.villaId))
+    .where(eq(personnelAffectations.id, affectationId))
+    .limit(1);
+  if (!r) return null;
+  const mission = r.role === "cuisine" ? "cuisine" : r.moment === "depart" ? "ménage départ" : "ménage séjour";
+  const resume = `${r.personneNom} - ${mission}${r.villaNom ? ` - ${r.villaNom}` : ""}${r.guestName ? ` (${r.guestName})` : ""}`;
+  return { resume, villaId: r.villaId, villaNom: r.villaNom, reservationId: r.reservationId };
+}
 
 export async function createPersonnel(formData: FormData) {
   await auth.protect();
@@ -28,6 +58,7 @@ export async function createPersonnel(formData: FormData) {
     telephone: telephone || null,
     notes: notes || null,
   });
+  await tracer({ categorie: "personnel", action: "personnel_cree", libelle: "Personnel ajouté", resume: `${nom} (${role === "menage" ? "ménage" : "cuisine"})` });
 
   revalidatePath("/personnel");
 }
@@ -45,6 +76,7 @@ export async function updatePersonnel(personnelId: string, formData: FormData) {
     .update(personnel)
     .set({ nom, telephone: telephone || null, notes: notes || null })
     .where(eq(personnel.id, personnelId));
+  await tracer({ categorie: "personnel", action: "personnel_modifie", libelle: "Personnel modifié", resume: nom });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -54,6 +86,7 @@ export async function togglePersonnelActif(personnelId: string, actif: boolean) 
   await auth.protect();
   const db = getDb();
   await db.update(personnel).set({ actif }).where(eq(personnel.id, personnelId));
+  await tracer({ categorie: "personnel", action: actif ? "personnel_active" : "personnel_desactive", libelle: actif ? "Personnel activé" : "Personnel désactivé", resume: await nomPersonnel(personnelId) });
   revalidatePath("/personnel");
 }
 
@@ -67,7 +100,9 @@ export async function togglePersonnelEnquete(personnelId: string, enquete: boole
 export async function deletePersonnel(personnelId: string) {
   await auth.protect();
   const db = getDb();
+  const nom = await nomPersonnel(personnelId);
   await db.delete(personnel).where(eq(personnel.id, personnelId));
+  await tracer({ categorie: "personnel", action: "personnel_supprime", libelle: "Personnel supprimé", resume: nom });
   revalidatePath("/personnel");
 }
 
@@ -88,6 +123,10 @@ export async function addPersonnelAffectation(
     .values({ reservationId, personnelId, moment })
     .onConflictDoNothing()
     .returning({ id: personnelAffectations.id });
+  if (created) {
+    const d = await decrireAffectation(created.id);
+    await tracer({ categorie: "personnel", action: "affectation_ajoutee", libelle: "Personnel affecté à un séjour", resume: d?.resume, villaId: d?.villaId, villaNom: d?.villaNom, reservationId });
+  }
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -114,11 +153,13 @@ export async function removePersonnelAffectation(affectationId: string) {
   // avec elle — sinon la suppression laisse une dépense fantôme, sans plus aucune affectation à
   // laquelle la rattacher. Kamel, 2026-08-06 : "tout modifier depuis ici".
   const [a] = await db.select({ cashEntryId: personnelAffectations.cashEntryId }).from(personnelAffectations).where(eq(personnelAffectations.id, affectationId)).limit(1);
+  const d = await decrireAffectation(affectationId);
 
   await db.delete(personnelAffectations).where(eq(personnelAffectations.id, affectationId));
   if (a?.cashEntryId) {
     await db.delete(cashEntries).where(eq(cashEntries.id, a.cashEntryId));
   }
+  await tracer({ categorie: "personnel", action: "affectation_retiree", libelle: "Affectation retirée", resume: d?.resume, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -135,6 +176,8 @@ export async function toggleAffectationFait(affectationId: string, fait: boolean
     .update(personnelAffectations)
     .set({ faitAt: fait ? new Date() : null })
     .where(eq(personnelAffectations.id, affectationId));
+  const d = await decrireAffectation(affectationId);
+  await tracer({ categorie: "personnel", action: fait ? "menage_fait" : "menage_fait_annule", libelle: fait ? "Ménage confirmé fait" : "Confirmation du ménage annulée", resume: d?.resume, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -145,6 +188,8 @@ export async function updateAffectationJours(affectationId: string, nbJours: num
   await auth.protect();
   const db = getDb();
   await db.update(personnelAffectations).set({ nbJours }).where(eq(personnelAffectations.id, affectationId));
+  const d = await decrireAffectation(affectationId);
+  await tracer({ categorie: "personnel", action: "affectation_jours", libelle: "Nombre de jours de cuisine modifié", resume: `${d?.resume ?? ""} : ${nbJours ?? "tout le séjour"}`, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -155,6 +200,8 @@ export async function updateAffectationAvecDejeuner(affectationId: string, avecD
   await auth.protect();
   const db = getDb();
   await db.update(personnelAffectations).set({ avecDejeuner }).where(eq(personnelAffectations.id, affectationId));
+  const d = await decrireAffectation(affectationId);
+  await tracer({ categorie: "personnel", action: "affectation_repas", libelle: "Formule cuisine modifiée", resume: `${d?.resume ?? ""} : ${avecDejeuner ? "petit-déjeuner + déjeuner" : "petit-déjeuner seul"}`, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -282,6 +329,7 @@ export async function markAffectationPaidSolo(affectationId: string): Promise<{ 
   // est réactivé plus tard (voir unmarkAffectationPaid) — sans ça, un aller-retour payée/non payée
   // laisserait une dépense fantôme dans la caisse.
   await db.update(personnelAffectations).set({ payeAt: new Date(), cashEntryId: entry.id }).where(eq(personnelAffectations.id, affectationId));
+  await tracer({ categorie: "paiement", action: "personnel_paye", libelle: "Personnel payé", resume: `${p.nom} - ${roleLabel} : ${montant} MAD${villa ? ` (${villa.nom})` : ""}`, villaId: r.villaId, villaNom: villa?.nom, reservationId: a.reservationId });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -302,10 +350,12 @@ export async function unmarkAffectationPaid(affectationId: string): Promise<{ ok
   if (!a) return { ok: false, message: "Affectation introuvable." };
   if (!a.payeAt) return { ok: true };
 
+  const d = await decrireAffectation(affectationId);
   await db.update(personnelAffectations).set({ payeAt: null, cashEntryId: null }).where(eq(personnelAffectations.id, affectationId));
   if (a.cashEntryId) {
     await db.delete(cashEntries).where(eq(cashEntries.id, a.cashEntryId));
   }
+  await tracer({ categorie: "paiement", action: "personnel_paiement_annule", libelle: "Paiement du personnel annulé", resume: d?.resume, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: a.reservationId });
 
   revalidatePath("/personnel");
   revalidatePath("/villas");
@@ -384,6 +434,13 @@ export async function markAffectationsPaid(
       createdByName: user?.fullName ?? user?.username ?? "Équipe",
     });
   }
+  const total = details.reduce((somme, d) => somme + d.montant, 0);
+  await tracer({
+    categorie: "paiement",
+    action: "personnel_paye",
+    libelle: "Personnel payé",
+    resume: `${personnelNom} - ${role === "menage" ? "ménage" : "cuisine"} : ${total} MAD (${affectationIds.length} mission${affectationIds.length > 1 ? "s" : ""})`,
+  });
 
   revalidatePath("/personnel");
   revalidatePath("/dashboard");
