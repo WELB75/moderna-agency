@@ -38,11 +38,15 @@ export function GendarmerieSignatureForm({
   villaNom,
   occupants,
   conditions = null,
+  onSubmitted,
 }: {
   formId: string;
   villaNom: string;
   occupants: PrefilledOccupant[];
   conditions?: ConditionsSejourData | null;
+  // Utilisé par le dossier combiné (DossierFlow) pour enchaîner sur l'étape suivante au lieu
+  // d'afficher le message de remerciement.
+  onSubmitted?: () => void;
 }) {
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
   const [noms, setNoms] = useState<string[]>(() => occupants.map(() => ""));
@@ -104,7 +108,8 @@ export function GendarmerieSignatureForm({
     startTransition(async () => {
       try {
         await signGendarmerieOccupants(formId, lang!, signatures, Boolean(conditions));
-        setSubmitted(true);
+        if (onSubmitted) onSubmitted();
+        else setSubmitted(true);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur / Error");
       }

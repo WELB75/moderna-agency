@@ -1,7 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { asc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
-import { gendarmerieForms, reservations } from "@/db/schema";
+import { gendarmerieForms, gendarmerieOccupants, reservations } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { DossierFlow } from "@/components/app/dossier-flow";
 import { chargerContrat } from "@/lib/contrat-donnees";
@@ -31,9 +31,23 @@ export default async function DossierPage({ params }: { params: Promise<{ contra
       .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
       .where(eq(gendarmerieForms.contratId, contratId))
       .orderBy(asc(gendarmerieForms.createdAt))
-  ).map((f) => ({
+  );
+
+  // Fiches pré-remplies par le staff : le client relit et signe au lieu de tout ressaisir.
+  const enAttenteSignature = forms.filter((f) => f.statut === "attente_signature").map((f) => f.id);
+  const occupantsPrefill =
+    enAttenteSignature.length > 0
+      ? await db
+          .select()
+          .from(gendarmerieOccupants)
+          .where(inArray(gendarmerieOccupants.formId, enAttenteSignature))
+          .orderBy(asc(gendarmerieOccupants.createdAt))
+      : [];
+
+  const formsPourFlux = forms.map((f) => ({
     id: f.id,
     statut: f.statut,
+    occupants: occupantsPrefill.filter((o) => o.formId === f.id),
     nbAdultes: f.nbAdultesResa ?? f.nbAdultesPrevu ?? contrat.nbAdultes ?? 1,
     nbEnfants: f.nbEnfantsResa ?? f.nbEnfantsPrevu ?? contrat.nbEnfants ?? 0,
   }));
@@ -50,7 +64,7 @@ export default async function DossierPage({ params }: { params: Promise<{ contra
         </div>
       ) : (
         <DossierFlow
-          forms={forms}
+          forms={formsPourFlux}
           villaNom={contrat.villaNom ?? "votre logement"}
           contratId={contrat.id}
           conditions={contrat.conditions}

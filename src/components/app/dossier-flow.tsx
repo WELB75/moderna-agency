@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 import { GendarmerieForm } from "@/components/app/gendarmerie-form";
+import { GendarmerieSignatureForm, type PrefilledOccupant } from "@/components/app/gendarmerie-signature-form";
 import { ContratForm } from "@/components/app/contrat-form";
 import type { ConditionsSejourData } from "@/lib/conditions-sejour";
 
-type FormRow = { id: string; statut: string; nbAdultes: number; nbEnfants: number };
+type FormRow = {
+  id: string;
+  statut: string;
+  nbAdultes: number;
+  nbEnfants: number;
+  // Occupants déjà saisis par le staff (statut "attente_signature") : le client relit et signe.
+  occupants: PrefilledOccupant[];
+};
 
 // Dossier généré depuis Documents : fiche police (une fiche de groupe — ou, pour les anciens
 // dossiers, une fiche par adulte) puis signature des Conditions de séjour, en une seule visite.
@@ -37,6 +45,15 @@ export function DossierFlow({
         <p className="text-center text-sm text-muted-foreground">
           Étape {stepNumber} / {forms.length + 1} — {parAdulte ? `Identité de la personne ${stepNumber}` : "Fiche de police"}
         </p>
+        {current.statut === "attente_signature" && current.occupants.length > 0 ? (
+          <GendarmerieSignatureForm
+            key={current.id}
+            formId={current.id}
+            villaNom={villaNom}
+            occupants={current.occupants}
+            onSubmitted={() => setDoneIds((prev) => new Set(prev).add(current.id))}
+          />
+        ) : (
         <GendarmerieForm
           key={current.id}
           formId={current.id}
@@ -46,6 +63,7 @@ export function DossierFlow({
           nbEnfants={parAdulte ? 0 : current.nbEnfants}
           onSubmitted={() => setDoneIds((prev) => new Set(prev).add(current.id))}
         />
+        )}
       </div>
     );
   }
