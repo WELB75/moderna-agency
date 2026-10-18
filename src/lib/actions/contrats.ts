@@ -2,10 +2,11 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { contratsLocation, gendarmerieForms } from "@/db/schema";
 import { AGENCE_REPRESENTANT_DEFAUT } from "@/lib/contrat-template";
+import { derniereSignatureAgence } from "@/lib/contrat-donnees";
 
 export async function generateContrat(input: {
   villaId: string;
@@ -25,10 +26,15 @@ export async function generateContrat(input: {
   depotRestitutionDate: string;
   lieuSignature: string;
   dateSignatureAgence: string;
+  // Vide = reprendre la dernière signature de l'agence déjà enregistrée (plus besoin de la
+  // redessiner à chaque contrat).
   signatureAgenceImage: string;
+  // Séjour d'origine (pré-remplissage) : sert à rattacher la fiche police du dossier.
+  reservationId?: string;
 }) {
   await auth.protect();
   const user = await currentUser();
+  const signatureAgenceImage = input.signatureAgenceImage || (await derniereSignatureAgence());
 
   const db = getDb();
   const [contrat] = await db
@@ -52,7 +58,7 @@ export async function generateContrat(input: {
       lieuSignature: input.lieuSignature.trim() || "Marrakech",
       dateSignatureAgence: input.dateSignatureAgence.trim() || null,
       signatureAgenceNom: input.agenceRepresentant.trim() || AGENCE_REPRESENTANT_DEFAUT,
-      signatureAgenceImage: input.signatureAgenceImage || null,
+      signatureAgenceImage: signatureAgenceImage || null,
       createdByUserId: user?.id ?? null,
       createdByName: user?.fullName ?? user?.username ?? "Équipe",
     })
@@ -62,31 +68,53 @@ export async function generateContrat(input: {
   return contrat;
 }
 
-// Génère un contrat ET une fiche police par adulte, tous rattachés (contratId) pour former
-// un seul "dossier" : le client ouvre un lien unique, remplit son identité (une fois par
-// adulte) puis signe le contrat dans la foulée, sans repartir de zéro.
+// Génère les Conditions de séjour ET la fiche police dans un seul lien (/dossier/[id]) : le client
+// remplit la fiche de police (tout le groupe sur la même page), puis signe les conditions.
+// Rattaché à un séjour, on réutilise sa fiche police existante (celle créée par la synchro Beds24,
+// dont le lien /g/[id] redirige alors vers ce dossier) au lieu d'en créer une seconde ; si elle est
+// déjà remplie, il ne reste que les conditions à signer (lien /c/[id]).
 export async function generateDossier(
   input: Parameters<typeof generateContrat>[0]
-) {
+): Promise<{ contratId: string; lien: string }> {
   await auth.protect();
   const user = await currentUser();
 
   const contrat = await generateContrat(input);
-
   const db = getDb();
-  const count = Math.max(1, Math.round(input.nbAdultes) || 1);
-  await db.insert(gendarmerieForms).values(
-    Array.from({ length: count }, () => ({
-      villaId: input.villaId,
-      reservationId: null,
-      contratId: contrat.id,
-      createdByUserId: user?.id ?? null,
-      createdByName: user?.fullName ?? user?.username ?? "Équipe",
-    }))
-  );
+  const nbAdultes = Math.min(Math.max(Math.round(input.nbAdultes) || 1, 1), 20);
+  const nbEnfants = Math.min(Math.max(Math.round(input.nbEnfants) || 0, 0), 20);
+
+  if (input.reservationId) {
+    const fiches = await db
+      .select({ id: gendarmerieForms.id, statut: gendarmerieForms.statut, contratId: gendarmerieForms.contratId })
+      .from(gendarmerieForms)
+      .where(eq(gendarmerieForms.reservationId, input.reservationId))
+      .orderBy(asc(gendarmerieForms.createdAt));
+
+    if (fiches.some((f) => f.statut === "complete")) {
+      revalidatePath("/documents");
+      return { contratId: contrat.id, lien: `/c/${contrat.id}` };
+    }
+    const libre = fiches.find((f) => !f.contratId && f.statut === "en_attente");
+    if (libre) {
+      await db.update(gendarmerieForms).set({ contratId: contrat.id }).where(eq(gendarmerieForms.id, libre.id));
+      revalidatePath("/documents");
+      return { contratId: contrat.id, lien: `/dossier/${contrat.id}` };
+    }
+  }
+
+  await db.insert(gendarmerieForms).values({
+    villaId: input.villaId,
+    reservationId: input.reservationId || null,
+    contratId: contrat.id,
+    nbAdultesPrevu: nbAdultes,
+    nbEnfantsPrevu: nbEnfants,
+    createdByUserId: user?.id ?? null,
+    createdByName: user?.fullName ?? user?.username ?? "Équipe",
+  });
 
   revalidatePath("/documents");
-  return contrat;
+  return { contratId: contrat.id, lien: `/dossier/${contrat.id}` };
 }
 
 // Volontairement sans auth.protect() : le client signe via le lien public /c/[id], sans se connecter.
@@ -123,6 +151,13 @@ export async function submitContratSignature(
 export async function deleteContrat(contratId: string) {
   await auth.protect();
   const db = getDb();
+  // La clé étrangère gendarmerieForms.contratId supprime en cascade : on détache d'abord les fiches
+  // police déjà remplies du dossier, pour ne jamais perdre les identités/pièces des voyageurs en
+  // supprimant un contrat.
+  await db
+    .update(gendarmerieForms)
+    .set({ contratId: null })
+    .where(and(eq(gendarmerieForms.contratId, contratId), eq(gendarmerieForms.statut, "complete")));
   await db.delete(contratsLocation).where(eq(contratsLocation.id, contratId));
   revalidatePath("/documents");
 }
