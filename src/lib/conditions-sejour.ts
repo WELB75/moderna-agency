@@ -50,9 +50,17 @@ export type ConditionsSejour = {
 // pour rien à la synchro du 13/10/2026).
 const NOM_SANS_VOYAGEUR = /^(blocage|date bloqu|not available|blocked|indisponible|travaux)/i;
 
+// Séjours du propriétaire d'une villa (ex. Youssef Mouani, propriétaire de Villa Sofya — Kamel,
+// 2026-10-18) : pas de prix, de caution, de contrat ni de fiche police.
+const NOM_PROPRIETAIRE = /^youssef\s+mouani\b/i;
+
+export function estSejourProprietaire(guestName: string): boolean {
+  return NOM_PROPRIETAIRE.test(guestName.trim());
+}
+
 export function sejourSansVoyageur(r: { canal: string | null; guestName: string }): boolean {
   const canal = r.canal ?? "";
-  return canal.startsWith("Blocage") || canal === "Famille" || NOM_SANS_VOYAGEUR.test(r.guestName.trim());
+  return canal.startsWith("Blocage") || canal === "Famille" || NOM_SANS_VOYAGEUR.test(r.guestName.trim()) || estSejourProprietaire(r.guestName);
 }
 
 // Plateforme de réservation (Airbnb, Booking.com, autre OTA) ; null pour une réservation directe.
