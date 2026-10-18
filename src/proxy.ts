@@ -36,6 +36,7 @@ const isPublicRoute = createRouteMatcher([
   "/securite/villa/(.*)",
   "/securite/domaine/(.*)",
   "/planning/(.*)",
+  "/tuto/(.*)", // tuto pas à pas en lien public : le code aléatoire dans l'adresse fait office de clé (voir lib/tutos.ts)
   "/cal/(.*)", // calendrier seul d'un logement, en lecture seule (lien à part pour un propriétaire, voir lib/calendrier-partage.ts)
 ]);
 
