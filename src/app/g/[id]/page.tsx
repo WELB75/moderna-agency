@@ -1,8 +1,9 @@
 import { eq, asc } from "drizzle-orm";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Image from "next/image";
 import { getDb } from "@/db";
-import { gendarmerieForms, gendarmerieOccupants, villas, reservations } from "@/db/schema";
+import { gendarmerieForms, gendarmerieOccupants, villas, reservations, contratsLocation } from "@/db/schema";
+import { chargerConditionsFiche } from "@/lib/contrat-donnees";
 import { Logo } from "@/components/app/logo";
 import { GendarmerieForm } from "@/components/app/gendarmerie-form";
 import { GendarmerieSignatureForm } from "@/components/app/gendarmerie-signature-form";
@@ -24,14 +25,26 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
       nbEnfants: reservations.nbEnfants,
       nbAdultesPrevu: gendarmerieForms.nbAdultesPrevu,
       nbEnfantsPrevu: gendarmerieForms.nbEnfantsPrevu,
+      contratId: gendarmerieForms.contratId,
+      contratStatut: contratsLocation.statut,
     })
     .from(gendarmerieForms)
     .leftJoin(villas, eq(gendarmerieForms.villaId, villas.id))
     .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
+    .leftJoin(contratsLocation, eq(gendarmerieForms.contratId, contratsLocation.id))
     .where(eq(gendarmerieForms.id, id))
     .limit(1);
 
   if (!form) notFound();
+
+  // Fiche rattachée à un dossier (fiche police + conditions générés depuis Documents) : le lien
+  // envoyé par Beds24 mène au dossier complet tant que les conditions ne sont pas signées.
+  if (form.contratId && form.contratStatut && form.contratStatut !== "signe" && form.statut !== "complete") {
+    redirect(`/dossier/${form.contratId}`);
+  }
+
+  // Conditions de séjour acceptées en fin de fiche (null si déjà signées, blocage, fiche individuelle...).
+  const conditions = form.statut === "complete" ? null : await chargerConditionsFiche(form.id);
 
   // Occupants déjà pré-remplis par Kamel depuis les passeports/CIN reçus (cas "attente_signature") :
   // le client n'a plus qu'à relire et signer, pas à ressaisir.
@@ -61,13 +74,19 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
           </p>
         </div>
       ) : form.statut === "attente_signature" ? (
-        <GendarmerieSignatureForm formId={form.id} villaNom={form.villaNom ?? "votre logement"} occupants={occupants} />
+        <GendarmerieSignatureForm
+          formId={form.id}
+          villaNom={form.villaNom ?? "votre logement"}
+          occupants={occupants}
+          conditions={conditions}
+        />
       ) : (
         <GendarmerieForm
           formId={form.id}
           villaNom={form.villaNom ?? "votre logement"}
           nbAdultes={form.nbAdultes ?? form.nbAdultesPrevu ?? 1}
           nbEnfants={form.nbEnfants ?? form.nbEnfantsPrevu ?? 0}
+          conditions={conditions}
         />
       )}
     </div>
