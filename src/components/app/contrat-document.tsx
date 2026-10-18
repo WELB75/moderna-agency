@@ -1,6 +1,38 @@
 import { AGENCE_ADRESSE, AGENCE_NOM, CONTRAT_ARTICLES_FIXES } from "@/lib/contrat-template";
 import { LinkifiedText } from "@/components/app/linkified-text";
 import { formatDateFr } from "@/lib/format-date";
+import { construireConditions, type ConditionsLang, type ConditionsSejourData } from "@/lib/conditions-sejour";
+
+// Conditions de séjour (texte actuel, voir lib/conditions-sejour.ts) : affichées au voyageur dans
+// sa langue au moment de signer, et en français (version qui fait foi) dans l'app.
+export function ConditionsSejourDocument({ data, lang = "fr" }: { data: ConditionsSejourData; lang?: ConditionsLang }) {
+  const c = construireConditions(data, lang);
+  return (
+    <div dir={lang === "ar" ? "rtl" : "ltr"} className="space-y-4 text-sm leading-relaxed">
+      <h1 className="text-center text-lg font-bold uppercase tracking-wide">{c.titre}</h1>
+      <p>{c.intro}</p>
+      {c.sections.map((section) => (
+        <div key={section.titre} className="break-inside-avoid space-y-1">
+          <p className="font-semibold">{section.titre}</p>
+          {section.lignes.length > 1 ? (
+            <ul className="list-disc space-y-0.5 ps-5">
+              {section.lignes.map((ligne) => (
+                <li key={ligne}>{ligne}</li>
+              ))}
+            </ul>
+          ) : (
+            <p>{section.lignes[0]}</p>
+          )}
+        </div>
+      ))}
+      {c.mention ? <p className="text-xs italic text-muted-foreground">{c.mention}</p> : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Ancien contrat (13 articles) : uniquement pour réafficher les contrats signés avant
+// CONDITIONS_SEJOUR_DEPUIS (voir contrat-template.ts) avec le texte que le client a signé.
 
 export type ContratDocumentData = {
   villaNom: string | null;
@@ -35,7 +67,7 @@ function montant(value: string | null | undefined, devise: string) {
   return value && value.trim() ? `${value.trim()} ${devise}` : "……………………";
 }
 
-export function ContratDocument({ contrat }: { contrat: ContratDocumentData }) {
+export function ContratDocumentV1({ contrat }: { contrat: ContratDocumentData }) {
   return (
     <div className="space-y-4 text-sm leading-relaxed">
       <h1 className="text-center text-lg font-bold uppercase tracking-wide">

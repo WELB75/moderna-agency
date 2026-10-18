@@ -8,11 +8,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { SignaturePad, type SignaturePadHandle } from "@/components/app/signature-pad";
-import { ContratDocument, type ContratDocumentData } from "@/components/app/contrat-document";
+import { ConditionsSejourDocument } from "@/components/app/contrat-document";
 import { submitContratSignature } from "@/lib/actions/contrats";
+import type { ConditionsSejourData } from "@/lib/conditions-sejour";
 
-export function ContratForm({ contrat }: { contrat: ContratDocumentData & { id: string; signatureAgenceImage: string | null } }) {
-  const [nom, setNom] = useState(contrat.locataireNom ?? "");
+// Signature des Conditions de séjour par le client (liens /c/[id] et /dossier/[id], générés depuis
+// Documents) — même texte que celui accepté en fin de fiche police.
+export function ContratForm({
+  contratId,
+  conditions,
+  signatureAgenceImage,
+}: {
+  contratId: string;
+  conditions: ConditionsSejourData;
+  signatureAgenceImage: string | null;
+}) {
+  const [nom, setNom] = useState(conditions.locataireNom ?? "");
   const [piece, setPiece] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -21,7 +32,7 @@ export function ContratForm({ contrat }: { contrat: ContratDocumentData & { id: 
   if (submitted) {
     return (
       <div className="mx-auto max-w-md space-y-2 py-16 text-center">
-        <p className="text-lg font-medium">Merci, le contrat a bien été signé.</p>
+        <p className="text-lg font-medium">Merci, les conditions de séjour ont bien été signées.</p>
       </div>
     );
   }
@@ -38,7 +49,7 @@ export function ContratForm({ contrat }: { contrat: ContratDocumentData & { id: 
     const signatureImage = sigRef.current!.toDataUrl();
     startTransition(async () => {
       try {
-        await submitContratSignature(contrat.id, { clientNom: nom, clientPiece: piece, signatureImage });
+        await submitContratSignature(contratId, { clientNom: nom, clientPiece: piece, signatureImage });
         setSubmitted(true);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
@@ -50,17 +61,17 @@ export function ContratForm({ contrat }: { contrat: ContratDocumentData & { id: 
     <div className="mx-auto max-w-2xl space-y-6 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       <Card>
         <CardContent className="px-3 py-4 sm:px-4">
-          <ContratDocument contrat={contrat} />
+          <ConditionsSejourDocument data={conditions} />
         </CardContent>
       </Card>
 
-      {contrat.signatureAgenceImage ? (
+      {signatureAgenceImage ? (
         <Card>
           <CardContent className="space-y-2 py-4">
             <p className="text-sm font-semibold">Signature de l&apos;Agence</p>
             <div className="w-fit rounded-md border bg-white p-2">
               <Image
-                src={contrat.signatureAgenceImage}
+                src={signatureAgenceImage}
                 alt="Signature de l'Agence"
                 width={300}
                 height={120}
