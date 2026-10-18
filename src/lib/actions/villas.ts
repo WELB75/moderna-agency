@@ -5,6 +5,13 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas } from "@/db/schema";
+import { tracer } from "@/lib/journal";
+
+// Nom lisible du logement pour le journal (vide si introuvable).
+async function nomVilla(villaId: string): Promise<string | null> {
+  const [v] = await getDb().select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+  return v?.nom ?? null;
+}
 
 export async function createVilla(formData: FormData) {
   await auth.protect();
@@ -35,6 +42,13 @@ export async function createVilla(formData: FormData) {
     codeBoitier: codeBoitier || null,
     codePorteEntree: codePorteEntree || null,
   });
+  await tracer({
+    categorie: "logement",
+    action: "logement_cree",
+    libelle: type === "appartement" ? "Appartement créé" : "Villa créée",
+    resume: `${numero} - ${nom}`,
+    villaNom: nom,
+  });
 
   revalidatePath("/villas");
   revalidatePath("/appartements");
@@ -44,7 +58,9 @@ export async function createVilla(formData: FormData) {
 export async function deleteVilla(villaId: string) {
   await auth.protect();
   const db = getDb();
+  const nom = await nomVilla(villaId);
   await db.delete(villas).where(eq(villas.id, villaId));
+  await tracer({ categorie: "logement", action: "logement_supprime", libelle: "Logement supprimé", resume: nom, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath("/dashboard");
 }
@@ -53,6 +69,8 @@ export async function updateVillaPhoto(villaId: string, photoUrl: string) {
   await auth.protect();
   const db = getDb();
   await db.update(villas).set({ photoUrl, updatedAt: new Date() }).where(eq(villas.id, villaId));
+  const nomPhoto = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_photo", libelle: "Photo du logement modifiée", resume: nomPhoto, villaId, villaNom: nomPhoto });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -68,6 +86,8 @@ export async function updateVillaCodeBoitier(formData: FormData) {
     .update(villas)
     .set({ codeBoitier: codeBoitier || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_code_boitier", libelle: "Code du boîtier à clés modifié", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -85,6 +105,8 @@ export async function updateVillaCodePorteEntree(formData: FormData) {
     .update(villas)
     .set({ codePorteEntree: codePorteEntree || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_code_porte", libelle: "Code de la porte d'entrée modifié", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -101,6 +123,8 @@ export async function updateVillaCodeChambreMaster(formData: FormData) {
     .update(villas)
     .set({ codeChambreMaster: codeChambreMaster || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_code_chambre", libelle: "Code de la chambre principale modifié", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -116,6 +140,8 @@ export async function updateVillaCodeWifi(formData: FormData) {
     .update(villas)
     .set({ codeWifi: codeWifi || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_code_wifi", libelle: "Code wifi modifié", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -131,6 +157,8 @@ export async function updateVillaGuideBienvenueUrl(formData: FormData) {
     .update(villas)
     .set({ guideBienvenueUrl: guideBienvenueUrl || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_guide", libelle: "Guide de bienvenue modifié", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -151,6 +179,8 @@ export async function updateVillaProprietaire(formData: FormData) {
       updatedAt: new Date(),
     })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_proprietaire", libelle: "Propriétaire du logement modifié", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath("/proprietaires");
   revalidatePath(`/villas/${villaId}`);
@@ -194,6 +224,7 @@ export async function updateVillaInfo(formData: FormData) {
       updatedAt: new Date(),
     })
     .where(eq(villas.id, villaId));
+  await tracer({ categorie: "logement", action: "logement_modifie", libelle: "Logement modifié", resume: `${numero} - ${nom}`, villaId, villaNom: nom });
   revalidatePath("/personnel");
   revalidatePath("/dashboard");
   revalidatePath("/villas");
@@ -211,6 +242,8 @@ export async function updateVillaIcalUrl(formData: FormData) {
     .update(villas)
     .set({ icalUrl: icalUrl || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_ical", libelle: "Lien iCal modifié", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }
@@ -228,6 +261,8 @@ export async function updateVillaDirectIcalUrls(formData: FormData) {
     .update(villas)
     .set({ airbnbIcalUrl: airbnbIcalUrl || null, bookingIcalUrl: bookingIcalUrl || null, updatedAt: new Date() })
     .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_ical_direct", libelle: "Liens iCal Airbnb/Booking modifiés", resume: nom, villaId, villaNom: nom });
   revalidatePath("/villas");
   revalidatePath(`/villas/${villaId}`);
 }

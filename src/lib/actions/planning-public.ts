@@ -3,8 +3,35 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations, reservations, cashEntries } from "@/db/schema";
+import { personnel, personnelAffectations, reservations, cashEntries, villas } from "@/db/schema";
 import { isValidPlanningToken } from "@/lib/planning-token";
+import { tracer } from "@/lib/journal";
+
+const AUTEUR_PLANNING = { type: "humain" as const, id: null, nom: "Planning (lien équipe)", email: null };
+
+// Personne / mission / villa d'une affectation, pour un journal lisible.
+async function decrireAffectation(affectationId: string) {
+  const [r] = await getDb()
+    .select({
+      personneNom: personnel.nom,
+      role: personnel.role,
+      moment: personnelAffectations.moment,
+      reservationId: personnelAffectations.reservationId,
+      guestName: reservations.guestName,
+      villaId: reservations.villaId,
+      villaNom: villas.nom,
+    })
+    .from(personnelAffectations)
+    .innerJoin(personnel, eq(personnel.id, personnelAffectations.personnelId))
+    .leftJoin(reservations, eq(reservations.id, personnelAffectations.reservationId))
+    .leftJoin(villas, eq(villas.id, reservations.villaId))
+    .where(eq(personnelAffectations.id, affectationId))
+    .limit(1);
+  if (!r) return null;
+  const mission = r.role === "cuisine" ? "cuisine" : r.moment === "depart" ? "ménage départ" : "ménage séjour";
+  const resume = `${r.personneNom} - ${mission}${r.villaNom ? ` - ${r.villaNom}` : ""}${r.guestName ? ` (${r.guestName})` : ""}`;
+  return { resume, villaId: r.villaId, villaNom: r.villaNom, reservationId: r.reservationId };
+}
 
 // Réaffecte une mission (ménage ou cuisine) à quelqu'un d'autre, directement depuis le lien
 // public de planning — sans connexion, vérifié par jeton partagé (voir planning-token.ts). Le
@@ -26,11 +53,14 @@ export async function reassignPlanningAffectation(token: string, affectationId: 
   if (!remplacant) throw new Error("Personne introuvable.");
   if (remplacant.role !== current.role) throw new Error("Rôle différent — impossible d'affecter cette personne ici.");
 
+  const avant = await decrireAffectation(affectationId);
   try {
     await db.update(personnelAffectations).set({ personnelId: newPersonnelId }).where(eq(personnelAffectations.id, affectationId));
   } catch {
     throw new Error("Cette personne est déjà affectée sur cette mission.");
   }
+  const d = await decrireAffectation(affectationId);
+  await tracer({ categorie: "personnel", action: "affectation_reaffectee", libelle: "Mission réaffectée (planning)", resume: `${avant?.resume ?? ""} => ${d?.resume ?? ""}`, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId, auteur: AUTEUR_PLANNING });
 
   revalidatePath(`/planning/${token}`);
   revalidatePath("/personnel");
@@ -53,11 +83,13 @@ export async function removePlanningAffectation(token: string, affectationId: st
     .where(eq(personnelAffectations.id, affectationId))
     .limit(1);
   if (!a) throw new Error("Affectation introuvable.");
+  const d = await decrireAffectation(affectationId);
 
   await db.delete(personnelAffectations).where(eq(personnelAffectations.id, affectationId));
   if (a.cashEntryId) {
     await db.delete(cashEntries).where(eq(cashEntries.id, a.cashEntryId));
   }
+  await tracer({ categorie: "personnel", action: "affectation_retiree", libelle: "Affectation retirée (planning)", resume: d?.resume, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId, auteur: AUTEUR_PLANNING });
 
   revalidatePath(`/planning/${token}`);
   revalidatePath("/personnel");
@@ -88,6 +120,8 @@ export async function updatePlanningAffectationMoment(token: string, affectation
   } catch {
     throw new Error("Cette personne a déjà une mission à ce moment sur ce séjour.");
   }
+  const d = await decrireAffectation(affectationId);
+  await tracer({ categorie: "personnel", action: "affectation_moment", libelle: "Moment du ménage modifié (planning)", resume: `${d?.resume ?? ""} : ${moment === "depart" ? "départ" : "pendant le séjour"}`, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId, auteur: AUTEUR_PLANNING });
 
   revalidatePath(`/planning/${token}`);
   revalidatePath("/personnel");
@@ -112,6 +146,8 @@ export async function updatePlanningAffectationRepas(token: string, affectationI
   if (current.role !== "cuisine") throw new Error("Cette mission n'est pas une mission de cuisine.");
 
   await db.update(personnelAffectations).set({ avecDejeuner }).where(eq(personnelAffectations.id, affectationId));
+  const d = await decrireAffectation(affectationId);
+  await tracer({ categorie: "personnel", action: "affectation_repas", libelle: "Formule cuisine modifiée (planning)", resume: `${d?.resume ?? ""} : ${avecDejeuner ? "petit-déjeuner + déjeuner" : "petit-déjeuner seul"}`, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId, auteur: AUTEUR_PLANNING });
 
   revalidatePath(`/planning/${token}`);
   revalidatePath("/personnel");
@@ -131,6 +167,8 @@ export async function togglePlanningAffectationConfirme(token: string, affectati
     .update(personnelAffectations)
     .set({ confirmeAt: confirme ? new Date() : null })
     .where(eq(personnelAffectations.id, affectationId));
+  const d = await decrireAffectation(affectationId);
+  await tracer({ categorie: "personnel", action: "affectation_confirmee", libelle: confirme ? "Mission confirmée (planning)" : "Confirmation de mission annulée (planning)", resume: d?.resume, villaId: d?.villaId, villaNom: d?.villaNom, reservationId: d?.reservationId, auteur: AUTEUR_PLANNING });
 
   revalidatePath(`/planning/${token}`);
 }
@@ -168,6 +206,24 @@ export async function addPlanningAffectation(
   } catch {
     throw new Error("Cette personne est déjà affectée sur cette mission.");
   }
+  const [info] = await db
+    .select({ personneNom: personnel.nom, guestName: reservations.guestName, villaId: reservations.villaId, villaNom: villas.nom })
+    .from(reservations)
+    .leftJoin(villas, eq(villas.id, reservations.villaId))
+    .innerJoin(personnel, eq(personnel.id, personnelId))
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  const mission = pers.role === "cuisine" ? "cuisine" : momentValide === "depart" ? "ménage départ" : "ménage séjour";
+  await tracer({
+    categorie: "personnel",
+    action: "affectation_ajoutee",
+    libelle: "Personnel affecté à un séjour (planning)",
+    resume: info ? `${info.personneNom} - ${mission}${info.villaNom ? ` - ${info.villaNom}` : ""}${info.guestName ? ` (${info.guestName})` : ""}` : null,
+    villaId: info?.villaId,
+    villaNom: info?.villaNom,
+    reservationId,
+    auteur: AUTEUR_PLANNING,
+  });
 
   revalidatePath(`/planning/${token}`);
   revalidatePath("/personnel");

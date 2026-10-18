@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { interventionComments } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 
 // Volontairement sans auth.protect() : utilisé aussi bien par le propriétaire (lien public,
 // sans connexion) que par l'équipe. Le message reste tracé (auteur + type + horodatage).
@@ -24,6 +25,14 @@ export async function addInterventionComment(
     auteurType,
     message: trimmed || "Pièce jointe",
     attachmentUrls,
+  });
+
+  await tracer({
+    categorie: "maintenance",
+    action: "commentaire_intervention_ajoute",
+    libelle: "Commentaire ajouté sur une intervention",
+    resume: `${auteur.trim() || (auteurType === "proprietaire" ? "Propriétaire" : "Équipe")} : ${(trimmed || "Pièce jointe").slice(0, 120)}`,
+    ...(auteurType === "proprietaire" ? { auteur: { type: "humain" as const, id: null, nom: "Propriétaire (lien)", email: null } } : {}),
   });
 
   revalidatePath("/interventions");
@@ -56,7 +65,18 @@ export async function updateInterventionComment(
 
 export async function deleteInterventionComment(commentId: string) {
   const db = getDb();
+  const [avant] = await db
+    .select({ auteur: interventionComments.auteur, message: interventionComments.message })
+    .from(interventionComments)
+    .where(eq(interventionComments.id, commentId))
+    .limit(1);
   await db.delete(interventionComments).where(eq(interventionComments.id, commentId));
+  await tracer({
+    categorie: "maintenance",
+    action: "commentaire_intervention_supprime",
+    libelle: "Commentaire d'intervention supprimé",
+    resume: avant ? `${avant.auteur} : ${avant.message.slice(0, 120)}` : null,
+  });
 
   revalidatePath("/interventions");
   revalidatePath("/maintenance");

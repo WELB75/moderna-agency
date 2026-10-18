@@ -11,6 +11,28 @@ import { sendWhatsAppText } from "@/lib/whatsapp-agent/send";
 import { buildSecurityMessage } from "@/lib/message-templates";
 import { getBaseUrl } from "@/lib/base-url";
 import { signerConditionsFiche } from "@/lib/contrat-donnees";
+import { tracer } from "@/lib/journal";
+
+// Contexte lisible d'une fiche pour le journal : villa + voyageur/dates de la réservation si
+// elle est rattachée. Jamais de données d'identité (numéro de pièce, naissance...).
+async function contexteFiche(villaId: string | null, reservationId: string | null) {
+  const db = getDb();
+  let villaNom: string | null = null;
+  let sejour: string | null = null;
+  if (villaId) {
+    const [v] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+    villaNom = v?.nom ?? null;
+  }
+  if (reservationId) {
+    const [r] = await db
+      .select({ guestName: reservations.guestName, checkIn: reservations.checkIn, checkOut: reservations.checkOut })
+      .from(reservations)
+      .where(eq(reservations.id, reservationId))
+      .limit(1);
+    if (r) sejour = `${r.guestName} (${r.checkIn.toISOString().slice(0, 10)} au ${r.checkOut.toISOString().slice(0, 10)})`;
+  }
+  return { villaNom, resume: [sejour, villaNom].filter(Boolean).join(" - ") || null };
+}
 
 // Conditions de séjour acceptées en fin de fiche police (case cochée + signature de l'occupant 1) :
 // enregistrées comme contrat signé. Jamais bloquant : la fiche police reste enregistrée même si
@@ -61,6 +83,17 @@ export async function createGendarmerieForm(reservationId: string | null, villaI
     })
     .returning();
 
+  const ctx = await contexteFiche(villaId, reservationId);
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiche_police_creee",
+    libelle: "Fiche police créée",
+    resume: ctx.resume,
+    villaId,
+    villaNom: ctx.villaNom,
+    reservationId,
+  });
+
   revalidatePath("/villas");
   if (villaId) revalidatePath(`/villas/${villaId}`);
   return form;
@@ -87,6 +120,16 @@ export async function generateGendarmerieForms(villaId: string, nbAdultes: numbe
     )
     .returning();
 
+  const ctx = await contexteFiche(villaId, null);
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiches_police_generees",
+    libelle: "Fiches police générées",
+    resume: `${count} fiche${count > 1 ? "s" : ""}${ctx.villaNom ? ` - ${ctx.villaNom}` : ""}`,
+    villaId,
+    villaNom: ctx.villaNom,
+  });
+
   revalidatePath("/documents");
   return forms;
 }
@@ -111,6 +154,16 @@ export async function createGroupGendarmerieForm(villaId: string, nbAdultes: num
       createdByName: user?.fullName ?? user?.username ?? "Équipe",
     })
     .returning();
+
+  const ctx = await contexteFiche(villaId, null);
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiche_police_groupe_creee",
+    libelle: "Fiche police de groupe créée",
+    resume: `${safeAdultes} adulte(s), ${safeEnfants} enfant(s)${ctx.villaNom ? ` - ${ctx.villaNom}` : ""}`,
+    villaId,
+    villaNom: ctx.villaNom,
+  });
 
   revalidatePath("/documents");
   return form;
@@ -222,6 +275,18 @@ export async function submitGendarmerieOccupants(
 
   await notifySecurityIfNeeded(form.reservationId);
 
+  const ctx = await contexteFiche(form.villaId, form.reservationId);
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiche_police_remplie",
+    libelle: "Fiche police remplie par le voyageur",
+    resume: ctx.resume,
+    villaId: form.villaId,
+    villaNom: ctx.villaNom,
+    reservationId: form.reservationId,
+    auteur: { type: "humain" as const, id: null, nom: "Voyageur (lien)", email: null },
+  });
+
   revalidatePath("/villas");
   revalidatePath("/documents");
   revalidatePath(`/g/${formId}`);
@@ -275,6 +340,17 @@ export async function prefillGendarmerieOccupants(
 
   await db.update(gendarmerieForms).set({ statut: "attente_signature" }).where(eq(gendarmerieForms.id, formId));
 
+  const ctx = await contexteFiche(form.villaId, form.reservationId);
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiche_police_prerempli",
+    libelle: "Fiche police pré-remplie, en attente de signature",
+    resume: ctx.resume,
+    villaId: form.villaId,
+    villaNom: ctx.villaNom,
+    reservationId: form.reservationId,
+  });
+
   revalidatePath("/villas");
   revalidatePath(`/g/${formId}`);
 }
@@ -324,6 +400,18 @@ export async function signGendarmerieOccupants(
 
   await notifySecurityIfNeeded(form.reservationId);
 
+  const ctx = await contexteFiche(form.villaId, form.reservationId);
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiche_police_signee",
+    libelle: "Fiche police signée par le voyageur",
+    resume: ctx.resume,
+    villaId: form.villaId,
+    villaNom: ctx.villaNom,
+    reservationId: form.reservationId,
+    auteur: { type: "humain" as const, id: null, nom: "Voyageur (lien)", email: null },
+  });
+
   revalidatePath("/villas");
   revalidatePath("/documents");
   revalidatePath(`/g/${formId}`);
@@ -332,7 +420,22 @@ export async function signGendarmerieOccupants(
 export async function deleteGendarmerieForm(formId: string) {
   await auth.protect();
   const db = getDb();
+  const [avant] = await db
+    .select({ villaId: gendarmerieForms.villaId, reservationId: gendarmerieForms.reservationId })
+    .from(gendarmerieForms)
+    .where(eq(gendarmerieForms.id, formId))
+    .limit(1);
+  const ctx = avant ? await contexteFiche(avant.villaId, avant.reservationId) : null;
   await db.delete(gendarmerieForms).where(eq(gendarmerieForms.id, formId));
+  await tracer({
+    categorie: "gendarmerie",
+    action: "fiche_police_supprimee",
+    libelle: "Fiche police supprimée",
+    resume: ctx?.resume ?? null,
+    villaId: avant?.villaId ?? null,
+    villaNom: ctx?.villaNom ?? null,
+    reservationId: avant?.reservationId ?? null,
+  });
   revalidatePath("/villas");
 }
 

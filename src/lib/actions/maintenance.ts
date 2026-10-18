@@ -4,7 +4,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { maintenanceRecords } from "@/db/schema";
+import { maintenanceRecords, villas } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 
 export async function createMaintenanceRecord(formData: FormData) {
   await auth.protect();
@@ -40,6 +41,16 @@ export async function createMaintenanceRecord(formData: FormData) {
     })
     .returning();
 
+  const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+  await tracer({
+    categorie: "maintenance",
+    action: "maintenance_enregistree",
+    libelle: "Entretien enregistré",
+    resume: `${equipement} (${categorie})${villa ? ` - ${villa.nom}` : ""}`,
+    villaId,
+    villaNom: villa?.nom ?? null,
+  });
+
   revalidatePath("/maintenance");
   revalidatePath(`/villas/${villaId}`);
   revalidatePath("/dashboard");
@@ -49,7 +60,21 @@ export async function createMaintenanceRecord(formData: FormData) {
 export async function deleteMaintenanceRecord(recordId: string) {
   await auth.protect();
   const db = getDb();
+  const [avant] = await db
+    .select({ equipement: maintenanceRecords.equipement, villaId: maintenanceRecords.villaId, villaNom: villas.nom })
+    .from(maintenanceRecords)
+    .leftJoin(villas, eq(villas.id, maintenanceRecords.villaId))
+    .where(eq(maintenanceRecords.id, recordId))
+    .limit(1);
   await db.delete(maintenanceRecords).where(eq(maintenanceRecords.id, recordId));
+  await tracer({
+    categorie: "maintenance",
+    action: "maintenance_supprimee",
+    libelle: "Entretien supprimé",
+    resume: avant ? `${avant.equipement}${avant.villaNom ? ` - ${avant.villaNom}` : ""}` : null,
+    villaId: avant?.villaId ?? null,
+    villaNom: avant?.villaNom ?? null,
+  });
   revalidatePath("/maintenance");
   revalidatePath("/dashboard");
 }

@@ -4,7 +4,8 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { inventoryChecklists, inventoryItems, checklistItemTemplates } from "@/db/schema";
+import { inventoryChecklists, inventoryItems, checklistItemTemplates, villas } from "@/db/schema";
+import { tracer } from "@/lib/journal";
 import { DEFAULT_CHECKLIST_ITEMS } from "@/lib/inventory-defaults";
 import { compareChecklistWithEntree } from "@/lib/damage-comparison-ai";
 
@@ -51,6 +52,17 @@ export async function createChecklist(formData: FormData) {
       ordre: index,
     }))
   );
+
+  const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1);
+  await tracer({
+    categorie: "inventaire",
+    action: "etat_des_lieux_cree",
+    libelle: "État des lieux créé",
+    resume: `${type === "entree" ? "Entrée" : "Sortie"}${villa ? ` - ${villa.nom}` : ""}`,
+    villaId,
+    villaNom: villa?.nom ?? null,
+    reservationId,
+  });
 
   revalidatePath("/inventaire");
   return checklist.id;
@@ -120,6 +132,22 @@ export async function finalizeChecklist(input: {
     })
     .where(eq(inventoryChecklists.id, input.checklistId));
 
+  const [cl] = await db
+    .select({ type: inventoryChecklists.type, villaId: inventoryChecklists.villaId, reservationId: inventoryChecklists.reservationId, villaNom: villas.nom })
+    .from(inventoryChecklists)
+    .leftJoin(villas, eq(villas.id, inventoryChecklists.villaId))
+    .where(eq(inventoryChecklists.id, input.checklistId))
+    .limit(1);
+  await tracer({
+    categorie: "inventaire",
+    action: "etat_des_lieux_signe",
+    libelle: "État des lieux finalisé et signé",
+    resume: `${cl ? (cl.type === "entree" ? "Entrée" : "Sortie") : "État des lieux"} - client : ${input.clientNom.trim()}${cl?.villaNom ? ` - ${cl.villaNom}` : ""}`,
+    villaId: cl?.villaId ?? null,
+    villaNom: cl?.villaNom ?? null,
+    reservationId: cl?.reservationId ?? null,
+  });
+
   revalidatePath("/inventaire");
   revalidatePath(`/inventaire/${input.checklistId}`);
 }
@@ -137,7 +165,14 @@ export async function updateItemClassification(
 ) {
   await auth.protect();
   const db = getDb();
+  const [item] = await db.select({ libelle: inventoryItems.libelle }).from(inventoryItems).where(eq(inventoryItems.id, itemId)).limit(1);
   await db.update(inventoryItems).set({ usureClassification: classification }).where(eq(inventoryItems.id, itemId));
+  await tracer({
+    categorie: "inventaire",
+    action: "degat_classification",
+    libelle: "Classification d'un dégât modifiée",
+    resume: `${item?.libelle ?? "Élément"} : ${classification}`,
+  });
 }
 
 export async function updateItemPriseEnCharge(
@@ -146,21 +181,49 @@ export async function updateItemPriseEnCharge(
 ) {
   await auth.protect();
   const db = getDb();
+  const [item] = await db.select({ libelle: inventoryItems.libelle }).from(inventoryItems).where(eq(inventoryItems.id, itemId)).limit(1);
   await db.update(inventoryItems).set({ priseEnCharge }).where(eq(inventoryItems.id, itemId));
+  await tracer({
+    categorie: "inventaire",
+    action: "degat_prise_en_charge",
+    libelle: "Prise en charge d'un dégât modifiée",
+    resume: `${item?.libelle ?? "Élément"} : ${priseEnCharge}`,
+  });
 }
 
 export async function updateItemMontantEstime(itemId: string, montant: string) {
   await auth.protect();
   const db = getDb();
+  const [item] = await db.select({ libelle: inventoryItems.libelle }).from(inventoryItems).where(eq(inventoryItems.id, itemId)).limit(1);
   await db
     .update(inventoryItems)
     .set({ montantEstime: montant.trim() || null })
     .where(eq(inventoryItems.id, itemId));
+  await tracer({
+    categorie: "inventaire",
+    action: "degat_montant",
+    libelle: "Montant estimé d'un dégât modifié",
+    resume: `${item?.libelle ?? "Élément"} : ${montant.trim() || "aucun montant"}`,
+  });
 }
 
 export async function deleteChecklist(checklistId: string) {
   await auth.protect();
   const db = getDb();
+  const [avant] = await db
+    .select({ type: inventoryChecklists.type, villaId: inventoryChecklists.villaId, villaNom: villas.nom })
+    .from(inventoryChecklists)
+    .leftJoin(villas, eq(villas.id, inventoryChecklists.villaId))
+    .where(eq(inventoryChecklists.id, checklistId))
+    .limit(1);
   await db.delete(inventoryChecklists).where(eq(inventoryChecklists.id, checklistId));
+  await tracer({
+    categorie: "inventaire",
+    action: "etat_des_lieux_supprime",
+    libelle: "État des lieux supprimé",
+    resume: avant ? `${avant.type === "entree" ? "Entrée" : "Sortie"}${avant.villaNom ? ` - ${avant.villaNom}` : ""}` : null,
+    villaId: avant?.villaId ?? null,
+    villaNom: avant?.villaNom ?? null,
+  });
   revalidatePath("/inventaire");
 }

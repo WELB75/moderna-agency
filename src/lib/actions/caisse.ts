@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { cashEntries, caisseReconciliations, villas } from "@/db/schema";
 import { analyzeCashReceipt } from "@/lib/caisse-receipt-ai";
+import { tracer } from "@/lib/journal";
 
 export async function createCashEntry(formData: FormData) {
   await auth.protect();
@@ -75,6 +76,17 @@ export async function createCashEntry(formData: FormData) {
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
   });
 
+  const [villa] = villaId ? await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, villaId)).limit(1) : [];
+  await tracer({
+    categorie: "caisse",
+    action: "mouvement_caisse_cree",
+    libelle: type === "depense" ? "Dépense enregistrée en caisse" : `Mouvement de caisse enregistré (${type})`,
+    resume: `${montantNum.toFixed(2)} ${devise} · ${type}${categorie && type === "depense" ? ` (${categorie})` : ""} · caisse ${caisse} · ${moyenPaiement}${description ? ` · ${description}` : ""}`,
+    villaId,
+    villaNom: villa?.nom ?? null,
+    reservationId,
+  });
+
   revalidatePath("/caisse");
 }
 
@@ -131,6 +143,8 @@ export async function donnerArgentBrahim(montant: number, photoUrls: string[]) {
     .returning({ id: cashEntries.id });
 
   await db.update(cashEntries).set({ linkedEntryId: depenseSociete.id }).where(eq(cashEntries.id, remise.id));
+
+  await tracer({ categorie: "caisse", action: "argent_donne_brahim", libelle: "Argent donné à Brahim", resume: `${montantStr} MAD (remise + dépense société liée)` });
 
   revalidatePath("/caisse");
 }
@@ -195,6 +209,7 @@ export async function reconcilierCaisseSociete(moyenPaiement: string) {
     moyenPaiement: moyenPaiement as "especes" | "virement" | "carte",
     createdByName: user?.fullName ?? user?.username ?? "Équipe",
   });
+  await tracer({ categorie: "caisse", action: "caisse_reconciliee", libelle: "Caisse société remise à zéro", resume: `Moyen de paiement : ${moyenPaiement}` });
   revalidatePath("/caisse");
 }
 
@@ -203,10 +218,28 @@ export async function deleteCashEntry(entryId: string) {
   const db = getDb();
   // Une remise à Brahim et sa dépense société liée (voir donnerArgentBrahim) doivent disparaître
   // ensemble — sinon supprimer l'une des deux fausse de nouveau le solde société.
-  const [entry] = await db.select({ linkedEntryId: cashEntries.linkedEntryId }).from(cashEntries).where(eq(cashEntries.id, entryId)).limit(1);
+  const [entry] = await db
+    .select({
+      linkedEntryId: cashEntries.linkedEntryId,
+      type: cashEntries.type,
+      montant: cashEntries.montant,
+      devise: cashEntries.devise,
+      description: cashEntries.description,
+      villaId: cashEntries.villaId,
+    })
+    .from(cashEntries)
+    .where(eq(cashEntries.id, entryId))
+    .limit(1);
   await db.delete(cashEntries).where(eq(cashEntries.id, entryId));
   if (entry?.linkedEntryId) {
     await db.delete(cashEntries).where(eq(cashEntries.id, entry.linkedEntryId));
   }
+  await tracer({
+    categorie: "caisse",
+    action: "mouvement_caisse_supprime",
+    libelle: "Mouvement de caisse supprimé",
+    resume: entry ? `${entry.montant} ${entry.devise} · ${entry.type}${entry.description ? ` · ${entry.description}` : ""}${entry.linkedEntryId ? " (+ écriture liée)" : ""}` : null,
+    villaId: entry?.villaId ?? null,
+  });
   revalidatePath("/caisse");
 }

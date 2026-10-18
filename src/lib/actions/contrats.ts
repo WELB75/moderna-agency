@@ -4,9 +4,10 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { contratsLocation, gendarmerieForms } from "@/db/schema";
+import { contratsLocation, gendarmerieForms, villas } from "@/db/schema";
 import { AGENCE_REPRESENTANT_DEFAUT } from "@/lib/contrat-template";
 import { derniereSignatureAgence } from "@/lib/contrat-donnees";
+import { tracer } from "@/lib/journal";
 
 export async function generateContrat(input: {
   villaId: string;
@@ -63,6 +64,17 @@ export async function generateContrat(input: {
       createdByName: user?.fullName ?? user?.username ?? "Équipe",
     })
     .returning();
+
+  const [villa] = await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, input.villaId)).limit(1);
+  await tracer({
+    categorie: "contrat",
+    action: "contrat_genere",
+    libelle: "Contrat de location généré",
+    resume: `${input.locataireNom.trim() || "Locataire non renseigné"} · du ${input.dateArrivee || "?"} au ${input.dateDepart || "?"}${input.montantTotal.trim() ? ` · ${input.montantTotal.trim()} ${input.devise.trim() || "DH"}` : ""}`,
+    villaId: input.villaId,
+    villaNom: villa?.nom ?? null,
+    reservationId: input.reservationId || null,
+  });
 
   revalidatePath("/documents");
   return contrat;
@@ -144,6 +156,19 @@ export async function submitContratSignature(
     })
     .where(eq(contratsLocation.id, contratId));
 
+  const nomClient = data.clientNom.trim() || contrat.locataireNom || "Client";
+  const [villa] = contrat.villaId ? await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, contrat.villaId)).limit(1) : [];
+  await tracer({
+    categorie: "contrat",
+    action: "contrat_signe",
+    libelle: "Contrat signé par le client",
+    resume: `${nomClient} · du ${contrat.dateArrivee ?? "?"} au ${contrat.dateDepart ?? "?"}`,
+    villaId: contrat.villaId,
+    villaNom: villa?.nom ?? null,
+    // Signature via lien public : pas de compte Clerk.
+    auteur: { type: "humain", id: null, nom: `${nomClient} (client, lien de signature)`, email: null },
+  });
+
   revalidatePath("/documents");
   revalidatePath(`/c/${contratId}`);
 }
@@ -151,6 +176,12 @@ export async function submitContratSignature(
 export async function deleteContrat(contratId: string) {
   await auth.protect();
   const db = getDb();
+  const [contrat] = await db
+    .select({ locataireNom: contratsLocation.locataireNom, dateArrivee: contratsLocation.dateArrivee, dateDepart: contratsLocation.dateDepart, villaId: contratsLocation.villaId, villaNom: villas.nom })
+    .from(contratsLocation)
+    .leftJoin(villas, eq(villas.id, contratsLocation.villaId))
+    .where(eq(contratsLocation.id, contratId))
+    .limit(1);
   // La clé étrangère gendarmerieForms.contratId supprime en cascade : on détache d'abord les fiches
   // police déjà remplies du dossier, pour ne jamais perdre les identités/pièces des voyageurs en
   // supprimant un contrat.
@@ -159,5 +190,13 @@ export async function deleteContrat(contratId: string) {
     .set({ contratId: null })
     .where(and(eq(gendarmerieForms.contratId, contratId), eq(gendarmerieForms.statut, "complete")));
   await db.delete(contratsLocation).where(eq(contratsLocation.id, contratId));
+  await tracer({
+    categorie: "contrat",
+    action: "contrat_supprime",
+    libelle: "Contrat supprimé",
+    resume: contrat ? `${contrat.locataireNom ?? "Locataire non renseigné"} · du ${contrat.dateArrivee ?? "?"} au ${contrat.dateDepart ?? "?"}` : null,
+    villaId: contrat?.villaId ?? null,
+    villaNom: contrat?.villaNom ?? null,
+  });
   revalidatePath("/documents");
 }
