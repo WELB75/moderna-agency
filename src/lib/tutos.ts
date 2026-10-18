@@ -3,7 +3,11 @@
 // photos sont dans public/tutos/<slug>/ et on corrige une légende en modifiant ce fichier.
 // `brouillon` affiche un bandeau "en cours de vérification" tant que Kamel n'a pas confirmé
 // chaque étape (position du sélecteur, vannes, disjoncteur).
-export type TutoEtape = { image: string; legende: string; attention?: string };
+// repere : cercle rouge posé sur la photo, en % de l'image (x/y = coin haut-gauche), pour montrer
+// du doigt l'élément à toucher.
+export type TutoRepere = { x: number; y: number; w: number; h: number };
+export type TutoImage = { src: string; titre?: string; repere?: TutoRepere };
+export type TutoEtape = { images: TutoImage[]; legende: string; attention?: string };
 
 export type Tuto = {
   slug: string;
@@ -13,6 +17,7 @@ export type Tuto = {
   brouillon: boolean;
   etapes: TutoEtape[];
   fin: string;
+  rappel?: string; // affiché sur l'écran de fin
 };
 
 export const TUTOS: Tuto[] = [
@@ -24,29 +29,34 @@ export const TUTOS: Tuto[] = [
     brouillon: false,
     etapes: [
       {
-        image: "/tutos/chauffage-piscine/etape-1.jpg",
-        legende: "Descendre au local technique et mettre le sélecteur sur OFF.",
+        images: [{ src: "/tutos/chauffage-piscine/etape-1.jpg", repere: { x: 46, y: 43.5, w: 11, h: 5 } }],
+        legende: "Descendre au local technique et mettre le sélecteur sur COM (position du milieu).",
       },
       {
-        image: "/tutos/chauffage-piscine/etape-2.jpg",
+        images: [{ src: "/tutos/chauffage-piscine/etape-2.jpg" }],
         legende: "Vérifier les vannes : les poignées rouges doivent être dans le sens du tuyau (ouvertes).",
       },
       {
-        image: "/tutos/chauffage-piscine/etape-3.jpg",
-        legende: "Au tableau électrique, repérer D1 : relever le disjoncteur (le bloc de 4 manettes reliées par une barre noire).",
+        images: [
+          { src: "/tutos/chauffage-piscine/etape-3-ensemble.jpg", titre: "Vue d'ensemble du tableau", repere: { x: 72, y: 15, w: 16.5, h: 13.5 } },
+          { src: "/tutos/chauffage-piscine/etape-3.jpg", titre: "Zoom" },
+        ],
+        legende: "Au tableau électrique, repérer D2 : relever le disjoncteur (le bloc de 4 manettes reliées par une barre noire).",
         attention: "Ne toucher que la barre noire, jamais les fils ni les vis.",
       },
       {
-        image: "/tutos/chauffage-piscine/etape-4.jpg",
+        images: [{ src: "/tutos/chauffage-piscine/etape-4.jpg", repere: { x: 32.5, y: 43.5, w: 13, h: 5 } }],
         legende: "Mettre le sélecteur sur MANUEL, pas sur AUTO.",
+        attention: "Pour chauffer la piscine, c'est toujours sur MANUEL.",
       },
       {
-        image: "/tutos/chauffage-piscine/etape-5.jpg",
+        images: [{ src: "/tutos/chauffage-piscine/etape-5.jpg" }],
         legende:
           "Sortir du local technique, aller au boîtier de commande de la pompe à chaleur et l'allumer. Vérifier que la température est entre 30 et 40 °C, puis attendre que le ventilateur tourne (30 secondes à 1 minute). Dès qu'il ventile, on peut partir.",
       },
     ],
     fin: "Piscine chauffée",
+    rappel: "Pour chauffer la piscine, le sélecteur reste toujours sur MANUEL.",
   },
 ];
 

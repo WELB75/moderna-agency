@@ -112,7 +112,25 @@ export function TutoFrise({ tuto }: { tuto: Tuto }) {
       >
         {etape ? (
           <figure className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-            <img src={etape.image} alt={`Étape ${index + 1}`} className="max-h-[26rem] w-full bg-muted object-contain" />
+            <div className="space-y-px bg-border">
+              {etape.images.map((img, k) => (
+                <div key={img.src} className="bg-muted">
+                  {img.titre ? <p className="px-3 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{img.titre}</p> : null}
+                  <div className="flex justify-center">
+                    <div className="relative inline-block max-w-full">
+                      <img src={img.src} alt={`Étape ${index + 1}${etape.images.length > 1 ? `, photo ${k + 1}` : ""}`} className="block max-h-[26rem] w-auto max-w-full" />
+                      {img.repere ? (
+                        <span
+                          aria-hidden
+                          className="pointer-events-none absolute rounded-lg border-[3px] border-red-500 shadow-[0_0_0_3px_rgba(255,255,255,0.7)] motion-safe:animate-pulse"
+                          style={{ left: `${img.repere.x}%`, top: `${img.repere.y}%`, width: `${img.repere.w}%`, height: `${img.repere.h}%` }}
+                        />
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
             <figcaption className="space-y-3 p-4 sm:p-5">
               <p className="text-base font-semibold leading-snug sm:text-lg">{etape.legende}</p>
               {etape.attention ? (
@@ -141,6 +159,7 @@ export function TutoFrise({ tuto }: { tuto: Tuto }) {
             <div className="space-y-1">
               <p className="text-2xl font-semibold text-emerald-700 dark:text-emerald-400">{tuto.fin}</p>
               <p className="text-sm text-muted-foreground">Toutes les étapes sont faites, on peut partir.</p>
+              {tuto.rappel ? <p className="mx-auto mt-3 max-w-xs rounded-lg bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-700 dark:text-amber-400">{tuto.rappel}</p> : null}
             </div>
           </div>
         )}
@@ -165,7 +184,7 @@ export function TutoFrise({ tuto }: { tuto: Tuto }) {
       </div>
 
       {/* Précharge la photo suivante pour que le passage soit instantané. */}
-      {index < total - 1 ? <img src={tuto.etapes[index + 1].image} alt="" className="hidden" /> : null}
+      {index < total - 1 ? <img src={tuto.etapes[index + 1].images[0].src} alt="" className="hidden" /> : null}
     </div>
   );
 }
