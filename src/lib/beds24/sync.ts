@@ -319,6 +319,11 @@ export async function runBeds24Sync(): Promise<
           status: isCancelled ? ("annulee" as const) : ("confirmee" as const),
           source: "beds24" as const,
           loyerTotal: loyer.loyerTotal,
+          // Airbnb encaisse le voyageur lui-même : le loyer est déjà payé, il n'y a pas de solde à
+          // recevoir sur place (Kamel, 2026-10-18) — et il doit compter dans l'encaissé des stats.
+          ...(!isCancelled && loyer.loyerTotal && canalEffectif.toLowerCase().includes("airbnb")
+            ? { montantPaye: loyer.loyerTotal }
+            : {}),
           rawData: {
             beds24Status: booking.status,
             beds24Channel: booking.channel ?? null,
