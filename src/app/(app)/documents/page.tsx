@@ -1,6 +1,7 @@
 import Image from "next/image";
-import { desc, eq, asc, isNotNull, ne, and, gte } from "drizzle-orm";
-import { format } from "date-fns";
+import Link from "next/link";
+import { desc, eq, asc, isNotNull, isNull, ne, and, or, gte, inArray } from "drizzle-orm";
+import { format, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants, contratsLocation, villas, domaines, reservations } from "@/db/schema";
@@ -12,34 +13,47 @@ import { PassportDropZone } from "@/components/app/passport-drop-zone";
 import { GenerateContratForm } from "@/components/app/generate-contrat-form";
 import { DocumentRow } from "@/components/app/document-row";
 import { PrintButton } from "@/components/app/print-button";
+import { DocumentsArrivees } from "@/components/app/documents-arrivees";
 import { deleteGendarmerieForm } from "@/lib/actions/gendarmerie";
 import { deleteContrat } from "@/lib/actions/contrats";
+import { derniereSignatureAgence } from "@/lib/contrat-donnees";
+import { sejourSansVoyageur } from "@/lib/conditions-sejour";
+import { estContratV1 } from "@/lib/contrat-template";
 import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs } from "@/lib/domaines-actifs";
-import { FileText, FileSignature, IdCard, Download } from "lucide-react";
+import { CalendarCheck, FilePlus2, History, IdCard, Download } from "lucide-react";
 
 // L'import de passeport (PassportDropZone) lit la MRZ via OCR local (voir passport-ocr.ts) : plus
 // lent que le timeout par défaut des Server Actions sur cette page, surtout à froid.
 export const maxDuration = 60;
 
-function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
-  return (
-    <Card>
-      <CardContent className="py-4">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-bold">{value}</p>
-        {sub ? <p className="text-xs text-muted-foreground">{sub}</p> : null}
-      </CardContent>
-    </Card>
-  );
+// Documents réorganisé autour du séjour — Fouad, 2026-10-18 ("au niveau document on l'utilise pas
+// trop [...] réfléchis à tout ça") :
+// - Arrivées (par défaut) : pour chaque séjour en cours / à venir, fiche police + conditions de
+//   séjour + caution — remplace les compteurs "fiches générées" qui comptaient les blocages et
+//   les fiches pas encore envoyées ;
+// - Créer un lien : outils manuels (cas particuliers : réservation directe, client sans lien...) ;
+// - Historique : fiches remplies et conditions/contrats ;
+// - Pièces d'identité : par défaut les séjours en cours et à venir (ce dont la sécurité a besoin),
+//   tout l'historique sur demande.
+type Onglet = "arrivees" | "creer" | "historique" | "pieces-identite";
+
+function ongletDepuis(param: string | undefined): Onglet {
+  if (param === "creer" || param === "contrat") return "creer";
+  if (param === "historique") return "historique";
+  if (param === "pieces-identite") return "pieces-identite";
+  return "arrivees";
 }
 
 export default async function DocumentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ onglet?: string; villaId?: string; reservationId?: string }>;
+  searchParams: Promise<{ onglet?: string; villaId?: string; reservationId?: string; pieces?: string }>;
 }) {
-  const { onglet, villaId: villaIdPrerempli, reservationId: reservationIdPrerempli } = await searchParams;
+  const { onglet, villaId: villaIdPrerempli, reservationId: reservationIdPrerempli, pieces } = await searchParams;
+  const ongletActif = ongletDepuis(onglet);
+  const toutesLesPieces = pieces === "tout";
   const db = getDb();
+  const now = nowInMorocco();
 
   const allDomaines = filtrerDomainesActifs(
     await db
@@ -56,40 +70,10 @@ export default async function DocumentsPage({
       .from(villas)
       .orderBy(asc(villas.numero))
   ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
-
-  const fichesPolice = await db
-    .select({
-      id: gendarmerieForms.id,
-      statut: gendarmerieForms.statut,
-      createdAt: gendarmerieForms.createdAt,
-      completedAt: gendarmerieForms.completedAt,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-      villaType: villas.type,
-      domaineNom: domaines.nom,
-      guestName: reservations.guestName,
-    })
-    .from(gendarmerieForms)
-    .leftJoin(villas, eq(gendarmerieForms.villaId, villas.id))
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
-    .orderBy(desc(gendarmerieForms.createdAt))
-    .limit(50);
-
-  // Phase de test : Noria reste mis de côté (voir domaines-actifs.ts) ; Domaine Zaraba (Moderna 1)
-  // réactivé le 2026-09-24.
-  const fichesVisibles = fichesPolice.filter((f) => domaineEstActif(f.domaineNom));
-  const fichesKamel = fichesVisibles.filter((f) => f.domaineNom === "Domaine Moderna II");
-  const fichesAutres = fichesVisibles.filter((f) => f.domaineNom !== "Domaine Moderna II");
-
   const villaIdsActifs = new Set(allVillas.map((v) => v.id));
 
-  // Pour pré-remplir le contrat de location depuis une réservation Superhote existante
-  // (nom, dates, effectif, et le loyer/caution quand ils ont été renseignés) plutôt que de
-  // tout retaper à la main.
-  // Trié par ordre d'arrivée (la prochaine en premier) plutôt que par date de création — pour
-  // que les séjours déjà passés depuis longtemps ne noient pas ceux qui arrivent bientôt.
-  const nowForContrats = nowInMorocco();
+  // Réservations proposées pour pré-remplir les conditions : séjours pas encore terminés, vrais
+  // voyageurs uniquement, la prochaine arrivée en premier.
   const reservationsForContrat = (
     await db
       .select({
@@ -104,11 +88,35 @@ export default async function DocumentsPage({
         montantPaye: reservations.montantPaye,
         caution: reservations.caution,
         devisePaiement: reservations.devisePaiement,
+        canal: reservations.canal,
       })
       .from(reservations)
-      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, nowForContrats)))
+      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, now)))
       .orderBy(asc(reservations.checkIn))
-  ).filter((r) => r.villaId && villaIdsActifs.has(r.villaId));
+  ).filter((r) => r.villaId && villaIdsActifs.has(r.villaId) && !sejourSansVoyageur(r));
+
+  const signatureAgenceEnregistree = Boolean(await derniereSignatureAgence());
+
+  // Historique : fiches remplies (les fiches en attente sont suivies dans Arrivées) et contrats.
+  const fichesRemplies = (
+    await db
+      .select({
+        id: gendarmerieForms.id,
+        completedAt: gendarmerieForms.completedAt,
+        createdAt: gendarmerieForms.createdAt,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        domaineNom: domaines.nom,
+        guestName: reservations.guestName,
+      })
+      .from(gendarmerieForms)
+      .leftJoin(villas, eq(gendarmerieForms.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
+      .where(eq(gendarmerieForms.statut, "complete"))
+      .orderBy(desc(gendarmerieForms.completedAt))
+      .limit(60)
+  ).filter((f) => domaineEstActif(f.domaineNom));
 
   const contrats = (
     await db
@@ -117,6 +125,7 @@ export default async function DocumentsPage({
         statut: contratsLocation.statut,
         locataireNom: contratsLocation.locataireNom,
         createdAt: contratsLocation.createdAt,
+        signedAt: contratsLocation.signedAt,
         villaId: contratsLocation.villaId,
         villaNom: villas.nom,
         villaNumero: villas.numero,
@@ -124,15 +133,28 @@ export default async function DocumentsPage({
       .from(contratsLocation)
       .leftJoin(villas, eq(contratsLocation.villaId, villas.id))
       .orderBy(desc(contratsLocation.createdAt))
-      .limit(50)
+      .limit(60)
   ).filter((c) => !c.villaId || villaIdsActifs.has(c.villaId));
 
+  const contratIds = contrats.map((c) => c.id);
   const dossierContratIds = new Set(
-    (await db.select({ contratId: gendarmerieForms.contratId }).from(gendarmerieForms))
-      .map((f) => f.contratId)
-      .filter((id): id is string => Boolean(id))
+    contratIds.length > 0
+      ? (
+          await db
+            .select({ contratId: gendarmerieForms.contratId })
+            .from(gendarmerieForms)
+            .where(inArray(gendarmerieForms.contratId, contratIds))
+        )
+          .map((f) => f.contratId)
+          .filter((id): id is string => Boolean(id))
+      : []
   );
 
+  // Pièces d'identité : par défaut, séjours pas encore terminés (ou terminés depuis moins de 2
+  // jours) et fiches sans séjour remplies ces 14 derniers jours — ce que la sécurité doit voir.
+  // Filtré en base : les photos sont lourdes, inutile de toutes les charger à chaque visite.
+  const limiteSejour = subDays(now, 2);
+  const limiteSansSejour = subDays(now, 14);
   const piecesIdentite = await db
     .select({
       id: gendarmerieOccupants.id,
@@ -145,50 +167,67 @@ export default async function DocumentsPage({
       villaNom: villas.nom,
       villaNumero: villas.numero,
       domaineNom: domaines.nom,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
     })
     .from(gendarmerieOccupants)
     .innerJoin(gendarmerieForms, eq(gendarmerieOccupants.formId, gendarmerieForms.id))
     .leftJoin(villas, eq(gendarmerieForms.villaId, villas.id))
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(isNotNull(gendarmerieOccupants.photoPieceUrl))
+    .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
+    .where(
+      toutesLesPieces
+        ? isNotNull(gendarmerieOccupants.photoPieceUrl)
+        : and(
+            isNotNull(gendarmerieOccupants.photoPieceUrl),
+            or(
+              gte(reservations.checkOut, limiteSejour),
+              and(isNull(gendarmerieForms.reservationId), gte(gendarmerieOccupants.createdAt, limiteSansSejour))
+            )
+          )
+    )
     .orderBy(desc(gendarmerieOccupants.createdAt));
 
-  const piecesParDomaine = new Map<string, typeof piecesIdentite>();
-  for (const p of piecesIdentite.filter((p) => domaineEstActif(p.domaineNom))) {
+  const vus = new Set<string>();
+  const piecesAffichees = piecesIdentite.filter((p) => {
+    if (!domaineEstActif(p.domaineNom)) return false;
+    // Même pièce enregistrée deux fois pour le même séjour (fiche de groupe + Bulletin
+    // Individuel, ou formulaire renvoyé) : affichée une seule fois.
+    const cle = `${(p.numeroPiece ?? p.id).toUpperCase().replace(/\s+/g, "")}|${p.villaNom ?? ""}|${format(p.checkIn ?? p.createdAt, "yyyy-MM-dd")}`;
+    if (vus.has(cle)) return false;
+    vus.add(cle);
+    return true;
+  });
+
+  const piecesParDomaine = new Map<string, typeof piecesAffichees>();
+  for (const p of piecesAffichees) {
     const key = p.domaineNom ?? "Sans domaine";
     if (!piecesParDomaine.has(key)) piecesParDomaine.set(key, []);
     piecesParDomaine.get(key)!.push(p);
   }
-
-  function ficheStats(list: typeof fichesPolice) {
-    const remplies = list.filter((f) => f.statut === "complete").length;
-    const taux = list.length > 0 ? Math.round((remplies / list.length) * 100) : 0;
-    return { total: list.length, remplies, enAttente: list.length - remplies, taux };
-  }
-  const statsKamel = ficheStats(fichesKamel);
-
-  const contratsSignes = contrats.filter((c) => c.statut === "signe").length;
-  const contratsTauxSignature =
-    contrats.length > 0 ? Math.round((contratsSignes / contrats.length) * 100) : 0;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Documents</h1>
         <p className="text-sm text-muted-foreground">
-          Fiche de police et contrat de location saisonnière
+          Fiche police et conditions de séjour de chaque voyageur, en un seul lien
         </p>
       </div>
 
-      <Tabs defaultValue={onglet === "contrat" ? "contrat" : onglet === "pieces-identite" ? "pieces-identite" : "fiche-police"}>
+      <Tabs defaultValue={ongletActif}>
         <TabsList className="w-full flex-nowrap justify-start overflow-x-auto">
-          <TabsTrigger value="fiche-police" className="shrink-0">
-            <FileText className="h-4 w-4" />
-            Fiche police
+          <TabsTrigger value="arrivees" className="shrink-0">
+            <CalendarCheck className="h-4 w-4" />
+            Arrivées
           </TabsTrigger>
-          <TabsTrigger value="contrat" className="shrink-0">
-            <FileSignature className="h-4 w-4" />
-            Contrat de location
+          <TabsTrigger value="creer" className="shrink-0">
+            <FilePlus2 className="h-4 w-4" />
+            Créer un lien
+          </TabsTrigger>
+          <TabsTrigger value="historique" className="shrink-0">
+            <History className="h-4 w-4" />
+            Historique
           </TabsTrigger>
           <TabsTrigger value="pieces-identite" className="shrink-0">
             <IdCard className="h-4 w-4" />
@@ -196,68 +235,45 @@ export default async function DocumentsPage({
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="fiche-police" className="space-y-6">
-          <PassportDropZone domaines={allDomaines} villas={allVillas} />
-          <GenerateFichePoliceForm domaines={allDomaines} villas={allVillas} />
-
-          {[
-            { label: "Moderna II", stats: statsKamel, list: fichesKamel },
-            ...(fichesAutres.length > 0 ? [{ label: "Autres", stats: ficheStats(fichesAutres), list: fichesAutres }] : []),
-          ].map(({ label, stats, list }) => (
-            <div key={label} className="space-y-3">
-              <p className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <StatCard label="Fiches générées" value={stats.total} />
-                <StatCard label="Remplies" value={stats.remplies} />
-                <StatCard label="En attente" value={stats.enAttente} />
-                <StatCard label="Taux de complétion" value={`${stats.taux}%`} />
-              </div>
-              <div className="space-y-2">
-                {list.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucune fiche pour l&apos;instant.</p>
-                ) : (
-                  list.map((f) => (
-                    <DocumentRow
-                      key={f.id}
-                      href={f.statut === "complete" ? `/gendarmerie/${f.id}` : `/g/${f.id}`}
-                      title={
-                        (f.villaNom ? `${f.villaNom} (n°${f.villaNumero})` : "Logement supprimé") +
-                        (f.guestName ? ` · ${f.guestName}` : "")
-                      }
-                      subtitle={format(new Date(f.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}
-                      badgeLabel={f.statut === "complete" ? "Rempli" : "En attente"}
-                      badgeVariant={f.statut === "complete" ? "default" : "outline"}
-                      deleteAction={deleteGendarmerieForm.bind(null, f.id)}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          ))}
+        <TabsContent value="arrivees" className="space-y-4">
+          <DocumentsArrivees now={now} />
         </TabsContent>
 
-        <TabsContent value="contrat" className="space-y-4">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Contrats générés" value={contrats.length} />
-            <StatCard label="Signés" value={contratsSignes} />
-            <StatCard label="En attente" value={contrats.length - contratsSignes} />
-            <StatCard label="Taux de signature" value={`${contratsTauxSignature}%`} />
-          </div>
+        <TabsContent value="creer" className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Pas besoin pour les réservations Airbnb / Booking.com : leur lien part tout seul. À utiliser pour une réservation
+            directe, ou un client qui n&apos;a pas reçu son lien.
+          </p>
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Conditions de séjour + fiche police
+            </h2>
+            <GenerateContratForm
+              domaines={allDomaines}
+              villas={allVillas}
+              reservations={reservationsForContrat}
+              defaultVillaId={villaIdPrerempli}
+              defaultReservationId={reservationIdPrerempli}
+              signatureAgenceEnregistree={signatureAgenceEnregistree}
+            />
+          </section>
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Fiche police seule</h2>
+            <GenerateFichePoliceForm domaines={allDomaines} villas={allVillas} />
+          </section>
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Sur place</h2>
+            <PassportDropZone domaines={allDomaines} villas={allVillas} />
+          </section>
+        </TabsContent>
 
-          <GenerateContratForm
-            domaines={allDomaines}
-            villas={allVillas}
-            reservations={reservationsForContrat}
-            defaultVillaId={villaIdPrerempli}
-            defaultReservationId={reservationIdPrerempli}
-          />
-
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Contrats générés
-            </p>
+        <TabsContent value="historique" className="space-y-6">
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Conditions de séjour et contrats
+            </h2>
             {contrats.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun contrat pour l&apos;instant.</p>
+              <p className="text-sm text-muted-foreground">Aucun pour l&apos;instant.</p>
             ) : (
               contrats.map((c) => (
                 <DocumentRow
@@ -273,35 +289,69 @@ export default async function DocumentsPage({
                     (c.villaNom ? `${c.villaNom} (n°${c.villaNumero})` : "Logement supprimé") +
                     (c.locataireNom ? ` · ${c.locataireNom}` : "")
                   }
-                  subtitle={format(new Date(c.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}
+                  subtitle={
+                    (c.signedAt
+                      ? `Signé le ${format(new Date(c.signedAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}`
+                      : `Créé le ${format(new Date(c.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}`) +
+                    (estContratV1(c.signedAt) ? " · ancien contrat" : "")
+                  }
                   badgeLabel={c.statut === "signe" ? "Signé" : "En attente"}
                   badgeVariant={c.statut === "signe" ? "default" : "outline"}
                   deleteAction={deleteContrat.bind(null, c.id)}
                 />
               ))
             )}
-          </div>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Fiches police remplies</h2>
+            {fichesRemplies.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucune fiche remplie pour l&apos;instant.</p>
+            ) : (
+              fichesRemplies.map((f) => (
+                <DocumentRow
+                  key={f.id}
+                  href={`/gendarmerie/${f.id}`}
+                  title={
+                    (f.villaNom ? `${f.villaNom} (n°${f.villaNumero})` : "Logement supprimé") +
+                    (f.guestName ? ` · ${f.guestName}` : "")
+                  }
+                  subtitle={`Remplie le ${format(new Date(f.completedAt ?? f.createdAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}`}
+                  badgeLabel="Remplie"
+                  badgeVariant="default"
+                  deleteAction={deleteGendarmerieForm.bind(null, f.id)}
+                />
+              ))
+            )}
+          </section>
         </TabsContent>
 
         <TabsContent value="pieces-identite" className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
             <p className="text-sm text-muted-foreground">
-              Photos des pièces d&apos;identité transmises via les fiches police — pour la sécurité aux
-              entrées de domaine.
+              {toutesLesPieces
+                ? "Toutes les pièces d'identité transmises via les fiches police."
+                : "Voyageurs des séjours en cours et à venir — pour la sécurité aux entrées de domaine."}{" "}
+              <Link
+                href={toutesLesPieces ? "/documents?onglet=pieces-identite" : "/documents?onglet=pieces-identite&pieces=tout"}
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                {toutesLesPieces ? "Voir seulement les séjours en cours" : "Voir tout l'historique"}
+              </Link>
             </p>
             <PrintButton />
           </div>
 
-          {piecesIdentite.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune pièce d&apos;identité pour l&apos;instant.</p>
+          {piecesAffichees.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune pièce d&apos;identité pour ces séjours.</p>
           ) : (
-            Array.from(piecesParDomaine.entries()).map(([domaineNom, pieces]) => (
+            Array.from(piecesParDomaine.entries()).map(([domaineNom, liste]) => (
               <div key={domaineNom} className="space-y-2 break-inside-avoid">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                  {domaineNom}
+                  {domaineNom} · {liste.length}
                 </h2>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                  {pieces.map((p) => (
+                  {liste.map((p) => (
                     <Card key={p.id} className="break-inside-avoid overflow-hidden">
                       <a
                         href={p.photoPieceUrl!}
@@ -328,15 +378,22 @@ export default async function DocumentsPage({
                         <p className="break-words text-xs text-muted-foreground md:truncate">
                           {p.villaNom ? `${p.villaNom} (n°${p.villaNumero})` : "Logement non renseigné"}
                         </p>
+                        {p.checkIn && p.checkOut ? (
+                          <p className="text-xs text-muted-foreground">
+                            {format(p.checkIn, "d MMM", { locale: fr })} → {format(p.checkOut, "d MMM yyyy", { locale: fr })}
+                          </p>
+                        ) : null}
                         {p.numeroPiece ? (
                           <p className="break-words text-xs text-muted-foreground md:truncate">Pièce : {p.numeroPiece}</p>
                         ) : null}
                         {p.nationalite ? (
                           <p className="break-words text-xs text-muted-foreground md:truncate">{p.nationalite}</p>
                         ) : null}
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(p.createdAt), "d MMM yyyy", { locale: fr })}
-                        </p>
+                        {!p.checkIn ? (
+                          <p className="text-xs text-muted-foreground">
+                            {format(new Date(p.createdAt), "d MMM yyyy", { locale: fr })}
+                          </p>
+                        ) : null}
                       </CardContent>
                     </Card>
                   ))}
