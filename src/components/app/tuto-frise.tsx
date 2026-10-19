@@ -119,13 +119,14 @@ export function TutoFrise({ tuto }: { tuto: Tuto }) {
                   <div className="flex justify-center">
                     <div className="relative inline-block max-w-full">
                       <img src={img.src} alt={`Étape ${index + 1}${etape.images.length > 1 ? `, photo ${k + 1}` : ""}`} className="block max-h-[26rem] w-auto max-w-full" />
-                      {img.repere ? (
+                      {(Array.isArray(img.repere) ? img.repere : img.repere ? [img.repere] : []).map((r, n) => (
                         <span
+                          key={n}
                           aria-hidden
                           className="pointer-events-none absolute rounded-lg border-[3px] border-red-500 shadow-[0_0_0_3px_rgba(255,255,255,0.7)] motion-safe:animate-pulse"
-                          style={{ left: `${img.repere.x}%`, top: `${img.repere.y}%`, width: `${img.repere.w}%`, height: `${img.repere.h}%` }}
+                          style={{ left: `${r.x}%`, top: `${r.y}%`, width: `${r.w}%`, height: `${r.h}%` }}
                         />
-                      ) : null}
+                      ))}
                     </div>
                   </div>
                 </div>
