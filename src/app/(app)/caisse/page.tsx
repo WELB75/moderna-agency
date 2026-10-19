@@ -13,7 +13,7 @@ import { BrahimCashActions } from "@/components/app/brahim-cash-actions";
 import { CaisseMouvementsList } from "@/components/app/caisse-mouvements-list";
 import { CaisseStats } from "@/components/app/caisse-stats";
 import { CaisseReconciliationButton } from "@/components/app/caisse-reconciliation-button";
-import { domaineEstActif } from "@/lib/domaines-actifs";
+import { domaineEstActif, logementEstIntegre } from "@/lib/domaines-actifs";
 import { moisHref, periodeAncre, periodeBounds } from "@/lib/caisse-periode";
 import type { Entry } from "@/lib/caisse-labels";
 
@@ -59,10 +59,21 @@ export default async function CaissePage({
 
   const allVillas = (
     await db
-      .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineNom: domaines.nom })
+      .select({
+        id: villas.id,
+        nom: villas.nom,
+        numero: villas.numero,
+        type: villas.type,
+        beds24RoomId: villas.beds24RoomId,
+        domaineNom: domaines.nom,
+      })
       .from(villas)
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-  ).filter((v) => domaineEstActif(v.domaineNom));
+  )
+    // Mêmes logements que dans Hébergements (villas + appartements Noria reliés à Beds24) :
+    // sinon les appartements manquaient au sélecteur de la caisse.
+    .filter((v) => logementEstIntegre(v));
+  const idsLogements = new Set(allVillas.map((v) => v.id));
 
   // Pour le sélecteur "Client" du formulaire manuel : les séjours récents/en cours suffisent,
   // pas besoin de remonter tout l'historique.
@@ -82,7 +93,7 @@ export default async function CaissePage({
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, subDays(new Date(), 30))))
       .orderBy(desc(reservations.checkIn))
-  ).filter((r) => domaineEstActif(r.domaineNom));
+  ).filter((r) => r.villaId !== null && idsLogements.has(r.villaId));
 
   // La caisse Brahim est un onglet à part entière (avance perso, pas mêlée à la caisse
   // société) — elle ne doit apparaître nulle part ailleurs, y compris dans les Statistiques.
