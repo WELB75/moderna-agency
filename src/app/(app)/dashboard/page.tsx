@@ -35,7 +35,6 @@ import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-
 import { DomaineBadge } from "@/components/app/domaine-badge";
 import { type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { DomainePlanTrigger } from "@/components/app/domaine-plan-trigger";
-import { MenuGrid } from "@/components/app/menu-grid";
 import { DashboardOverview } from "@/components/app/dashboard-overview";
 import { SuiviArrivees } from "@/components/app/suivi-arrivees";
 import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
@@ -49,7 +48,6 @@ import {
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { villaEstGeree } from "@/lib/domaines-actifs";
-import { getUnreadChatCount } from "@/lib/actions/chat";
 import {
   montantMenageDu,
   montantCuisineDu,
@@ -85,7 +83,6 @@ export default async function DashboardPage({
   const offsetSemaines = Number.isFinite(Number(semaine)) ? Math.trunc(Number(semaine)) : 0;
   const db = getDb();
   const now = nowInMorocco();
-  const unreadChatCount = await getUnreadChatCount();
   const viewAnchor = addDays(now, offsetSemaines * DAYS_AHEAD);
   const rangeStart = startOfDay(viewAnchor);
   const rangeEnd = endOfDay(addDays(viewAnchor, DAYS_AHEAD - 1));
@@ -615,11 +612,6 @@ export default async function DashboardPage({
             </div>
           </details>
         </div>
-      {/* Redondant sur desktop (le menu latéral donne déjà accès à tout, en toutes lettres) —
-          utile seulement là où ce menu est masqué, donc tablette/smartphone. */}
-      <div className="order-2 md:hidden">
-        <MenuGrid unreadChatCount={unreadChatCount} />
-      </div>
 
 
         </div>
