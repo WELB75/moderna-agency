@@ -48,7 +48,7 @@ export function AddCashEntryDialog({
   moyenPaiement = "especes",
   lockedCaisse = "societe",
 }: {
-  villas: { id: string; nom: string; numero: string }[];
+  villas: { id: string; nom: string; numero: string; type?: "villa" | "appartement" }[];
   reservations: { id: string; guestName: string; villaId: string | null; villaNom: string | null; villaNumero: string | null }[];
   moyenPaiement?: "especes" | "virement" | "carte";
   // La caisse (société ou Brahim) est fixée par l'onglet dans lequel ce dialogue est ouvert —
@@ -61,7 +61,14 @@ export function AddCashEntryDialog({
   const [categorie, setCategorie] = useState("");
   const [financePar, setFinancePar] = useState("societe");
   const [devise, setDevise] = useState("MAD");
-  const [villaId, setVillaId] = useState("");
+  const [villaId, setVillaIdBrut] = useState("");
+  // Villa ou appartement : l'un ou l'autre, la liste ne montre que le type choisi.
+  const [genre, setGenre] = useState<"villa" | "appartement">("villa");
+  function setVillaId(id: string) {
+    setVillaIdBrut(id);
+    const t = villas.find((v) => v.id === id)?.type;
+    if (t) setGenre(t);
+  }
   const [reservationId, setReservationId] = useState("");
   const [photoUrls, setPhotoUrls] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -273,13 +280,32 @@ export function AddCashEntryDialog({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="villaId">Villa concernée</Label>
+            <Label htmlFor="villaId">Logement concerné</Label>
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+              {(["villa", "appartement"] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => {
+                    if (g !== genre) {
+                      setGenre(g);
+                      setVillaIdBrut("");
+                    }
+                  }}
+                  className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                    genre === g ? "bg-background shadow-sm" : "text-muted-foreground"
+                  }`}
+                >
+                  {g === "villa" ? "Villa" : "Appartement"}
+                </button>
+              ))}
+            </div>
             <Select name="villaId" value={villaId} onValueChange={setVillaId}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Optionnel" />
               </SelectTrigger>
               <SelectContent>
-                {villas.map((v) => (
+                {villas.filter((v) => (v.type ?? "villa") === genre).map((v) => (
                   <SelectItem key={v.id} value={v.id}>
                     {v.nom} (n°{v.numero})
                   </SelectItem>
