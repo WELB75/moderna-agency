@@ -6,7 +6,7 @@
 // repere : cercle rouge posé sur la photo, en % de l'image (x/y = coin haut-gauche), pour montrer
 // du doigt l'élément à toucher.
 export type TutoRepere = { x: number; y: number; w: number; h: number };
-export type TutoImage = { src: string; titre?: string; repere?: TutoRepere };
+export type TutoImage = { src: string; titre?: string; repere?: TutoRepere | TutoRepere[] };
 export type TutoEtape = { images: TutoImage[]; legende: string; attention?: string };
 
 export type Tuto = {
@@ -33,8 +33,16 @@ export const TUTOS: Tuto[] = [
         legende: "Descendre au local technique et mettre le sélecteur sur COM (position du milieu).",
       },
       {
-        images: [{ src: "/tutos/chauffage-piscine/etape-2.jpg" }],
-        legende: "Vérifier les vannes : les poignées rouges doivent être dans le sens du tuyau (ouvertes).",
+        images: [
+          {
+            src: "/tutos/chauffage-piscine/etape-2.jpg",
+            repere: [
+              { x: 11, y: 41.5, w: 20.5, h: 19 },
+              { x: 70, y: 42.5, w: 23, h: 20.5 },
+            ],
+          },
+        ],
+        legende: "Vérifier les deux vannes du retour PAC (celles de gauche et de droite) : les poignées rouges doivent être dans le sens du tuyau (ouvertes).",
       },
       {
         images: [
