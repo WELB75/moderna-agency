@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createHash } from "node:crypto";
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { reservations } from "@/db/schema";
+import { personnel, personnelAffectations, reservations } from "@/db/schema";
 import { getTarification, type TarificationVilla } from "@/lib/pricelabs/sync";
 import { CANAL_SEJOUR_PROPRIETAIRE, villaDuCalendrierToken } from "@/lib/calendrier-partage";
 import { nowInMorocco } from "@/lib/now";
@@ -40,6 +40,12 @@ function versionPublique(villa: TarificationVilla): TarificationVilla {
 
 function jjmm(jour: string): string {
   return `${jour.slice(8, 10)}/${jour.slice(5, 7)}/${jour.slice(0, 4)}`;
+}
+
+function montant(n: number, devise: string): string {
+  const d = devise.trim().toUpperCase();
+  const unite = d === "EUR" || d === "€" ? "€" : d === "MAD" || d === "DH" ? "DH" : d;
+  return `${Math.round(n).toLocaleString("fr-FR")} ${unite}`;
 }
 
 // Lien public "calendrier seul" d'un logement — voir lib/calendrier-partage.ts. Le propriétaire
@@ -91,6 +97,35 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
     .filter((r) => r.enCours || r.checkIn >= aujourdhui)
     .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 
+  // Infos financières et services des seules réservations listées (voir versionPublique : le
+  // planning, lui, reste sans montants). Demande de la propriétaire de Villa Lila, 2026-10-19 :
+  // prix de la nuitée, acompte ou totalité versée, prix total, cuisinière / ménage.
+  const ids = aVenir.map((r) => r.id);
+  const db = getDb();
+  const finances = new Map(
+    (ids.length
+      ? await db
+          .select({ id: reservations.id, total: reservations.loyerTotal, paye: reservations.montantPaye, devise: reservations.devisePaiement })
+          .from(reservations)
+          .where(inArray(reservations.id, ids))
+      : []
+    ).map((f) => [f.id, f])
+  );
+  const services = new Map<string, { cuisine: boolean; menageSejour: boolean }>();
+  if (ids.length) {
+    const affectations = await db
+      .select({ reservationId: personnelAffectations.reservationId, role: personnel.role, moment: personnelAffectations.moment })
+      .from(personnelAffectations)
+      .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
+      .where(inArray(personnelAffectations.reservationId, ids));
+    for (const a of affectations) {
+      const cur = services.get(a.reservationId) ?? { cuisine: false, menageSejour: false };
+      if (a.role === "cuisine") cur.cuisine = true;
+      if (a.role === "menage" && a.moment === "sejour") cur.menageSejour = true;
+      services.set(a.reservationId, cur);
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-8">
       <div className="flex items-center justify-between gap-2">
@@ -111,17 +146,41 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
           <ul className="divide-y rounded-xl border bg-card text-sm">
             {aVenir.map((r) => {
               const nuits = Math.round((Date.parse(r.checkOut) - Date.parse(r.checkIn)) / 86400000);
+              const f = finances.get(r.id);
+              const total = f?.total ? Number(f.total) : 0;
+              const paye = f?.paye ? Number(f.paye) : 0;
+              const devise = f?.devise ?? "EUR";
+              const srv = services.get(r.id);
               return (
-                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-                  <span className="font-medium">{r.guestName}</span>
-                  <span className="text-muted-foreground">
-                    {jjmm(r.checkIn)} → {jjmm(r.checkOut)} · {nuits} nuit{nuits > 1 ? "s" : ""}
-                    {r.guestsCount ? ` · ${r.guestsCount} voyageur${r.guestsCount > 1 ? "s" : ""}` : ""}
-                  </span>
-                  {r.canal ? <span className="text-xs text-muted-foreground">{r.canal}</span> : null}
-                  {r.enCours ? (
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">En cours</span>
-                  ) : null}
+                <li key={r.id} className="space-y-1 px-4 py-2.5">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="font-medium">{r.guestName}</span>
+                    <span className="text-muted-foreground">
+                      {jjmm(r.checkIn)} → {jjmm(r.checkOut)} · {nuits} nuit{nuits > 1 ? "s" : ""}
+                      {r.guestsCount ? ` · ${r.guestsCount} voyageur${r.guestsCount > 1 ? "s" : ""}` : ""}
+                    </span>
+                    {r.canal ? <span className="text-xs text-muted-foreground">{r.canal}</span> : null}
+                    {r.enCours ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">En cours</span>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                    {total > 0 && nuits > 0 ? (
+                      <>
+                        <span>Nuitée : {montant(total / nuits, devise)}</span>
+                        <span>Total du séjour : {montant(total, devise)}</span>
+                        <span>
+                          {paye >= total
+                            ? "Payé en totalité"
+                            : paye > 0
+                              ? `Acompte versé : ${montant(paye, devise)} (reste ${montant(total - paye, devise)})`
+                              : "Rien versé pour l'instant"}
+                        </span>
+                      </>
+                    ) : null}
+                    <span>Cuisinière : {srv?.cuisine ? "oui" : "non"}</span>
+                    <span>Ménage pendant le séjour : {srv?.menageSejour ? "oui" : "non"}</span>
+                  </div>
                 </li>
               );
             })}
