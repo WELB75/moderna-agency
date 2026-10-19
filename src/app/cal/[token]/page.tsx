@@ -38,6 +38,10 @@ function versionPublique(villa: TarificationVilla): TarificationVilla {
   };
 }
 
+function jjmm(jour: string): string {
+  return `${jour.slice(8, 10)}/${jour.slice(5, 7)}/${jour.slice(0, 4)}`;
+}
+
 // Lien public "calendrier seul" d'un logement — voir lib/calendrier-partage.ts. Le propriétaire
 // peut aussi y réserver (et annuler) ses propres séjours, voir actions/calendrier-proprietaire.ts.
 export default async function CalendrierPartagePage({ params }: { params: Promise<{ token: string }> }) {
@@ -72,11 +76,20 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
     depart: new Date(s.checkOut).toISOString().slice(0, 10),
   }));
 
+  const aujourdhui = nowInMorocco().toISOString().slice(0, 10);
+
   // Clé de la grille : la recrée quand les réservations changent (après une réservation ou une
   // annulation, router.refresh() renvoie de nouvelles données mais le composant garde son état).
   const cleGrille = createHash("sha1")
     .update(tarifs.flatMap((v) => v.reservations.map((r) => `${r.id}:${r.checkIn}:${r.checkOut}`)).join("|"))
     .digest("hex");
+
+  // Réservations à venir (ou en cours), une ligne chacune : nom, dates, nuits, voyageurs, canal.
+  // Rien d'autre (ni montants ni téléphone) — déjà retirés par versionPublique.
+  const aVenir = tarifs
+    .flatMap((v) => v.reservations)
+    .filter((r) => r.enCours || r.checkIn >= aujourdhui)
+    .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-8">
@@ -90,6 +103,31 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
       </div>
       <ProprietaireReservation token={token} nomParDefaut={villa.proprietaireNom || "Propriétaire"} sejours={sejours} />
       <TarificationView key={cleGrille} initialVillas={tarifs} lectureSeule />
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Réservations à venir</h2>
+        {aVenir.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucune réservation à venir.</p>
+        ) : (
+          <ul className="divide-y rounded-xl border bg-card text-sm">
+            {aVenir.map((r) => {
+              const nuits = Math.round((Date.parse(r.checkOut) - Date.parse(r.checkIn)) / 86400000);
+              return (
+                <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
+                  <span className="font-medium">{r.guestName}</span>
+                  <span className="text-muted-foreground">
+                    {jjmm(r.checkIn)} → {jjmm(r.checkOut)} · {nuits} nuit{nuits > 1 ? "s" : ""}
+                    {r.guestsCount ? ` · ${r.guestsCount} voyageur${r.guestsCount > 1 ? "s" : ""}` : ""}
+                  </span>
+                  {r.canal ? <span className="text-xs text-muted-foreground">{r.canal}</span> : null}
+                  {r.enCours ? (
+                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">En cours</span>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
