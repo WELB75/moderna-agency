@@ -2,8 +2,8 @@ import Link from "next/link";
 import Image from "next/image";
 import { differenceInCalendarDays, format, isSameDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowUpRight, LogIn, LogOut, BrushCleaning, ChefHat, Moon, Users, FileCheck2, FileWarning } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowUpRight, ChevronDown, LogIn, LogOut, BrushCleaning, ChefHat, Moon, Users, FileCheck2, FileWarning } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { VoisinResa } from "@/lib/taches-du-jour";
 
@@ -97,17 +97,21 @@ export function TachesDuJour({ taches, now }: { taches: TacheJour[]; now: Date }
       </Card>
     );
   }
+  // Replié par défaut (Kamel, 2026-10-19) : ouvert, le bloc prenait trop de place, surtout sur
+  // mobile. Le résumé reste visible ; on l'ouvre au besoin.
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-baseline gap-2 text-base">
-          <span>Tâches du jour</span>
-          <span className="text-sm font-normal text-muted-foreground">
-            {format(now, "d MMMM", { locale: fr })} · {taches.length} tâche{taches.length > 1 ? "s" : ""}
-            {taches.length > 0 ? ` · ${aFaire} à traiter` : ""}
+    <Card className="gap-0 py-0">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-6 py-3 marker:content-none">
+          <span className="flex flex-wrap items-baseline gap-x-2 text-base font-semibold leading-none">
+            <span>Tâches du jour</span>
+            <span className="text-sm font-normal text-muted-foreground">
+              {format(now, "d MMMM", { locale: fr })} · {taches.length} tâche{taches.length > 1 ? "s" : ""}
+              {taches.length > 0 ? ` · ${aFaire} à traiter` : ""}
+            </span>
           </span>
-        </CardTitle>
-      </CardHeader>
+          <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
       <CardContent className="p-0">
         {taches.length === 0 ? (
           <p className="px-6 pb-6 text-sm text-muted-foreground">Aucune tâche aujourd&apos;hui.</p>
@@ -188,6 +192,7 @@ export function TachesDuJour({ taches, now }: { taches: TacheJour[]; now: Date }
           </ul>
         )}
       </CardContent>
+      </details>
     </Card>
   );
 }

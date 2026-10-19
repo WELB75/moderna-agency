@@ -179,11 +179,10 @@ export async function SuiviArrivees({ now }: { now: Date }) {
     (l) => l.checkIn > now && (l.caution.tone === "attente" || l.police.tone === "attente")
   );
 
-  // Replié par défaut pour ne pas repousser la semaine sous la ligne de flottaison (Kamel,
-  // 2026-10-16 : "voir directement 2-3 jours à venir sans scroller") ; ouvert d'office dès qu'un
-  // voyageur est arrivé sans fiche police ou sans caution.
+  // Toujours replié au chargement (Kamel, 2026-10-16 puis 2026-10-19 : trop de place, surtout sur
+  // mobile) ; l'urgence reste visible en rouge dans la ligne du résumé.
   return (
-    <details open={urgents > 0} className="group rounded-xl border bg-card">
+    <details className="group rounded-xl border bg-card">
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 marker:content-none">
         <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Caution et fiche police</span>
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
