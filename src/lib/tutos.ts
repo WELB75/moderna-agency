@@ -41,7 +41,7 @@ export const TUTOS: Tuto[] = [
           { src: "/tutos/chauffage-piscine/etape-3-ensemble.jpg", titre: "Vue d'ensemble du tableau", repere: { x: 72, y: 15, w: 16.5, h: 13.5 } },
           { src: "/tutos/chauffage-piscine/etape-3.jpg", titre: "Zoom" },
         ],
-        legende: "Au tableau électrique, repérer D2 : relever le disjoncteur (le bloc de 4 manettes reliées par une barre noire).",
+        legende: "Au tableau électrique, repérer D1 : relever le disjoncteur (le bloc de 4 manettes reliées par une barre noire).",
         attention: "Ne toucher que la barre noire, jamais les fils ni les vis.",
       },
       {
