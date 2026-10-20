@@ -4,10 +4,10 @@ import { auth } from "@clerk/nextjs/server";
 import { inArray } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas } from "@/db/schema";
-import { beds24GetCalendars, beds24UpdateCalendar, type Beds24CalendarWrite } from "@/lib/beds24/client";
+import { beds24AlertesEcriture, beds24GetCalendars, beds24UpdateCalendar, type Beds24CalendarWrite } from "@/lib/beds24/client";
 import { pricelabsGetListings, pricelabsGetOverrides, pricelabsUpsertOverrides, type PricelabsListing, type PricelabsOverride } from "@/lib/pricelabs/client";
 import { annoncesCandidates, choisirAnnonce } from "@/lib/pricelabs/annonce";
-import { analyserNuitsIsolees, terminerDeblocagesManuels, type RapportNuitsIsolees } from "@/lib/beds24/nuits-isolees";
+import { analyserNuitsIsolees, enregistrerNuitsMinManuelles, type RapportNuitsIsolees } from "@/lib/beds24/nuits-isolees";
 import { auteurConnecte, journaliser } from "@/lib/journal";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
@@ -153,14 +153,21 @@ export async function modifierNuitsMinimum(input: {
     .map((v) => ({ roomId: Number(v.beds24RoomId), calendar: plages.map((p) => ({ ...p, minStay })) }));
   if (envoi.length > 0) {
     let erreurEcriture: string | null = null;
+    let alerteBeds24: string | null = null;
     try {
-      await beds24UpdateCalendar(envoi);
+      alerteBeds24 = beds24AlertesEcriture(await beds24UpdateCalendar(envoi));
     } catch (err) {
       erreurEcriture = messageErreur(err);
     }
-    const relu = erreurEcriture
-      ? null
-      : await beds24GetCalendars(envoi.map((e) => e.roomId), dates[0], dates[dates.length - 1]).catch(() => null);
+    if (alerteBeds24) console.warn("[nuits-minimum] réponse Beds24 :", alerteBeds24);
+    const relire = () => beds24GetCalendars(envoi.map((e) => e.roomId), dates[0], dates[dates.length - 1]).catch(() => null);
+    let relu = erreurEcriture ? null : await relire();
+    const confirmeTout = () =>
+      Boolean(relu) && envoi.every((e) => dates.every((d) => relu?.get(e.roomId)?.find((j) => j.date === d)?.minStay === minStay));
+    if (!erreurEcriture && !confirmeTout()) {
+      await new Promise((r) => setTimeout(r, 3000));
+      relu = await relire();
+    }
     for (const r of resultats) {
       const v = logements.find((l) => l.id === r.villaId);
       if (!v?.beds24RoomId) continue;
@@ -178,12 +185,28 @@ export async function modifierNuitsMinimum(input: {
       r.beds24 =
         nonConfirmees.length === 0
           ? { ok: true, detail: "Appliqué dans Beds24 : Airbnb et Booking.com sont mis à jour." }
-          : { ok: false, detail: `Beds24 n'a pas confirmé ${nonConfirmees.length} date(s) : ${nonConfirmees.slice(0, 5).map(jjmm).join(", ")}${nonConfirmees.length > 5 ? "…" : ""}` };
-      if (r.beds24.ok) await terminerDeblocagesManuels(roomId, dates);
+          : {
+              ok: false,
+              detail: `Beds24 n'a pas confirmé ${nonConfirmees.length} date(s) : ${nonConfirmees.slice(0, 5).map(jjmm).join(", ")}${nonConfirmees.length > 5 ? "…" : ""}${
+                alerteBeds24 ? ` (réponse Beds24 : ${alerteBeds24})` : ""
+              }`,
+            };
     }
   }
 
   const auteur = await auteurConnecte();
+  // Choix manuel mémorisé : la synchro automatique (cron/webhook) ne le remplacera jamais par la
+  // valeur PriceLabs, et le réappliquera si l'écriture Beds24 ci-dessus a échoué.
+  try {
+    await enregistrerNuitsMinManuelles(
+      logements.filter((v) => v.beds24RoomId).map((v) => ({ villaId: v.id, roomId: Number(v.beds24RoomId) })),
+      dates,
+      minStay,
+      auteur.nom
+    );
+  } catch (err) {
+    console.error("[nuits-minimum] mémorisation du choix manuel impossible", err);
+  }
   const periode = dates.length === 1 ? `le ${jjmm(dates[0])}` : `du ${jjmm(dates[0])} au ${jjmm(dates[dates.length - 1])}`;
   const joursTexte = jours ? ` (${[...jours].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((j) => LIBELLES_JOURS[j]).join(" ")})` : "";
   for (const r of resultats) {
@@ -209,8 +232,9 @@ export async function rapportNuitsIsolees(): Promise<RapportNuitsIsolees> {
   return analyserNuitsIsolees({ appliquer: false });
 }
 
-// Bouton "Débloquer maintenant" : même traitement que le webhook/cron Beds24, tout de suite.
+// Bouton du bandeau : réécrit tout de suite dans Beds24 les nuits minimum voulues de TOUTES les
+// dates (18 mois), nuits isolées comprises — même traitement que le cron, mais forcé.
 export async function debloquerNuitsIsoleesMaintenant(): Promise<RapportNuitsIsolees> {
   await auth.protect();
-  return analyserNuitsIsolees({ appliquer: true, auteur: await auteurConnecte() });
+  return analyserNuitsIsolees({ appliquer: true, forcer: true, auteur: await auteurConnecte() });
 }
