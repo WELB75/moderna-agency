@@ -9,10 +9,10 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Bouton principal en pilule complète (payments/elements), contenu/contrôles secondaires
-        // gardent le rayon plat standard — le contraste "contenu plat + CTA arrondi" est la
-        // signature Stripe repérée sur payments/elements. Kamel, 2026-09-08.
-        default: "rounded-full bg-primary text-primary-foreground hover:bg-primary/80",
+        // Bouton principal façon superhosts.ma (.btn-primary) : rayon 12px, texte semi-gras,
+        // dégradé bordeaux qui glisse au survol avec une ombre bordeaux (classe .btn-brand dans
+        // globals.css). bg-primary reste en couleur de repli. Charte Superhosts, 2026-10-20.
+        default: "btn-brand bg-primary font-semibold text-primary-foreground",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:
