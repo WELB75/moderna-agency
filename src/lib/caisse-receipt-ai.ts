@@ -42,7 +42,7 @@ export async function analyzeCashReceipt(photoUrls: string[]): Promise<ReceiptEx
   if (photoUrls.length === 0) throw new Error("Aucune photo à analyser.");
 
   const message = await client.messages.parse({
-    model: "claude-sonnet-5",
+    model: "claude-haiku-5-5",
     max_tokens: 500,
     thinking: { type: "disabled" },
     output_config: { effort: "low", format: zodOutputFormat(ReceiptSchema) },
