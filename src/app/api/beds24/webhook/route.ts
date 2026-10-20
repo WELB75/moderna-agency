@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runBeds24Sync } from "@/lib/beds24/sync";
+import { analyserNuitsIsolees } from "@/lib/beds24/nuits-isolees";
 
 export const maxDuration = 60;
 
@@ -33,6 +34,10 @@ async function handle(req: NextRequest) {
   }
 
   const result = await runBeds24Sync();
+  // Nouvelle réservation = peut-être une nuit isolée créée à côté : on la débloque tout de suite
+  // (voir lib/beds24/nuits-isolees.ts), sans attendre le cron ni la synchro PriceLabs.
+  const nuitsIsolees = await analyserNuitsIsolees({ appliquer: true });
+  if (nuitsIsolees.erreur) console.error("Webhook Beds24 : nuits isolées :", nuitsIsolees.erreur);
   if (!result.success) {
     console.error("Webhook Beds24 : échec de la synchro :", result.error);
     // Erreur de configuration (token Beds24 absent/invalide) : 500 pour que l'échec soit visible
