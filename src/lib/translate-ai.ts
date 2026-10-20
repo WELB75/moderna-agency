@@ -29,7 +29,7 @@ export async function traduireVersFrancais(textes: string[]): Promise<Traduction
   if (textes.length === 0) return [];
   const liste = textes.map((t, index) => `[${index}]\n${t}`).join("\n\n---\n\n");
   const message = await client.messages.parse({
-    model: "claude-sonnet-5",
+    model: "claude-haiku-5-5",
     max_tokens: 4000,
     thinking: { type: "disabled" },
     output_config: { effort: "low", format: zodOutputFormat(RecuesSchema) },
@@ -50,7 +50,7 @@ export async function traduireVersFrancais(textes: string[]): Promise<Traduction
 
 export async function traduireVersLangue(texte: string, langue: string): Promise<string> {
   const message = await client.messages.create({
-    model: "claude-sonnet-5",
+    model: "claude-haiku-5-5",
     max_tokens: 2000,
     thinking: { type: "disabled" },
     system:

@@ -19,6 +19,14 @@ import { suggererReponseIA } from "@/lib/actions/messages-agent";
 // traduite automatiquement avant l'envoi (Kamel, 2026-10-13).
 // Bouton "Suggérer une réponse" (Kamel, 2026-10-17) : l'agent IA prépare un brouillon en français
 // dans la zone de saisie, jamais envoyé tout seul — l'équipe relit, modifie et envoie.
+// En production Next remplace le message d'une erreur serveur par un texte technique anglais
+// ("An error occurred in the Server Components render...") : on le masque, sinon l'équipe lit du
+// jargon (ex. quand l'IA est indisponible).
+function messageLisible(err: unknown, parDefaut: string): string {
+  if (!(err instanceof Error) || err.message.includes("Server Components render")) return parDefaut;
+  return err.message;
+}
+
 export function Beds24ReplyForm({
   reservationId,
   beds24InquiryId,
@@ -44,7 +52,7 @@ export function Beds24ReplyForm({
       if (s.reponseFr) setMessage(s.reponseFr);
       setNoteAgent({ texte: s.reponseFr ? s.raison : s.raison || "Pas de réponse nécessaire.", humain: s.besoinHumain || !s.reponseFr });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Suggestion indisponible.");
+      toast.error(messageLisible(err, "Suggestion indisponible pour le moment."));
     } finally {
       setSuggestionEnCours(false);
     }
@@ -65,7 +73,7 @@ export function Beds24ReplyForm({
         setMessage("");
         router.refresh();
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Échec de l'envoi.");
+        toast.error(messageLisible(err, "Échec de l'envoi."));
       }
     });
   }

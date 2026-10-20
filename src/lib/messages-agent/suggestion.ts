@@ -132,7 +132,7 @@ export async function suggererReponse(sejour: ContexteSejour, fil: FilMessage[],
     .join("\n\n");
 
   const message = await client.messages.parse({
-    model: "claude-sonnet-5",
+    model: "claude-haiku-5-5",
     max_tokens: 1500,
     thinking: { type: "disabled" },
     output_config: { effort: "low", format: zodOutputFormat(SuggestionSchema) },
