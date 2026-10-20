@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runBeds24Sync } from "@/lib/beds24/sync";
+import { analyserNuitsIsolees } from "@/lib/beds24/nuits-isolees";
 
 export const maxDuration = 60;
 
@@ -18,7 +19,14 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await runBeds24Sync();
-  return NextResponse.json(result, { status: result.success ? 200 : 502 });
+  // Nuits isolées (1 nuit libre entre deux séjours avec "2 nuits min.") : séjour minimum abaissé
+  // dans Beds24 pour qu'elles restent réservables — voir lib/beds24/nuits-isolees.ts. Indépendant
+  // de la synchro des réservations : un échec ici ne change pas son code retour.
+  const nuitsIsolees = await analyserNuitsIsolees({ appliquer: true });
+  return NextResponse.json(
+    { ...result, nuitsIsolees: { debloquees: nuitsIsolees.debloquees, restaurees: nuitsIsolees.restaurees, aDebloquer: nuitsIsolees.aDebloquer, erreur: nuitsIsolees.erreur } },
+    { status: result.success ? 200 : 502 }
+  );
 }
 
 export async function GET(req: NextRequest) {
