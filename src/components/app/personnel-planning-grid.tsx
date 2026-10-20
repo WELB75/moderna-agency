@@ -97,7 +97,7 @@ export function PersonnelPlanningGrid({ jours, now }: { jours: JourPlanning[]; n
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_2px_8px_rgba(50,50,93,0.06)]">
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(15,26,23,0.05),0_10px_28px_-14px_rgba(15,26,23,0.14)]">
         {joursFiltres.map(({ date, missions }, i) => {
           const estAujourdhui = isSameDay(date, now);
           const estPasse = startOfDay(date) < aujourdhui;

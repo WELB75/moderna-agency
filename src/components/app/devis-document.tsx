@@ -98,7 +98,7 @@ export function DevisDocument({ devis }: { devis: Devis }) {
       {devis.note ? <p className="text-sm text-muted-foreground">{devis.note}</p> : null}
 
       <p className="hidden pt-2 text-right text-[10px] text-muted-foreground print:block">
-        PDF généré par Moderna Agency
+        PDF généré par Superhosts
       </p>
     </div>
   );

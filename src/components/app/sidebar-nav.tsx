@@ -8,14 +8,14 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMessagesARepondre } from "@/lib/use-messages-a-repondre";
 import { navGroups, isNavItemActive } from "@/components/app/nav-items";
-import { Logo } from "@/components/app/logo";
+import { Logo, Wordmark } from "@/components/app/logo";
 
 const COLLAPSED_KEY = "moderna:sidebar-collapsed";
 
 // Menu latéral façon SuperHote v2 : sections titrées en petites capitales ("Au quotidien",
 // "Communication & opérations", "Croissance & outils"), ligne active teintée de la couleur
 // d'accent, bouton pour replier le menu en simple colonne d'icônes, et carte du compte connecté
-// tout en bas. Couleurs : celles de l'app (violet), pas celles de SuperHote.
+// tout en bas. Couleurs : celles de Superhosts (bordeaux), pas celles de SuperHote.
 export function SidebarNav() {
   // Pastille "Messages" : conversations en attente de réponse (WhatsApp, Airbnb, Booking.com).
   const unreadChatCount = useMessagesARepondre();
@@ -57,7 +57,7 @@ export function SidebarNav() {
         {!collapsed ? (
           <Link href="/dashboard" className="flex min-w-0 items-center gap-2">
             <Logo size={28} />
-            <span className="truncate text-sm font-semibold tracking-tight">Moderna Agency</span>
+            <Wordmark className="truncate text-[17px]" />
           </Link>
         ) : null}
         <button
@@ -128,7 +128,7 @@ export function SidebarNav() {
           {!collapsed ? (
             <div className="min-w-0 leading-tight">
               <p className="truncate text-sm font-medium">{displayName}</p>
-              <p className="truncate text-xs text-muted-foreground">Espace Moderna Agency</p>
+              <p className="truncate text-xs text-muted-foreground">Espace Superhosts</p>
             </div>
           ) : null}
         </div>

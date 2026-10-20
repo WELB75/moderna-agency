@@ -33,7 +33,7 @@ export function SecuriteShell({
           {children}
         </div>
 
-        <p className="pt-8 text-center text-xs text-muted-foreground print:pt-6">Lien de contrôle Moderna Agency</p>
+        <p className="pt-8 text-center text-xs text-muted-foreground print:pt-6">Lien de contrôle Superhosts</p>
       </div>
     </div>
   );
