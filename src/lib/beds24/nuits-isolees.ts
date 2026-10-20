@@ -1,12 +1,14 @@
-import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, pricelabsPriceCache } from "@/db/schema";
-import { nuitsIsoleesDeblocages } from "@/db/schema-nuits-isolees";
-import { beds24GetCalendars, beds24UpdateCalendar, type Beds24CalendarDay, type Beds24CalendarWrite } from "./client";
+import { nuitsMinManuelles } from "@/db/schema-nuits-isolees";
+import { beds24AlertesEcriture, beds24GetCalendars, beds24UpdateCalendar, type Beds24CalendarDay, type Beds24CalendarWrite } from "./client";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { journaliser, type Auteur } from "@/lib/journal";
-import { ajouterJours, ecartsLibres, jjmm, nuitLibre, nuitsMinHabituel, plages } from "./nuits-isolees-detection";
+import { ajouterJours, jjmm, nuitsMinHabituel, nuitsMinVoulues, plages } from "./nuits-isolees-detection";
+import { pricelabsGetListings, pricelabsGetPrices } from "@/lib/pricelabs/client";
+import { annoncesCandidates, choisirAnnonce } from "@/lib/pricelabs/annonce";
 
 // Nuits isolées ("nuits orphelines") — Fouad, 2026-10-20 : "si le système détecte qu'il y a une
 // nuit isolée alors que la condition était deux nuits minimum, il doit débloquer le calendrier
@@ -22,15 +24,17 @@ import { ajouterJours, ecartsLibres, jjmm, nuitLibre, nuitsMinHabituel, plages }
 // - on ne touche QUE le séjour minimum (minStay) : jamais numAvail ni les fermetures ("Remplacer"
 //   / blackout), qui restent volontaires (consigne du 19/10/2026 : ne jamais rouvrir de dates) ;
 // - une nuit dont l'arrivée est interdite (noCheckIn) est seulement signalée, pas modifiée ;
-// - chaque déblocage est noté (table nuit_isolee_deblocage) avec la valeur d'avant, remise dès
-//   que la nuit n'est plus isolée — sauf si PriceLabs ou quelqu'un l'a changée entre-temps.
+// - fonctionnement déclaratif : à chaque passage, l'app recalcule la valeur voulue de chaque date
+//   (voir nuitsMinVoulues) et corrige seulement les écarts ; quand une nuit n'est plus isolée
+//   (réservation voisine annulée), elle repasse d'elle-même au séjour minimum normal.
 //
-// Depuis le 20/10/2026, le profil PriceLabs "Min 2 nuits" contient aussi la règle "nuitées
-// orphelines → séjour min. = longueur de l'écart" : PriceLabs pousse donc déjà 1 nuit sur ces
-// dates à chaque synchro. Ce module reste le filet de sécurité immédiat (webhook à chaque
-// réservation) et le rapport affiché dans la vue planning.
+// Le séjour minimum "normal" vient de PriceLabs (profil "Min 2 nuits" + règle des nuitées
+// orphelines ajoutée le 20/10/2026), à défaut 2 nuits. Le plancher de la chambre dans Beds24 doit
+// être à 1, sinon Beds24 ignore toute valeur plus basse (rapport.plancherBloquant).
 
-export const JOURS_ANALYSE = 365;
+// 18 mois de calendrier gérés (lus par tranches de 180 jours).
+export const JOURS_ANALYSE = 540;
+const TRANCHE_JOURS = 180;
 
 export const AUTEUR_NUITS_ISOLEES: Auteur = { type: "systeme", id: null, nom: "Nuits isolées (automatique)", email: null };
 
@@ -46,7 +50,7 @@ export type NuitIsolee = {
   nuits: number; // longueur de l'écart
   dates: string[];
   minStay: number | null; // séjour minimum Beds24 actuel sur la première nuit
-  minStayAvant: number | null; // valeur remplacée par l'app (déblocage de ce passage ou précédent)
+  minStayAvant: number | null; // séjour minimum normal de la date (manuel, PriceLabs ou 2)
   minStayPricelabs: number | null; // séjour minimum calculé par PriceLabs pour cette date
   statut: StatutNuitIsolee;
   detail?: string;
@@ -66,60 +70,96 @@ export type RapportNuitsIsolees = {
   logements: LogementNuitsIsolees[];
   debloquees: number; // débloquées pendant CE passage
   aDebloquer: number;
-  restaurees: number;
+  restaurees: number; // dates remises au séjour minimum normal pendant CE passage
+  datesEcrites: number; // dates confirmées dans Beds24 pendant CE passage
+  plancherBloquant: boolean; // le plancher "Séjour minimum" de la chambre Beds24 empêche de descendre
   erreur: string | null;
 };
 
-let tablePrete: Promise<void> | null = null;
+let tablesPretes: Promise<void> | null = null;
 
-function assurerTableNuitsIsolees(): Promise<void> {
-  if (!tablePrete) {
-    tablePrete = (async () => {
+// Tables créées à la volée (pas de migration à lancer sur Neon). nuit_isolee_deblocage n'est plus
+// utilisée depuis que l'app gère toutes les nuits minimum, mais reste en base (historique).
+function assurerTablesNuitsMin(): Promise<void> {
+  if (!tablesPretes) {
+    tablesPretes = (async () => {
       const db = getDb();
       await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS nuit_isolee_deblocage (
+        CREATE TABLE IF NOT EXISTS nuits_min_manuelles (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           villa_id uuid NOT NULL,
-          villa_nom text,
           room_id integer NOT NULL,
           date text NOT NULL,
-          min_stay_avant integer NOT NULL,
-          min_stay_apres integer NOT NULL,
-          created_at timestamptz NOT NULL DEFAULT now(),
-          terminee_le timestamptz,
-          issue text
+          min_stay integer NOT NULL,
+          auteur_nom text,
+          created_at timestamptz NOT NULL DEFAULT now()
         )
       `);
-      await db.execute(
-        sql`CREATE UNIQUE INDEX IF NOT EXISTS nuit_isolee_deblocage_actif_idx ON nuit_isolee_deblocage (room_id, date) WHERE terminee_le IS NULL`
-      );
+      await db.execute(sql`CREATE UNIQUE INDEX IF NOT EXISTS nuits_min_manuelles_room_date_idx ON nuits_min_manuelles (room_id, date)`);
     })().catch((err) => {
-      tablePrete = null;
+      tablesPretes = null;
       throw err;
     });
   }
-  return tablePrete;
+  return tablesPretes;
 }
 
-// Appelé quand quelqu'un fixe lui-même les nuits minimum de ces dates (panneau de la vue
-// planning) : l'app ne doit plus jamais "remettre" sa valeur d'avant par-dessus ce choix.
-export async function terminerDeblocagesManuels(roomId: number, dates: string[]): Promise<void> {
-  if (dates.length === 0) return;
-  try {
-    await assurerTableNuitsIsolees();
-    await getDb()
-      .update(nuitsIsoleesDeblocages)
-      .set({ termineeLe: new Date(), issue: "manuel" })
-      .where(and(eq(nuitsIsoleesDeblocages.roomId, roomId), inArray(nuitsIsoleesDeblocages.date, dates), isNull(nuitsIsoleesDeblocages.termineeLe)));
-  } catch (err) {
-    console.error("[nuits-isolees] clôture manuelle impossible", err);
+// Lecture Beds24 par tranches (la fenêtre fait 18 mois) puis fusion par logement.
+async function lireCalendriers(roomIds: number[], debut: string, fin: string): Promise<Map<number, Beds24CalendarDay[]>> {
+  const out = new Map<number, Beds24CalendarDay[]>(roomIds.map((id) => [id, []]));
+  for (let d = debut; d <= fin; d = ajouterJours(d, TRANCHE_JOURS)) {
+    const finTranche = ajouterJours(d, TRANCHE_JOURS - 1) < fin ? ajouterJours(d, TRANCHE_JOURS - 1) : fin;
+    const tranche = await beds24GetCalendars(roomIds, d, finTranche);
+    for (const [id, jours] of tranche) out.get(id)?.push(...jours);
   }
+  return out;
 }
 
-// Analyse tout le parc relié à Beds24. appliquer=false : rapport seul (aucune écriture).
-// appliquer=true : débloque les nuits isolées et remet les nuits min. des anciennes nuits isolées
-// qui ne le sont plus. Ne lève jamais d'exception : l'erreur éventuelle est dans `erreur`.
-export async function analyserNuitsIsolees(options: { appliquer: boolean; auteur?: Auteur; villaIds?: string[] }): Promise<RapportNuitsIsolees> {
+// Séjour minimum calculé par PriceLabs pour chaque date (frais, en un seul appel), avec repli sur
+// le cache de l'onglet Tarification si PriceLabs ne répond pas.
+async function nuitsMinPricelabs(
+  lignes: { id: string; candidates: string[]; cacheDays: unknown }[],
+  debut: string,
+  fin: string,
+  frais: boolean
+): Promise<Map<string, Map<string, number | null>>> {
+  const parVilla = new Map<string, Map<string, number | null>>();
+  for (const l of lignes) {
+    parVilla.set(l.id, new Map(((l.cacheDays as { date: string; minStay?: number | null }[] | null) ?? []).map((d) => [d.date, d.minStay ?? null])));
+  }
+  // Rapport affiché à l'ouverture du planning : le cache suffit (pas d'appel PriceLabs à chaque
+  // affichage). Les écritures (cron, webhook, bouton) utilisent toujours des valeurs fraîches.
+  if (!frais) return parVilla;
+  try {
+    const listingById = new Map((await pricelabsGetListings()).map((x) => [x.id, x]));
+    const cibles = lignes
+      .map((l) => ({ villaId: l.id, listing: choisirAnnonce(l.candidates, listingById) }))
+      .filter((c): c is { villaId: string; listing: NonNullable<typeof c.listing> } => Boolean(c.listing));
+    if (cibles.length === 0) return parVilla;
+    const finPricelabs = ajouterJours(debut, 364) < fin ? ajouterJours(debut, 364) : fin;
+    const prix = await pricelabsGetPrices(cibles.map((c) => ({ id: c.listing.id, pms: c.listing.pms })), debut, finPricelabs);
+    const parListing = new Map(prix.map((p) => [p.id, p]));
+    for (const c of cibles) {
+      const r = parListing.get(c.listing.id);
+      if (!r || r.error || !r.data?.length) continue;
+      parVilla.set(c.villaId, new Map(r.data.map((d) => [d.date, typeof d.min_stay === "number" && d.min_stay > 0 ? d.min_stay : null])));
+    }
+  } catch (err) {
+    console.error("[nuits-min] PriceLabs indisponible, repli sur le cache :", err instanceof Error ? err.message : err);
+  }
+  return parVilla;
+}
+
+// Nuits minimum gérées par l'app (Fouad, 2026-10-20, option 1 : "plancher à 1 et l'app gère").
+// Le séjour minimum de la chambre dans Beds24 est un PLANCHER que rien ne peut abaisser (ni
+// PriceLabs, ni l'API, ni une saisie à la main) : avec 2 au niveau chambre, une nuit isolée reste
+// à 2 nuits. On passe donc ce plancher à 1 et c'est l'app qui écrit, jour par jour sur 18 mois,
+// le séjour minimum voulu (voir nuitsMinVoulues : manuel > nuit isolée > PriceLabs > 2).
+//
+// appliquer=false : rapport seul. appliquer=true : écrit les seules dates dont la valeur Beds24
+// diffère de la valeur voulue (cron, webhook). forcer=true : réécrit TOUTES les dates (bouton de
+// la vue planning, et première mise en place avant d'abaisser le plancher). Jamais d'exception.
+export async function analyserNuitsIsolees(options: { appliquer: boolean; forcer?: boolean; auteur?: Auteur; villaIds?: string[] }): Promise<RapportNuitsIsolees> {
   const rapport: RapportNuitsIsolees = {
     genereLe: new Date().toISOString(),
     appliquer: options.appliquer,
@@ -127,6 +167,8 @@ export async function analyserNuitsIsolees(options: { appliquer: boolean; auteur
     debloquees: 0,
     aDebloquer: 0,
     restaurees: 0,
+    datesEcrites: 0,
+    plancherBloquant: false,
     erreur: null,
   };
 
@@ -141,6 +183,8 @@ export async function analyserNuitsIsolees(options: { appliquer: boolean; auteur
           id: villas.id,
           nom: villas.nom,
           beds24RoomId: villas.beds24RoomId,
+          beds24PropertyId: villas.beds24PropertyId,
+          pricelabsListingId: villas.pricelabsListingId,
           cacheDays: pricelabsPriceCache.days,
         })
         .from(villas)
@@ -148,210 +192,199 @@ export async function analyserNuitsIsolees(options: { appliquer: boolean; auteur
         .where(and(isNotNull(villas.beds24RoomId), options.villaIds?.length ? inArray(villas.id, options.villaIds) : undefined))
     )
       .filter((v) => villaEstGeree(v.nom))
-      .map((v) => ({ ...v, roomId: Number(v.beds24RoomId) }))
+      .map((v) => ({ ...v, roomId: Number(v.beds24RoomId), candidates: annoncesCandidates(v) }))
       .filter((v) => Number.isInteger(v.roomId) && v.roomId > 0)
       .sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
 
     if (lignes.length === 0) return rapport;
 
-    await assurerTableNuitsIsolees();
-    const actifs = await db
-      .select()
-      .from(nuitsIsoleesDeblocages)
-      .where(and(isNull(nuitsIsoleesDeblocages.termineeLe), inArray(nuitsIsoleesDeblocages.roomId, lignes.map((l) => l.roomId))));
-    const actifsParCle = new Map(actifs.map((a) => [`${a.roomId}:${a.date}`, a]));
+    await assurerTablesNuitsMin();
+    if (options.appliquer) await db.delete(nuitsMinManuelles).where(lt(nuitsMinManuelles.date, aujourdhui));
+    const manuelles = await db
+      .select({ roomId: nuitsMinManuelles.roomId, date: nuitsMinManuelles.date, minStay: nuitsMinManuelles.minStay })
+      .from(nuitsMinManuelles)
+      .where(inArray(nuitsMinManuelles.roomId, lignes.map((l) => l.roomId)));
 
-    const calendriers = await beds24GetCalendars(lignes.map((l) => l.roomId), aujourdhui, fin);
+    const [calendriers, pricelabs] = await Promise.all([
+      lireCalendriers(lignes.map((l) => l.roomId), aujourdhui, fin),
+      nuitsMinPricelabs(lignes, aujourdhui, fin, options.appliquer),
+    ]);
 
     const ecritures = new Map<number, { date: string; minStay: number }[]>();
-    const aEnregistrer: { villaId: string; villaNom: string; roomId: number; date: string; avant: number; apres: number }[] = [];
-    const aRestaurer: (typeof actifs)[number][] = [];
-    const aCloturer: { id: string; issue: string }[] = [];
+    const changements = new Map<number, { baisses: string[]; hausses: string[] }>();
 
     for (const l of lignes) {
       const jours = calendriers.get(l.roomId) ?? [];
-      const parDate = new Map(jours.map((j) => [j.date, j]));
-      const pricelabs = new Map(((l.cacheDays as { date: string; minStay?: number | null }[] | null) ?? []).map((d) => [d.date, d.minStay ?? null]));
-      const habituel = nuitsMinHabituel(jours);
-      const logement: LogementNuitsIsolees = { villaId: l.id, villaNom: l.nom, roomId: l.roomId, nuitsMinHabituel: habituel, nuitsIsolees: [] };
-      const datesIsolees = new Set<string>();
+      const actuel = new Map(jours.map((j) => [j.date, j.minStay]));
+      const { voulu, ecarts } = nuitsMinVoulues({
+        jours,
+        debut: aujourdhui,
+        fin,
+        pricelabs: pricelabs.get(l.id) ?? new Map(),
+        manuelles: new Map(manuelles.filter((m) => m.roomId === l.roomId).map((m) => [m.date, m.minStay])),
+      });
 
-      for (const ecart of ecartsLibres(jours, aujourdhui, fin)) {
-        const premiere = parDate.get(ecart.debut);
-        const minStay = premiere?.minStay ?? null;
-        const nuits = ecart.dates.length;
-        // Un écart n'est "isolé" que s'il est plus court que le séjour minimum habituel ou que
-        // celui de sa première nuit (un écart de 3 nuits avec "2 nuits min." est réservable).
-        // Un écart qui s'est agrandi (réservation voisine annulée) n'est plus isolé : ses nuits
-        // débloquées seront remises plus bas.
-        const seuil = Math.max(habituel ?? 0, minStay ?? 0);
-        if (nuits >= seuil) continue;
-        const dejaDebloquee = ecart.dates.some((d) => actifsParCle.has(`${l.roomId}:${d}`));
-        for (const d of ecart.dates) datesIsolees.add(d);
-
-        const lendemain = parDate.get(ajouterJours(ecart.dates[nuits - 1], 1));
-        const departInterdit = lendemain?.override === "noCheckOut" || lendemain?.override === "noCheckInOrCheckOut";
-        const arriveeInterdite = premiere?.override === "noCheckIn" || premiere?.override === "noCheckInOrCheckOut";
-        const actif = actifsParCle.get(`${l.roomId}:${ecart.debut}`);
-
+      const logement: LogementNuitsIsolees = { villaId: l.id, villaNom: l.nom, roomId: l.roomId, nuitsMinHabituel: nuitsMinHabituel(jours), nuitsIsolees: [] };
+      for (const e of ecarts) {
+        const minStay = actuel.get(e.debut) ?? null;
+        const cible = voulu.get(e.debut)?.minStay ?? e.base;
         const nuit: NuitIsolee = {
-          debut: ecart.debut,
-          nuits,
-          dates: ecart.dates,
+          debut: e.debut,
+          nuits: e.nuits,
+          dates: e.dates,
           minStay,
-          minStayAvant: actif?.minStayAvant ?? null,
-          minStayPricelabs: pricelabs.get(ecart.debut) ?? null,
+          minStayAvant: e.base,
+          minStayPricelabs: pricelabs.get(l.id)?.get(e.debut) ?? null,
           statut: "reservable",
         };
-
-        if (arriveeInterdite || departInterdit) {
+        if (e.arriveeInterdite || e.departInterdit) {
           nuit.statut = "arrivee_bloquee";
-          nuit.detail = arriveeInterdite ? "Arrivée interdite ce jour-là dans Beds24 (laissé tel quel)." : "Départ interdit le lendemain dans Beds24 (laissé tel quel).";
-        } else if (minStay != null && minStay > nuits) {
+          nuit.detail = e.arriveeInterdite ? "Arrivée interdite ce jour-là dans Beds24 (laissé tel quel)." : "Départ interdit le lendemain dans Beds24 (laissé tel quel).";
+        } else if (voulu.get(e.debut)?.source === "manuel" && cible > e.nuits) {
+          nuit.statut = "arrivee_bloquee";
+          nuit.detail = `Nuits minimum fixées à la main à ${cible} : laissé tel quel.`;
+        } else if (minStay != null && minStay > e.nuits) {
           nuit.statut = "a_debloquer";
           rapport.aDebloquer++;
-          if (options.appliquer) {
-            const liste = ecritures.get(l.roomId) ?? [];
-            for (const d of ecart.dates) {
-              const actuel = parDate.get(d)?.minStay ?? null;
-              if (actuel == null || actuel <= nuits) continue;
-              liste.push({ date: d, minStay: nuits });
-              if (!actifsParCle.has(`${l.roomId}:${d}`)) {
-                aEnregistrer.push({ villaId: l.id, villaNom: l.nom, roomId: l.roomId, date: d, avant: actuel, apres: nuits });
-              }
-            }
-            ecritures.set(l.roomId, liste);
-          }
-        } else if (dejaDebloquee) {
+        } else {
           nuit.statut = "debloquee";
         }
         logement.nuitsIsolees.push(nuit);
       }
-
-      // Anciennes nuits isolées débloquées par l'app : à remettre si elles ne le sont plus.
-      for (const a of actifs.filter((x) => x.roomId === l.roomId)) {
-        if (a.date < aujourdhui) {
-          aCloturer.push({ id: a.id, issue: "passee" });
-          continue;
-        }
-        if (datesIsolees.has(a.date)) continue; // toujours isolée : on garde
-        const jour = parDate.get(a.date);
-        const libre = nuitLibre(jour);
-        if (libre === false) aCloturer.push({ id: a.id, issue: "reservee" });
-        else if (libre === true && jour?.minStay === a.minStayApres) aRestaurer.push(a);
-        else if (libre === true) aCloturer.push({ id: a.id, issue: "remplacee" });
-        // libre === null : état inconnu, on retentera au prochain passage
-      }
-
       rapport.logements.push(logement);
-    }
 
-    if (!options.appliquer) return rapport;
-
-    // Restaurations ajoutées au même envoi Beds24 que les déblocages.
-    for (const a of aRestaurer) {
-      const liste = ecritures.get(a.roomId) ?? [];
-      liste.push({ date: a.date, minStay: a.minStayAvant });
-      ecritures.set(a.roomId, liste);
-    }
-
-    if (aCloturer.length > 0) {
-      for (const c of aCloturer) {
-        await db.update(nuitsIsoleesDeblocages).set({ termineeLe: new Date(), issue: c.issue }).where(eq(nuitsIsoleesDeblocages.id, c.id));
+      if (!options.appliquer) continue;
+      const liste: { date: string; minStay: number }[] = [];
+      const ch = { baisses: [] as string[], hausses: [] as string[] };
+      for (const [date, v] of voulu) {
+        const a = actuel.get(date) ?? null;
+        if (!options.forcer && a === v.minStay) continue;
+        liste.push({ date, minStay: v.minStay });
+        if (a != null && v.minStay < a) ch.baisses.push(date);
+        else if (a != null && v.minStay > a) ch.hausses.push(date);
       }
+      if (liste.length > 0) ecritures.set(l.roomId, liste);
+      changements.set(l.roomId, ch);
     }
 
-    const envoi: Beds24CalendarWrite[] = [...ecritures.entries()]
-      .filter(([, valeurs]) => valeurs.length > 0)
-      .map(([roomId, valeurs]) => ({ roomId, calendar: plages(valeurs) }));
-    if (envoi.length === 0) return rapport;
+    if (!options.appliquer || ecritures.size === 0) return rapport;
 
+    const envoi: Beds24CalendarWrite[] = [...ecritures.entries()].map(([roomId, valeurs]) => ({ roomId, calendar: plages(valeurs) }));
     let erreurEcriture: string | null = null;
+    let alerteBeds24: string | null = null;
     try {
-      await beds24UpdateCalendar(envoi);
+      alerteBeds24 = beds24AlertesEcriture(await beds24UpdateCalendar(envoi));
     } catch (err) {
       erreurEcriture = (err instanceof Error ? err.message : String(err)).slice(0, 300);
     }
+    if (alerteBeds24) console.warn("[nuits-min] réponse Beds24 :", alerteBeds24);
 
-    // Relecture : on ne note "débloquée" que ce que Beds24 confirme réellement.
-    const datesEcrites = envoi.flatMap((e) => e.calendar.map((c) => c.from)).concat(envoi.flatMap((e) => e.calendar.map((c) => c.to ?? c.from)));
-    const relu = erreurEcriture
-      ? new Map<number, Beds24CalendarDay[]>()
-      : await beds24GetCalendars(envoi.map((e) => e.roomId), datesEcrites.reduce((a, b) => (a < b ? a : b)), datesEcrites.reduce((a, b) => (a > b ? a : b))).catch(
-          () => new Map<number, Beds24CalendarDay[]>()
-        );
-    const confirme = (roomId: number, date: string, minStay: number) => relu.get(roomId)?.find((j) => j.date === date)?.minStay === minStay;
-
-    for (const e of aEnregistrer) {
-      if (!confirme(e.roomId, e.date, e.apres)) continue;
-      await db
-        .insert(nuitsIsoleesDeblocages)
-        .values({ villaId: e.villaId, villaNom: e.villaNom, roomId: e.roomId, date: e.date, minStayAvant: e.avant, minStayApres: e.apres })
-        .onConflictDoNothing();
+    // Relecture de contrôle sur les dates écrites.
+    const toutes = [...ecritures.values()].flat().map((v) => v.date);
+    const premiere = toutes.reduce((a, b) => (a < b ? a : b));
+    const derniere = toutes.reduce((a, b) => (a > b ? a : b));
+    let relu = erreurEcriture ? new Map<number, Beds24CalendarDay[]>() : await lireCalendriers([...ecritures.keys()], premiere, derniere).catch(() => new Map<number, Beds24CalendarDay[]>());
+    const valeurRelue = (roomId: number, date: string) => relu.get(roomId)?.find((j) => j.date === date)?.minStay ?? null;
+    const nonConfirmees = () => [...ecritures.entries()].flatMap(([roomId, vs]) => vs.filter((v) => valeurRelue(roomId, v.date) !== v.minStay).map((v) => ({ roomId, ...v })));
+    if (!erreurEcriture && nonConfirmees().length > 0) {
+      await new Promise((r) => setTimeout(r, 3000));
+      relu = await lireCalendriers([...ecritures.keys()], premiere, derniere).catch(() => new Map<number, Beds24CalendarDay[]>());
     }
-    for (const a of aRestaurer) {
-      if (!confirme(a.roomId, a.date, a.minStayAvant)) continue;
-      await db.update(nuitsIsoleesDeblocages).set({ termineeLe: new Date(), issue: "restauree" }).where(eq(nuitsIsoleesDeblocages.id, a.id));
-      rapport.restaurees++;
-    }
+    const echecs = erreurEcriture ? [...ecritures.entries()].flatMap(([roomId, vs]) => vs.map((v) => ({ roomId, ...v }))) : nonConfirmees();
+    // Valeur plus basse refusée alors que Beds24 renvoie toujours plus haut : c'est le plancher de
+    // la chambre (Paramètres > Chambres > Règles > Séjour minimum) qui bloque.
+    rapport.plancherBloquant = !erreurEcriture && echecs.some((e) => (valeurRelue(e.roomId, e.date) ?? 0) > e.minStay);
+    const cleEchec = new Set(echecs.map((e) => `${e.roomId}:${e.date}`));
+    rapport.datesEcrites = [...ecritures.values()].reduce((s, vs) => s + vs.length, 0) - echecs.length;
 
-    // Statuts finaux + journal (une ligne par logement concerné).
     const auteur = options.auteur ?? AUTEUR_NUITS_ISOLEES;
     for (const logement of rapport.logements) {
+      const ch = changements.get(logement.roomId);
       const debloquees: string[] = [];
-      const echecs: string[] = [];
+      const enEchec: string[] = [];
       for (const nuit of logement.nuitsIsolees) {
         if (nuit.statut !== "a_debloquer") continue;
-        const ok = nuit.dates.every((d) => {
-          const ecrite = ecritures.get(logement.roomId)?.find((v) => v.date === d);
-          return !ecrite || confirme(logement.roomId, d, ecrite.minStay);
-        });
-        if (ok) {
-          nuit.minStayAvant = nuit.minStay;
-          nuit.minStay = nuit.nuits;
+        if (nuit.dates.some((d) => cleEchec.has(`${logement.roomId}:${d}`))) {
+          nuit.statut = "echec";
+          nuit.detail = rapport.plancherBloquant
+            ? "Beds24 garde le séjour minimum de la chambre (plancher) : à passer à 1 dans Beds24."
+            : (erreurEcriture ?? alerteBeds24 ?? "Beds24 n'a pas confirmé le nouveau séjour minimum.");
+          enEchec.push(jjmm(nuit.debut));
+        } else {
+          nuit.minStay = valeurRelue(logement.roomId, nuit.debut) ?? nuit.nuits;
           nuit.statut = "debloquee";
           rapport.debloquees++;
           rapport.aDebloquer--;
           debloquees.push(`${jjmm(nuit.debut)} (${nuit.minStayAvant} → ${nuit.nuits} nuit${nuit.nuits > 1 ? "s" : ""} min.)`);
-        } else {
-          nuit.statut = "echec";
-          nuit.detail = erreurEcriture ?? "Beds24 n'a pas confirmé le nouveau séjour minimum.";
-          echecs.push(jjmm(nuit.debut));
         }
       }
-      const restaurees = aRestaurer.filter((a) => a.roomId === logement.roomId && confirme(a.roomId, a.date, a.minStayAvant));
-      if (debloquees.length > 0 || echecs.length > 0) {
+      const hausses = (ch?.hausses ?? []).filter((d) => !cleEchec.has(`${logement.roomId}:${d}`)).length;
+      if (hausses > 0) rapport.restaurees += hausses;
+      if (debloquees.length > 0 || enEchec.length > 0) {
         await journaliser({
           action: "nuit_isolee_debloquee",
           categorie: "calendrier",
-          libelle: echecs.length > 0 && debloquees.length === 0 ? "Échec du déblocage d'une nuit isolée" : "Nuit isolée débloquée",
+          libelle: enEchec.length > 0 && debloquees.length === 0 ? "Échec du déblocage d'une nuit isolée" : "Nuit isolée débloquée",
           villaId: logement.villaId,
           villaNom: logement.villaNom,
-          resume: [debloquees.length ? `Nuits isolées débloquées : ${debloquees.join(", ")}` : null, echecs.length ? `Échec : ${echecs.join(", ")}` : null]
+          resume: [debloquees.length ? `Nuits isolées débloquées : ${debloquees.join(", ")}` : null, enEchec.length ? `Échec : ${enEchec.join(", ")}` : null]
             .filter(Boolean)
             .join(" · "),
           auteur,
-          beds24Statut: echecs.length > 0 ? "echec" : "ok",
-          beds24Detail: echecs.length > 0 ? (erreurEcriture ?? "Non confirmé par Beds24") : "Séjour minimum abaissé dans Beds24 (Airbnb + Booking.com).",
+          beds24Statut: enEchec.length > 0 ? "echec" : "ok",
+          beds24Detail: enEchec.length > 0 ? (rapport.plancherBloquant ? "Plancher de la chambre dans Beds24" : (erreurEcriture ?? "Non confirmé par Beds24")) : "Séjour minimum abaissé dans Beds24 (Airbnb + Booking.com).",
         });
       }
-      if (restaurees.length > 0) {
+      if (hausses > 0 && !options.forcer) {
         await journaliser({
-          action: "nuit_isolee_restauree",
+          action: "nuits_min_remises",
           categorie: "calendrier",
-          libelle: "Nuits minimum remises (nuit plus isolée)",
+          libelle: "Nuits minimum remises",
           villaId: logement.villaId,
           villaNom: logement.villaNom,
-          resume: restaurees.map((a) => `${jjmm(a.date)} : ${a.minStayApres} → ${a.minStayAvant} nuits min.`).join(", "),
+          resume: `${hausses} date${hausses > 1 ? "s" : ""} remise${hausses > 1 ? "s" : ""} au séjour minimum normal (PriceLabs ou 2 nuits).`,
           auteur,
           beds24Statut: "ok",
         });
       }
     }
+    if (options.forcer) {
+      await journaliser({
+        action: "nuits_min_reecrites",
+        categorie: "calendrier",
+        libelle: "Nuits minimum réécrites dans Beds24",
+        resume: `${rapport.datesEcrites} dates sur ${ecritures.size} logement${ecritures.size > 1 ? "s" : ""} (18 mois)${echecs.length ? ` · ${echecs.length} non confirmées` : ""}`,
+        auteur,
+        beds24Statut: echecs.length > 0 ? "echec" : "ok",
+      });
+    }
     if (erreurEcriture) rapport.erreur = `Beds24 a refusé la mise à jour : ${erreurEcriture}`;
   } catch (err) {
-    console.error("[nuits-isolees]", err);
+    console.error("[nuits-min]", err);
     rapport.erreur = (err instanceof Error ? err.message : String(err)).slice(0, 300);
   }
   return rapport;
+}
+
+// Valeurs fixées à la main dans le panneau de la vue planning : enregistrées pour que la
+// synchro ne les remplace jamais par la valeur PriceLabs (qui ne tient compte d'une dérogation
+// qu'à son prochain recalcul, jusqu'à 24 h plus tard).
+export async function enregistrerNuitsMinManuelles(
+  lignes: { villaId: string; roomId: number }[],
+  dates: string[],
+  minStay: number,
+  auteurNom: string | null
+): Promise<void> {
+  if (lignes.length === 0 || dates.length === 0) return;
+  await assurerTablesNuitsMin();
+  const valeurs = lignes.flatMap((l) => dates.map((date) => ({ villaId: l.villaId, roomId: l.roomId, date, minStay, auteurNom })));
+  for (let i = 0; i < valeurs.length; i += 500) {
+    await getDb()
+      .insert(nuitsMinManuelles)
+      .values(valeurs.slice(i, i + 500))
+      .onConflictDoUpdate({
+        target: [nuitsMinManuelles.roomId, nuitsMinManuelles.date],
+        set: { minStay: sql`excluded.min_stay`, auteurNom: sql`excluded.auteur_nom`, createdAt: sql`now()` },
+      });
+  }
 }

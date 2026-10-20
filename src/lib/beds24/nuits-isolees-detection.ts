@@ -78,3 +78,67 @@ export function plages(valeurs: { date: string; minStay: number }[]): { from: st
   }
   return out;
 }
+
+// Séjour minimum par défaut de l'agence (consigne : 2 nuits minimum sur tous les logements),
+// utilisé quand PriceLabs ne donne pas de valeur pour une date.
+export const NUITS_MIN_PAR_DEFAUT = 2;
+
+export type SourceNuitsMin = "manuel" | "isolee" | "pricelabs" | "defaut";
+
+export type EcartAnalyse = {
+  debut: string;
+  dates: string[];
+  nuits: number;
+  base: number; // séjour minimum normal de la première nuit (manuel, PriceLabs ou défaut)
+  arriveeInterdite: boolean;
+  departInterdit: boolean;
+};
+
+// Séjour minimum VOULU pour chaque date de la fenêtre, par ordre de priorité :
+// 1. valeur fixée à la main dans l'app (panneau "Nombre de nuits minimum") ;
+// 2. nuit isolée : longueur de l'écart (ex. 1 nuit libre entre deux séjours → 1), sur TOUTES
+//    les nuits de l'écart (Beds24 est en "Stay Through" : chaque nuit du séjour est contrôlée) ;
+// 3. valeur calculée par PriceLabs (profil "Min 2 nuits", règle des nuitées orphelines, dérogations) ;
+// 4. NUITS_MIN_PAR_DEFAUT.
+// Une nuit isolée dont l'arrivée (ou le départ du lendemain) est interdite garde sa valeur normale.
+export function nuitsMinVoulues(params: {
+  jours: Beds24CalendarDay[];
+  debut: string;
+  fin: string;
+  pricelabs: Map<string, number | null>;
+  manuelles: Map<string, number>;
+  parDefaut?: number;
+}): { voulu: Map<string, { minStay: number; source: SourceNuitsMin }>; ecarts: EcartAnalyse[] } {
+  const parDefaut = params.parDefaut ?? NUITS_MIN_PAR_DEFAUT;
+  const parDate = new Map(params.jours.map((j) => [j.date, j]));
+  const voulu = new Map<string, { minStay: number; source: SourceNuitsMin }>();
+
+  const base = (date: string): { minStay: number; source: SourceNuitsMin } => {
+    const manuel = params.manuelles.get(date);
+    if (manuel != null && manuel >= 1) return { minStay: manuel, source: "manuel" };
+    const pl = params.pricelabs.get(date);
+    if (pl != null && pl >= 1) return { minStay: Math.round(pl), source: "pricelabs" };
+    return { minStay: parDefaut, source: "defaut" };
+  };
+
+  for (let d = params.debut; d <= params.fin; d = ajouterJours(d, 1)) voulu.set(d, base(d));
+
+  const ecarts: EcartAnalyse[] = [];
+  for (const ecart of ecartsLibres(params.jours, params.debut, params.fin)) {
+    const nuits = ecart.dates.length;
+    const b = voulu.get(ecart.debut)?.minStay ?? parDefaut;
+    if (nuits >= b) continue; // écart assez long pour être réservé normalement
+    const premiere = parDate.get(ecart.debut);
+    const lendemain = parDate.get(ajouterJours(ecart.dates[nuits - 1], 1));
+    const arriveeInterdite = premiere?.override === "noCheckIn" || premiere?.override === "noCheckInOrCheckOut";
+    const departInterdit = lendemain?.override === "noCheckOut" || lendemain?.override === "noCheckInOrCheckOut";
+    ecarts.push({ debut: ecart.debut, dates: ecart.dates, nuits, base: b, arriveeInterdite, departInterdit });
+    if (arriveeInterdite || departInterdit) continue;
+    for (const d of ecart.dates) {
+      const v = voulu.get(d);
+      if (!v || v.source === "manuel") continue; // un choix manuel n'est jamais écrasé
+      if (v.minStay > nuits) voulu.set(d, { minStay: nuits, source: "isolee" });
+    }
+  }
+  return { voulu, ecarts };
+}
