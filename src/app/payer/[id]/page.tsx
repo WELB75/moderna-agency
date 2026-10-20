@@ -47,7 +47,7 @@ export default async function PublicPaymentPage({ params }: { params: Promise<{ 
         </div>
 
         <div className="border-t border-[#ececec] px-5 py-4 sm:px-8 dark:border-[#2a2a2d]">
-          <p className="text-[11px] leading-relaxed text-[#a1a1aa]">Moderna Agency · Marrakech · Paiement traité de façon sécurisée par Stripe.</p>
+          <p className="text-[11px] leading-relaxed text-[#a1a1aa]">Superhosts · Marrakech · Paiement traité de façon sécurisée par Stripe.</p>
         </div>
       </div>
     </div>
