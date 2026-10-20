@@ -186,6 +186,25 @@ export async function beds24UpdateCalendar(updates: Beds24CalendarWrite[]): Prom
   return beds24Fetch("/inventory/rooms/calendar", { method: "POST", body: updates });
 }
 
+// Beds24 répond 200 même quand il refuse une partie de l'écriture : la réponse est une liste (un
+// élément par logement) avec success/errors/warnings. Renvoie le texte des refus et avertissements
+// (null si tout est accepté), pour l'afficher au lieu d'un simple "non confirmé".
+export function beds24AlertesEcriture(reponse: unknown): string | null {
+  const elements = Array.isArray(reponse) ? reponse : reponse && typeof reponse === "object" ? [reponse] : [];
+  const messages: string[] = [];
+  for (const el of elements) {
+    if (!el || typeof el !== "object") continue;
+    const e = el as { success?: boolean; errors?: unknown; warnings?: unknown; error?: unknown };
+    for (const champ of [e.errors, e.warnings, e.error]) {
+      if (champ == null) continue;
+      const liste = Array.isArray(champ) ? champ : [champ];
+      for (const m of liste) messages.push(typeof m === "string" ? m : JSON.stringify(m));
+    }
+    if (e.success === false && messages.length === 0) messages.push(JSON.stringify(el));
+  }
+  return messages.length > 0 ? messages.join(" ; ").slice(0, 400) : null;
+}
+
 export type Beds24Message = {
   id: number;
   bookingId: number;

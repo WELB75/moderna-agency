@@ -63,8 +63,14 @@ export function NuitsIsoleesPanel({ onRapport, rechargement }: { onRapport: (r: 
         setRapport(r);
         onRapport(r);
         if (r.erreur) toast.error(r.erreur, { duration: 10000 });
-        else if (r.debloquees > 0) toast.success(`${r.debloquees} nuit${r.debloquees > 1 ? "s" : ""} isolée${r.debloquees > 1 ? "s" : ""} débloquée${r.debloquees > 1 ? "s" : ""} dans Beds24 (Airbnb + Booking.com).`);
-        else toast.success("Rien à débloquer : toutes les nuits isolées sont déjà réservables.");
+        else if (r.plancherBloquant)
+          toast.error("Beds24 garde le séjour minimum de la chambre (plancher à 2) : il faut le passer à 1 dans Beds24 > Chambres > Règles.", { duration: 15000 });
+        else
+          toast.success(
+            `Nuits minimum à jour dans Beds24 (${r.datesEcrites} date${r.datesEcrites > 1 ? "s" : ""} écrite${r.datesEcrites > 1 ? "s" : ""})${
+              r.debloquees > 0 ? ` · ${r.debloquees} nuit${r.debloquees > 1 ? "s" : ""} isolée${r.debloquees > 1 ? "s" : ""} débloquée${r.debloquees > 1 ? "s" : ""}` : ""
+            }.`
+          );
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Déblocage impossible pour le moment.");
       }
@@ -79,6 +85,7 @@ export function NuitsIsoleesPanel({ onRapport, rechargement }: { onRapport: (r: 
   if (chargement) resume = "Analyse des nuits isolées dans Beds24…";
   else if (!rapport) resume = "Analyse des nuits isolées indisponible pour le moment.";
   else if (rapport.erreur && total === 0) resume = `Analyse impossible : ${rapport.erreur}`;
+  else if (rapport.plancherBloquant) resume = "Beds24 bloque à 2 nuits (séjour minimum de la chambre) : impossible de débloquer.";
   else if (total === 0) resume = "Aucune nuit isolée sur les 12 prochains mois.";
   else
     resume = `${total} nuit${total > 1 ? "s" : ""} isolée${total > 1 ? "s" : ""} sur ${logements.length} logement${logements.length > 1 ? "s" : ""}${
@@ -99,7 +106,7 @@ export function NuitsIsoleesPanel({ onRapport, rechargement }: { onRapport: (r: 
             {isPending ? "Déblocage…" : "Débloquer maintenant"}
           </Button>
         ) : rapport ? (
-          <Button size="sm" variant="ghost" onClick={debloquer} disabled={isPending} title="Relancer l'analyse et le déblocage">
+          <Button size="sm" variant="ghost" onClick={debloquer} disabled={isPending} title="Réécrire les nuits minimum dans Beds24 (18 mois)">
             <RefreshCw className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
           </Button>
         ) : null}
