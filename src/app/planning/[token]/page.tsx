@@ -201,7 +201,7 @@ export default async function PublicPlanningPage({
           staff={staffAvailability}
         />
 
-        <p className="pt-4 text-center text-xs text-muted-foreground">Lien de planning Moderna Agency — à ne partager qu&apos;en interne.</p>
+        <p className="pt-4 text-center text-xs text-muted-foreground">Lien de planning Superhosts — à ne partager qu&apos;en interne.</p>
       </div>
     </div>
   );
