@@ -54,6 +54,9 @@ export type PricelabsDailyPrice = {
   date: string; // YYYY-MM-DD
   price: number | null;
   unbookable: 0 | 1;
+  // Séjour minimum que PriceLabs calcule pour une arrivée ce jour-là (profil "Min 2 nuits",
+  // règle des nuits orphelines, dérogations par date...) et qu'il pousse vers Beds24.
+  min_stay?: number | null;
 };
 
 export type PricelabsListingPrices = {
@@ -75,4 +78,56 @@ export async function pricelabsGetPrices(
     method: "POST",
     body: { listings: listings.map((l) => ({ ...l, dateFrom, dateTo })) },
   });
+}
+
+// Dérogations par date ("Date Specific Overrides", DSO) d'une annonce — utilisées pour fixer le
+// nombre de nuits minimum d'une date depuis l'app (panneau "Nombre de nuits minimum" de la vue
+// planning). Sans ça, une valeur écrite seulement dans Beds24 serait écrasée par PriceLabs à sa
+// prochaine synchro (même avertissement que SuperHote : "PriceLabs risque d'écraser votre
+// saisie"). Doc : POST/GET /v1/listings/:listing_id/overrides.
+export type PricelabsOverride = {
+  date: string; // YYYY-MM-DD
+  price?: string;
+  price_type?: "fixed" | "percent" | "percent_stacked";
+  currency?: string;
+  min_stay?: number;
+  min_price?: number;
+  min_price_type?: "fixed" | "percent_base" | "percent_min";
+  max_price?: number;
+  max_price_type?: "fixed" | "percent_base" | "percent_max";
+  base_price?: number;
+  check_in_check_out_enabled?: "0" | "1";
+  check_in?: string;
+  check_out?: string;
+  reason?: string;
+  lead_time_expiry?: number;
+};
+
+// Champs renvoyés en lecture mais refusés/inutiles en écriture.
+const CHAMPS_LECTURE_SEULE = ["created_at", "updated_at"] as const;
+
+export async function pricelabsGetOverrides(listingId: string, pms: string, startDate: string, endDate: string): Promise<PricelabsOverride[]> {
+  const query = new URLSearchParams({ pms, start_date: startDate, end_date: endDate });
+  const res = await pricelabsFetch<{ overrides?: (PricelabsOverride & Record<string, unknown>)[] }>(
+    `/listings/${encodeURIComponent(listingId)}/overrides?${query.toString()}`
+  );
+  return (res.overrides ?? []).map((o) => {
+    const copie: Record<string, unknown> = { ...o };
+    for (const champ of CHAMPS_LECTURE_SEULE) delete copie[champ];
+    // Valeurs vides renvoyées par l'API ("" ou null) : on ne les renvoie pas en écriture, sinon
+    // la validation PriceLabs refuse toute la requête.
+    for (const [cle, valeur] of Object.entries(copie)) if (valeur === null || valeur === "") delete copie[cle];
+    return copie as PricelabsOverride;
+  });
+}
+
+// Ajoute ou met à jour des dérogations. Toute la requête est refusée (400) si une seule ligne est
+// invalide : rien n'est alors enregistré.
+export async function pricelabsUpsertOverrides(listingId: string, pms: string, overrides: PricelabsOverride[]): Promise<PricelabsOverride[]> {
+  if (overrides.length === 0) return [];
+  const res = await pricelabsFetch<{ overrides?: PricelabsOverride[] }>(`/listings/${encodeURIComponent(listingId)}/overrides`, {
+    method: "POST",
+    body: { overrides, pms },
+  });
+  return res.overrides ?? [];
 }
