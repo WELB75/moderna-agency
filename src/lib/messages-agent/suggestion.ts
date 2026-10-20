@@ -3,6 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { differenceInCalendarDays, format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { VILLAS } from "@/lib/whatsapp-agent/villas";
 
 // Agent IA de la boîte de réception Airbnb / Booking.com — Kamel, 2026-10-17 : "est-ce qu'on peut
 // l'intégrer à Booking et Airbnb ? Que ça réponde automatiquement avec l'agent IA". Première
@@ -19,7 +20,6 @@ const client = new Anthropic();
 // whatsapp-agent/agent.ts) : en dirhams, en plus du loyer.
 const CUISINIERE_PETIT_DEJ_MAD = 200;
 const CUISINIERE_PETIT_DEJ_DEJEUNER_MAD = 300;
-const MENAGE_MAD_PAR_FEMME_DE_MENAGE = 200;
 const CARTE_REPAS_URL = "https://loyak6makvlkxqye.public.blob.vercel-storage.com/welcome/carte-repas-moderna-agency.png";
 
 // Les codes d'accès ne sont communicables qu'à partir de la veille de l'arrivée (jusqu'au départ),
@@ -107,8 +107,14 @@ function blocLogement(sejour: ContexteSejour, maintenant: Date): string {
     ? "Caution : aucune sur les réservations Airbnb — n'en parle pas."
     : `Caution : empreinte bancaire de ${cautionEur(l)} € (aucun débit, levée après le départ), lien envoyé automatiquement avant l'arrivée.`;
   lignes.push(caution);
+  // Frais de ménage facturés au voyageur (EUR, forfait par logement) : 60 € petites villas, 80 €
+  // grandes villas à étage, 20 € appartements. Ce que l'agence verse aux femmes de ménage n'a
+  // rien à voir et ne se communique pas.
+  const menage = VILLAS.find((v) => v.nom.toLowerCase() === l.nom.toLowerCase())?.menage;
   lignes.push(
-    `Ménage de fin de séjour : en supplément, ${MENAGE_MAD_PAR_FEMME_DE_MENAGE} MAD par femme de ménage (en dirhams). Ne calcule pas le total (le nombre de femmes de ménage dépend du logement) : donne le tarif par femme de ménage et précise que l'équipe confirme le total.`
+    menage
+      ? `Ménage de fin de séjour : frais de ${menage} € en supplément, forfait pour le logement. Ne parle jamais du nombre de femmes de ménage ni de leur rémunération.`
+      : "Ménage de fin de séjour : montant non renseigné pour ce logement, passe la main à l'équipe s'il est demandé."
   );
 
   // Cuisinière : seulement sur les villas. Comprise dans le loyer pour certaines (ex. Sofya,
