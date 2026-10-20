@@ -19,6 +19,7 @@ const client = new Anthropic();
 // whatsapp-agent/agent.ts) : en dirhams, en plus du loyer.
 const CUISINIERE_PETIT_DEJ_MAD = 200;
 const CUISINIERE_PETIT_DEJ_DEJEUNER_MAD = 300;
+const MENAGE_MAD_PAR_FEMME_DE_MENAGE = 200;
 const CARTE_REPAS_URL = "https://loyak6makvlkxqye.public.blob.vercel-storage.com/welcome/carte-repas-moderna-agency.png";
 
 // Les codes d'accès ne sont communicables qu'à partir de la veille de l'arrivée (jusqu'au départ),
@@ -71,6 +72,13 @@ function bloquAccess(sejour: ContexteSejour, maintenant: Date): { codesAutorises
   return { codesAutorises: true, motif: "" };
 }
 
+// Caution (Kamel, 2026-10-20) : 1000 € sur toutes les villas, 250 € sur les appartements sauf Amal
+// et Jade à 500 € ; empreinte bancaire demandée uniquement aux réservations Booking.com / Direct.
+function cautionEur(l: ContexteLogement): number {
+  if (l.type === "villa") return 1000;
+  return /^(amal|jade)\b/i.test(l.nom) ? 500 : 250;
+}
+
 function blocLogement(sejour: ContexteSejour, maintenant: Date): string {
   const l = sejour.logement;
   if (!l) return "Logement : non relié à une fiche de l'agence — ne donne aucune information propre au logement, passe la main à l'équipe.";
@@ -94,6 +102,14 @@ function blocLogement(sejour: ContexteSejour, maintenant: Date): string {
       `Codes d'accès et wifi : NE PAS LES COMMUNIQUER (${motif}). Si le voyageur les demande, dis-lui poliment qu'ils lui seront envoyés la veille de son arrivée.`
     );
   }
+
+  const caution = sejour.reservation?.canal?.toLowerCase().includes("airbnb")
+    ? "Caution : aucune sur les réservations Airbnb — n'en parle pas."
+    : `Caution : empreinte bancaire de ${cautionEur(l)} € (aucun débit, levée après le départ), lien envoyé automatiquement avant l'arrivée.`;
+  lignes.push(caution);
+  lignes.push(
+    `Ménage de fin de séjour : en supplément, ${MENAGE_MAD_PAR_FEMME_DE_MENAGE} MAD par femme de ménage (en dirhams). Ne calcule pas le total (le nombre de femmes de ménage dépend du logement) : donne le tarif par femme de ménage et précise que l'équipe confirme le total.`
+  );
 
   // Cuisinière : seulement sur les villas. Comprise dans le loyer pour certaines (ex. Sofya,
   // Wimiliim) ; dans les deux cas le voyageur règle les courses et le coursier.
