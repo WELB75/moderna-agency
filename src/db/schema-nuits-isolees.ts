@@ -30,3 +30,21 @@ export const nuitsIsoleesDeblocages = pgTable(
   // tourner en même temps).
   (t) => [uniqueIndex("nuit_isolee_deblocage_actif_idx").on(t.roomId, t.date).where(sql`terminee_le IS NULL`)]
 );
+
+// Nuits minimum fixées À LA MAIN dans l'app (panneau de la vue planning) : priorité absolue sur
+// PriceLabs et sur les nuits isolées quand l'app recalcule les nuits minimum envoyées à Beds24
+// (voir nuitsMinVoulues dans lib/beds24/nuits-isolees-detection.ts). Une ligne par logement et
+// par date ; les dates passées sont nettoyées à chaque synchro. Table créée à la volée.
+export const nuitsMinManuelles = pgTable(
+  "nuits_min_manuelles",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    villaId: uuid("villa_id").notNull(),
+    roomId: integer("room_id").notNull(),
+    date: text("date").notNull(), // YYYY-MM-DD (arrivée concernée)
+    minStay: integer("min_stay").notNull(),
+    auteurNom: text("auteur_nom"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("nuits_min_manuelles_room_date_idx").on(t.roomId, t.date)]
+);
