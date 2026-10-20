@@ -3,6 +3,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { differenceInCalendarDays, format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { VILLAS } from "@/lib/whatsapp-agent/villas";
 
 // Agent IA de la boîte de réception Airbnb / Booking.com — Kamel, 2026-10-17 : "est-ce qu'on peut
 // l'intégrer à Booking et Airbnb ? Que ça réponde automatiquement avec l'agent IA". Première
@@ -71,6 +72,13 @@ function bloquAccess(sejour: ContexteSejour, maintenant: Date): { codesAutorises
   return { codesAutorises: true, motif: "" };
 }
 
+// Caution (Kamel, 2026-10-20) : 1000 € sur toutes les villas, 250 € sur les appartements sauf Amal
+// et Jade à 500 € ; empreinte bancaire demandée uniquement aux réservations Booking.com / Direct.
+function cautionEur(l: ContexteLogement): number {
+  if (l.type === "villa") return 1000;
+  return /^(amal|jade)\b/i.test(l.nom) ? 500 : 250;
+}
+
 function blocLogement(sejour: ContexteSejour, maintenant: Date): string {
   const l = sejour.logement;
   if (!l) return "Logement : non relié à une fiche de l'agence — ne donne aucune information propre au logement, passe la main à l'équipe.";
@@ -94,6 +102,20 @@ function blocLogement(sejour: ContexteSejour, maintenant: Date): string {
       `Codes d'accès et wifi : NE PAS LES COMMUNIQUER (${motif}). Si le voyageur les demande, dis-lui poliment qu'ils lui seront envoyés la veille de son arrivée.`
     );
   }
+
+  const caution = sejour.reservation?.canal?.toLowerCase().includes("airbnb")
+    ? "Caution : aucune sur les réservations Airbnb — n'en parle pas."
+    : `Caution : empreinte bancaire de ${cautionEur(l)} € (aucun débit, levée après le départ), lien envoyé automatiquement avant l'arrivée.`;
+  lignes.push(caution);
+  // Frais de ménage facturés au voyageur (EUR, forfait par logement) : 60 € petites villas, 80 €
+  // grandes villas à étage, 20 € appartements. Ce que l'agence verse aux femmes de ménage n'a
+  // rien à voir et ne se communique pas.
+  const menage = VILLAS.find((v) => v.nom.toLowerCase() === l.nom.toLowerCase())?.menage;
+  lignes.push(
+    menage
+      ? `Ménage de fin de séjour : frais de ${menage} € en supplément, forfait pour le logement. Ne parle jamais du nombre de femmes de ménage ni de leur rémunération.`
+      : "Ménage de fin de séjour : montant non renseigné pour ce logement, passe la main à l'équipe s'il est demandé."
+  );
 
   // Cuisinière : seulement sur les villas. Comprise dans le loyer pour certaines (ex. Sofya,
   // Wimiliim) ; dans les deux cas le voyageur règle les courses et le coursier.
