@@ -282,7 +282,7 @@ export function CommentItem({
             comment.auteurType !== "proprietaire" && "border-orange-500/50 bg-orange-500/10 text-orange-700 dark:text-orange-400"
           )}
         >
-          {comment.auteurType === "proprietaire" ? "Propriétaire" : "Moderna Agency"}
+          {comment.auteurType === "proprietaire" ? "Propriétaire" : "Superhosts"}
         </Badge>
         <span className="text-xs text-muted-foreground">{formatUtcDayMonthTime(comment.createdAt)}</span>
         {!isLocal && !editing ? (

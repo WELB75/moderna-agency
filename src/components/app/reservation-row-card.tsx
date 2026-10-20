@@ -194,7 +194,7 @@ export function ReservationRowCard({
   return (
     <div
       className={cn(
-        "flex h-full min-w-0 flex-col rounded-2xl border border-border border-l-4 bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-opacity",
+        "flex h-full min-w-0 flex-col rounded-2xl border border-border border-l-4 bg-card shadow-[0_1px_2px_rgba(15,26,23,0.05),0_10px_28px_-14px_rgba(15,26,23,0.16)] transition-opacity",
         r.canal && normaliseCanal(r.canal) === "bloque" ? "border-l-yellow-400" : isIn ? "border-l-emerald-500" : "border-l-red-500",
         isDone && "opacity-60"
       )}
@@ -553,7 +553,7 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
   return (
     <div
       className={cn(
-        "min-w-0 rounded-2xl border border-border border-l-4 bg-card shadow-[0_2px_8px_rgba(50,50,93,0.08)] transition-opacity",
+        "min-w-0 rounded-2xl border border-border border-l-4 bg-card shadow-[0_1px_2px_rgba(15,26,23,0.05),0_10px_28px_-14px_rgba(15,26,23,0.16)] transition-opacity",
         r.canal && normaliseCanal(r.canal) === "bloque" ? "border-l-yellow-400" : isIn ? "border-l-emerald-500" : "border-l-red-500",
         isDone && "opacity-60"
       )}

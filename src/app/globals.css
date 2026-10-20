@@ -8,7 +8,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans:
-    -apple-system, system-ui, "Segoe UI", Roboto, Helvetica Neue, Ubuntu, sans-serif;
+    var(--font-figtree), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --font-mono: var(--font-geist-mono), Menlo, Consolas, ui-monospace, monospace;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -49,83 +49,96 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Charte façon Stripe (Kamel, 2026-09-08 : "je veux le meme design ui ux que stripe [...]
-   couleurs, police, interface, animation etc") — synthèse de 3 références :
-   stripe.com/fr et stripe.com/payments/elements (violet de marque, cartes plates, CTA en
-   pilule) et docs.stripe.com/stripe-apps/components (base retenue pour l'app : polices système,
-   rayon 6px cohérent, fond blanc, texte ardoise, bordures fines, calme — plus proche d'un outil
-   interne dense en données que les pages marketing). Remplace la charte violette Millenium
-   Connect du 2026-09-04. Pas de vague animée en canvas façon stripe.com : jolie sur une page
-   marketing, mais tournerait en continu sur un outil utilisé toute la journée — contraire à
-   "ultra rapide". Boutons principaux en pilule (voir button.tsx) : seul emprunt direct aux pages
-   marketing, tout le reste vient de la base docs. */
+/* Charte Superhosts (2026-10-20 : "le rendre aux couleurs de Superhosts, avec la même écriture,
+   le même style, le même design" que le site superhosts.ma) — reprend les jetons de
+   superhosts.ma/styles.css : bordeaux #660033 (dégradé #8A1B52 → #660033 → #4D0026 sur les
+   boutons principaux), rose bordeaux clair #B5577F, fonds #F8EDF2 / #EBCCD9, encre #222222,
+   gris #717171, filets #EBEBEB, fond doux #F7F7F7, rayons 16px (cartes) / 12px (boutons),
+   ombre douce, police Figtree. Remplace la charte façon Stripe du 2026-09-08. Mode sombre
+   décliné à partir des mêmes teintes (bordeaux éclairci pour rester lisible sur fond foncé). */
 :root {
   --background: #ffffff;
-  --foreground: #1a1f36;
+  --foreground: #222222;
   --card: #ffffff;
-  --card-foreground: #1a1f36;
+  --card-foreground: #222222;
   --popover: #ffffff;
-  --popover-foreground: #1a1f36;
-  --primary: #635bff;
+  --popover-foreground: #222222;
+  --primary: #660033;
   --primary-foreground: #ffffff;
-  --secondary: #f4f7fa;
-  --secondary-foreground: #1a1f36;
-  --muted: #f6f9fc;
-  --muted-foreground: #3c4257;
-  --accent: #e8e9ff;
-  --accent-foreground: #433ad1;
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: #e5edf5;
-  --input: #e5edf5;
-  --ring: #635bff;
-  --chart-1: #635bff;
-  --chart-2: #9966ff;
-  --chart-3: #0de4e4;
-  --chart-4: #433ad1;
-  --chart-5: #8b85ff;
-  --radius: 0.375rem;
+  --secondary: #f7f7f7;
+  --secondary-foreground: #222222;
+  --muted: #f7f7f7;
+  --muted-foreground: #6a6a6a;
+  --accent: #f8edf2;
+  --accent-foreground: #660033;
+  --destructive: #c13515;
+  --border: #ebebeb;
+  --input: #e2e2e2;
+  --ring: #660033;
+  --chart-1: #660033;
+  --chart-2: #b5577f;
+  --chart-3: #c98a5a;
+  --chart-4: #8a1b52;
+  --chart-5: #ebccd9;
+  --radius: 0.75rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #1a1f36;
-  --sidebar-primary: #635bff;
+  --sidebar-foreground: #222222;
+  --sidebar-primary: #660033;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f4f7fa;
-  --sidebar-accent-foreground: #433ad1;
-  --sidebar-border: #e5edf5;
-  --sidebar-ring: #635bff;
+  --sidebar-accent: #f7f7f7;
+  --sidebar-accent-foreground: #660033;
+  --sidebar-border: #ebebeb;
+  --sidebar-ring: #660033;
+  --brand-grad: linear-gradient(90deg, #8a1b52 0%, #660033 50%, #4d0026 100%);
+  --brand-shadow: 0 8px 20px -8px rgba(102, 0, 51, 0.6);
 }
 
 .dark {
-  --background: #0a0e17;
-  --foreground: #e8ebf5;
-  --card: #131826;
-  --card-foreground: #e8ebf5;
-  --popover: #131826;
-  --popover-foreground: #e8ebf5;
-  --primary: #8b85ff;
-  --primary-foreground: #0a0e17;
-  --secondary: #1c2333;
-  --secondary-foreground: #e8ebf5;
-  --muted: #1c2333;
-  --muted-foreground: #9aa5b8;
-  --accent: #2a2f52;
-  --accent-foreground: #c7c4ff;
+  --background: #141012;
+  --foreground: #f3eef1;
+  --card: #1c171a;
+  --card-foreground: #f3eef1;
+  --popover: #1c171a;
+  --popover-foreground: #f3eef1;
+  --primary: #d9799f;
+  --primary-foreground: #1a0a12;
+  --secondary: #262024;
+  --secondary-foreground: #f3eef1;
+  --muted: #262024;
+  --muted-foreground: #a8999f;
+  --accent: #3a1a2a;
+  --accent-foreground: #f2c4d7;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: rgba(139, 133, 255, 0.16);
-  --input: rgba(139, 133, 255, 0.18);
-  --ring: #8b85ff;
-  --chart-1: #8b85ff;
-  --chart-2: #9966ff;
-  --chart-3: #0de4e4;
-  --chart-4: #c7c4ff;
-  --chart-5: #635bff;
-  --sidebar: #0e1320;
-  --sidebar-foreground: #e8ebf5;
-  --sidebar-primary: #8b85ff;
-  --sidebar-primary-foreground: #0a0e17;
-  --sidebar-accent: #1c2333;
-  --sidebar-accent-foreground: #c7c4ff;
-  --sidebar-border: rgba(139, 133, 255, 0.14);
-  --sidebar-ring: #8b85ff;
+  --border: rgba(255, 255, 255, 0.09);
+  --input: rgba(255, 255, 255, 0.13);
+  --ring: #d9799f;
+  --chart-1: #d9799f;
+  --chart-2: #f2c4d7;
+  --chart-3: #e0a87a;
+  --chart-4: #b5577f;
+  --chart-5: #8a1b52;
+  --sidebar: #181316;
+  --sidebar-foreground: #f3eef1;
+  --sidebar-primary: #d9799f;
+  --sidebar-primary-foreground: #1a0a12;
+  --sidebar-accent: #262024;
+  --sidebar-accent-foreground: #f2c4d7;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #d9799f;
+  --brand-grad: linear-gradient(90deg, #e690b4 0%, #d9799f 50%, #c4628a 100%);
+  --brand-shadow: 0 8px 20px -8px rgba(217, 121, 159, 0.45);
+}
+
+/* Bouton principal façon superhosts.ma (.btn-primary) : dégradé bordeaux qui glisse au survol,
+   avec une ombre bordeaux. Utilisé par la variante "default" de components/ui/button.tsx. */
+.btn-brand {
+  background-image: var(--brand-grad);
+  background-size: 200% 100%;
+  background-position: 0 0;
+}
+.btn-brand:hover {
+  background-position: 100% 0;
+  box-shadow: var(--brand-shadow);
 }
 
 /* Couleurs de canal (lib/canal.ts) pour les barres du calendrier et les pilules de canal, façon

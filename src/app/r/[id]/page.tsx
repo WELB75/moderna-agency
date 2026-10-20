@@ -131,7 +131,7 @@ export default async function ReservationSharePage({ params }: { params: Promise
         </CardContent>
       </Card>
 
-      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de partage Moderna Agency</p>
+      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de partage Superhosts</p>
     </div>
   );
 }

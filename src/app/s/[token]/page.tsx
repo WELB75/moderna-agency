@@ -190,7 +190,7 @@ export default async function RecapPublicPage({ params }: { params: Promise<{ to
         </Card>
       ) : null}
 
-      <p className="text-center text-xs text-muted-foreground">Moderna Agency</p>
+      <p className="text-center text-xs text-muted-foreground">Superhosts</p>
     </main>
   );
 }

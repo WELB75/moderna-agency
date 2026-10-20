@@ -12,7 +12,7 @@ import { ProprietaireReservation, type SejourProprietaire } from "@/components/a
 import { Logo } from "@/components/app/logo";
 
 export const metadata: Metadata = {
-  title: "Calendrier — Moderna Agency",
+  title: "Calendrier — Superhosts",
   robots: { index: false, follow: false },
 };
 

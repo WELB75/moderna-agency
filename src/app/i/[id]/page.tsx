@@ -71,7 +71,7 @@ export default async function PublicInterventionPage({ params }: { params: Promi
         commentAuthorOptions={commentAuthorOptions}
       />
 
-      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de consultation Moderna Agency</p>
+      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de consultation Superhosts</p>
     </div>
   );
 }

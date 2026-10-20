@@ -1,9 +1,10 @@
-import { Logo } from "@/components/app/logo";
+import { Logo, Wordmark } from "@/components/app/logo";
 
 export function AuthBrand() {
   return (
-    <div className="mb-8 flex flex-col items-center gap-4">
-      <Logo size={96} />
+    <div className="mb-8 flex items-center gap-3">
+      <Logo size={44} />
+      <Wordmark className="text-3xl text-[#222222]" />
     </div>
   );
 }

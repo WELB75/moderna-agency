@@ -334,7 +334,7 @@ export default async function ProprietaireAccessPage({ params }: { params: Promi
         </TabsContent>
       </Tabs>
 
-      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de consultation Moderna Agency</p>
+      <p className="pt-4 text-center text-xs text-muted-foreground">Lien de consultation Superhosts</p>
     </div>
   );
 }

@@ -62,8 +62,8 @@ export function buildConfirmationEmailHtml(params: {
     <tr><td align="center">
       <table role="presentation" width="480" cellpadding="0" cellspacing="0" class="card-bg" style="background-color:#ffffff;border:1px solid #e5e5e5;border-radius:6px;">
         <tr><td align="center" style="padding:36px 40px 20px;">
-          <img src="${LOGO_BLACK_DATA_URI}" width="52" height="52" alt="Moderna Agency" class="logo-light" style="display:inline-block;">
-          <img src="${LOGO_WHITE_DATA_URI}" width="52" height="52" alt="Moderna Agency" class="logo-dark" style="display:none;">
+          <img src="${LOGO_BLACK_DATA_URI}" width="52" height="52" alt="Superhosts" class="logo-light" style="display:inline-block;">
+          <img src="${LOGO_WHITE_DATA_URI}" width="52" height="52" alt="Superhosts" class="logo-dark" style="display:none;">
         </td></tr>
         <tr><td class="divider" style="border-top:1px solid #ececec;"></td></tr>
         <tr><td style="padding:28px 40px 0;">
@@ -99,7 +99,7 @@ export function buildConfirmationEmailHtml(params: {
           <p class="text-secondary" style="font-size:13px;color:#71717a;line-height:1.6;margin:0;">Une question avant votre arrivée ? Répondez directement à ce message, ou suivez-nous sur <a href="https://www.instagram.com/moderna__agency" style="color:#52525b;">Instagram</a>.</p>
         </td></tr>
         <tr><td class="divider" style="border-top:1px solid #ececec;padding:16px 40px;">
-          <p class="text-secondary" style="font-size:11px;color:#a1a1aa;line-height:1.5;margin:0;">Moderna Agency · Marrakech · Référence ${bookingRef}</p>
+          <p class="text-secondary" style="font-size:11px;color:#a1a1aa;line-height:1.5;margin:0;">Superhosts · Marrakech · Référence ${bookingRef}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -117,7 +117,7 @@ export async function sendConfirmationEmail(to: string, subject: string, html: s
   const actualTo = to === SANDBOX_EMAIL_OVERRIDE ? to : SANDBOX_EMAIL_OVERRIDE;
   try {
     const { data, error } = await resend.emails.send({
-      from: "Moderna Agency <onboarding@resend.dev>",
+      from: "Superhosts <onboarding@resend.dev>",
       to: actualTo,
       subject,
       html,
