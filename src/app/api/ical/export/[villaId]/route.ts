@@ -69,14 +69,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
   const lines: string[] = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Moderna Agency//Export Reservations//FR",
+    "PRODID:-//Superhosts//Export Reservations//FR",
     "CALSCALE:GREGORIAN",
   ];
 
   for (const r of rows) {
-    const guestName = r.guestName || "Client Moderna Agency";
+    const guestName = r.guestName || "Client Superhosts";
     const bookingRef = r.id.slice(0, 8).toUpperCase();
-    const description = r.notes?.trim() || "Réservation via l'agent WhatsApp Moderna Agency — aucune demande spécifique.";
+    const description = r.notes?.trim() || "Réservation via l'agent WhatsApp Superhosts — aucune demande spécifique.";
 
     lines.push(
       "BEGIN:VEVENT",
