@@ -20,6 +20,9 @@ import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
 import { canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
 import { formatHeureMaroc } from "@/lib/journal-format";
+import { NuitsIsoleesPanel } from "@/components/app/nuits-isolees-panel";
+import { NuitsMinimumSheet, type CibleNuitsMin } from "@/components/app/nuits-minimum-sheet";
+import type { NuitIsolee, RapportNuitsIsolees } from "@/lib/beds24/nuits-isolees";
 
 // lectureSeule : lien public "calendrier seul" d'un logement (/cal/[token], voir
 // lib/calendrier-partage.ts) — même grille, mais sans recherche/filtres, sans bouton
@@ -39,6 +42,19 @@ export function TarificationView({
   const [typeFiltre, setTypeFiltre] = useState<"tous" | "appartement" | "villa">("tous");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Nuits isolées (rapport chargé par le bandeau, voir nuits-isolees-panel.tsx) : repérées dans la
+  // grille et dans la ligne "Nombre de nuits minimum" des logements dépliés.
+  const [rapportNuits, setRapportNuits] = useState<RapportNuitsIsolees | null>(null);
+  const [rechargementNuits, setRechargementNuits] = useState(0);
+  const nuitsIsoleesParVilla = useMemo(() => {
+    const parVilla = new Map<string, Map<string, NuitIsolee>>();
+    for (const l of rapportNuits?.logements ?? []) {
+      const parDate = new Map<string, NuitIsolee>();
+      for (const n of l.nuitsIsolees) for (const d of n.dates) parDate.set(d, n);
+      parVilla.set(l.villaId, parDate);
+    }
+    return parVilla;
+  }, [rapportNuits]);
 
   const villasFiltrees = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -139,6 +155,10 @@ export function TarificationView({
         </Card>
       ) : null}
 
+      {lectureSeule || villasTarifs.length === 0 ? null : (
+        <NuitsIsoleesPanel onRapport={setRapportNuits} rechargement={rechargementNuits} />
+      )}
+
       {villasTarifs.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
@@ -153,7 +173,10 @@ export function TarificationView({
       ) : (
         <TarificationCalendrier
           villas={villasFiltrees}
+          tousLogements={villasTarifs}
           lectureSeule={lectureSeule}
+          nuitsIsolees={nuitsIsoleesParVilla}
+          onNuitsMinModifiees={() => setRechargementNuits((n) => n + 1)}
           onNotesUpdated={handleNotesUpdated}
           onReservationSupprimee={handleReservationSupprimee}
         />
@@ -187,7 +210,7 @@ const DIMS_MOBILE: Dims = { col: 52, sidebar: 104, row: 60, headerMonth: 48, hea
 // Lignes de détail affichées sous une villa dépliée, dans l'ordre de SuperHote v2.
 const LIGNES_DETAIL = [
   { key: "prix", label: "Prix nuitée", aide: null },
-  { key: "min", label: "Nombre de nuits minimum", aide: "Durée minimale d'un séjour qui commence ce jour-là." },
+  { key: "min", label: "Nombre de nuits minimum", aide: "Durée minimale d'un séjour qui commence ce jour-là. Cliquer une case pour la modifier." },
   { key: "max", label: "Nombre de nuits maximum", aide: "Durée maximale d'un séjour qui commence ce jour-là." },
   { key: "arrivee", label: "Arrivées bloquées", aide: "Oui = aucun voyageur ne peut arriver ce jour-là." },
   { key: "depart", label: "Départs bloqués", aide: "Oui = aucun voyageur ne peut partir ce jour-là." },
@@ -208,12 +231,18 @@ type ReservationSelectionnee = { villaId: string; villaNom: string } & Tarificat
 // a sa propre mise en page, une carte par logement avec sa bande de jours défilable au pouce.
 function TarificationCalendrier({
   villas,
+  tousLogements,
   lectureSeule,
+  nuitsIsolees,
+  onNuitsMinModifiees,
   onNotesUpdated,
   onReservationSupprimee,
 }: {
   villas: TarificationVilla[];
+  tousLogements: TarificationVilla[];
   lectureSeule: boolean;
+  nuitsIsolees: Map<string, Map<string, NuitIsolee>>;
+  onNuitsMinModifiees: () => void;
   onNotesUpdated: (villaId: string, reservationId: string, notes: string) => void;
   onReservationSupprimee: (villaId: string, reservationId: string) => void;
 }) {
@@ -230,8 +259,11 @@ function TarificationCalendrier({
     <>
       <TarificationGrid
         villas={villas}
+        tousLogements={tousLogements}
         dims={estMobile ? DIMS_MOBILE : DIMS_BUREAU}
         lectureSeule={lectureSeule}
+        nuitsIsolees={nuitsIsolees}
+        onNuitsMinModifiees={onNuitsMinModifiees}
         onSelectReservation={setResaSelectionnee}
       />
       <ReservationRecapDialog
@@ -269,13 +301,19 @@ function libelleMois(d: Date): string {
 // défilement horizontal), mise en forme SuperHote v2.
 function TarificationGrid({
   villas,
+  tousLogements,
   dims,
   lectureSeule,
+  nuitsIsolees,
+  onNuitsMinModifiees,
   onSelectReservation,
 }: {
   villas: TarificationVilla[];
+  tousLogements: TarificationVilla[];
   dims: Dims;
   lectureSeule: boolean;
+  nuitsIsolees: Map<string, Map<string, NuitIsolee>>;
+  onNuitsMinModifiees: () => void;
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
   const { col: COL_WIDTH, sidebar: SIDEBAR_WIDTH, row: ROW_HEIGHT, headerMonth: HEADER_MONTH_HEIGHT, headerDays: HEADER_DAYS_HEIGHT, detailRow: DETAIL_ROW_HEIGHT, compact } = dims;
@@ -297,6 +335,10 @@ function TarificationGrid({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [ouvertes, setOuvertes] = useState<Set<string>>(() => new Set());
+  // Case "Nombre de nuits minimum" cliquée (panneau d'édition façon SuperHote) et compteur par
+  // logement pour relire Beds24 après une modification.
+  const [cibleNuitsMin, setCibleNuitsMin] = useState<CibleNuitsMin | null>(null);
+  const [versionsDetails, setVersionsDetails] = useState<Record<string, number>>({});
   const toutOuvert = villas.length > 0 && villas.every((v) => ouvertes.has(v.id));
   function basculer(villaId: string) {
     setOuvertes((prev) => {
@@ -504,9 +546,27 @@ function TarificationGrid({
                         dateStrings={dateStrings}
                         aujourdhui={aujourdhui}
                         dims={dims}
+                        nuitsIsolees={nuitsIsolees.get(v.id)}
                         onSelectReservation={onSelectReservation}
                       />
-                      {ouvertes.has(v.id) ? <VillaDetailRows villa={v} dateStrings={dateStrings} aujourdhui={aujourdhui} dims={dims} /> : null}
+                      {ouvertes.has(v.id) ? (
+                        <VillaDetailRows
+                          villa={v}
+                          dateStrings={dateStrings}
+                          aujourdhui={aujourdhui}
+                          dims={dims}
+                          version={versionsDetails[v.id] ?? 0}
+                          nuitsIsolees={nuitsIsolees.get(v.id)}
+                          onEditerMin={
+                            lectureSeule
+                              ? undefined
+                              : (date, minStay) => {
+                                  const isolee = nuitsIsolees.get(v.id)?.get(date);
+                                  setCibleNuitsMin({ villaId: v.id, villaNom: v.nom, date, minStay, nuitIsolee: isolee ? { nuits: isolee.nuits } : null });
+                                }
+                          }
+                        />
+                      ) : null}
                     </div>
                   ))}
                   {positionMaintenant !== null ? (
@@ -522,6 +582,21 @@ function TarificationGrid({
           </div>
         </div>
       </Card>
+      {lectureSeule ? null : (
+        <NuitsMinimumSheet
+          cible={cibleNuitsMin}
+          logements={tousLogements.map((l) => ({ id: l.id, nom: l.nom, beds24RoomId: l.beds24RoomId }))}
+          onClose={() => setCibleNuitsMin(null)}
+          onSaved={(villaIds) => {
+            setVersionsDetails((prev) => {
+              const next = { ...prev };
+              for (const id of villaIds) next[id] = (next[id] ?? 0) + 1;
+              return next;
+            });
+            onNuitsMinModifiees();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -531,12 +606,14 @@ function VillaCalendarRow({
   dateStrings,
   aujourdhui,
   dims,
+  nuitsIsolees,
   onSelectReservation,
 }: {
   villa: TarificationVilla;
   dateStrings: string[];
   aujourdhui: string;
   dims: Dims;
+  nuitsIsolees?: Map<string, NuitIsolee>;
   onSelectReservation: (r: ReservationSelectionnee) => void;
 }) {
   const { col: COL_WIDTH, row: ROW_HEIGHT, compact } = dims;
@@ -554,10 +631,12 @@ function VillaCalendarRow({
           const jour = dayByDate.get(date);
           const couvert = couverts.has(date);
           const bloque = !passe && !couvert && !villa.error && (!jour || jour.unbookable || jour.price == null);
+          const isolee = !passe && !couvert ? nuitsIsolees?.get(date) : undefined;
+          const isoleeBloquee = isolee?.statut === "a_debloquer" || isolee?.statut === "echec";
           return (
             <div
               key={date}
-              className={`flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"}`}
+              className={`relative flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"}`}
               style={{
                 width: COL_WIDTH,
                 backgroundImage: bloque
@@ -565,6 +644,22 @@ function VillaCalendarRow({
                   : undefined,
               }}
             >
+              {/* Nuit isolée entre deux séjours : orange tant qu'elle n'est pas réservable (nuits
+                  min. trop longues), verte une fois débloquée. */}
+              {isolee ? (
+                <span
+                  title={
+                    isoleeBloquee
+                      ? `Nuit isolée : ${isolee.minStay ?? "?"} nuits min. pour ${isolee.nuits} nuit(s) libre(s), non réservable`
+                      : `Nuit isolée réservable (${isolee.minStay ?? 1} nuit min.)`
+                  }
+                  className={`absolute top-1 left-1 rounded font-semibold leading-none ${compact ? "h-1.5 w-1.5 rounded-full" : "px-1 py-0.5 text-[9px]"} ${
+                    isoleeBloquee ? "bg-amber-500 text-white" : "bg-green-600/15 text-green-700 dark:text-green-400"
+                  } ${compact && !isoleeBloquee ? "bg-green-600" : ""}`}
+                >
+                  {compact ? null : "isolée"}
+                </span>
+              ) : null}
               {!passe && !couvert && !bloque && jour?.price != null ? formatPrixCompact(jour.price, villa.currency) : null}
             </div>
           );
@@ -613,12 +708,31 @@ const cacheDetails = new Map<string, DetailJour[]>();
 // Détails jour par jour d'une villa dépliée, lus dans Beds24 (là où PriceLabs pousse désormais
 // ses prix, et d'où partent les règles vers Airbnb/Booking). Villa pas encore reliée à Beds24 :
 // prix PriceLabs seulement, le reste en tiret.
-function VillaDetailRows({ villa, dateStrings, aujourdhui, dims }: { villa: TarificationVilla; dateStrings: string[]; aujourdhui: string; dims: Dims }) {
+// Ligne "Nombre de nuits minimum" : chaque case (aujourd'hui et après) ouvre le panneau
+// d'édition (onEditerMin), comme sur SuperHote v2. `version` change après une modification pour
+// relire Beds24 au lieu du cache.
+function VillaDetailRows({
+  villa,
+  dateStrings,
+  aujourdhui,
+  dims,
+  version = 0,
+  nuitsIsolees,
+  onEditerMin,
+}: {
+  villa: TarificationVilla;
+  dateStrings: string[];
+  aujourdhui: string;
+  dims: Dims;
+  version?: number;
+  nuitsIsolees?: Map<string, NuitIsolee>;
+  onEditerMin?: (date: string, minStay: number | null) => void;
+}) {
   const { col: COL_WIDTH, detailRow: DETAIL_ROW_HEIGHT, compact } = dims;
   const roomId = villa.beds24RoomId ? Number(villa.beds24RoomId) : null;
   const from = dateStrings[0];
   const to = dateStrings[dateStrings.length - 1];
-  const cleCache = roomId ? `${roomId}:${from}:${to}` : null;
+  const cleCache = roomId ? `${roomId}:${from}:${to}:${version}` : null;
   const [details, setDetails] = useState<DetailJour[] | null>(() => (cleCache ? (cacheDetails.get(cleCache) ?? null) : null));
   const [erreur, setErreur] = useState<string | null>(null);
 
@@ -642,6 +756,7 @@ function VillaDetailRows({ villa, dateStrings, aujourdhui, dims }: { villa: Tari
 
   const parDate = new Map((details ?? []).map((d) => [d.date, d]));
   const prixPricelabs = new Map(villa.days.map((d) => [d.date, d.price]));
+  const minPricelabs = new Map(villa.days.map((d) => [d.date, d.minStay ?? null]));
   const chargement = Boolean(roomId) && !details && !erreur;
   const message = !roomId ? "Villa pas encore reliée à Beds24 : prix PriceLabs uniquement." : erreur;
 
@@ -652,8 +767,11 @@ function VillaDetailRows({ villa, dateStrings, aujourdhui, dims }: { villa: Tari
         const prix = d?.price ?? prixPricelabs.get(date) ?? null;
         return prix != null ? formatPrixCompact(prix, villa.currency ?? "EUR") : "";
       }
-      case "min":
-        return d?.minStay != null ? String(d.minStay) : roomId ? "" : "—";
+      case "min": {
+        // Beds24 (valeur réellement envoyée à Airbnb/Booking) ; à défaut celle de PriceLabs.
+        const min = d?.minStay ?? (roomId ? null : (minPricelabs.get(date) ?? null));
+        return min != null ? String(min) : roomId ? "" : "—";
+      }
       case "max":
         return d?.maxStay != null ? String(d.maxStay) : roomId ? "" : "—";
       case "arrivee":
@@ -670,14 +788,40 @@ function VillaDetailRows({ villa, dateStrings, aujourdhui, dims }: { villa: Tari
           {dateStrings.map((date) => {
             const texte = valeur(ligne.key, date);
             const bloque = texte === "Oui";
+            const classeBase = `flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"} ${
+              date < aujourdhui ? "text-muted-foreground" : ""
+            } ${bloque ? "font-semibold text-destructive" : ""}`;
+            if (ligne.key === "min" && onEditerMin && roomId && date >= aujourdhui) {
+              const isolee = nuitsIsolees?.get(date);
+              const isoleeBloquee = isolee?.statut === "a_debloquer" || isolee?.statut === "echec";
+              const minActuel = parDate.get(date)?.minStay ?? null;
+              return (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => onEditerMin(date, minActuel)}
+                  title={
+                    isolee
+                      ? isoleeBloquee
+                        ? "Nuit isolée non réservable : cliquer pour modifier les nuits minimum"
+                        : "Nuit isolée débloquée : cliquer pour modifier les nuits minimum"
+                      : "Modifier le nombre de nuits minimum"
+                  }
+                  className={`${classeBase} cursor-pointer transition-colors hover:bg-primary/10 hover:text-foreground ${
+                    isoleeBloquee
+                      ? "bg-amber-500/20 font-semibold text-amber-700 dark:text-amber-400"
+                      : isolee
+                        ? "font-semibold text-green-700 dark:text-green-400"
+                        : ""
+                  }`}
+                  style={{ width: COL_WIDTH }}
+                >
+                  {texte}
+                </button>
+              );
+            }
             return (
-              <div
-                key={date}
-                className={`flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"} ${
-                  date < aujourdhui ? "text-muted-foreground" : ""
-                } ${bloque ? "font-semibold text-destructive" : ""}`}
-                style={{ width: COL_WIDTH }}
-              >
+              <div key={date} className={classeBase} style={{ width: COL_WIDTH }}>
                 {texte}
               </div>
             );

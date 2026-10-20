@@ -1095,7 +1095,7 @@ export const pricelabsPriceCache = pgTable("pricelabs_price_cache", {
   basePrice: numeric("base_price", { precision: 10, scale: 2 }),
   maxPrice: numeric("max_price", { precision: 10, scale: 2 }),
   // Calendrier journalier : [{ date: "YYYY-MM-DD", price: number, unbookable: boolean }]
-  days: jsonb("days").$type<{ date: string; price: number | null; unbookable: boolean }[]>().default([]).notNull(),
+  days: jsonb("days").$type<{ date: string; price: number | null; unbookable: boolean; minStay?: number | null }[]>().default([]).notNull(),
   // Dernier message d'erreur PriceLabs (ex. "LISTING_NOT_PRESENT"), jamais la clé API — affiché
   // tel quel à l'équipe pour comprendre pourquoi une villa n'a pas de prix, sans bloquer les
   // autres villas dont la synchro a réussi.

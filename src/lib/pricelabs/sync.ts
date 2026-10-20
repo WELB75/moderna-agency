@@ -61,7 +61,9 @@ export type TarificationVilla = {
   minPrice: number | null;
   basePrice: number | null;
   maxPrice: number | null;
-  days: { date: string; price: number | null; unbookable: boolean }[];
+  // minStay : nuits minimum calculées par PriceLabs pour une arrivée ce jour-là (absent des
+  // caches écrits avant le 20/10/2026, d'où l'optionnel).
+  days: { date: string; price: number | null; unbookable: boolean; minStay?: number | null }[];
   reservations: TarificationReservation[];
   syncedAt: string | null;
   error: string | null;
@@ -338,6 +340,7 @@ async function resyncVillas(targets: { id: string; candidates: string[] }[]) {
       date: d.date,
       price: d.price,
       unbookable: Boolean(d.unbookable),
+      minStay: typeof d.min_stay === "number" && d.min_stay > 0 ? d.min_stay : null,
     }));
 
     await db

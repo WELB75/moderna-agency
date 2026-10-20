@@ -249,6 +249,10 @@ export type Beds24CalendarDay = {
   numAvail: number | null;
   arriveeBloquee: boolean;
   departBloque: boolean;
+  // Valeur brute de la case "Remplacer" ("none", "blackout", "noCheckIn"...) : distingue une
+  // fermeture complète (blackout) d'une simple interdiction d'arrivée/départ, pour la détection
+  // des nuits isolées (voir lib/beds24/nuits-isolees.ts).
+  override: string;
 };
 
 type Beds24CalendarRange = {
@@ -262,9 +266,20 @@ type Beds24CalendarRange = {
 };
 
 export async function beds24GetCalendar(roomId: number, startDate: string, endDate: string): Promise<Beds24CalendarDay[]> {
+  return (await beds24GetCalendars([roomId], startDate, endDate)).get(roomId) ?? [];
+}
+
+// Même lecture pour plusieurs logements en UN seul appel (roomId accepte une liste) : la
+// détection des nuits isolées lit tout le parc à chaque synchro, sans multiplier les appels
+// comptés par Beds24.
+export async function beds24GetCalendars(roomIds: number[], startDate: string, endDate: string): Promise<Map<number, Beds24CalendarDay[]>> {
+  const ids = [...new Set(roomIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const parRoom = new Map<number, Map<string, Beds24CalendarDay>>(ids.map((id) => [id, new Map()]));
+  if (ids.length === 0) return new Map();
+
   const res = await beds24Fetch<{ data?: { roomId: number; calendar?: Beds24CalendarRange[] }[] }>("/inventory/rooms/calendar", {
     query: {
-      roomId,
+      roomId: ids,
       startDate,
       endDate,
       includePrices: true,
@@ -275,9 +290,9 @@ export async function beds24GetCalendar(roomId: number, startDate: string, endDa
     },
   });
 
-  const parDate = new Map<string, Beds24CalendarDay>();
   for (const room of res.data ?? []) {
-    if (Number(room.roomId) !== roomId) continue;
+    const parDate = parRoom.get(Number(room.roomId));
+    if (!parDate) continue;
     for (const plage of room.calendar ?? []) {
       const override = plage.override ?? "none";
       const fin = plage.to && plage.to >= plage.from ? plage.to : plage.from;
@@ -292,9 +307,11 @@ export async function beds24GetCalendar(roomId: number, startDate: string, endDa
           numAvail: typeof plage.numAvail === "number" ? plage.numAvail : null,
           arriveeBloquee: override === "blackout" || override === "noCheckIn" || override === "noCheckInOrCheckOut",
           departBloque: override === "blackout" || override === "noCheckOut" || override === "noCheckInOrCheckOut",
+          override,
         });
       }
     }
   }
-  return [...parDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+
+  return new Map([...parRoom.entries()].map(([id, parDate]) => [id, [...parDate.values()].sort((a, b) => a.date.localeCompare(b.date))]));
 }
