@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@clerk/nextjs/server";
 import { runBeds24Sync } from "@/lib/beds24/sync";
 import { analyserNuitsIsolees } from "@/lib/beds24/nuits-isolees";
 
@@ -6,15 +7,18 @@ export const maxDuration = 60;
 
 // Cron quotidien (vercel.json) : filet de sécurité si un appel du webhook Beds24 s'est perdu.
 // Même protection que les autres crons (/api/ical/sync, /api/staff-requests/sweep...).
-function isAuthorized(req: NextRequest) {
+// Un utilisateur connecté à l'app peut aussi la lancer à la main (ouvrir /api/beds24/sync dans le
+// navigateur) : utile pour forcer une resynchro sans connaître le secret du cron.
+async function isAuthorized(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return true;
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${cronSecret}`;
+  if (req.headers.get("authorization") === `Bearer ${cronSecret}`) return true;
+  const { userId } = await auth();
+  return Boolean(userId);
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!(await isAuthorized(req))) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   }
 
