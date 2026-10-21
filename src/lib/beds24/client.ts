@@ -91,6 +91,7 @@ export type Beds24Booking = {
   channel?: string; // code technique du canal, ex. "airbnb", "booking", "direct"
   referer?: string; // libellé lisible du canal, ex. "Airbnb", "Booking.com", "Direct"
   apiSource?: string;
+  apiReference?: string; // référence du canal, ex. code de confirmation Airbnb (HM...) ou numéro Booking.com
   bookingTime?: string; // ISO, date de création de la réservation / demande
   modifiedTime?: string; // ISO
   infoItems?: Beds24InfoItem[]; // renvoyés seulement avec includeInfoItems: true

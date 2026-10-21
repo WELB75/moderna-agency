@@ -35,6 +35,7 @@ import {
   BedDouble,
   Wallet,
   UserCheck,
+  ExternalLink,
   type LucideIcon,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
@@ -98,6 +99,8 @@ export type ReservationRow = {
   cuisineOptions: PersonnelOption[];
   cashAPrevoir: number;
   clientConnu: { nom: string; telephone: string | null; notes: string | null } | null;
+  // Lien direct vers la réservation sur Airbnb / Booking.com (voir lib/lien-plateforme.ts).
+  lienPlateforme?: { url: string; libelle: string } | null;
   // Récapitulatif d'une réservation directe créée dans l'app (promo, avance, remarque interne,
   // lien de partage /s/[token]) — absent pour les réservations importées.
   recap?: {
@@ -163,6 +166,21 @@ function estSynchronisee(source: string): boolean {
 
 // Réservation directe ou blocage présent dans Beds24 : la supprimer l'annule là-bas aussi et
 // rouvre les dates sur Airbnb/Booking.com (voir deleteReservation).
+function LienPlateforme({ lien }: { lien: { url: string; libelle: string } }) {
+  return (
+    <a
+      href={lien.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      title={lien.libelle}
+      className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+    >
+      <ExternalLink className="h-3 w-3" />
+      {lien.libelle}
+    </a>
+  );
+}
+
 function estAnnulableSurBeds24(r: { source: string; canal: string | null }): boolean {
   return r.source === "beds24" && ["direct", "bloque"].includes(normaliseCanal(r.canal));
 }
@@ -293,6 +311,7 @@ export function ReservationRowCard({
               </Badge>
             ) : null}
             {r.canal ? <CanalBadge canal={r.canal} /> : null}
+            {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
           </div>
         </div>
 
@@ -620,6 +639,7 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
                 </Badge>
               ) : null}
               {r.canal ? <CanalBadge canal={r.canal} /> : null}
+              {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
             </div>
             <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
             {(isIn && r.clientConnu) || (!isIn && r.cashAPrevoir > 0) || r.notes ? (

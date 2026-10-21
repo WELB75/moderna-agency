@@ -47,6 +47,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { lienPlateforme } from "@/lib/lien-plateforme";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import {
   montantMenageDu,
@@ -133,6 +134,8 @@ export default async function DashboardPage({
       messageLocalisationEnvoyeAt: reservations.messageLocalisationEnvoyeAt,
       messageSecuriteEnvoyeAt: reservations.messageSecuriteEnvoyeAt,
       messageCuisineEnvoyeAt: reservations.messageCuisineEnvoyeAt,
+      rawData: reservations.rawData,
+      beds24RoomId: villas.beds24RoomId,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -332,6 +335,8 @@ export default async function DashboardPage({
     const clientConnu = findClient(r.guestPhone);
     return {
       ...r,
+      ...{ rawData: undefined }, // jamais envoyé au navigateur : seul le lien en sort
+      lienPlateforme: lienPlateforme(r),
       personnelPayeParProprietaireNoms: r.personnelPayeParProprietaireNoms ?? [],
       repasInclusDansLoyer: r.repasInclusDansLoyer ?? false,
       ficheStatut,

@@ -1,4 +1,4 @@
-import { and, asc, eq, isNotNull, isNull, gte, lt, inArray, notInArray } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, gte, lt, inArray, notInArray, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getDb } from "@/db";
@@ -329,6 +329,8 @@ export async function runBeds24Sync(): Promise<
             beds24Status: booking.status,
             beds24Channel: booking.channel ?? null,
             beds24Referer: booking.referer ?? null,
+            beds24ApiReference: booking.apiReference ?? null,
+            beds24ApiSource: booking.apiSource ?? null,
             ...(loyer.conversion ? { conversion: loyer.conversion } : {}),
           },
           updatedAt: new Date(),
@@ -345,6 +347,8 @@ export async function runBeds24Sync(): Promise<
             .set({
               ...values,
               canal,
+              // Fusion plutôt que remplacement : garde raw_data.superhote.reference (lien Airbnb/Booking).
+              rawData: sql`coalesce(${reservations.rawData}, '{}'::jsonb) || ${JSON.stringify(values.rawData)}::jsonb`,
               guestPhone: existing.guestPhone ?? values.guestPhone,
               caution: existing.caution ?? montantCaution,
               cautionPayee: existing.cautionPayee || stripeAutorise,
@@ -364,6 +368,8 @@ export async function runBeds24Sync(): Promise<
             .update(reservations)
             .set({
               ...values,
+              // Fusion plutôt que remplacement : garde raw_data.superhote.reference (lien Airbnb/Booking).
+              rawData: sql`coalesce(${reservations.rawData}, '{}'::jsonb) || ${JSON.stringify(values.rawData)}::jsonb`,
               guestPhone: duplicate.guestPhone ?? values.guestPhone,
               guestEmail: duplicate.guestEmail ?? values.guestEmail,
               nbAdultes: duplicate.nbAdultes ?? values.nbAdultes,
