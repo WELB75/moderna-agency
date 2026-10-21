@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowLeft, ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, Info, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, ExternalLink, Info, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
@@ -975,6 +975,14 @@ function ReservationRecapDialog({
             <Button asChild className="w-full">
               <Link href={`/reservations/${reservation.id}`}>Voir la réservation complète</Link>
             </Button>
+            {reservation.lienPlateforme ? (
+              <Button asChild className={`w-full text-white hover:text-white hover:opacity-90 ${reservation.lienPlateforme.libelle.includes("Booking") ? "bg-[#003580] hover:bg-[#003580]" : "bg-[#ff385c] hover:bg-[#ff385c]"}`}>
+                <a href={reservation.lienPlateforme.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                  {reservation.lienPlateforme.libelle}
+                </a>
+              </Button>
+            ) : null}
             {/* Réservation créée dans l'app : la supprimer rouvre aussi les dates sur Beds24, donc
                 Airbnb et Booking.com (voir deleteReservation). Les réservations importées
                 (Airbnb, Booking, Superhote) se gèrent depuis leur plateforme. */}
