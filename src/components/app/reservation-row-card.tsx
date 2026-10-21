@@ -166,16 +166,22 @@ function estSynchronisee(source: string): boolean {
 
 // Réservation directe ou blocage présent dans Beds24 : la supprimer l'annule là-bas aussi et
 // rouvre les dates sur Airbnb/Booking.com (voir deleteReservation).
+// Hors du <Link> de la carte (sinon le clic ouvre la fiche villa au lieu de la plateforme) et bien
+// visible : Sanaa, 2026-10-21 : "ça ouvre pas sur airbnb quand je clique, et rends-le plus visible".
 function LienPlateforme({ lien }: { lien: { url: string; libelle: string } }) {
+  const booking = lien.libelle.includes("Booking");
   return (
     <a
       href={lien.url}
       target="_blank"
       rel="noopener noreferrer"
-      title={lien.libelle}
-      className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      title={`${lien.libelle} (nouvel onglet)`}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold text-white shadow-sm transition-opacity hover:opacity-90",
+        booking ? "bg-[#003580]" : "bg-[#ff385c]"
+      )}
     >
-      <ExternalLink className="h-3 w-3" />
+      <ExternalLink className="h-3.5 w-3.5" />
       {lien.libelle}
     </a>
   );
@@ -239,6 +245,7 @@ export function ReservationRowCard({
           {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
           <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
           <EditNotesButton reservationId={r.id} notes={r.notes} />
+          {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
           {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
           {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
         </div>
@@ -311,7 +318,6 @@ export function ReservationRowCard({
               </Badge>
             ) : null}
             {r.canal ? <CanalBadge canal={r.canal} /> : null}
-            {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
           </div>
         </div>
 
@@ -591,6 +597,7 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
               {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
               <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
               <EditNotesButton reservationId={r.id} notes={r.notes} />
+              {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
               {isProprietaire ? <Badge variant="outline">Propriétaire</Badge> : null}
               {r.aRelancer ? <Badge variant="destructive">À relancer</Badge> : null}
             </div>
@@ -639,7 +646,6 @@ function ReservationRowCardHorizontal({ r, kind }: { r: ReservationRow; kind: "i
                 </Badge>
               ) : null}
               {r.canal ? <CanalBadge canal={r.canal} /> : null}
-              {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
             </div>
             <GuestCount nbAdultes={r.nbAdultes} nbEnfants={r.nbEnfants} />
             {(isIn && r.clientConnu) || (!isIn && r.cashAPrevoir > 0) || r.notes ? (
