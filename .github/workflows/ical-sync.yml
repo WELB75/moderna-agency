@@ -7,9 +7,13 @@ name: iCal sync (15 min)
 # sous le quota de 2000 minutes/mois pour ~2900 exécutions/mois de quelques secondes chacune).
 # Kamel, 2026-08-29 : "trouve un moyen de le faire en 15 min gratuitement".
 
+#
+# 2026-10-21 (sécurité) : plus aucune exécution automatique. Aucun des 16 logements n'a de lien
+# iCal direct Airbnb/Booking.com configuré (tout passe par Beds24), donc ce passage toutes les
+# 15 min ne faisait rien — et ~2 900 exécutions/mois dépasseraient les 2 000 minutes gratuites
+# de GitHub Actions une fois le dépôt repassé en privé (chaque exécution compte 1 minute).
+# Lançable à la main (onglet Actions > Run workflow) si un lien direct est configuré un jour.
 on:
-  schedule:
-    - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
 #
