@@ -49,7 +49,7 @@ export default function RootLayout({
       className={`${figtree.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full w-full flex flex-col overflow-x-hidden">
+      <body className="min-h-full w-full flex flex-col overflow-x-clip">
         {/* Stripe est clair partout, jamais sombre par défaut — Kamel, 2026-09-08 : "fond clair
             comme stripe" (en réaction au mode sombre pris automatiquement sur un Mac en dark
             mode système). defaultTheme="light" fige le clair tant que l'utilisateur ne bascule

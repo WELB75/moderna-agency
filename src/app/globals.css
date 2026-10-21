@@ -271,7 +271,9 @@
   }
   html {
     @apply font-sans;
-    overflow-x: hidden;
+    /* clip et non hidden : hidden ferait de <html> un conteneur de défilement et casserait le
+       position: sticky de la barre latérale et de l'en-tête. */
+    overflow-x: clip;
     overscroll-behavior-x: none;
   }
   body {
