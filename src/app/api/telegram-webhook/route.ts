@@ -94,15 +94,12 @@ export async function POST(req: NextRequest) {
     const fromId = String(message.from?.id ?? "");
     if (!chatId || !fromId) return NextResponse.json({ ok: true });
 
-    // Réservé à Kamel — tant que TELEGRAM_ALLOWED_USER_ID n'est pas encore fixé (bootstrap), on
-    // laisse passer en journalisant l'id pour pouvoir le verrouiller juste après.
+    // Réservé à Kamel : le bot donne maintenant les codes d'accès des logements, donc on refuse
+    // tout le monde tant que TELEGRAM_ALLOWED_USER_ID n'est pas défini (plus de mode ouvert).
     const allowedUserId = process.env.TELEGRAM_ALLOWED_USER_ID;
-    if (allowedUserId && fromId !== allowedUserId) {
+    if (!allowedUserId || fromId !== allowedUserId) {
       console.warn("Message Telegram ignoré, expéditeur non autorisé:", fromId);
       return NextResponse.json({ ok: true });
-    }
-    if (!allowedUserId) {
-      console.log("TELEGRAM_ALLOWED_USER_ID pas encore fixé — expéditeur de ce message:", fromId);
     }
 
     let text: string | null = message.text?.trim() || null;
