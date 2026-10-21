@@ -5,9 +5,13 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { technicians, villas, interventions } from "@/db/schema";
 import { isValidMaintenanceToken } from "@/lib/maintenance-access-token";
+import { estMembreEquipe } from "@/lib/acces";
 
 export async function POST(request: Request): Promise<NextResponse> {
-  const { userId } = await auth();
+  // Un compte Clerk hors équipe (voir src/lib/acces.ts) est traité comme un visiteur non connecté :
+  // il ne peut envoyer que via un lien technicien/villa valide.
+  const { userId: clerkUserId } = await auth();
+  const userId = (await estMembreEquipe(clerkUserId)) ? clerkUserId : null;
 
   const body = (await request.json()) as HandleUploadBody;
 
