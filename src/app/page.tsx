@@ -16,6 +16,7 @@ import { getDb } from "@/db";
 import { villas, domaines, personnel, reservations, technicians } from "@/db/schema";
 import { count, eq } from "drizzle-orm";
 import { Logo } from "@/components/app/logo";
+import { logementEstIntegre } from "@/lib/domaines-actifs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { toWhatsAppUrl } from "@/lib/phone";
@@ -30,16 +31,24 @@ const CONTACT_PHONE = "+212668730909";
 // redirigeait auparavant tout le monde vers /dashboard, protégé par Clerk).
 export default async function HomePage() {
   const db = getDb();
-  const [villasCount, domainesCount, personnelCount, reservationsCount, techniciensCount] = await Promise.all([
-    db.select({ n: count() }).from(villas),
-    db.select({ n: count() }).from(domaines),
+  const [logements, personnelCount, reservationsCount, techniciensCount] = await Promise.all([
+    // Logements réellement gérés (les mêmes que la page Hébergements), pas toutes les fiches en
+    // base : les logements retirés y restent pour l'historique (voir VILLAS_MASQUEES).
+    db
+      .select({ nom: villas.nom, type: villas.type, beds24RoomId: villas.beds24RoomId, domaineNom: domaines.nom })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id)),
     db.select({ n: count() }).from(personnel).where(eq(personnel.actif, true)),
     db.select({ n: count() }).from(reservations),
     db.select({ n: count() }).from(technicians),
   ]);
+  const geres = logements.filter((l) => logementEstIntegre(l));
+  const nbLogements = geres.length;
+  // Domaines où se trouvent ces logements (un domaine sans logement géré, comme Prestigia, ne compte plus).
+  const nbDomaines = new Set(geres.map((l) => l.domaineNom).filter(Boolean)).size;
 
   const stats = [
-    { value: `${villasCount[0].n}`, label: "Villas gérées" },
+    { value: `${nbLogements}`, label: "Villas gérées" },
     { value: `${reservationsCount[0].n}+`, label: "Séjours pris en charge" },
     { value: `${personnelCount[0].n}`, label: "Personnes dans l'équipe" },
     { value: "24/7", label: "Assistant WhatsApp" },
@@ -120,7 +129,7 @@ export default async function HomePage() {
           <span className="text-xs font-semibold uppercase tracking-wider text-primary">Ce qu&apos;on fait</span>
           <h2 className="mt-2 text-2xl font-semibold sm:text-3xl md:text-4xl">Tout ce que demande une villa, géré à votre place</h2>
           <p className="mt-3 text-muted-foreground">
-            {domainesCount[0].n} domaines, {villasCount[0].n} villas, une seule équipe qui s&apos;occupe de tout —
+            {nbDomaines} domaines, {nbLogements} villas, une seule équipe qui s&apos;occupe de tout —
             avec des outils qu&apos;on a construits nous-mêmes pour ne rien laisser passer.
           </p>
         </div>
@@ -247,9 +256,9 @@ export default async function HomePage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             {[
-              { icon: Building2, value: `${villasCount[0].n}`, label: "villas gérées activement" },
+              { icon: Building2, value: `${nbLogements}`, label: "villas gérées activement" },
               { icon: Users, value: `${techniciensCount[0].n}`, label: "techniciens partenaires" },
-              { icon: CalendarClock, value: `${domainesCount[0].n}`, label: "domaines à Marrakech" },
+              { icon: CalendarClock, value: `${nbDomaines}`, label: "domaines à Marrakech" },
               { icon: ShieldCheck, value: "100%", label: "séjours avec fiche police" },
             ].map((s) => (
               <Card key={s.label} className="flex flex-col items-start gap-2 p-5">
