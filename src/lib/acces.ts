@@ -10,20 +10,26 @@ import { accesEquipe } from "@/db/schema-acces";
 // "autorise" ; les autres sont redirigés vers /acces-refuse (voir src/proxy.ts) et apparaissent
 // "en attente" dans la page Accès, où un administrateur les valide en un clic.
 //
-// Comptes gardés au 2026-10-21 : Kamel seul, plus Fouad comme administrateur (« Kamel et Fouad »
-// gèrent les accès). Ces deux-là sont permanents : toujours autorisés et administrateurs, même si
-// la table est vide ou modifiée, pour que personne ne puisse fermer la porte à tout le monde.
+// Administrateurs (« Kamel et Fouad » gèrent les accès, 2026-10-21) : permanents, toujours
+// autorisés et administrateurs, même si la table est vide ou modifiée, pour que personne ne puisse
+// fermer la porte à tout le monde.
 export const ADMINS_PERMANENTS: { email: string; nom: string }[] = [
   { email: "tmshparis@gmail.com", nom: "Kamel Paris" },
   { email: "jaielfouad@gmail.com", nom: "Fouad Jaiel" },
 ];
 
-// Comptes déjà vus dans le journal des connexions mais non retenus le 2026-10-21 : créés "en
-// attente" pour qu'un administrateur puisse les réautoriser d'un clic s'il le faut.
-const COMPTES_EN_ATTENTE_INITIAUX: { email: string; nom: string }[] = [
+// 2026-10-21 : « il faut autoriser tous ceux qui sont déjà sur l'app (Sanaa, Imad, Imane, Kamel,
+// Fouad et Rida) ». Comptes vus dans le journal des connexions, autorisés d'office :
+const COMPTES_AUTORISES_INITIAUX: { email: string; nom: string }[] = [
   { email: "modernaagency04@gmail.com", nom: "Imane Haimoudi" },
   { email: "aanas.jaiel@gmail.com", nom: "aanas.jaiel@gmail.com" },
 ];
+// ...et, pour ceux dont l'adresse n'est pas connue ici (Sanaa, Imad, Rida...), tout compte Clerk
+// créé avant la mise en place du contrôle est repris comme autorisé (voir repriseComptesExistants).
+// Un compte créé après cette date reste en attente jusqu'à validation par un administrateur.
+const REPRISE_COMPTES_CREES_AVANT = Date.parse("2026-10-21T20:20:00Z");
+const CLE_REPRISE = "reprise_comptes_clerk_2026_10_21";
+const LIBELLE_REPRISE = "Compte déjà sur l'app le 21/10";
 
 export type RoleAcces = "admin" | "membre";
 export type StatutCompte = "autorise" | "en_attente" | "refuse";
@@ -75,19 +81,82 @@ export function assurerTableAcces(): Promise<void> {
           ON CONFLICT (email) DO UPDATE SET role = 'admin', statut = 'autorise'
         `);
       }
-      for (const c of COMPTES_EN_ATTENTE_INITIAUX) {
+      for (const c of COMPTES_AUTORISES_INITIAUX) {
         await db.execute(sql`
-          INSERT INTO acces_equipe (email, nom, role, statut)
-          VALUES (${c.email}, ${c.nom}, 'membre', 'en_attente')
+          INSERT INTO acces_equipe (email, nom, role, statut, decide_par, decide_le)
+          VALUES (${c.email}, ${c.nom}, 'membre', 'autorise', ${LIBELLE_REPRISE}, now())
           ON CONFLICT (email) DO NOTHING
         `);
       }
+      // Sans bloquer l'accès si Clerk ne répond pas : la reprise sera retentée au prochain démarrage
+      // (le marqueur n'est posé qu'une fois la reprise terminée).
+      await repriseComptesExistants().catch((err) => console.error("Reprise des comptes existants impossible :", err));
     })().catch((err) => {
       tablePrete = null;
       throw err;
     });
   }
   return tablePrete;
+}
+
+type UtilisateurClerk = {
+  id: string;
+  createdAt: number;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  primaryEmailAddressId: string | null;
+  emailAddresses: { id: string; emailAddress: string; verification: { status: string } | null }[];
+};
+
+function emailPrincipal(user: UtilisateurClerk): { email: string | null; verifie: boolean } {
+  const principale =
+    user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId) ?? user.emailAddresses[0] ?? null;
+  return {
+    email: principale ? normaliserEmail(principale.emailAddress) : null,
+    verifie: principale?.verification?.status === "verified",
+  };
+}
+
+function nomClerk(user: UtilisateurClerk, email: string | null): string | null {
+  return [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.username || email;
+}
+
+// Une seule fois (marqueur dans acces_meta) : tous les comptes Clerk existant avant la mise en
+// place du contrôle sont autorisés, sauf décision contraire déjà prise dans la page Accès. Ils
+// restent visibles dans la page Accès, où un administrateur peut retirer un compte inconnu.
+async function repriseComptesExistants(): Promise<void> {
+  const db = getDb();
+  await db.execute(sql`CREATE TABLE IF NOT EXISTS acces_meta (cle text PRIMARY KEY, fait_le timestamptz NOT NULL DEFAULT now())`);
+  const deja = await db.execute(sql`SELECT 1 FROM acces_meta WHERE cle = ${CLE_REPRISE} LIMIT 1`);
+  if (deja.rows.length > 0) return;
+
+  const client = await clerkClient();
+  const comptes: UtilisateurClerk[] = [];
+  for (let offset = 0; offset < 2000; offset += 100) {
+    const res = (await client.users.getUserList({ limit: 100, offset })) as unknown;
+    const page = (Array.isArray(res) ? res : (res as { data: UtilisateurClerk[] }).data) as UtilisateurClerk[];
+    comptes.push(...page);
+    if (page.length < 100) break;
+  }
+
+  for (const user of comptes) {
+    if (!(user.createdAt < REPRISE_COMPTES_CREES_AVANT)) continue;
+    const { email, verifie } = emailPrincipal(user);
+    if (!email || !verifie || estAdminPermanent(email)) continue;
+    await db.execute(sql`
+      INSERT INTO acces_equipe (email, nom, role, statut, clerk_user_id, decide_par, decide_le)
+      VALUES (${email}, ${nomClerk(user, email)}, 'membre', 'autorise', ${user.id}, ${LIBELLE_REPRISE}, now())
+      ON CONFLICT (email) DO UPDATE SET
+        statut = 'autorise',
+        nom = COALESCE(acces_equipe.nom, EXCLUDED.nom),
+        clerk_user_id = COALESCE(acces_equipe.clerk_user_id, EXCLUDED.clerk_user_id),
+        decide_par = EXCLUDED.decide_par,
+        decide_le = now()
+      WHERE acces_equipe.decide_par IS NULL
+    `);
+  }
+  await db.execute(sql`INSERT INTO acces_meta (cle) VALUES (${CLE_REPRISE}) ON CONFLICT (cle) DO NOTHING`);
 }
 
 // --- Identité Clerk (e-mail vérifié + nom), mise en cache pour ne pas appeler Clerk à chaque page.
@@ -101,13 +170,9 @@ async function identiteClerk(userId: string): Promise<Identite> {
   if (enCache && enCache.expire > Date.now()) return enCache.valeur;
 
   const client = await clerkClient();
-  const user = await client.users.getUser(userId);
-  const principale =
-    user.emailAddresses.find((e) => e.id === user.primaryEmailAddressId) ?? user.emailAddresses[0] ?? null;
-  const email = principale ? normaliserEmail(principale.emailAddress) : null;
-  const verifie = principale?.verification?.status === "verified";
-  const nom = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || user.username || email;
-  const valeur: Identite = { email, nom, verifie };
+  const user = (await client.users.getUser(userId)) as unknown as UtilisateurClerk;
+  const { email, verifie } = emailPrincipal(user);
+  const valeur: Identite = { email, nom: nomClerk(user, email), verifie };
 
   if (identites.size > 500) identites.clear();
   identites.set(userId, { valeur, expire: Date.now() + DUREE_IDENTITE_MS });
