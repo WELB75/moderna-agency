@@ -257,6 +257,9 @@ export async function analyserNuitsIsolees(options: { appliquer: boolean; forcer
       const liste: { date: string; minStay: number }[] = [];
       const ch = { baisses: [] as string[], hausses: [] as string[] };
       for (const [date, v] of voulu) {
+        // Jamais d'écriture sur la nuit en cours : Beds24 ne la confirme pas (vu le 20/10/2026 sur
+        // Villa Nessya, 32 échecs de suite) et débloquer une nuit déjà commencée ne sert à rien.
+        if (date <= aujourdhui) continue;
         const a = actuel.get(date) ?? null;
         if (!options.forcer && a === v.minStay) continue;
         liste.push({ date, minStay: v.minStay });
@@ -304,6 +307,7 @@ export async function analyserNuitsIsolees(options: { appliquer: boolean; forcer
       const enEchec: string[] = [];
       for (const nuit of logement.nuitsIsolees) {
         if (nuit.statut !== "a_debloquer") continue;
+        if (nuit.debut <= aujourdhui) continue; // nuit en cours : laissée telle quelle (voir plus haut)
         if (nuit.dates.some((d) => cleEchec.has(`${logement.roomId}:${d}`))) {
           nuit.statut = "echec";
           nuit.detail = rapport.plancherBloquant
@@ -320,7 +324,15 @@ export async function analyserNuitsIsolees(options: { appliquer: boolean; forcer
       }
       const hausses = (ch?.hausses ?? []).filter((d) => !cleEchec.has(`${logement.roomId}:${d}`)).length;
       if (hausses > 0) rapport.restaurees += hausses;
-      if (debloquees.length > 0 || enEchec.length > 0) {
+      // Même échec déjà consigné dans l'heure : pas de nouvelle ligne (le cron repasse souvent).
+      const resumeJournal = [debloquees.length ? `Nuits isolées débloquées : ${debloquees.join(", ")}` : null, enEchec.length ? `Échec : ${enEchec.join(", ")}` : null]
+        .filter(Boolean)
+        .join(" · ");
+      const dejaConsigne =
+        debloquees.length === 0 &&
+        enEchec.length > 0 &&
+        (await db.execute(sql`SELECT 1 FROM reservation_journal WHERE action = 'nuit_isolee_debloquee' AND villa_id = ${logement.villaId} AND resume = ${resumeJournal} AND created_at > now() - interval '1 hour' LIMIT 1`)).rows.length > 0;
+      if ((debloquees.length > 0 || enEchec.length > 0) && !dejaConsigne) {
         await journaliser({
           action: "nuit_isolee_debloquee",
           categorie: "calendrier",
