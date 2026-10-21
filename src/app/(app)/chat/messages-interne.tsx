@@ -5,7 +5,7 @@ import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PersonnelTabs } from "@/components/app/personnel-tabs";
 import { Badge } from "@/components/ui/badge";
 import { ChatPanel, type ChatMessageRow } from "@/components/app/chat-panel";
-import { filtrerDomainesActifs, idsVillasActives } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, idsVillasActives, villaEstGeree } from "@/lib/domaines-actifs";
 import type { ChatCategorie } from "@/lib/actions/chat";
 
 const CATEGORIES: { value: ChatCategorie; label: string }[] = [
@@ -31,7 +31,7 @@ export async function MessagesInterne({ ongletParam }: { ongletParam: string | u
   const domaineIdsActifs = new Set(domainesActifs.map((d) => d.id));
   const allVillasRaw = await db.select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId }).from(villas);
   const villaIdsActives = idsVillasActives(allVillasRaw, domaineIdsActifs);
-  const allVillas = allVillasRaw.filter((v) => villaIdsActives.has(v.id));
+  const allVillas = allVillasRaw.filter((v) => villaIdsActives.has(v.id) && villaEstGeree(v.nom));
 
   const rows = await db
     .select({
