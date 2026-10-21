@@ -6,6 +6,7 @@ import { villaEstGeree } from "@/lib/domaines-actifs";
 import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
 import { annoncesCandidates, choisirAnnonce } from "./annonce";
 import { creationsParReservation } from "@/lib/journal";
+import { lienPlateforme } from "@/lib/lien-plateforme";
 
 // PriceLabs calcule des prix fiables sur un an complet (vérifié : 365/365 jours non-null pour
 // Villa Tania le 2026-09-28), donc l'onglet Tarification peut proposer un vrai sélecteur de mois
@@ -43,6 +44,7 @@ export type TarificationReservation = {
   source: string; // origine : "manuel" (créée dans l'app, supprimable), "beds24", "superhote"...
   notes: string | null;
   enCours: boolean; // aujourd'hui tombe dans [checkIn, checkOut)
+  lienPlateforme?: { url: string; libelle: string } | null; // ouvre la réservation sur Airbnb / Booking.com
   // Journal "qui a fait quoi" (voir src/lib/journal.ts) : quand la réservation a été ajoutée
   // dans l'app (instant réel ISO), par qui (null si avant la mise en place du journal, le
   // 16/10/2026) et si la fermeture des dates sur Beds24 a échoué à la création.
@@ -222,8 +224,11 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       source: reservations.source,
       notes: reservations.notes,
       createdAt: reservations.createdAt,
+      rawData: reservations.rawData,
+      beds24RoomId: villas.beds24RoomId,
     })
     .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
     .where(
       and(
         inArray(reservations.villaId, villaIds),
@@ -255,6 +260,7 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       source: r.source,
       notes: r.notes,
       enCours: checkIn <= aujourdhui && aujourdhui < checkOut,
+      lienPlateforme: lienPlateforme({ canal: r.canal, rawData: r.rawData, beds24RoomId: r.beds24RoomId }),
       ajouteeLe: creation?.createdAt ?? (r.createdAt ? new Date(r.createdAt).toISOString() : null),
       ajouteePar: creation?.auteurNom ?? null,
       beds24Echec: creation?.beds24Statut === "echec",
