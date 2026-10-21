@@ -217,7 +217,11 @@ const LIGNES_DETAIL = [
 ] as const;
 // Comme SuperHote : on garde quelques jours de passé à gauche d'aujourd'hui (séjours qui viennent
 // de se terminer, affichés grisés).
-const JOURS_PASSES_PLANNING = 4;
+// Kamel, 2026-10-21 : "je peux aller en avant mais pas en arrière" — on peut maintenant remonter
+// de 6 mois ; la vue s'ouvre toujours sur aujourd'hui moins JOURS_VISIBLES_AVANT_AUJOURDHUI.
+// Ce nombre doit rester aligné sur JOURS_PASSES_RESERVATIONS (lib/pricelabs/sync.ts).
+const JOURS_PASSES_PLANNING = 180;
+const JOURS_VISIBLES_AVANT_AUJOURDHUI = 4;
 
 type ReservationSelectionnee = { villaId: string; villaNom: string } & TarificationReservation;
 
@@ -334,6 +338,12 @@ function TarificationGrid({
   }, [dateList]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const debutVue = (JOURS_PASSES_PLANNING - JOURS_VISIBLES_AVANT_AUJOURDHUI) * COL_WIDTH;
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ left: debutVue });
+    // Seulement à l'ouverture (et si la largeur des colonnes change) : jamais pendant la lecture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [COL_WIDTH]);
   const [ouvertes, setOuvertes] = useState<Set<string>>(() => new Set());
   // Case "Nombre de nuits minimum" cliquée (panneau d'édition façon SuperHote) et compteur par
   // logement pour relire Beds24 après une modification.
@@ -351,7 +361,7 @@ function TarificationGrid({
   function toutBasculer() {
     setOuvertes(toutOuvert ? new Set() : new Set(villas.map((v) => v.id)));
   }
-  const [premierIndexVisible, setPremierIndexVisible] = useState(0);
+  const [premierIndexVisible, setPremierIndexVisible] = useState(JOURS_PASSES_PLANNING - JOURS_VISIBLES_AVANT_AUJOURDHUI);
   // Mois affiché en grand dans l'en-tête : celui du premier jour visible à l'écran (suit le
   // défilement, comme "Octobre 2026" sur SuperHote).
   const dateEnTete = dateList[Math.min(Math.max(premierIndexVisible, 0), dateList.length - 1)];
@@ -382,7 +392,7 @@ function TarificationGrid({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" onClick={() => scrollRef.current?.scrollTo({ left: 0, behavior: "smooth" })}>
+        <Button variant="outline" onClick={() => scrollRef.current?.scrollTo({ left: debutVue, behavior: "smooth" })}>
           Aujourd&apos;hui
         </Button>
         <span className="text-sm font-medium">{compact ? "Aller à" : "Allez à"}</span>

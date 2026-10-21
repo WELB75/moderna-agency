@@ -12,6 +12,8 @@ import { creationsParReservation } from "@/lib/journal";
 // façon Airbnb (juillet 2026 → octobre 2027 sur la capture de référence) plutôt que se limiter
 // aux ~2 mois d'une fenêtre de 60 jours.
 const JOURS_CALENDRIER = 365;
+// Jours de passé affichés dans le planning (voir JOURS_PASSES_PLANNING dans tarification-view.tsx).
+const JOURS_PASSES_RESERVATIONS = 180;
 
 function ttlMs(): number {
   const heures = Number(process.env.PRICELABS_CACHE_TTL_HOURS) || 2;
@@ -200,7 +202,7 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
   // tarification-view.tsx. Sans effet sur le calcul des jours occupés : le cache PriceLabs ne
   // contient que des dates à partir d'aujourd'hui.
   const debutFenetre = new Date(debutJour);
-  debutFenetre.setUTCDate(debutFenetre.getUTCDate() - 7);
+  debutFenetre.setUTCDate(debutFenetre.getUTCDate() - JOURS_PASSES_RESERVATIONS);
   const finFenetre = new Date(debutJour);
   finFenetre.setUTCDate(finFenetre.getUTCDate() + JOURS_CALENDRIER);
 
