@@ -45,5 +45,6 @@ export const LIBELLES_CATEGORIE: Record<string, string> = {
   gendarmerie: "Fiches police",
   inventaire: "États des lieux",
   messagerie: "Messages",
+  acces: "Accès au back-office",
   autre: "Autre",
 };
