@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Search } from "lucide-react";
 import { CanalDot } from "@/components/app/canal-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
+import { WhatsAppAgenceReplyForm } from "@/components/app/whatsapp-agence-reply-form";
 import { SOURCE_META } from "@/lib/canal";
 import { traduireMessagesRecus } from "@/lib/actions/traduction";
 import { marquerConversationLue } from "@/lib/actions/messages-lus";
@@ -32,6 +33,9 @@ export type InboxConversation = {
   phone: string | null;
   reservationId: string | null; // seulement pour Airbnb (réponse via Beds24)
   beds24InquiryId?: number | null; // demande d'information Airbnb, sans réservation dans l'app
+  // Conversation de la ligne WhatsApp Business de l'agence : réponse possible depuis l'app tant
+  // que la fenêtre de 24 h après le dernier message du client est ouverte.
+  ligneAgence?: { fenetreOuverte: boolean };
 };
 
 const STATUS_CLASS: Record<InboxStatus, string> = {
@@ -394,6 +398,8 @@ export function InboxClient({
                 beds24InquiryId={selected.beds24InquiryId}
                 langue={derniereLangue}
               />
+            ) : selected.ligneAgence && selected.phone ? (
+              <WhatsAppAgenceReplyForm key={selected.key} contact={selected.phone} fenetreOuverte={selected.ligneAgence.fenetreOuverte} />
             ) : (
               <p className="border-t border-border p-3 text-sm text-muted-foreground">
                 Réponse WhatsApp depuis l&apos;app : pas encore branchée, la conversation est en lecture seule.

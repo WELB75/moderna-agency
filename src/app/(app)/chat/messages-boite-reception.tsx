@@ -7,6 +7,7 @@ import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
 import { beds24GetBookings, beds24GetMessagesBulk, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
+import { chargerMessagesAgence, FENETRE_24H_MS } from "@/lib/whatsapp-agence";
 import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatus } from "./inbox-client";
 
 // Boîte de réception reconstruite sur le modèle de la messagerie Superhote (liste à gauche avec
@@ -286,6 +287,62 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
       phone: c.phone,
       reservationId: null,
     });
+  }
+
+  // --- Ligne WhatsApp Business de l'agence (coexistence téléphone + app) : bloc isolé, une erreur
+  // de lecture ne casse pas le reste de la boîte.
+  try {
+    const parContact = await chargerMessagesAgence();
+    for (const [phone, liste] of parContact) {
+      const last = liste[liste.length - 1];
+      const dernierEntrant = [...liste].reverse().find((m) => m.sens === "entrant");
+      const staff = personnelList.find((x) => phonesMatch(x.telephone, phone));
+      const tech = techniciensList.find((x) => phonesMatch(x.telephone, phone));
+      const client = clientsList.find((x) => phonesMatch(x.telephone, phone));
+      const stay = pickStay(
+        stays.filter((s) => phonesMatch(s.guestPhone, phone)),
+        now
+      );
+      let name = phone;
+      let status: InboxStatus = "autre";
+      let statusLabel = "WhatsApp agence";
+      if (staff) {
+        name = staff.nom;
+        statusLabel = staff.role === "menage" ? "Ménage" : "Cuisine";
+      } else if (tech) {
+        name = tech.nom;
+        statusLabel = "Technicien";
+      } else if (stay) {
+        name = stay.guestName;
+      } else if (client) {
+        name = client.nom;
+        statusLabel = "Client";
+      }
+      const sejour = stay && !staff && !tech ? stay : null;
+      if (sejour) {
+        const s = stayStatus(sejour.checkIn, sejour.checkOut, now);
+        status = s.status;
+        statusLabel = s.label;
+      }
+      items.push({
+        key: `ag:${phone}`,
+        name,
+        channel: "whatsapp",
+        status,
+        statusLabel,
+        stay: sejour ? stayRange(sejour.checkIn, sejour.checkOut) : null,
+        logement: sejour ? [sejour.villaNom, sejour.villaNumero ? `n°${sejour.villaNumero}` : null].filter(Boolean).join(" ") : null,
+        lastAt: last.at.toISOString(),
+        preview: last.contenu,
+        awaitingReply: last.sens === "entrant",
+        messages: liste.slice(-100).map((m) => ({ fromContact: m.sens === "entrant", text: m.contenu, at: m.at.toISOString() })),
+        phone,
+        reservationId: null,
+        ligneAgence: { fenetreOuverte: Boolean(dernierEntrant && now.getTime() - dernierEntrant.at.getTime() < FENETRE_24H_MS) },
+      });
+    }
+  } catch (error) {
+    console.error("[boite-reception] ligne WhatsApp agence :", error);
   }
 
   // --- Airbnb via Beds24 (Booking.com : bientôt)

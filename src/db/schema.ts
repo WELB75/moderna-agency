@@ -1063,6 +1063,10 @@ export const whatsappOutboundMessages = pgTable(
     // les médias durablement, donc sans copie il ne resterait que la transcription. Permet de
     // réécouter la voix Ghizlane envoyée, et les vocaux reçus du personnel.
     audioUrl: text("audio_url"),
+    // Numéro WhatsApp Business de l'agence branché en coexistence (téléphone + app) : "agence".
+    // Null = le numéro historique de l'API (agents staff/techniciens). Ces lignes alimentent la
+    // boîte Messages, sans aucun agent IA.
+    ligne: text("ligne"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
