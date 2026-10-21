@@ -15,6 +15,7 @@ import {
   maintenanceRecords,
 } from "@/db/schema";
 import { domaineEstActif } from "@/lib/domaines-actifs";
+import { getVillaCodes, getOccupation, getDisponibilites } from "@/lib/telegram-agent/consultation";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 
 const client = new Anthropic();
@@ -152,6 +153,42 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "get_villa_codes",
+    description:
+      "Donne les codes d'accès d'un logement : boîtier à clés, porte d'entrée, chambre master et wifi. Utiliser pour \"code du boîtier/de la porte de telle villa\", \"wifi de...\".",
+    input_schema: {
+      type: "object",
+      properties: { villaNom: { type: "string", description: "Nom (ou numéro) du logement, même approximatif." } },
+      required: ["villaNom"],
+    },
+  },
+  {
+    name: "get_occupation",
+    description:
+      "Situation d'un jour donné pour tous les logements (ou un seul) : libre, qui arrive, qui part, qui est sur place, avec la cuisinière et le ménage du séjour. Utiliser pour \"y a quelqu'un dans telle villa aujourd'hui/demain ?\", \"qui est la cuisinière de telle villa ?\", \"quels clients aujourd'hui ?\".",
+    input_schema: {
+      type: "object",
+      properties: {
+        date: { type: "string", description: "Date YYYY-MM-DD (résous toi-même aujourd'hui/demain...)." },
+        villaNom: { type: "string", description: "Un logement précis, ou omettre pour tous." },
+      },
+      required: ["date"],
+    },
+  },
+  {
+    name: "get_disponibilites",
+    description:
+      "Liste les logements libres sur une période (nuits du jour `du` jusqu'au jour `au` exclu). Sans `au` : une seule nuit. Utiliser pour \"quelles villas sont dispo ?\" (aujourd'hui par défaut).",
+    input_schema: {
+      type: "object",
+      properties: {
+        du: { type: "string", description: "Premier jour, YYYY-MM-DD." },
+        au: { type: "string", description: "Jour de départ (exclu), YYYY-MM-DD. Optionnel." },
+      },
+      required: ["du"],
+    },
+  },
+  {
     name: "post_team_note",
     description:
       "Poste une note courte dans les Messages internes de l'app (visibles par toute l'équipe), pour signaler quelque chose sans détail sensible écrit. Utiliser seulement si Kamel demande explicitement de noter/signaler quelque chose à l'équipe.",
@@ -175,7 +212,7 @@ Date d'aujourd'hui : ${today}.
 Villas connues (utilise le nom exact si Kamel en mentionne une, corrige les fautes/surnoms) :
 - ${villasPromptList}
 
-Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, donner le programme d'une journée (arrivées, départs, ménage, cuisine, maintenance), confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe.
+Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, donner le programme d'une journée (arrivées, départs, ménage, cuisine, maintenance), confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe, donner les codes d'accès (boîtier, porte, master, wifi) d'un logement, dire qui est dans quel logement un jour donné (clients du jour, arrivées, départs), les logements disponibles, et la cuisinière ou le ménage d'un séjour. Pour toute question de ce type, appelle l'outil plutôt que de répondre de mémoire, et donne les codes tels quels (Kamel est le seul interlocuteur).
 Ce que tu NE fais PAS : fiches de police, création de réservations, modification du code de l'application — dis-le simplement si Kamel demande ça, sans essayer.
 
 Règles :
@@ -685,6 +722,15 @@ export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
             break;
           case "get_agenda":
             result = await getAgenda(String(input.date));
+            break;
+          case "get_villa_codes":
+            result = await getVillaCodes(String(input.villaNom));
+            break;
+          case "get_occupation":
+            result = await getOccupation(String(input.date), input.villaNom ? String(input.villaNom) : undefined);
+            break;
+          case "get_disponibilites":
+            result = await getDisponibilites(String(input.du), input.au ? String(input.au) : undefined);
             break;
           case "post_team_note":
             result = await postTeamNote(input);
