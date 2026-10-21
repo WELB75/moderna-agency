@@ -191,57 +191,52 @@ export function ReservationAgendaCard({
 
       {/* ---- Détail ---- */}
       <div className="space-y-5 border-t border-border px-4 pb-4 pt-4">
-        {/* Repères : contact, plateforme, codes, voyageurs, alertes */}
-        <div className="space-y-2.5">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-            {r.villaId ? (
-              <Link href={`/villas/${r.villaId}`} className="font-medium text-primary underline-offset-4 hover:underline">
-                {r.villaNom ?? "Fiche du logement"}
-                {r.villaNumero ? <span className="font-normal text-muted-foreground"> · n°{r.villaNumero}</span> : null}
-              </Link>
-            ) : null}
-            <span className="inline-flex items-center gap-1 font-medium">
-              {r.guestName}
-              {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
-              <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
-              <EditNotesButton reservationId={r.id} notes={r.notes} />
-            </span>
-            {r.nbAdultes !== null || r.nbEnfants !== null ? (
-              <span className="inline-flex items-center gap-2 text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5" />
-                  {r.nbAdultes ?? 0} adulte{(r.nbAdultes ?? 0) > 1 ? "s" : ""}
-                </span>
-                {r.nbEnfants ? (
-                  <span className="inline-flex items-center gap-1">
-                    <Baby className="h-3.5 w-3.5" />
-                    {r.nbEnfants} enfant{r.nbEnfants > 1 ? "s" : ""}
-                  </span>
+        {/* Repères : logement, client, dates à gauche ; voyageurs, codes, plateforme à droite ;
+            alertes (client connu, cash, note, récap) en dessous. */}
+        <div className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+            <div className="min-w-0 space-y-1 text-sm">
+              <p className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                {r.villaId ? (
+                  <Link href={`/villas/${r.villaId}`} className="font-medium text-primary underline-offset-4 hover:underline">
+                    {r.villaNom ?? "Fiche du logement"}
+                    {r.villaNumero ? <span className="font-normal text-muted-foreground"> · n°{r.villaNumero}</span> : null}
+                  </Link>
                 ) : null}
-              </span>
-            ) : null}
-            <span className="text-muted-foreground">
-              {isIn ? (
-                <>
-                  Du {format(new Date(r.checkIn), "d MMM HH:mm", { locale: fr })} au {format(new Date(r.checkOut), "d MMM HH:mm", { locale: fr })}
-                  {nuits > 0 ? ` · ${nuits} nuit${nuits > 1 ? "s" : ""}` : ""}
-                </>
-              ) : (
-                <>Arrivé le {format(new Date(r.checkIn), "d MMM", { locale: fr })} · départ {format(target, "d MMM 'à' HH:mm", { locale: fr })}</>
-              )}
-            </span>
-            {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
-          </div>
-
-          {r.codeBoitier || r.codePorteEntree || r.codeChambreMaster ? (
-            <div className="flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex min-w-0 items-center gap-0.5">
+                  <span className="truncate font-medium">{r.guestName}</span>
+                  {r.guestPhone ? <GuestWhatsAppButton phone={r.guestPhone} guestName={r.guestName} /> : null}
+                  <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
+                  <EditNotesButton reservationId={r.id} notes={r.notes} />
+                </span>
+              </p>
+              <p className="text-muted-foreground">
+                {isIn ? (
+                  <>
+                    Du {format(new Date(r.checkIn), "d MMM 'à' HH:mm", { locale: fr })} au {format(new Date(r.checkOut), "d MMM 'à' HH:mm", { locale: fr })}
+                    {nuits > 0 ? ` · ${nuits} nuit${nuits > 1 ? "s" : ""}` : ""}
+                  </>
+                ) : (
+                  <>Arrivé le {format(new Date(r.checkIn), "d MMM", { locale: fr })} · départ le {format(target, "d MMM 'à' HH:mm", { locale: fr })}</>
+                )}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+              {r.nbAdultes !== null || r.nbEnfants !== null ? (
+                <Badge variant="outline" className="gap-1 text-xs font-medium">
+                  <Users className="h-3 w-3" />
+                  {r.nbAdultes ?? 0} adulte{(r.nbAdultes ?? 0) > 1 ? "s" : ""}
+                  {r.nbEnfants ? ` · ${r.nbEnfants} enfant${r.nbEnfants > 1 ? "s" : ""}` : ""}
+                </Badge>
+              ) : null}
               {r.codeBoitier ? <CodeBadge icon={KeyRound} title="Code du boîtier à clés" value={r.codeBoitier} /> : null}
               {r.codePorteEntree ? (
                 <CodeBadge icon={DoorClosedLocked} title="Code de la poignée tactile de la porte d'entrée" value={r.codePorteEntree} />
               ) : null}
               {r.codeChambreMaster ? <CodeBadge icon={BedDouble} title="Code de la porte de la chambre master" value={r.codeChambreMaster} /> : null}
+              {r.lienPlateforme ? <LienPlateforme lien={r.lienPlateforme} /> : null}
             </div>
-          ) : null}
+          </div>
 
           {(isIn && r.clientConnu) || (!isIn && r.cashAPrevoir > 0) || r.notes || r.recap ? (
             <div className="space-y-1.5">
@@ -265,7 +260,7 @@ export function ReservationAgendaCard({
           ) : null}
         </div>
 
-        <div className="grid gap-5 lg:grid-cols-2 lg:gap-8">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-8">
           {/* Équipe + validation */}
           <div className="space-y-3">
             <SectionLabel>Équipe</SectionLabel>
@@ -331,15 +326,17 @@ export function ReservationAgendaCard({
                   <ContratStatusChip contratId={r.contratId} contratStatut={r.contratStatut} villaId={r.villaId} reservationId={r.id} />
                 </div>
               ) : null}
-              <PaymentSummary
-                reservationId={r.id}
-                loyerTotal={r.loyerTotal}
-                montantPaye={r.montantPaye}
-                caution={r.caution}
-                cautionPayee={r.cautionPayee}
-                devisePaiement={r.devisePaiement}
-              />
-              {r.loyerTotal === null && !isIn ? <p className="text-sm text-muted-foreground">Aucun montant renseigné.</p> : null}
+              <div className="[&>div]:mt-0 [&>div]:rounded-xl [&>div]:px-3 [&>div]:py-2">
+                <PaymentSummary
+                  reservationId={r.id}
+                  loyerTotal={r.loyerTotal}
+                  montantPaye={r.montantPaye}
+                  caution={r.caution}
+                  cautionPayee={r.cautionPayee}
+                  devisePaiement={r.devisePaiement}
+                />
+              </div>
+              {r.loyerTotal === null ? <p className="text-sm text-muted-foreground">Aucun montant renseigné.</p> : null}
             </div>
           )}
         </div>
@@ -431,8 +428,11 @@ type StatutMiniProps = { label: string; tone: "ok" | "attente" | "urgent" | "neu
 // l'arrivée (fiche police, contrat, cuisine prévue) ou le départ (ménage, cash à apporter).
 function resumeStatuts(r: ReservationRow, kind: "in" | "out", isProprietaire: boolean): StatutMiniProps[] {
   const out: StatutMiniProps[] = [];
+  // Blocage (dates fermées, séjour propriétaire importé...) : pas de voyageur, donc ni fiche
+  // police ni contrat à suivre.
+  const bloque = Boolean(r.canal && normaliseCanal(r.canal) === "bloque");
   if (kind === "in") {
-    if (!isProprietaire) {
+    if (!isProprietaire && !bloque) {
       out.push({
         icon: FileText,
         label: r.ficheStatut === "complete" ? "Fiche police faite" : "Fiche police",

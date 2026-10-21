@@ -1,7 +1,7 @@
 "use client";
 
 import { useOptimistic, useState, useTransition } from "react";
-import { X, Check, Circle, Coffee, UtensilsCrossed, Star, MessageCircle, StickyNote, ShoppingBasket } from "lucide-react";
+import { X, Check, Circle, Coffee, UtensilsCrossed, Star, MessageCircle, StickyNote, ShoppingBasket, ChefHat } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,14 @@ import {
   type VillaTarifContext,
 } from "@/lib/personnel-tarifs";
 import type { PersonnelOption } from "@/lib/personnel-options";
+
+// Un seul style de petit bouton de réglage (jours, déjeuner, note qualité, remarque, payé) :
+// même hauteur, même rayon, même bordure ; "allumé" = fond encre, texte fond. Pas de couleur
+// sémantique ici (charte sobre), seul l'état ON/OFF change.
+const CHIP =
+  "inline-flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-50 max-md:h-9 max-md:px-2.5";
+const CHIP_OFF = "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground";
+const CHIP_ON = "border-foreground bg-foreground text-background hover:bg-foreground";
 
 export type PersonnelAssigne = {
   affectationId: string;
@@ -308,19 +316,20 @@ export function PersonnelAffectationEditor({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-1.5">
       <p className="text-xs text-muted-foreground">{label}</p>
-      {/* Une ligne par personne (plus le "+ Ajouter" sur sa propre ligne) plutôt qu'un flex-wrap
-          horizontal : avec plusieurs personnes affectées, les badges (largeur variable selon
-          leur contenu) tombaient n'importe où sur 2 lignes inégales, et "+ Ajouter" se retrouvait
-          collé au dernier badge au lieu d'être aligné proprement. Kamel, 2026-08-17 : "c pas
-          propre du tout... faut que tout soit propre symetrique bien proportionné". */}
-      <div className="flex flex-col items-start gap-1.5">
+      {/* Une ligne pleine largeur par personne, puis "+ Ajouter" sur sa propre ligne : les blocs
+          ont tous la même largeur et la même structure (nom à gauche, montant à droite, réglages
+          sur une seconde ligne), donc rien ne se décale quand on ajoute une cuisinière ou une
+          femme de ménage. Kamel, 2026-08-17 : "faut que tout soit propre symetrique bien
+          proportionné" ; refonte 2026-10-21 : "quand on choisit cuisinière et femme de ménage ça
+          décale des éléments". */}
+      <div className="flex flex-col gap-1.5">
         {optimisticAssigned.map((a) =>
           minimal ? (
             <div
               key={a.affectationId}
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-background py-1 pl-2.5 pr-1.5 text-sm"
+              className="flex w-fit items-center gap-1.5 rounded-lg border border-border bg-background py-1 pl-2.5 pr-1.5 text-sm"
             >
               <span className="truncate">{a.nom}</span>
               <button
@@ -362,73 +371,120 @@ export function PersonnelAffectationEditor({
             />
           )
         )}
-        {!minimal && role === "menage" && moment === "depart" && optimisticAssigned.length > 0 ? (
-          <button
-            type="button"
-            onClick={handleNotifyBrahim}
-            disabled={isNotifyingBrahim}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs disabled:pointer-events-none disabled:opacity-50 max-md:min-h-10",
-              brahimPrevenu
-                ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600/90"
-                : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-            title={
-              brahimPrevenu
-                ? "Brahim a été prévenu pour ce départ — cliquer pour renvoyer"
-                : "Envoyer un rappel de courses à Brahim pour ce départ"
-            }
-          >
-            <ShoppingBasket className="h-3.5 w-3.5" />
-            {isNotifyingBrahim ? "Envoi…" : brahimPrevenu ? "Brahim prévenu" : "Prévenir Brahim"}
-          </button>
-        ) : null}
-        {availableOptions.length > 0 ? (
-          <Select value="" onValueChange={handleAdd} disabled={isPending}>
-            <SelectTrigger className="h-7 w-32 text-xs max-md:h-10 max-md:w-40 max-md:text-sm">
-              <SelectValue placeholder="+ Ajouter" />
-            </SelectTrigger>
-            {/* Distance au domaine (à vol d'oiseau depuis la dernière position WhatsApp connue),
-                note qualité moyenne (voir QualiteNoteControl) et notes libres affichées sous le
-                nom : aide à repérer la personne la plus proche / la mieux notée plutôt que de
-                choisir à l'aveugle dans une liste alphabétique. Le km est aligné à droite (colonne
-                fixe) plutôt que collé au nom : sinon sa position horizontale saute d'une ligne à
-                l'autre selon la longueur du nom. Kamel, 2026-09-04 : "je veux pas de decalage que
-                ce soit en mobile ou version pc" puis "je vois pas la note sur 5" — chaque ligne
-                supplémentaire (note, remarque) démarre systématiquement à gauche, sous le nom.
-                Les options restent triées par proximité (voir buildPersonnelOptions), pas
-                re-triées ici. */}
-            <SelectContent className="w-72 max-w-72">
-              {availableOptions.map((o) => (
-                <SelectItem key={o.id} value={o.id}>
-                  <span className="flex w-full min-w-0 flex-col gap-0.5 py-0.5 leading-tight">
-                    <span className="flex w-full items-baseline justify-between gap-3">
-                      <span className="min-w-0 truncate">{o.nom}</span>
-                      {o.distanceKm != null ? (
-                        <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
-                          {o.distanceKm.toFixed(1)} km
+        <div className="flex flex-wrap items-center gap-1.5">
+          {availableOptions.length > 0 ? (
+            <Select value="" onValueChange={handleAdd} disabled={isPending}>
+              <SelectTrigger className="h-8 w-44 rounded-lg text-[13px] max-md:h-10 max-md:w-full">
+                <SelectValue placeholder="+ Ajouter" />
+              </SelectTrigger>
+              {/* Distance au domaine (à vol d'oiseau depuis la dernière position WhatsApp connue),
+                  note qualité moyenne (voir QualiteNoteControl) et notes libres affichées sous le
+                  nom : aide à repérer la personne la plus proche / la mieux notée plutôt que de
+                  choisir à l'aveugle dans une liste alphabétique. Le km est aligné à droite (colonne
+                  fixe) plutôt que collé au nom : sinon sa position horizontale saute d'une ligne à
+                  l'autre selon la longueur du nom. Kamel, 2026-09-04 : "je veux pas de decalage que
+                  ce soit en mobile ou version pc" puis "je vois pas la note sur 5" — chaque ligne
+                  supplémentaire (note, remarque) démarre systématiquement à gauche, sous le nom.
+                  Les options restent triées par proximité (voir buildPersonnelOptions), pas
+                  re-triées ici. */}
+              <SelectContent className="w-72 max-w-72">
+                {availableOptions.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    <span className="flex w-full min-w-0 flex-col gap-0.5 py-0.5 leading-tight">
+                      <span className="flex w-full items-baseline justify-between gap-3">
+                        <span className="min-w-0 truncate">{o.nom}</span>
+                        {o.distanceKm != null ? (
+                          <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
+                            {o.distanceKm.toFixed(1)} km
+                          </span>
+                        ) : null}
+                      </span>
+                      {o.qualiteMoyenne != null ? (
+                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Star className="h-3 w-3 shrink-0 fill-current" />
+                          <span className="tabular-nums">{o.qualiteMoyenne.toFixed(1)}/5</span>
+                          <span className="text-muted-foreground/70">({o.qualiteTotal})</span>
                         </span>
                       ) : null}
+                      {o.notes ? <span className="truncate text-xs text-muted-foreground">{o.notes}</span> : null}
                     </span>
-                    {o.qualiteMoyenne != null ? (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Star className="h-3 w-3 shrink-0 fill-current" />
-                        <span className="tabular-nums">{o.qualiteMoyenne.toFixed(1)}/5</span>
-                        <span className="text-muted-foreground/70">({o.qualiteTotal})</span>
-                      </span>
-                    ) : null}
-                    {o.notes ? <span className="truncate text-xs text-muted-foreground">{o.notes}</span> : null}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : options.length === 0 ? (
-          <span className="text-xs text-muted-foreground">Personne dans l&apos;équipe (onglet Équipe)</span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Toute l&apos;équipe est déjà affectée ici</span>
-        )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : options.length === 0 ? (
+            <span className="text-xs text-muted-foreground">Personne dans l&apos;équipe (onglet Équipe)</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">Toute l&apos;équipe est déjà affectée ici</span>
+          )}
+          {!minimal && role === "menage" && moment === "depart" && optimisticAssigned.length > 0 ? (
+            <button
+              type="button"
+              onClick={handleNotifyBrahim}
+              disabled={isNotifyingBrahim}
+              className={cn(
+                CHIP,
+                "h-8 rounded-lg max-md:h-10",
+                brahimPrevenu ? "border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-600/90 hover:text-white" : CHIP_OFF
+              )}
+              title={
+                brahimPrevenu
+                  ? "Brahim a été prévenu pour ce départ — cliquer pour renvoyer"
+                  : "Envoyer un rappel de courses à Brahim pour ce départ"
+              }
+            >
+              <ShoppingBasket className="h-3.5 w-3.5" />
+              {isNotifyingBrahim ? "Envoi…" : brahimPrevenu ? "Brahim prévenu" : "Prévenir Brahim"}
+            </button>
+          ) : null}
+        </div>
       </div>
+    </div>
+  );
+}
+
+// Champ "nombre de jours" présenté comme un réglage parmi les autres (même gabarit que CHIP).
+function JoursChip({
+  value,
+  onChange,
+  onBlur,
+  disabled,
+  title,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onBlur: () => void;
+  disabled: boolean;
+  title: string;
+  placeholder: string;
+}) {
+  const n = value.trim() === "" ? 1 : Math.max(1, parseInt(value, 10) || 1);
+  return (
+    <label className={cn(CHIP, CHIP_OFF, "cursor-text gap-1.5 pl-1.5")} title={title}>
+      <Input
+        type="number"
+        min={1}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        disabled={disabled}
+        placeholder={placeholder}
+        className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs text-foreground shadow-none focus-visible:ring-0 max-md:h-7 max-md:w-10 max-md:text-sm"
+      />
+      <span>{n > 1 ? "jours" : "jour"}</span>
+    </label>
+  );
+}
+
+// Bloc d'une personne affectée : nom (et bascule "fait" pour le ménage) à gauche, montant /
+// paiement et retrait à droite, réglages sur une seconde ligne. Pleine largeur, même structure
+// pour le ménage et la cuisine.
+function PersonneRow({ children, reglages }: { children: React.ReactNode; reglages?: React.ReactNode }) {
+  return (
+    <div className="w-full min-w-0 rounded-xl border border-border bg-background px-2.5 py-2 text-sm">
+      <div className="flex min-w-0 items-center gap-2">{children}</div>
+      {reglages ? <div className="mt-1.5 flex flex-wrap items-center gap-1.5">{reglages}</div> : null}
     </div>
   );
 }
@@ -455,12 +511,7 @@ function QualiteNoteControl({
           type="button"
           disabled={disabled}
           title={title}
-          className={cn(
-            "flex items-center gap-0.5 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
-            qualiteNote
-              ? "border-foreground bg-foreground text-background"
-              : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-          )}
+          className={cn(CHIP, qualiteNote ? CHIP_ON : CHIP_OFF)}
         >
           <Star className="h-3 w-3" />
           {qualiteNote ? `${qualiteNote}/5` : "Noter"}
@@ -482,10 +533,9 @@ function QualiteNoteControl({
   );
 }
 
-// Version compacte de la remarque libre (vs. Input toujours affiché) : un simple bouton-icône
-// qui ouvre un petit popover avec la zone de texte, pour que la ligne entière (nom, montant,
-// note qualité, remarque) tienne sur une seule ligne même sur mobile étroit — Kamel, 2026-08-16 :
-// "rend ça plus minimaliste que ça tienne sur une ligne".
+// Remarque libre : un bouton qui ouvre un petit popover avec la zone de texte (plutôt qu'un
+// champ toujours affiché qui flottait au milieu de la ligne) ; quand une remarque existe, son
+// début s'affiche dans le bouton. Kamel, 2026-08-16 : "rend ça plus minimaliste".
 function CommentaireControl({
   commentaire,
   disabled,
@@ -514,21 +564,12 @@ function CommentaireControl({
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          disabled={disabled}
-          title={title}
-          className={cn(
-            "flex items-center gap-1 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
-            commentaire
-              ? "border-foreground bg-foreground text-background"
-              : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-          )}
-        >
-          <StickyNote className="h-3 w-3" />
+        <button type="button" disabled={disabled} title={commentaire ?? title} className={cn(CHIP, commentaire ? CHIP_ON : CHIP_OFF, "max-w-40")}>
+          <StickyNote className="h-3 w-3 shrink-0" />
+          <span className="truncate">{commentaire ?? "Remarque"}</span>
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 max-w-[calc(100vw-2rem)]" align="start">
+      <PopoverContent className="w-64 max-w-[calc(100vw-2rem)] space-y-2" align="start">
         <Textarea
           value={value}
           onChange={(e) => setValue(e.target.value)}
@@ -544,38 +585,6 @@ function CommentaireControl({
   );
 }
 
-// Remarque toujours visible (comportement d'origine, conservé pour le ménage "pendant le
-// séjour" — la ligne a plus de place vu qu'elle garde aussi le champ jours).
-function CommentaireInput({
-  commentaire,
-  disabled,
-  onSave,
-}: {
-  commentaire: string | null;
-  disabled: boolean;
-  onSave: (commentaire: string | null) => void;
-}) {
-  const [value, setValue] = useState(commentaire ?? "");
-
-  function handleBlur() {
-    const trimmed = value.trim();
-    if (trimmed === (commentaire ?? "")) return;
-    onSave(trimmed || null);
-  }
-
-  return (
-    <Input
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={handleBlur}
-      disabled={disabled}
-      placeholder="note"
-      title="Remarque libre sur cette affectation"
-      className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-28 max-md:border max-md:px-2 max-md:text-base"
-    />
-  );
-}
-
 // Contact WhatsApp direct depuis le badge — Kamel, 2026-08-13 : "donne la possibilité aussi ici
 // de les contacter en un clic whatsapp", pour joindre la personne affectée sans devoir aller
 // chercher son numéro sur la page Personnel.
@@ -586,11 +595,11 @@ function WhatsAppContactButton({ telephone, nom }: { telephone: string; nom: str
       target="_blank"
       rel="noreferrer"
       onClick={(e) => e.stopPropagation()}
-      className="rounded-full p-1 text-emerald-600 hover:bg-muted dark:text-emerald-400 max-md:p-3"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-emerald-600 hover:bg-muted dark:text-emerald-400 max-md:h-9 max-md:w-9"
       aria-label={`Contacter ${nom} sur WhatsApp`}
       title={`Contacter ${nom} sur WhatsApp`}
     >
-      <MessageCircle className="h-3.5 w-3.5" />
+      <MessageCircle className="h-4 w-4" />
     </a>
   );
 }
@@ -647,76 +656,70 @@ function MenageBadge({
   const montantApercu = notable ? tarifJournalier : joursApercu * tarifJournalier;
 
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background py-0.5 pl-0.5 pr-2.5 text-[0.8rem] font-medium">
-      <Button
+    <PersonneRow
+      reglages={
+        <>
+          {notable ? null : (
+            <JoursChip
+              value={jours}
+              onChange={setJours}
+              onBlur={handleBlur}
+              disabled={disabled}
+              placeholder="1"
+              title="Nombre de jours travaillés (si sollicitée pendant le séjour, pas seulement au départ)"
+            />
+          )}
+          {notable ? (
+            <QualiteNoteControl
+              qualiteNote={a.qualiteNote}
+              disabled={disabled}
+              onSetQualiteNote={(note) => onSetQualiteNote(a.affectationId, note)}
+              title="Note qualité sur la propreté constatée (moyenne affichée sur la fiche de la personne)"
+            />
+          ) : null}
+          <CommentaireControl
+            commentaire={a.commentaire}
+            disabled={disabled}
+            onSave={handleSaveCommentaire}
+            title="Remarque libre sur cette affectation"
+          />
+        </>
+      }
+    >
+      {/* Bouton (pas juste un nom à plat) pour que ce soit visuellement clair que c'est
+          cliquable : cercle vide = pas encore fait, encre pleine avec coche = confirmé. */}
+      <button
         type="button"
-        variant={fait ? "default" : "outline"}
-        size="sm"
         onClick={() => onToggleFait(a.affectationId, !fait)}
         disabled={disabled}
-        // Largeur FIXE (pas juste min-w) + nom tronqué : un min-w seul laisse un nom long
-        // (ex. "Khamissa") pousser le bouton plus large que "Nawal", donc "200 MAD" ne
-        // s'alignait toujours pas d'une ligne à l'autre. Kamel, 2026-08-17 : "je vois toujours
-        // le decalage... les 200 doivent etre bien alignée aussi, paralelle etc".
-        className="h-6 w-28 shrink-0 justify-start overflow-hidden max-md:h-10"
+        className={cn(
+          "inline-flex h-8 min-w-0 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 max-md:h-10",
+          fait ? CHIP_ON : "border-border bg-background hover:bg-muted"
+        )}
         title={fait ? "Confirmé fait — cliquer pour annuler" : "Cliquer pour confirmer que le travail a été fait"}
       >
-        {fait ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0" />}
+        {fait ? <Check className="h-3.5 w-3.5 shrink-0" /> : <Circle className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
         <span className="truncate">{a.nom}</span>
-      </Button>
-      {notable ? null : (
-        <>
-          <Input
-            type="number"
-            min={1}
-            value={jours}
-            onChange={(e) => setJours(e.target.value)}
-            onBlur={handleBlur}
-            disabled={disabled}
-            placeholder="1"
-            title="Nombre de jours travaillés (si sollicitée pendant le séjour, pas seulement au départ)"
-            className="h-5 w-7 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-14 max-md:border max-md:text-base"
-          />
-          <span className="text-muted-foreground">{joursApercu > 1 ? "jours" : "jour"}</span>
-        </>
-      )}
+      </button>
       {montantVisible ? (
-        <span className="text-muted-foreground">{notable ? "" : "· "}{montantApercu} MAD</span>
+        <span className="ml-auto shrink-0 text-sm tabular-nums text-muted-foreground">{montantApercu} MAD</span>
       ) : (
-        <span className="text-muted-foreground" title="Payé directement par le propriétaire, pas par l'agence">
-          {notable ? "" : "· "}Payé par proprio
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground" title="Payé directement par le propriétaire, pas par l'agence">
+          Payé par proprio
         </span>
-      )}
-      {notable ? (
-        <QualiteNoteControl
-          qualiteNote={a.qualiteNote}
-          disabled={disabled}
-          onSetQualiteNote={(note) => onSetQualiteNote(a.affectationId, note)}
-          title="Note qualité sur la propreté constatée (moyenne affichée sur la fiche de la personne)"
-        />
-      ) : null}
-      {notable ? (
-        <CommentaireControl
-          commentaire={a.commentaire}
-          disabled={disabled}
-          onSave={handleSaveCommentaire}
-          title="Remarque libre sur cette affectation"
-        />
-      ) : (
-        <CommentaireInput commentaire={a.commentaire} disabled={disabled} onSave={handleSaveCommentaire} />
       )}
       {a.telephone ? <WhatsAppContactButton telephone={a.telephone} nom={a.nom} /> : null}
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
         disabled={disabled}
-        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground max-md:p-3"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 max-md:h-9 max-md:w-9"
         aria-label={`Retirer ${a.nom}`}
         title="Retirer"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-4 w-4" />
       </button>
-    </div>
+    </PersonneRow>
   );
 }
 
@@ -742,19 +745,12 @@ function CuisineBadge({
   montantVisible: boolean;
 }) {
   const [jours, setJours] = useState(a.nbJours != null ? String(a.nbJours) : "");
-  const [commentaire, setCommentaire] = useState(a.commentaire ?? "");
   const paye = Boolean(a.payeAt);
 
   function handleBlur() {
     const parsed = jours.trim() === "" ? null : Math.max(1, parseInt(jours, 10));
     if (parsed === a.nbJours || (parsed === null && a.nbJours === null)) return;
     onSetJours(a.affectationId, Number.isNaN(parsed as number) ? null : parsed);
-  }
-
-  function handleCommentaireBlur() {
-    const trimmed = commentaire.trim();
-    if (trimmed === (a.commentaire ?? "")) return;
-    onSetCommentaire(a.affectationId, trimmed || null);
   }
 
   // Aperçu du montant en direct (pas seulement une fois payé) : 1 jour par défaut si le nombre
@@ -766,92 +762,77 @@ function CuisineBadge({
   const montantApercu = joursApercu * tarifJour;
 
   return (
-    <div className="flex min-w-0 max-w-full flex-wrap items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-0.5 text-[0.8rem] font-medium">
-      {/* Largeur fixe (pas min-w) + troncature, même raison que MenageBadge : un min-w seul
-          n'aligne pas le reste de la ligne (jours, montant...) quand un nom dépasse cette
-          largeur minimale. */}
-      <span className="inline-block w-24 shrink-0 truncate">{a.nom}</span>
-      <Input
-        type="number"
-        min={1}
-        value={jours}
-        onChange={(e) => setJours(e.target.value)}
-        onBlur={handleBlur}
-        disabled={disabled}
-        placeholder="nb"
-        title="Nombre de jours si ce n'est pas tout le séjour"
-        className="h-5 w-8 border-none bg-transparent p-0 text-center text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-14 max-md:border max-md:text-base"
-      />
-      <span className="text-muted-foreground">{jours === "1" ? "jour" : "jours"}</span>
+    <PersonneRow
+      reglages={
+        <>
+          <JoursChip
+            value={jours}
+            onChange={setJours}
+            onBlur={handleBlur}
+            disabled={disabled}
+            placeholder="nb"
+            title="Nombre de jours si ce n'est pas tout le séjour"
+          />
+          <button
+            type="button"
+            onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}
+            disabled={disabled}
+            className={cn(CHIP, a.avecDejeuner ? CHIP_ON : CHIP_OFF)}
+            title={
+              a.avecDejeuner
+                ? "Petit-déjeuner + déjeuner (200 MAD/jour) — cliquer pour repasser à petit-déjeuner seul"
+                : "Petit-déjeuner seul (100 MAD/jour) — cliquer pour ajouter le déjeuner (200 MAD/jour)"
+            }
+          >
+            {a.avecDejeuner ? <UtensilsCrossed className="h-3 w-3" /> : <Coffee className="h-3 w-3" />}
+            {a.avecDejeuner ? "+ Déjeuner" : "PDJ seul"}
+          </button>
+          <QualiteNoteControl
+            qualiteNote={a.qualiteNote}
+            disabled={disabled}
+            onSetQualiteNote={(note) => onSetQualiteNote(a.affectationId, note)}
+            title="Note qualité sur la cuisine constatée (moyenne affichée sur la fiche de la personne)"
+          />
+          <CommentaireControl
+            commentaire={a.commentaire}
+            disabled={disabled}
+            onSave={(c) => onSetCommentaire(a.affectationId, c)}
+            title="Remarque libre sur cette affectation"
+          />
+        </>
+      }
+    >
+      <span className="inline-flex h-8 min-w-0 items-center gap-1.5 text-sm font-medium max-md:h-10">
+        <ChefHat className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <span className="truncate">{a.nom}</span>
+      </span>
       {montantVisible ? (
         <button
           type="button"
           onClick={() => onTogglePaid(a.affectationId, paye)}
           disabled={disabled}
-          className={cn(
-            "flex items-center gap-1 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
-            paye
-              ? "border-foreground bg-foreground text-background"
-              : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-          )}
+          className={cn(CHIP, "ml-auto tabular-nums", paye ? CHIP_ON : CHIP_OFF)}
           title={paye ? "Payée — cliquer pour annuler (retire aussi la dépense de la caisse)" : `Cliquer pour marquer payée (${montantApercu} MAD) — ajouté directement à la caisse`}
         >
           {paye ? <Check className="h-3 w-3" /> : <Circle className="h-3 w-3" />}
           {paye ? "Payée" : `${montantApercu} MAD`}
         </button>
       ) : (
-        <span
-          className="border border-border bg-transparent px-1.5 py-0.5 text-xs text-muted-foreground"
-          title="Payé directement par le propriétaire, pas par l'agence"
-        >
+        <span className="ml-auto shrink-0 text-xs text-muted-foreground" title="Payé directement par le propriétaire, pas par l'agence">
           Payé par proprio
         </span>
       )}
-      <button
-        type="button"
-        onClick={() => onToggleAvecDejeuner(a.affectationId, !a.avecDejeuner)}
-        disabled={disabled}
-        className={cn(
-          "flex items-center gap-1 border px-1.5 py-0.5 text-xs max-md:min-h-10 max-md:px-3",
-          a.avecDejeuner
-            ? "border-foreground bg-foreground text-background hover:bg-foreground"
-            : "border-border bg-transparent text-muted-foreground hover:bg-muted"
-        )}
-        title={
-          a.avecDejeuner
-            ? "Petit-déjeuner + déjeuner (200 MAD/jour) — cliquer pour repasser à petit-déjeuner seul"
-            : "Petit-déjeuner seul (100 MAD/jour) — cliquer pour ajouter le déjeuner (200 MAD/jour)"
-        }
-      >
-        {a.avecDejeuner ? <UtensilsCrossed className="h-3 w-3" /> : <Coffee className="h-3 w-3" />}
-        {a.avecDejeuner ? "+ Déjeuner" : "PDJ seul"}
-      </button>
-      <QualiteNoteControl
-        qualiteNote={a.qualiteNote}
-        disabled={disabled}
-        onSetQualiteNote={(note) => onSetQualiteNote(a.affectationId, note)}
-        title="Note qualité sur la cuisine constatée (moyenne affichée sur la fiche de la personne)"
-      />
-      <Input
-        value={commentaire}
-        onChange={(e) => setCommentaire(e.target.value)}
-        onBlur={handleCommentaireBlur}
-        disabled={disabled}
-        placeholder="note"
-        title="Remarque libre sur cette affectation"
-        className="h-5 w-20 border-none bg-transparent p-0 text-xs shadow-none focus-visible:ring-1 max-md:h-10 max-md:w-28 max-md:border max-md:px-2 max-md:text-base"
-      />
       {a.telephone ? <WhatsAppContactButton telephone={a.telephone} nom={a.nom} /> : null}
       <button
         type="button"
         onClick={() => onRemove(a.affectationId)}
         disabled={disabled}
-        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground max-md:p-3"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-50 max-md:h-9 max-md:w-9"
         aria-label={`Retirer ${a.nom}`}
         title="Retirer"
       >
-        <X className="h-3.5 w-3.5" />
+        <X className="h-4 w-4" />
       </button>
-    </div>
+    </PersonneRow>
   );
 }
