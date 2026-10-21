@@ -3,7 +3,7 @@ import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines } from "@/db/schema";
 import { ProprietaireList } from "@/components/app/proprietaire-list";
-import { domaineEstActif } from "@/lib/domaines-actifs";
+import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { ChevronLeft } from "lucide-react";
 
 export default async function ProprietairesVillasPage() {
@@ -24,7 +24,7 @@ export default async function ProprietairesVillasPage() {
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(eq(villas.type, "villa"))
       .orderBy(asc(domaines.nom), asc(villas.numero))
-  ).filter((v) => domaineEstActif(v.domaineNom));
+  ).filter((v) => domaineEstActif(v.domaineNom) && villaEstGeree(v.nom)); // logements retirés : voir VILLAS_MASQUEES
 
   return (
     <div className="space-y-6">
