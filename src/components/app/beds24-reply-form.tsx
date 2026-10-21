@@ -2,10 +2,11 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Send, Sparkles } from "lucide-react";
+import { Loader2, Send, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { sendBeds24InquiryMessage, sendBeds24Message } from "@/lib/actions/beds24";
 import { traduireReponse } from "@/lib/actions/traduction";
 import { suggererReponseIA } from "@/lib/actions/messages-agent";
@@ -79,43 +80,69 @@ export function Beds24ReplyForm({
   }
 
   return (
-    <div className="border-t border-border">
-      <div className="flex flex-wrap items-center gap-2 px-3 pt-2">
-        <Button type="button" variant="outline" size="sm" onClick={suggerer} disabled={suggestionEnCours || isPending}>
-          {suggestionEnCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          Suggérer une réponse
-        </Button>
-        {noteAgent ? (
-          <span className={`text-xs ${noteAgent.humain ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground"}`}>
-            {noteAgent.humain ? "À vérifier par un humain : " : "Brouillon IA : "}
+    <div className="border-t border-border bg-card px-3 pb-3 pt-2 md:px-4">
+      {/* Note de l'agent IA (raison du brouillon, ou "à vérifier par un humain") : une ligne
+          discrète au-dessus du composeur, effaçable. */}
+      {noteAgent ? (
+        <div
+          className={cn(
+            "mb-2 flex items-start gap-2 rounded-xl px-3 py-2 text-xs",
+            noteAgent.humain ? "bg-amber-500/10 text-amber-800 dark:text-amber-300" : "bg-muted text-muted-foreground"
+          )}
+        >
+          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="font-semibold">{noteAgent.humain ? "À vérifier par un humain · " : "Brouillon IA · "}</span>
             {noteAgent.texte}
           </span>
+          <button type="button" onClick={() => setNoteAgent(null)} aria-label="Masquer" className="shrink-0 rounded p-0.5 hover:bg-background/60">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : null}
+
+      <form
+        ref={formRef}
+        onSubmit={handleSubmit}
+        className="flex items-end gap-2 rounded-2xl border border-input bg-background p-1.5 pl-2 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30"
+      >
+        <button
+          type="button"
+          onClick={suggerer}
+          disabled={suggestionEnCours || isPending}
+          title="Suggérer une réponse (brouillon IA, à relire avant envoi)"
+          aria-label="Suggérer une réponse"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition-colors hover:bg-primary/10 disabled:opacity-50"
+        >
+          {suggestionEnCours ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        </button>
+        <Textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              formRef.current?.requestSubmit();
+            }
+          }}
+          placeholder={suggestionEnCours ? "L'IA prépare un brouillon…" : "Écrire une réponse…"}
+          rows={1}
+          className="max-h-40 min-h-9 flex-1 resize-none border-0 bg-transparent px-1 py-2 shadow-none focus-visible:border-0 focus-visible:ring-0 dark:bg-transparent"
+        />
+        <Button type="submit" size="icon" className="h-9 w-9 shrink-0 rounded-full" disabled={isPending || !message.trim()} aria-label="Envoyer">
+          {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+        </Button>
+      </form>
+
+      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-[11px] text-muted-foreground">
+        <span className="hidden sm:inline">Entrée pour envoyer · Maj+Entrée pour un retour à la ligne</span>
+        {langue ? (
+          <label className="inline-flex cursor-pointer items-center gap-1.5">
+            <input type="checkbox" checked={traduire} onChange={(e) => setTraduire(e.target.checked)} className="h-3.5 w-3.5 accent-[var(--primary)]" />
+            Traduire ma réponse en <span className="font-medium text-foreground">{langue}</span> avant l&apos;envoi
+          </label>
         ) : null}
       </div>
-      {langue ? (
-        <label className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
-          <input type="checkbox" checked={traduire} onChange={(e) => setTraduire(e.target.checked)} />
-          Écris en français : ta réponse sera traduite en {langue} avant l&apos;envoi
-        </label>
-      ) : null}
-    <form ref={formRef} onSubmit={handleSubmit} className="flex items-end gap-2 p-3">
-      <Textarea
-        value={message}
-        onChange={(e) => setMessage(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            formRef.current?.requestSubmit();
-          }
-        }}
-        placeholder="Écrire une réponse..."
-        rows={2}
-        className="min-h-0 flex-1 resize-none"
-      />
-      <Button type="submit" size="icon" disabled={isPending || !message.trim()}>
-        <Send className="h-4 w-4" />
-      </Button>
-    </form>
     </div>
   );
 }

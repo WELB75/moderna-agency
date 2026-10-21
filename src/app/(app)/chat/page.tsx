@@ -5,21 +5,14 @@ import { MessagesBoiteReception } from "./messages-boite-reception";
 // arrête pour le moment". Leurs composants (messages-interne.tsx, messages-agent-ia.tsx) restent
 // dans le dossier, juste non affichés : les rebrancher ici (via PersonnelTabs, ?section=) les
 // remettrait tels quels.
+//
+// Pas de titre au-dessus de la boîte (2026-10-22) : elle occupe toute la hauteur utile, et son
+// propre en-tête dit déjà "Messages" + ce qu'il reste à répondre.
 export default async function MessagesPage({
   searchParams,
 }: {
   searchParams: Promise<{ conv?: string }>;
 }) {
   const { conv } = await searchParams;
-
-  return (
-    <div className="space-y-4 md:space-y-3">
-      <div className="md:flex md:items-baseline md:gap-3">
-        <h1 className="text-2xl font-semibold tracking-tight">Messages</h1>
-        <p className="text-sm text-muted-foreground">Boîte de réception WhatsApp, Airbnb et Booking.com.</p>
-      </div>
-
-      <MessagesBoiteReception selectedKeyParam={conv} />
-    </div>
-  );
+  return <MessagesBoiteReception selectedKeyParam={conv} />;
 }

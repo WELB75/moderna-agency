@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Search } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, CalendarDays, Inbox, MessageCircle, Search, X } from "lucide-react";
 import { CanalDot } from "@/components/app/canal-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
 import { WhatsAppAgenceReplyForm } from "@/components/app/whatsapp-agence-reply-form";
 import { SOURCE_META } from "@/lib/canal";
+import { toWhatsAppUrl } from "@/lib/phone";
 import { traduireMessagesRecus } from "@/lib/actions/traduction";
 import { marquerConversationLue } from "@/lib/actions/messages-lus";
 import { useEstMobile } from "@/lib/use-est-mobile";
@@ -38,12 +40,24 @@ export type InboxConversation = {
   ligneAgence?: { fenetreOuverte: boolean };
 };
 
-const STATUS_CLASS: Record<InboxStatus, string> = {
-  en_cours: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  a_venir: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  termine: "bg-emerald-500/10 text-emerald-700/80 dark:text-emerald-400/80",
-  autre: "bg-muted text-muted-foreground",
+// Boîte de réception (refonte 2026-10-22, dans la continuité du tableau de bord épuré) : liste à
+// gauche, fil à droite, pleine hauteur de l'écran. Une seule colonne à la fois sur téléphone.
+// Même contrat de données qu'avant (messages-boite-reception.tsx inchangé).
+
+// Point de statut du séjour : un repère discret plutôt qu'une pastille de couleur au-dessus du nom.
+const STATUS_DOT: Record<InboxStatus, string> = {
+  en_cours: "bg-emerald-500",
+  a_venir: "bg-amber-500",
+  termine: "bg-muted-foreground/40",
+  autre: "bg-muted-foreground/40",
 };
+
+const CHANNEL_FILTERS: { value: InboxChannel | "all"; label: string }[] = [
+  { value: "all", label: "Tous" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "airbnb", label: "Airbnb" },
+  { value: "booking", label: "Booking.com" },
+];
 
 function initials(name: string) {
   const parts = name.replace(/[^\p{L}\s]/gu, "").trim().split(/\s+/).filter(Boolean);
@@ -55,7 +69,7 @@ function Avatar({ name, channel, size = "md" }: { name: string; channel: InboxCh
     <div className="relative shrink-0">
       <div
         className={cn(
-          "flex items-center justify-center rounded-full bg-primary/15 font-medium text-primary",
+          "flex items-center justify-center rounded-full bg-primary/10 font-semibold text-primary",
           size === "lg" ? "h-11 w-11 text-base" : "h-10 w-10 text-sm"
         )}
       >
@@ -67,13 +81,34 @@ function Avatar({ name, channel, size = "md" }: { name: string; channel: InboxCh
   );
 }
 
+function estAujourdhui(d: Date, now: Date) {
+  return d.toDateString() === now.toDateString();
+}
+
+// Heure si c'est aujourd'hui, "hier", sinon jour + mois court.
 function formatTime(iso: string) {
   const d = new Date(iso);
   const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  return sameDay
-    ? d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
-    : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+  if (estAujourdhui(d, now)) return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  const hier = new Date(now);
+  hier.setDate(now.getDate() - 1);
+  if (estAujourdhui(d, hier)) return "hier";
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+}
+
+function formatHeure(iso: string) {
+  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Séparateur de jour dans le fil : "Aujourd'hui", "Hier", sinon "mercredi 22 octobre".
+function libelleJour(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  if (estAujourdhui(d, now)) return "Aujourd'hui";
+  const hier = new Date(now);
+  hier.setDate(now.getDate() - 1);
+  if (estAujourdhui(d, hier)) return "Hier";
+  return d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 }
 
 // Les messages Airbnb contiennent parfois du HTML brut (pièces jointes : <a href="...">). On
@@ -107,6 +142,11 @@ function texteATraduire(brut: string): string {
     .trim();
 }
 
+// Aperçu d'une ligne de la liste : sans HTML ni retours à la ligne.
+function apercu(brut: string): string {
+  return texteATraduire(brut).replace(/\s+/g, " ").trim() || (brut.includes("<a") ? "Pièce jointe" : "");
+}
+
 function MessageTexte({ text }: { text: string }) {
   return (
     <p className="whitespace-pre-wrap break-words">
@@ -120,6 +160,31 @@ function MessageTexte({ text }: { text: string }) {
         )
       )}
     </p>
+  );
+}
+
+// Bouton rond d'action dans l'en-tête du fil (WhatsApp, réservation).
+function ActionIcone({
+  href,
+  title,
+  children,
+  externe = false,
+}: {
+  href: string;
+  title: string;
+  children: React.ReactNode;
+  externe?: boolean;
+}) {
+  const classes =
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground";
+  return externe ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" title={title} aria-label={title} className={classes}>
+      {children}
+    </a>
+  ) : (
+    <Link href={href} title={title} aria-label={title} className={classes}>
+      {children}
+    </Link>
   );
 }
 
@@ -160,7 +225,6 @@ export function InboxClient({
     });
   }, [conversations, query, tab, channelFilter]);
 
-  const visible = filtered;
   const selected = conversations.find((c) => c.key === selectedKey) ?? null;
 
   const aLire = selected && (!estMobile || mobileOuvert) && estNonLue(selected) ? selected.key : null;
@@ -225,172 +289,265 @@ export function InboxClient({
     return null;
   })();
 
+  // Fil groupé par jour (séparateurs) ; les messages sans horodatage (WhatsApp) restent dans
+  // l'ordre, sans séparateur.
+  const groupes = useMemo(() => {
+    if (!selected) return [];
+    const out: { jour: string | null; messages: InboxMessage[] }[] = [];
+    for (const m of selected.messages) {
+      const jour = m.at ? libelleJour(m.at) : null;
+      const dernier = out[out.length - 1];
+      if (dernier && dernier.jour === jour) dernier.messages.push(m);
+      else out.push({ jour, messages: [m] });
+    }
+    return out;
+  }, [selected]);
+
+  const sousTitre =
+    awaitingCount === 0
+      ? "Rien à répondre"
+      : `${awaitingCount} à répondre${nonLusCount > 0 ? ` · ${nonLusCount} non lu${nonLusCount > 1 ? "s" : ""}` : ""}`;
+
   return (
-    <div className="flex h-[calc(100dvh-13rem)] min-h-[24rem] overflow-hidden rounded-xl border border-border bg-card md:h-[calc(100vh-9.5rem)] md:min-h-[32rem]">
-      {/* Liste */}
-      <div className={cn("w-full shrink-0 flex-col border-r border-border md:flex md:w-[24rem] lg:w-[28rem]", mobileOuvert ? "hidden" : "flex")}>
-        <div className="space-y-3 border-b border-border p-4">
-          <div>
-            <p className="text-sm font-medium">
-              {nonLusCount > 0 ? `${nonLusCount} non lu${nonLusCount > 1 ? "s" : ""} · ` : ""}
-              {awaitingCount === 0 ? "Rien à répondre" : `${awaitingCount} à répondre`}
-            </p>
-            {notice ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{notice}</p> : null}
+    // Pleine hauteur de la zone utile : en-tête de l'app (3.5rem) et marges de page déduits ;
+    // sur téléphone, la barre du bas (pb-20 du layout) aussi.
+    <div className="flex h-[calc(100dvh-9.5rem)] min-h-[26rem] overflow-hidden rounded-2xl border border-border bg-card md:h-[calc(100dvh-6.5rem)] md:min-h-[32rem]">
+      {/* ---- Liste ---- */}
+      <div
+        className={cn(
+          "w-full shrink-0 flex-col border-border md:flex md:w-[clamp(17rem,38%,24rem)] md:border-r",
+          mobileOuvert ? "hidden" : "flex"
+        )}
+      >
+        <div className="space-y-3 border-b border-border px-4 pb-3 pt-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <h1 className="text-lg font-semibold tracking-tight">Messages</h1>
+            <p className={cn("text-xs", awaitingCount > 0 ? "font-medium text-foreground" : "text-muted-foreground")}>{sousTitre}</p>
           </div>
+          {notice ? <p className="text-xs text-amber-700 dark:text-amber-400">{notice}</p> : null}
+
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-              }}
-              placeholder="Rechercher un voyageur, un logement..."
-              className="h-11 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-base outline-none md:h-10 md:text-sm focus-visible:ring-2 focus-visible:ring-ring"
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Voyageur, logement…"
+              className="h-10 w-full rounded-xl border border-input bg-background pl-9 pr-9 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring md:text-sm"
             />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Effacer la recherche"
+                className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            ) : null}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex flex-1 rounded-lg bg-muted p-1 text-sm">
-              {(
-                [
-                  ["tous", "Tous"],
-                  ["a_repondre", `À répondre${awaitingCount ? ` ${awaitingCount}` : ""}`],
-                ] as const
-              ).map(([value, label]) => (
+
+          <div className="flex rounded-xl bg-muted p-1 text-sm">
+            {(
+              [
+                ["tous", "Toutes"],
+                ["a_repondre", "À répondre"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setTab(value)}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 font-medium transition-colors",
+                  tab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {label}
+                {value === "a_repondre" && awaitingCount > 0 ? (
+                  <span
+                    className={cn(
+                      "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold",
+                      tab === value ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
+                    )}
+                  >
+                    {awaitingCount}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+
+          {/* Canaux : pastilles plutôt qu'une liste déroulante — on voit d'un coup d'œil où on est. */}
+          <div className="flex flex-wrap gap-1.5">
+            {CHANNEL_FILTERS.map((f) => {
+              const actif = channelFilter === f.value;
+              return (
                 <button
-                  key={value}
+                  key={f.value}
                   type="button"
-                  onClick={() => {
-                    setTab(value);
-                  }}
+                  onClick={() => setChannelFilter(f.value)}
                   className={cn(
-                    "flex-1 whitespace-nowrap rounded-md px-3 py-1.5 font-medium transition-colors",
-                    tab === value ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                    "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+                    actif ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  {label}
+                  {f.value !== "all" ? <CanalDot source={f.value} size="xs" /> : null}
+                  {f.label}
                 </button>
-              ))}
-            </div>
-            <select
-              value={channelFilter}
-              onChange={(e) => {
-                setChannelFilter(e.target.value as InboxChannel | "all");
-              }}
-              className="h-11 rounded-lg border border-input bg-background px-2 text-base md:h-10 md:text-sm"
-              aria-label="Filtrer par canal"
-            >
-              <option value="all">Tous canaux</option>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="airbnb">Airbnb</option>
-              <option value="booking">Booking.com</option>
-            </select>
+              );
+            })}
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {visible.length === 0 ? (
-            <p className="p-4 text-sm text-muted-foreground">Aucune conversation.</p>
+          {filtered.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-sm text-muted-foreground">
+              <Inbox className="h-6 w-6" />
+              {tab === "a_repondre" ? "Tout est répondu." : "Aucune conversation."}
+            </div>
           ) : (
-            visible.map((c) => (
-              <button
-                key={c.key}
-                type="button"
-                onClick={() => {
-                  setSelectedKey(c.key);
-                  setMobileOuvert(true);
-                }}
-                className={cn(
-                  "flex w-full gap-3 border-b border-border px-4 py-3.5 text-left transition-colors md:py-3",
-                  c.key === selectedKey ? "bg-accent" : "hover:bg-muted/60"
-                )}
-              >
-                <Avatar name={c.name} channel={c.channel} />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={cn("rounded-full px-2 py-0.5 text-xs font-medium", STATUS_CLASS[c.status])}>
-                      {c.statusLabel}
-                    </span>
-                    <span className={cn("shrink-0 text-xs", estNonLue(c) ? "font-semibold" : "text-muted-foreground")}>
-                      {formatTime(c.lastAt)}
-                      {estNonLue(c) ? <span className="ml-1 text-destructive">•</span> : null}
-                    </span>
-                  </div>
-                  <p className={cn("truncate", estNonLue(c) ? "font-bold" : "font-semibold")}>{c.name}</p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {c.stay || c.logement ? [c.stay, c.logement].filter(Boolean).join(" · ") : c.preview}
-                  </p>
-                </div>
-              </button>
-            ))
+            <ul>
+              {filtered.map((c) => {
+                const nonLue = estNonLue(c);
+                const active = c.key === selectedKey;
+                return (
+                  <li key={c.key}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedKey(c.key);
+                        setMobileOuvert(true);
+                      }}
+                      className={cn(
+                        "relative flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors",
+                        active ? "bg-accent/70 dark:bg-accent" : "hover:bg-muted/60"
+                      )}
+                    >
+                      {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-primary" aria-hidden /> : null}
+                      <Avatar name={c.name} channel={c.channel} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className={cn("truncate text-sm", nonLue ? "font-bold" : "font-semibold")}>{c.name}</p>
+                          <span className={cn("shrink-0 text-xs tabular-nums", nonLue ? "font-semibold text-primary" : "text-muted-foreground")}>
+                            {formatTime(c.lastAt)}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <p className={cn("min-w-0 flex-1 truncate text-sm", nonLue ? "text-foreground" : "text-muted-foreground")}>
+                            {apercu(c.preview) || "—"}
+                          </p>
+                          {nonLue ? <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Non lu" /> : null}
+                        </div>
+                        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT[c.status])} aria-hidden />
+                          <span className="truncate">
+                            {c.statusLabel}
+                            {c.stay ? ` · ${c.stay}` : ""}
+                            {c.logement ? ` · ${c.logement}` : ""}
+                          </span>
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       </div>
 
-      {/* Conversation */}
+      {/* ---- Conversation ---- */}
       <div className={cn("min-w-0 flex-1 flex-col md:flex", mobileOuvert ? "flex" : "hidden")}>
         {selected ? (
           <>
-            <div className="flex items-center gap-2 border-b border-border px-2 py-3 md:gap-3 md:px-5">
+            <div className="flex items-center gap-2 border-b border-border px-2 py-2.5 md:gap-3 md:px-4">
               <button
                 type="button"
                 onClick={() => setMobileOuvert(false)}
                 aria-label="Retour à la liste des conversations"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg hover:bg-muted md:hidden"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full hover:bg-muted md:hidden"
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <Avatar name={selected.name} channel={selected.channel} size="lg" />
-              <div className="min-w-0">
-                <p className="truncate font-semibold">{selected.name}</p>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold leading-tight">{selected.name}</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {SOURCE_META[selected.channel].label}
                   {selected.stay ? ` · ${selected.stay}` : ""}
                   {selected.logement ? ` · ${selected.logement}` : ""}
-                  {selected.phone ? ` · ${selected.phone}` : ""}
+                  <span className="hidden sm:inline">{selected.phone ? ` · ${selected.phone}` : ""}</span>
                 </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {selected.phone ? (
+                  <ActionIcone href={toWhatsAppUrl(selected.phone)} title={`WhatsApp · ${selected.phone}`} externe>
+                    <MessageCircle className="h-4 w-4" />
+                  </ActionIcone>
+                ) : null}
+                {selected.reservationId ? (
+                  <ActionIcone href={`/reservations/${selected.reservationId}`} title="Ouvrir la réservation">
+                    <CalendarDays className="h-4 w-4" />
+                  </ActionIcone>
+                ) : null}
               </div>
             </div>
 
-            <div ref={filMessagesRef} className="flex-1 space-y-3 overflow-y-auto p-3 md:p-5">
+            <div ref={filMessagesRef} className="flex-1 overflow-y-auto bg-muted/30 px-3 py-4 md:px-6">
               {selected.messages.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Aucun message dans cette conversation.</p>
+                <p className="py-10 text-center text-sm text-muted-foreground">Aucun message dans cette conversation.</p>
               ) : (
-                selected.messages.map((m, i) => (
-                  <div key={i} className={cn("flex", m.fromContact ? "justify-start" : "justify-end")}>
-                    <div
-                      className={cn(
-                        "max-w-[88%] rounded-2xl px-3.5 py-2 text-sm md:max-w-[75%] md:px-4",
-                        m.fromContact ? "bg-muted text-foreground" : "bg-primary text-primary-foreground",
-                        m.tool && "text-xs italic opacity-80"
-                      )}
-                    >
-                      <MessageTexte text={m.text} />
-                      {m.fromContact && !m.tool && traductions[texteATraduire(m.text)] && !traductions[texteATraduire(m.text)].estFrancais ? (
-                        <div className="mt-2 border-t border-foreground/10 pt-2">
-                          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                            Traduction · {traductions[texteATraduire(m.text)].langue}
-                          </p>
-                          <p className="whitespace-pre-wrap break-words">{traductions[texteATraduire(m.text)].fr}</p>
+                <div className="mx-auto max-w-3xl space-y-4">
+                  {groupes.map((g, gi) => (
+                    <div key={gi} className="space-y-1.5">
+                      {g.jour ? (
+                        <div className="flex items-center gap-3 py-1">
+                          <span className="h-px flex-1 bg-border" />
+                          <span className="text-[11px] font-medium capitalize text-muted-foreground">{g.jour}</span>
+                          <span className="h-px flex-1 bg-border" />
                         </div>
                       ) : null}
-                      {m.at ? (
-                        <p className={cn("mt-1 text-[10px]", m.fromContact ? "text-muted-foreground" : "text-primary-foreground/70")}>
-                          {formatTime(m.at)}
-                        </p>
-                      ) : null}
+                      {g.messages.map((m, i) => {
+                        const t = m.fromContact && !m.tool ? traductions[texteATraduire(m.text)] : undefined;
+                        return (
+                          <div key={i} className={cn("flex", m.fromContact ? "justify-start" : "justify-end")}>
+                            <div
+                              className={cn(
+                                "max-w-[85%] rounded-2xl px-3.5 py-2 text-sm shadow-[0_1px_1px_rgba(0,0,0,0.04)] md:max-w-[70%] md:px-4 md:py-2.5",
+                                m.fromContact
+                                  ? "rounded-bl-md border border-border bg-card text-foreground"
+                                  : "rounded-br-md bg-primary text-primary-foreground",
+                                m.tool && "text-xs italic opacity-80"
+                              )}
+                            >
+                              <MessageTexte text={m.text} />
+                              {t && !t.estFrancais ? (
+                                <div className="mt-2 border-t border-border pt-2">
+                                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Traduction · {t.langue}</p>
+                                  <p className="whitespace-pre-wrap break-words text-foreground/90">{t.fr}</p>
+                                </div>
+                              ) : null}
+                              {m.at ? (
+                                <p className={cn("mt-1 text-right text-[10px] tabular-nums", m.fromContact ? "text-muted-foreground" : "text-primary-foreground/70")}>
+                                  {formatHeure(m.at)}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </div>
 
             {traductionEnCours ? (
-              <p className="border-t border-border px-5 py-1.5 text-xs text-muted-foreground">Traduction en cours...</p>
+              <p className="border-t border-border px-4 py-1.5 text-xs text-muted-foreground">Traduction en cours…</p>
             ) : traductionErreur ? (
-              <p className="border-t border-border px-5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
-                Traduction indisponible pour le moment.
-              </p>
+              <p className="border-t border-border px-4 py-1.5 text-xs text-amber-700 dark:text-amber-400">Traduction indisponible pour le moment.</p>
             ) : null}
+
             {selected.reservationId || selected.beds24InquiryId ? (
               <Beds24ReplyForm
                 key={selected.key}
@@ -401,14 +558,28 @@ export function InboxClient({
             ) : selected.ligneAgence && selected.phone ? (
               <WhatsAppAgenceReplyForm key={selected.key} contact={selected.phone} fenetreOuverte={selected.ligneAgence.fenetreOuverte} />
             ) : (
-              <p className="border-t border-border p-3 text-sm text-muted-foreground">
-                Réponse WhatsApp depuis l&apos;app : pas encore branchée, la conversation est en lecture seule.
-              </p>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-sm text-muted-foreground">
+                <span>Lecture seule ici : la réponse WhatsApp se fait dans WhatsApp.</span>
+                {selected.phone ? (
+                  <a
+                    href={toWhatsAppUrl(selected.phone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#25D366] px-3 text-sm font-semibold text-white hover:opacity-90"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    Répondre sur WhatsApp
+                  </a>
+                ) : null}
+              </div>
             )}
           </>
         ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            Sélectionne une conversation.
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-sm text-muted-foreground">
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+              <Inbox className="h-5 w-5" />
+            </span>
+            {conversations.length === 0 ? "Aucune conversation pour le moment." : "Choisis une conversation dans la liste."}
           </div>
         )}
       </div>
