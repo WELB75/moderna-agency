@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { estMembreEquipe } from "@/lib/acces";
 import { runBeds24Sync } from "@/lib/beds24/sync";
 import { analyserNuitsIsolees } from "@/lib/beds24/nuits-isolees";
 
@@ -13,8 +14,9 @@ async function isAuthorized(req: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return true;
   if (req.headers.get("authorization") === `Bearer ${cronSecret}`) return true;
+  // Compte de l'équipe seulement (pas n'importe quel compte Clerk), voir src/lib/acces.ts.
   const { userId } = await auth();
-  return Boolean(userId);
+  return estMembreEquipe(userId);
 }
 
 export async function POST(req: NextRequest) {
