@@ -16,6 +16,7 @@ import {
   History,
   BookOpen,
   Calculator,
+  KeyRound,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,6 +58,7 @@ export const navGroups: NavGroup[] = [
       { href: "/statistiques", label: "Statistiques", icon: BarChart3 },
       { href: "/clients", label: "Clients", icon: Users },
       { href: "/proprietaires", label: "Propriétaires", icon: User },
+      { href: "/acces", label: "Accès", icon: KeyRound }, // qui peut ouvrir le back-office (administrateurs)
     ],
   },
 ];
