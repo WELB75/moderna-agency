@@ -15,6 +15,7 @@ import { ReservationHistorique } from "@/components/app/reservation-historique";
 import { journalDeLaReservation } from "@/lib/journal";
 import { normaliseCanal } from "@/lib/canal";
 import { nowInMorocco } from "@/lib/now";
+import { lienPlateforme } from "@/lib/lien-plateforme";
 
 // Fiche complète d'une réservation, identique à sa carte du tableau de bord (ménage/cuisine
 // éditables, validation check-in/out, documents...), mais accessible directement par id — pour
@@ -71,6 +72,8 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       messageLocalisationEnvoyeAt: reservations.messageLocalisationEnvoyeAt,
       messageSecuriteEnvoyeAt: reservations.messageSecuriteEnvoyeAt,
       messageCuisineEnvoyeAt: reservations.messageCuisineEnvoyeAt,
+      rawData: reservations.rawData,
+      beds24RoomId: villas.beds24RoomId,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -186,6 +189,8 @@ export default async function ReservationDetailPage({ params }: { params: Promis
 
   const row: ReservationRow = {
     ...r,
+    ...{ rawData: undefined }, // jamais envoyé au navigateur : seul le lien en sort
+    lienPlateforme: lienPlateforme(r),
     recap: recapRow
       ? {
           token: recapRow.token,
