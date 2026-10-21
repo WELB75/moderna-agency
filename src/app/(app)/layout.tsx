@@ -21,7 +21,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <SidebarNav />
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <AppHeader />
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-20 md:pb-6">
+        {/* overflow-x-clip (pas hidden) : coupe les débordements horizontaux sans faire de <main>
+            un conteneur de défilement, sinon les en-têtes collants (jours de l'accueil) ne
+            collent plus. */}
+        <main className="min-w-0 flex-1 overflow-x-clip pb-20 md:pb-6">
           <div className="mx-auto w-full max-w-7xl min-w-0 p-4 md:p-6">{children}</div>
         </main>
       </div>

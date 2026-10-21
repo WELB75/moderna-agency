@@ -12,6 +12,11 @@ import { cn } from "@/lib/utils";
 // place). Le bloc "Performance du mois" / "Ce qui a besoin de vous" est passé dans la page
 // Statistiques (Kamel, 2026-10-15). Le détail opérationnel (cartes de check-in/check-out par
 // domaine) reste juste en dessous.
+//
+// 2026-10-21 : les trois compteurs ne passent à droite de la salutation qu'à partir de `lg`
+// (avant : `md` avec une largeur fixe de 34rem, qui écrasait "Bonjour Kamel" en colonne d'un mot
+// par ligne dès que la fenêtre faisait moins de ~1100px). En dessous, ils prennent toute la
+// largeur sous la salutation.
 export async function DashboardOverview({ now }: { now: Date }) {
   const db = getDb();
   const user = await currentUser().catch(() => null);
@@ -35,19 +40,20 @@ export async function DashboardOverview({ now }: { now: Date }) {
   const surPlace = resa.filter((r) => new Date(r.checkIn) < todayStart && new Date(r.checkOut) > todayEnd);
 
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-6">
-      <div className="min-w-0">
-        <h1 className="text-2xl font-semibold tracking-tight">{prenom ? `Bonjour ${prenom}` : "Bonjour"} 👋</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+      <div className="min-w-0 shrink-0">
+        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">
+          {prenom ? `Bonjour ${prenom}` : "Bonjour"} 👋
+        </h1>
+        <p className="mt-0.5 text-sm text-muted-foreground">
           <span className="capitalize">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</span>
-          <span className="hidden md:inline"> — voici ce qui demande votre attention aujourd&apos;hui.</span>
         </p>
       </div>
 
-      <section className="md:w-[34rem] md:shrink-0" aria-label="Votre journée">
+      <section className="min-w-0 lg:w-full lg:max-w-[30rem]" aria-label="Votre journée">
         <div className="grid grid-cols-3 gap-2 md:gap-3">
           <DayStat icon={LogIn} label="Arrivées" count={arrivees.length} tone="emerald" />
-          <DayStat icon={LogOut} label="Départs" count={departs.length} tone="amber" />
+          <DayStat icon={LogOut} label="Départs" count={departs.length} tone="rose" />
           <DayStat icon={BedDouble} label="Sur place" count={surPlace.length} tone="primary" />
         </div>
       </section>
@@ -57,7 +63,7 @@ export async function DashboardOverview({ now }: { now: Date }) {
 
 const TONES = {
   emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  rose: "bg-red-500/10 text-red-600 dark:text-red-400",
   primary: "bg-primary/10 text-primary",
 } as const;
 
@@ -65,15 +71,15 @@ function DayStat({ icon: Icon, label, count, tone }: { icon: LucideIcon; label: 
   return (
     <Link
       href="/calendrier?vue=jour"
-      className="flex items-center gap-3 rounded-xl border bg-card p-3 transition-colors hover:border-primary/40 md:px-3 md:py-2"
+      className="flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 transition-colors hover:border-primary/40"
     >
-      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg md:h-8 md:w-8", TONES[tone])}>
+      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", TONES[tone])}>
         <Icon className="h-4 w-4" />
       </span>
-      <div className="min-w-0">
-        <p className="text-xl font-semibold tabular-nums leading-tight">{count}</p>
-        <p className="truncate text-xs text-muted-foreground sm:text-sm">{label}</p>
-      </div>
+      <span className="min-w-0 leading-tight">
+        <span className="block text-xl font-semibold tabular-nums">{count}</span>
+        <span className="block truncate text-xs text-muted-foreground sm:text-[13px]">{label}</span>
+      </span>
     </Link>
   );
 }
