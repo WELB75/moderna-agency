@@ -12,7 +12,7 @@ import { ProcedureCard } from "@/components/app/procedure-card";
 import { DomaineStockSection } from "@/components/app/domaine-stock-section";
 import { VillaStockPanel } from "@/components/app/villa-stock-panel";
 import { UsureReferenceTable } from "@/components/app/usure-reference-table";
-import { filtrerDomainesActifs, idsDomainesActifs } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, idsDomainesActifs, villaEstGeree } from "@/lib/domaines-actifs";
 import { ClipboardCheck, ListChecks, Plus, Boxes, ShieldAlert } from "lucide-react";
 
 export default async function InventairePage() {
@@ -35,7 +35,7 @@ export default async function InventairePage() {
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(eq(villas.type, "villa"))
       .orderBy(asc(domaines.nom), asc(villas.numero))
-  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId) && villaEstGeree(v.nom));
   const villaIdsActifs = new Set(allStockVillas.map((v) => v.id));
 
   const checklists = (
