@@ -8,6 +8,7 @@ import { gendarmerieForms, reservations, villas } from "@/db/schema";
 import { CanalDot } from "@/components/app/canal-badge";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { cn } from "@/lib/utils";
+import { RowChevron, RowIcon, RowTitle, StatusDot, summaryRowClass } from "@/components/app/dashboard-ui";
 
 // Suivi des arrivées (accueil) — Fouad, 2026-10-16 : "je veux que tout soit connecté : s'ils ont
 // fait la fiche police ou pas via le lien, s'ils ont payé via Stripe ou pas, et que nous, en
@@ -180,36 +181,57 @@ export async function SuiviArrivees({ now }: { now: Date }) {
   );
 
   // Toujours replié au chargement (Kamel, 2026-10-16 puis 2026-10-19 : trop de place, surtout sur
-  // mobile) ; l'urgence reste visible en rouge dans la ligne du résumé.
+  // mobile) ; l'urgence reste visible en rouge dans la ligne du résumé. Ligne de résumé au même
+  // gabarit que les autres blocs de l'accueil (voir dashboard-ui.tsx).
+  const tone: StatutTone = urgents > 0 ? "urgent" : cautionsEnAttente + fichesEnAttente > 0 ? "attente" : "ok";
   return (
-    <details className="group rounded-xl border bg-card">
-      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 marker:content-none">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Caution et fiche police</span>
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-          <Compteur tone={cautionsEnAttente > 0 ? "attente" : "ok"} label={`${cautionsEnAttente} caution${cautionsEnAttente > 1 ? "s" : ""} en attente`} />
-          <Compteur tone={fichesEnAttente > 0 ? "attente" : "ok"} label={`${fichesEnAttente} fiche${fichesEnAttente > 1 ? "s" : ""} police en attente`} />
-          {urgents > 0 ? <Compteur tone="urgent" label={`${urgents} arrivé${urgents > 1 ? "s" : ""} sans fiche ou caution`} /> : null}
-          {prochaine ? (
-            <span className="text-muted-foreground">
-              Prochaine : {prochaine.villaNom ?? "Logement"} {tempsRestant(prochaine.checkIn, now)}
-            </span>
-          ) : null}
-        </span>
-        <span className="ml-auto text-xs text-primary group-open:hidden">
-          {lignes.length === 0 ? "Aucune arrivée sur 7 jours" : `Voir ${lignes.length > 1 ? `les ${lignes.length} arrivées` : "l'arrivée"}`}
-        </span>
-        <span className="ml-auto hidden text-xs text-primary group-open:inline">Masquer</span>
+    <details className="group rounded-2xl border border-border bg-card">
+      <summary className={summaryRowClass}>
+        <RowIcon icon={ShieldCheck} tone={tone} />
+        <RowTitle
+          sub={
+            lignes.length === 0 ? (
+              "Aucune arrivée dans les 7 prochains jours"
+            ) : (
+              <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                <StatusDot tone={cautionsEnAttente > 0 ? "attente" : "ok"}>
+                  {cautionsEnAttente} caution{cautionsEnAttente > 1 ? "s" : ""} en attente
+                </StatusDot>
+                <StatusDot tone={fichesEnAttente > 0 ? "attente" : "ok"}>
+                  {fichesEnAttente} fiche{fichesEnAttente > 1 ? "s" : ""} police en attente
+                </StatusDot>
+                {urgents > 0 ? (
+                  <StatusDot tone="urgent">
+                    {urgents} arrivé{urgents > 1 ? "s" : ""} sans fiche ou caution
+                  </StatusDot>
+                ) : null}
+                {prochaine ? (
+                  <span className="hidden sm:inline">
+                    Prochaine : {prochaine.villaNom ?? "Logement"} {tempsRestant(prochaine.checkIn, now)}
+                  </span>
+                ) : null}
+              </span>
+            )
+          }
+        >
+          Caution et fiche police
+          <span className="ml-1.5 font-normal text-muted-foreground">· 7 jours</span>
+        </RowTitle>
+        {lignes.length > 0 ? (
+          <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
+            {lignes.length} arrivée{lignes.length > 1 ? "s" : ""}
+          </span>
+        ) : null}
+        <RowChevron />
       </summary>
 
-      {lignes.length === 0 ? (
-        <p className="border-t p-3 text-sm text-muted-foreground">Aucune arrivée dans les 7 prochains jours.</p>
-      ) : (
-        <ul className="divide-y border-t">
+      {lignes.length === 0 ? null : (
+        <ul className="divide-y divide-border border-t border-border">
           {lignes.map((l) => {
             const urgent = l.caution.tone === "urgent" || l.police.tone === "urgent";
             const restant = tempsRestant(l.checkIn, now);
             return (
-              <li key={l.id} className="grid gap-2 p-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-center sm:gap-3">
+              <li key={l.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-center sm:gap-3">
                 <Link href={`/reservations/${l.id}`} className="flex min-w-0 items-center gap-2.5 hover:opacity-80">
                   <CanalDot canal={l.canal} size="md" />
                   <span className="min-w-0">
@@ -234,21 +256,5 @@ export async function SuiviArrivees({ now }: { now: Date }) {
         </ul>
       )}
     </details>
-  );
-}
-
-const DOT_CLASSES: Record<StatutTone, string> = {
-  ok: "bg-emerald-500",
-  attente: "bg-amber-500",
-  urgent: "bg-red-500",
-  neutre: "bg-muted-foreground/40",
-};
-
-function Compteur({ tone, label }: { tone: StatutTone; label: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <span className={cn("h-2 w-2 shrink-0 rounded-full", DOT_CLASSES[tone])} />
-      <span className={tone === "urgent" ? "font-medium text-red-600 dark:text-red-400" : "text-foreground"}>{label}</span>
-    </span>
   );
 }

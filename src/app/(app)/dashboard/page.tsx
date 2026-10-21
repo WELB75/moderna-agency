@@ -25,27 +25,22 @@ import {
   personnelAffectations,
   clients,
 } from "@/db/schema";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { SyncIcalButton } from "@/components/app/sync-ical-button";
 import { SyncBeds24Button } from "@/components/app/sync-beds24-button";
 import { LinkBeds24Button } from "@/components/app/link-beds24-button";
 import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
-import { DomaineBadge } from "@/components/app/domaine-badge";
 import { type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { DomainePlanTrigger } from "@/components/app/domaine-plan-trigger";
 import { DashboardOverview } from "@/components/app/dashboard-overview";
 import { SuiviArrivees } from "@/components/app/suivi-arrivees";
-import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
-import { ReservationRowCard, type ReservationRow } from "@/components/app/reservation-row-card";
+import { type ReservationRow } from "@/components/app/reservation-row-card";
+import { ReservationAgendaCard } from "@/components/app/reservation-agenda-card";
+import { RowIcon, RowTitle } from "@/components/app/dashboard-ui";
+import { domaineLabel } from "@/lib/domaine-labels";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
-import {
-  Wrench,
-  ChevronLeft,
-  ChevronRight,
-  MoreVertical,
-} from "lucide-react";
+import { Wrench, ChevronLeft, ChevronRight, MoreVertical, Home } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
 import { lienPlateforme } from "@/lib/lien-plateforme";
 import { villaEstGeree } from "@/lib/domaines-actifs";
@@ -535,74 +530,76 @@ export default async function DashboardPage({
   }
 
   return (
-    <div className="w-full max-w-full space-y-4 overflow-x-hidden md:space-y-3">
-      {/* Vue d'ensemble façon SuperHote v2 (performance du mois, actions à traiter, journée) —
-          seulement sur la semaine en cours : elle parle d'aujourd'hui, pas de la semaine affichée. */}
+    <div className="w-full max-w-full space-y-6">
+      {/* Bloc "aujourd'hui" (salutation, compteurs du jour, suivi caution/fiche police) — seulement
+          sur la semaine en cours : il parle d'aujourd'hui, pas de la semaine affichée. */}
       {offsetSemaines === 0 ? (
-        <>
+        <section className="space-y-4" aria-label="Aujourd'hui">
           <DashboardOverview now={now} />
           <SuiviArrivees now={now} />
-          <h2 className="border-t pt-4 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground md:hidden">
-            Opérations de la semaine
-          </h2>
-        </>
+        </section>
       ) : null}
-      <Tabs defaultValue="Domaine Moderna II" className="space-y-3">
-        {/* Une seule ligne de tête sur ordinateur : navigateur de semaine, domaines (onglets) et
-            icônes d'options — Kamel, 2026-10-16 : "voir directement 2-3 jours à venir sans scroller". */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="inline-flex items-center rounded-lg border bg-card p-0.5">
-            <Link
-              href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
-              className="rounded-md p-3.5 text-muted-foreground hover:bg-muted hover:text-foreground md:p-1.5"
-              aria-label="Semaine précédente"
-              title="Semaine précédente"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Link>
-            <h1 className="px-1.5 text-base font-semibold tracking-tight sm:text-lg">
-              {offsetSemaines === 0 ? "Cette semaine" : `Du ${format(rangeStart, "d MMM", { locale: fr })} au ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
-            </h1>
-            <Link
-              href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
-              className="rounded-md p-3.5 text-muted-foreground hover:bg-muted hover:text-foreground md:p-1.5"
-              aria-label="Semaine suivante"
-              title="Semaine suivante"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Link>
+
+      <Tabs defaultValue="Domaine Moderna II" className="gap-4">
+        {/* Barre de la semaine : navigateur de semaine, domaines, options. Une seule ligne sur
+            grand écran ; sur téléphone et tablette, les onglets passent sur leur propre ligne,
+            pleine largeur (Kamel, 2026-10-16 : "voir directement 2-3 jours à venir sans
+            scroller"). La loupe n'est plus répétée ici : la recherche est déjà dans l'en-tête. */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="order-1 flex items-center gap-2">
+            <div className="inline-flex h-10 items-center rounded-xl border border-border bg-card p-0.5">
+              <Link
+                href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Semaine précédente"
+                title="Semaine précédente"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Link>
+              <h2 className="px-1 text-sm font-semibold tracking-tight sm:text-[15px]">
+                {offsetSemaines === 0
+                  ? "Cette semaine"
+                  : `${format(rangeStart, "d MMM", { locale: fr })} – ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
+              </h2>
+              <Link
+                href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
+                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                aria-label="Semaine suivante"
+                title="Semaine suivante"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+            {offsetSemaines !== 0 ? (
+              <Link href="/dashboard" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                Aujourd&apos;hui
+              </Link>
+            ) : null}
           </div>
-          <span className="text-sm text-muted-foreground md:hidden">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</span>
-          {offsetSemaines !== 0 ? (
-            <Link href="/dashboard" className="text-sm text-primary underline-offset-4 hover:underline">
-              Aujourd&apos;hui
-            </Link>
-          ) : null}
-        </div>
 
-
-          <TabsList className="order-3 h-11 w-full flex-nowrap justify-start gap-1 overflow-x-auto bg-muted p-1 md:order-none md:h-10 md:min-w-0 md:flex-1">
+          <TabsList className="order-3 h-11 w-full gap-1 rounded-xl bg-muted p-1 lg:order-2 lg:h-10 lg:w-auto lg:min-w-0 lg:max-w-md lg:flex-1">
             {DASHBOARD_DOMAINES.map((d) => (
               <TabsTrigger
                 key={d}
                 value={d}
-                className="h-9 shrink-0 rounded-md px-4 text-sm font-semibold md:h-8 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
+                className="h-9 min-w-0 flex-1 rounded-lg px-2 text-[13px] font-semibold sm:text-sm lg:h-8 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
               >
-                {d}
+                <span className="truncate">{domaineLabel(d)}</span>
               </TabsTrigger>
             ))}
           </TabsList>
-        {/* Actions de synchro/import : rarement utilisées au quotidien, donc repliées derrière
-            un déclencheur discret plutôt que deux boutons pleine largeur en haut de l'accueil. */}
-        <div className="flex items-center gap-2 self-start">
-          <GlobalSearchOverlay />
-          <details className="group relative">
-            <summary className="flex cursor-pointer list-none items-center justify-center border border-border p-3.5 md:p-2 text-muted-foreground marker:content-none hover:text-foreground">
+
+          {/* Synchro/import : rarement utilisés au quotidien, repliés derrière un seul bouton. */}
+          <details className="group relative order-2 ml-auto lg:order-3">
+            <summary
+              className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-xl border border-border bg-card text-muted-foreground marker:content-none hover:text-foreground [&::-webkit-details-marker]:hidden"
+              aria-label="Options"
+              title="Options"
+            >
               <MoreVertical className="h-4 w-4" />
             </summary>
-            <div className="absolute right-0 top-full z-20 mt-1 w-[min(18rem,calc(100vw-2rem))] space-y-2 border border-border bg-popover p-3 shadow-lg">
-              <p className="text-xs font-medium text-muted-foreground">Options</p>
+            <div className="absolute right-0 top-full z-30 mt-1.5 w-[min(18rem,calc(100vw-2rem))] space-y-2 rounded-xl border border-border bg-popover p-3 shadow-lg">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Synchronisation</p>
               <div className="flex flex-col gap-1.5">
                 <SyncIcalButton className="w-full" />
                 <SyncBeds24Button className="w-full" />
@@ -618,25 +615,18 @@ export default async function DashboardPage({
           </details>
         </div>
 
-
-        </div>
-
         {DASHBOARD_DOMAINES.map((d) => (
-          <TabsContent key={d} value={d} className="space-y-3">
-            {/* Tâches du jour et villas libres côte à côte quand il n'y a pas de tâche (deux lignes
-                fines), sinon les tâches prennent toute la largeur. */}
-            <div className={tachesDuJour.some((t) => t.domaineNom === d) || offsetSemaines !== 0 ? "space-y-3" : "grid gap-3 lg:grid-cols-2"}>
-              {offsetSemaines === 0 ? (
-                <TachesDuJour taches={tachesDuJour.filter((t) => t.domaineNom === d)} now={now} />
-              ) : null}
-              <VillasLibresCard villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
+          <TabsContent key={d} value={d} className="space-y-6">
+            {/* Un seul bloc "sur place maintenant" : tâches du jour (semaine en cours) + villas
+                libres, deux lignes du même gabarit au lieu de deux cartes différentes. */}
+            <div className="divide-y divide-border rounded-2xl border border-border bg-card">
+              {offsetSemaines === 0 ? <TachesDuJour taches={tachesDuJour.filter((t) => t.domaineNom === d)} now={now} /> : null}
+              <VillasLibresRow villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
             </div>
-            <PersonPanel
-              reservations={upcomingByDomaine.get(d)!}
-              maintenance={maintenanceByDomaine.get(d)!}
-              days={days}
-              now={now}
-            />
+
+            <Agenda reservations={upcomingByDomaine.get(d)!} days={days} now={now} semaineCourante={offsetSemaines === 0} />
+
+            <MaintenanceCard maintenance={maintenanceByDomaine.get(d)!} />
           </TabsContent>
         ))}
       </Tabs>
@@ -644,7 +634,10 @@ export default async function DashboardPage({
   );
 }
 
-function VillasLibresCard({
+// Ligne "Villas libres" : juste le numéro, pas le nom (Kamel, 2026-08-17 : plus rapide à
+// scanner), et le plan du domaine en icône à droite (uniquement Moderna II, planVillas vide
+// sinon).
+function VillasLibresRow({
   villas,
   planVillas,
 }: {
@@ -652,98 +645,167 @@ function VillasLibresCard({
   planVillas: PlanVilla[];
 }) {
   return (
-    <Card className="h-full justify-center gap-0 py-3">
-      <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-base font-medium">Villas libres ({villas.length})</span>
-        {/* Juste le numéro, pas le nom de la villa (Kamel, 2026-08-17) : plus rapide à scanner. */}
-        {villas.length === 0 ? (
-          <span className="text-sm text-muted-foreground">Tout est occupé en ce moment.</span>
-        ) : (
-          <div className="flex flex-1 flex-wrap gap-1.5">
-            {villas.map((v) => (
-              <Link key={v.id} href={`/villas/${v.id}`}>
-                <Badge
-                  variant="outline"
-                  className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                >
-                  n°{v.numero}
-                </Badge>
-              </Link>
-            ))}
-          </div>
-        )}
-        {/* Plan du domaine : uniquement Moderna II (planVillas vide sinon). */}
-        {planVillas.length > 0 ? <DomainePlanTrigger villas={planVillas} /> : null}
-      </CardContent>
-    </Card>
+    <div className="flex min-h-14 items-center gap-3 px-4 py-2.5">
+      <RowIcon icon={Home} tone={villas.length > 0 ? "ok" : "neutre"} />
+      <RowTitle
+        sub={
+          villas.length === 0 ? (
+            "Tout est occupé en ce moment"
+          ) : (
+            <span className="flex flex-wrap gap-1.5 pt-1">
+              {villas.map((v) => (
+                <Link key={v.id} href={`/villas/${v.id}`}>
+                  <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
+                    n°{v.numero}
+                  </Badge>
+                </Link>
+              ))}
+            </span>
+          )
+        }
+      >
+        Villas libres
+        <span className="ml-1.5 font-normal text-muted-foreground">· {villas.length}</span>
+      </RowTitle>
+      {planVillas.length > 0 ? <DomainePlanTrigger villas={planVillas} /> : null}
+    </div>
   );
 }
 
-function PersonPanel({
-  reservations: personReservations,
-  maintenance: personMaintenance,
+// Agenda de la semaine : un en-tête par jour (collant sous la barre du haut pendant le
+// défilement), puis une carte repliable par check-in / check-out, triées par heure réelle
+// (les check-out le matin, les check-in l'après-midi). Les jours sans rien sont regroupés en une
+// seule ligne discrète plutôt qu'une carte vide chacun.
+function Agenda({
+  reservations: resas,
   days,
   now,
+  semaineCourante,
 }: {
   reservations: ReservationRow[];
-  maintenance: MaintenanceRow[];
   days: Date[];
   now: Date;
+  semaineCourante: boolean;
 }) {
-  return (
-    <>
-      {days.map((day) => {
-        const dayCheckIns = personReservations.filter((r) => isSameDay(new Date(r.checkIn), day));
-        const dayCheckOuts = personReservations.filter((r) => isSameDay(new Date(r.checkOut), day));
-        const title = isToday(day) ? "Aujourd'hui" : isTomorrow(day) ? "Demain" : format(day, "EEEE", { locale: fr });
+  type Item = { r: ReservationRow; kind: "in" | "out"; at: Date };
+  const parJour = days.map((day) => {
+    const items: Item[] = [
+      ...resas.filter((r) => isSameDay(new Date(r.checkIn), day)).map((r) => ({ r, kind: "in" as const, at: new Date(r.checkIn) })),
+      ...resas.filter((r) => isSameDay(new Date(r.checkOut), day)).map((r) => ({ r, kind: "out" as const, at: new Date(r.checkOut) })),
+    ].sort((a, b) => a.at.getTime() - b.at.getTime());
+    return { day, items };
+  });
 
+  // Regroupe les jours vides consécutifs.
+  const blocs: ({ type: "jour"; day: Date; items: Item[] } | { type: "vides"; days: Date[] })[] = [];
+  for (const { day, items } of parJour) {
+    if (items.length > 0) {
+      blocs.push({ type: "jour", day, items });
+    } else {
+      const dernier = blocs[blocs.length - 1];
+      if (dernier && dernier.type === "vides") dernier.days.push(day);
+      else blocs.push({ type: "vides", days: [day] });
+    }
+  }
+
+  const total = parJour.reduce((n, j) => n + j.items.length, 0);
+
+  return (
+    <section className="space-y-3" aria-label="Agenda de la semaine">
+      {total === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+          Aucun check-in ni check-out sur cette semaine.
+        </p>
+      ) : null}
+      {blocs.map((bloc) => {
+        if (bloc.type === "vides") {
+          const libelles = bloc.days.map((d) => libelleJour(d, semaineCourante, true));
+          const texte = libelles.length === 1 ? libelles[0] : `${libelles.slice(0, -1).join(", ")} et ${libelles[libelles.length - 1]}`;
+          return (
+            <p key={bloc.days[0].toISOString()} className="px-1 py-1 text-sm text-muted-foreground">
+              <span className="capitalize">{texte}</span> : rien de prévu.
+            </p>
+          );
+        }
+        const cash = estimerCashJour(bloc.items.filter((i) => i.kind === "out").map((i) => i.r));
+        const nbIn = bloc.items.filter((i) => i.kind === "in").length;
+        const nbOut = bloc.items.length - nbIn;
+        const aujourdhui = semaineCourante && isToday(bloc.day);
         return (
-          <DayCard
-            key={day.toISOString()}
-            title={title}
-            date={day}
-            checkIns={dayCheckIns}
-            checkOuts={dayCheckOuts}
-          />
+          <div key={bloc.day.toISOString()} className="space-y-2">
+            <div
+              className="sticky z-10 -mx-4 bg-background md:-mx-6"
+              style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
+            >
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 bg-muted/40 px-4 py-2 md:px-6">
+                <h3 className="text-[15px] font-semibold capitalize">{libelleJour(bloc.day, semaineCourante, false)}</h3>
+                <span className="text-sm text-muted-foreground">{format(bloc.day, "EEEE d MMMM", { locale: fr })}</span>
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {nbIn > 0 ? `${nbIn} arrivée${nbIn > 1 ? "s" : ""}` : null}
+                  {nbIn > 0 && nbOut > 0 ? " · " : null}
+                  {nbOut > 0 ? `${nbOut} départ${nbOut > 1 ? "s" : ""}` : null}
+                </span>
+                {cash.total > 0 ? (
+                  <span
+                    className="basis-full text-xs text-amber-700 dark:text-amber-400"
+                    title={cash.detail}
+                  >
+                    Prévoir {cash.total} MAD en liquide pour le ménage/la cuisine · {cash.detail}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div className="space-y-2">
+              {bloc.items.map(({ r, kind }) => {
+                const fait = kind === "in" ? Boolean(r.checkinValideAt) : Boolean(r.checkoutValideAt);
+                return <ReservationAgendaCard key={`${kind}-${r.id}`} r={r} kind={kind} defaultOpen={aujourdhui && !fait} />;
+              })}
+            </div>
+          </div>
         );
       })}
+    </section>
+  );
+}
 
-      {personMaintenance.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Entretiens à prévoir (30 jours)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {personMaintenance.map((m) => {
-              const overdue = isPast(new Date(m.prochaineDatePrevue!));
-              return (
-                <Link
-                  key={m.id}
-                  href="/maintenance"
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 hover:border-primary/50"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="rounded-full bg-amber-500/10 p-2 text-amber-600 dark:text-amber-400">
-                      <Wrench className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{m.equipement}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {m.villaNom ? `${m.villaNom} (n°${m.villaNumero})` : "Villa non renseignée"}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant={overdue ? "destructive" : "outline"}>
-                    {overdue ? "En retard" : "Prévu"} ·{" "}
-                    {format(new Date(m.prochaineDatePrevue!), "d MMM", { locale: fr })}
-                  </Badge>
-                </Link>
-              );
-            })}
-          </CardContent>
-        </Card>
-      )}
-    </>
+function libelleJour(day: Date, semaineCourante: boolean, avecDate: boolean): string {
+  if (semaineCourante && isToday(day)) return "Aujourd'hui";
+  if (semaineCourante && isTomorrow(day)) return "Demain";
+  return avecDate ? format(day, "EEEE d", { locale: fr }) : format(day, "EEEE", { locale: fr });
+}
+
+function MaintenanceCard({ maintenance }: { maintenance: MaintenanceRow[] }) {
+  if (maintenance.length === 0) return null;
+  return (
+    <section className="rounded-2xl border border-border bg-card" aria-label="Entretiens à prévoir">
+      <div className="flex min-h-14 items-center gap-3 px-4 py-2.5">
+        <RowIcon icon={Wrench} tone="attente" />
+        <RowTitle sub="Sur les 30 prochains jours">
+          Entretiens à prévoir
+          <span className="ml-1.5 font-normal text-muted-foreground">· {maintenance.length}</span>
+        </RowTitle>
+      </div>
+      <ul className="divide-y divide-border border-t border-border">
+        {maintenance.map((m) => {
+          const overdue = isPast(new Date(m.prochaineDatePrevue!));
+          return (
+            <li key={m.id}>
+              <Link href="/maintenance" className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/50">
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-medium">{m.equipement}</span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {m.villaNom ? `${m.villaNom} (n°${m.villaNumero})` : "Villa non renseignée"}
+                  </span>
+                </span>
+                <Badge variant={overdue ? "destructive" : "outline"} className="shrink-0">
+                  {overdue ? "En retard" : "Prévu"} · {format(new Date(m.prochaineDatePrevue!), "d MMM", { locale: fr })}
+                </Badge>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -757,105 +819,6 @@ type MaintenanceRow = {
   villaType: "villa" | "appartement" | null;
   domaineNom: string | null;
 };
-
-function DayCard({
-  title,
-  date,
-  checkIns,
-  checkOuts,
-}: {
-  title: string;
-  date: Date;
-  checkIns: ReservationRow[];
-  checkOuts: ReservationRow[];
-}) {
-  const total = checkIns.length + checkOuts.length;
-
-  // Regroupe par domaine pour afficher les colonnes côte à côte (ex. Zaraba à
-  // gauche, Moderna 2 à droite) — repérage immédiat de quel domaine est concerné.
-  const domaineNames = Array.from(
-    new Set([...checkIns, ...checkOuts].map((r) => r.domaineNom ?? "Sans domaine"))
-  ).sort();
-
-  const domaineGroups = domaineNames.map((domaineName) => {
-    const domaineCheckIns = checkIns.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
-    const domaineCheckOuts = checkOuts.filter((r) => (r.domaineNom ?? "Sans domaine") === domaineName);
-    // Trié par horaire réel : les check-out sont le matin, les check-in l'après-midi,
-    // donc ça place naturellement les check-out en premier sans règle figée.
-    const items: { r: ReservationRow; kind: "in" | "out" }[] = [
-      ...domaineCheckIns.map((r) => ({ r, kind: "in" as const })),
-      ...domaineCheckOuts.map((r) => ({ r, kind: "out" as const })),
-    ].sort(
-      (a, b) =>
-        new Date(a.kind === "in" ? a.r.checkIn : a.r.checkOut).getTime() -
-        new Date(b.kind === "in" ? b.r.checkIn : b.r.checkOut).getTime()
-    );
-    return { domaineName, checkIns: domaineCheckIns, checkOuts: domaineCheckOuts, items };
-  });
-
-  if (total === 0) {
-    return (
-      <Card className="gap-0 py-3">
-        <CardContent className="flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span className="text-base font-medium capitalize">{title}</span>
-          <span className="text-muted-foreground">{format(date, "d MMMM", { locale: fr })} · rien à signaler</span>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="gap-3 py-3">
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-baseline gap-x-2 text-base">
-          <span className="capitalize">{title}</span>
-          <span className="text-sm font-normal text-muted-foreground">
-            {format(date, "d MMMM", { locale: fr })}
-          </span>
-          {total > 0 && (
-            <span className="text-sm font-normal text-muted-foreground">
-              · {total} évènement{total > 1 ? "s" : ""}
-            </span>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {total === 0 ? (
-          <p className="text-sm text-muted-foreground">Rien à signaler.</p>
-        ) : (
-          <>
-            {/* Plus un pavé encadré : juste une légende légère au-dessus des cartes, moins lourd
-                visuellement (Kamel, 2026-08-17 : "ça fait trop pavé"). */}
-            <div className="mb-2 space-y-0.5">
-              {domaineGroups.map((g) => (
-                <p key={g.domaineName} className="text-xs text-muted-foreground">
-                  {buildResumeDomaine(g.domaineName, g.checkIns, g.checkOuts)}
-                </p>
-              ))}
-            </div>
-            {/* Un seul domaine actif la plupart du temps : forcer 2 colonnes ici laisserait la
-                moitié de l'écran vide. On ne coupe en colonnes que s'il y a vraiment plusieurs
-                domaines à afficher côte à côte. */}
-            {/* Vue horizontale (Kamel, 2026-10-13) : une carte pleine largeur par check-in /
-                check-out, empilées par heure — plus compact que deux colonnes de cartes hautes. */}
-            <div className="min-w-0 space-y-4">
-              {domaineGroups.map((g) => (
-                <div key={g.domaineName} className="min-w-0 space-y-2">
-                  <DomaineBadge nom={g.domaineName} />
-                  <div className="space-y-2">
-                    {g.items.map(({ r, kind }) => (
-                      <ReservationRowCard key={`${kind}-${r.id}`} r={r} kind={kind} layout="horizontal" />
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 // Estimation de ce qu'il faudra prévoir en liquide pour le ménage/la cuisine d'un départ,
 // même si rien n'est encore confirmé fait (contrairement à cashAPrevoir, qui ne compte que ce
@@ -878,36 +841,22 @@ function estimateCashDetailPourDepart(r: ReservationRow): { nom: string; montant
   return detail;
 }
 
-// Synthèse en une phrase de ce qu'il y a à faire dans ce domaine ce jour-là, avec le détail
-// personne par personne de ce qu'il faut prévoir en liquide (ex. "Se rendre à Domaine Zaraba :
-// ... Prévoir 400 MAD pour le ménage/la cuisine (Villa X : Fatiha 200 MAD, Saida 200 MAD).").
-function buildResumeDomaine(domaineName: string, checkIns: ReservationRow[], checkOuts: ReservationRow[]): string {
-  const parts: string[] = [];
-  if (checkIns.length > 0) {
-    const noms = checkIns.map((r) => r.villaNom).filter(Boolean);
-    parts.push(
-      `${checkIns.length} check-in${checkIns.length > 1 ? "s" : ""}${noms.length ? ` (${noms.join(", ")})` : ""}`
-    );
-  }
-  if (checkOuts.length > 0) {
-    const noms = checkOuts.map((r) => r.villaNom).filter(Boolean);
-    parts.push(
-      `${checkOuts.length} check-out${checkOuts.length > 1 ? "s" : ""}${noms.length ? ` (${noms.join(", ")})` : ""}`
-    );
-  }
-
-  const villaDetails = checkOuts
+// Total et détail du liquide à prévoir pour les départs d'un jour (ex. "Villa Nessya : Khadija
+// MASLIK 800 MAD ; Villa Tania : Fatiha 200 MAD").
+function estimerCashJour(departs: ReservationRow[]): { total: number; detail: string } {
+  const parVilla = departs
     .map((r) => {
       const detail = estimateCashDetailPourDepart(r);
       if (detail.length === 0) return null;
-      const montantTotal = detail.reduce((sum, d) => sum + d.montant, 0);
-      const noms = detail.map((d) => `${d.nom} ${d.montant} MAD`).join(", ");
-      return { villaNom: r.villaNom ?? "Villa", montantTotal, noms };
+      return {
+        villaNom: r.villaNom ?? "Villa",
+        total: detail.reduce((sum, d) => sum + d.montant, 0),
+        noms: detail.map((d) => `${d.nom} ${d.montant} MAD`).join(", "),
+      };
     })
-    .filter((v): v is { villaNom: string; montantTotal: number; noms: string } => v !== null);
-
-  const cashEstime = villaDetails.reduce((sum, v) => sum + v.montantTotal, 0);
-  const cashDetail = villaDetails.map((v) => `${v.villaNom} : ${v.noms}`).join(" ; ");
-  const cashSuffix = cashEstime > 0 ? ` Prévoir ${cashEstime} MAD pour le ménage/la cuisine (${cashDetail}).` : "";
-  return `Se rendre à ${domaineName} : ${parts.join(" et ")}.${cashSuffix}`;
+    .filter((v): v is { villaNom: string; total: number; noms: string } => v !== null);
+  return {
+    total: parVilla.reduce((sum, v) => sum + v.total, 0),
+    detail: parVilla.map((v) => `${v.villaNom} : ${v.noms}`).join(" ; "),
+  };
 }
