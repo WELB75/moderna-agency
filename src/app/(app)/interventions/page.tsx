@@ -9,7 +9,7 @@ import { CategorieFilterView, type CategorieGroup } from "@/components/app/categ
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { CATEGORIES } from "@/lib/intervention-categorie";
 import { computeCategorieStats } from "@/lib/categorie-stats";
-import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, villaEstGeree } from "@/lib/domaines-actifs";
 import { Gauge } from "lucide-react";
 
 export default async function InterventionsPage() {
@@ -62,7 +62,7 @@ export default async function InterventionsPage() {
     await db
       .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
       .from(villas)
-  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId) && villaEstGeree(v.nom));
   const villaIdsActifs = new Set(allVillas.map((v) => v.id));
   const allTechnicians = await db
     .select({ id: technicians.id, nom: technicians.nom, fonction: technicians.fonction })

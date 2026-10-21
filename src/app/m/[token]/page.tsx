@@ -8,7 +8,7 @@ import { AddInterventionDialog } from "@/components/app/add-intervention-dialog"
 import { InterventionCard } from "@/components/app/intervention-card";
 import { VillaFilterView, type VillaGroup } from "@/components/app/villa-filter-view";
 import { sortByUrgence } from "@/lib/intervention-urgence";
-import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, idsVillasActives } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, idsVillasActives, villaEstGeree } from "@/lib/domaines-actifs";
 import { isValidMaintenanceToken } from "@/lib/maintenance-access-token";
 import { Clock, CheckCircle2 } from "lucide-react";
 
@@ -29,7 +29,7 @@ export default async function MaintenanceSpacePage({ params }: { params: Promise
     await db
       .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
       .from(villas)
-  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId) && villaEstGeree(v.nom));
   const villaIdsActifs = idsVillasActives(allVillas, domaineIdsActifs);
 
   const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);

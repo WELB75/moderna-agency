@@ -13,7 +13,7 @@ import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { deleteTechnician } from "@/lib/actions/technicians";
 import { sortByUrgence } from "@/lib/intervention-urgence";
-import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, idsVillasActives } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, idsVillasActives, villaEstGeree } from "@/lib/domaines-actifs";
 import { Users, ListTodo, Clock, CheckCircle2 } from "lucide-react";
 
 export default async function MaintenancePage() {
@@ -26,7 +26,7 @@ export default async function MaintenancePage() {
     await db
       .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
       .from(villas)
-  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId) && villaEstGeree(v.nom));
   const villaIdsActifs = idsVillasActives(allVillas, domaineIdsActifs);
 
   const allTechnicians = await db.select().from(technicians).orderBy(technicians.nom);

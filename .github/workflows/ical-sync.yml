@@ -12,15 +12,17 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
+#
+# 2026-10-21 : "SuperHote on utilise plus" — l'étape "Sync legacy Superhote" (/api/ical/sync) est
+# retirée. Elle ne lisait plus que les 6 logements non reliés à Beds24 (Kamel, Eline, Elysée, Eva,
+# Alba, Prestigia, retirés de l'app), et sa réconciliation aurait passé en "annulée" toute
+# réservation pas encore terminée absente du flux SuperHote (ex. le séjour en cours d'Eva cosy) si
+# le compte SuperHote était fermé. La route reste en place, lançable à la main si besoin.
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Sync legacy Superhote
-        run: |
-          curl -fsS -X POST --max-time 50 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://moderna-agency.vercel.app/api/ical/sync"
       - name: Sync Airbnb/Booking.com direct
         run: |
           curl -fsS -X POST --max-time 50 \

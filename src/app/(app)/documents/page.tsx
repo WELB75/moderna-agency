@@ -19,7 +19,7 @@ import { deleteContrat } from "@/lib/actions/contrats";
 import { derniereSignatureAgence } from "@/lib/contrat-donnees";
 import { sejourSansVoyageur } from "@/lib/conditions-sejour";
 import { estContratV1 } from "@/lib/contrat-template";
-import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs } from "@/lib/domaines-actifs";
+import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, villaEstGeree } from "@/lib/domaines-actifs";
 import { CalendarCheck, FilePlus2, History, IdCard, Download } from "lucide-react";
 
 // L'import de passeport (PassportDropZone) lit la MRZ via OCR local (voir passport-ocr.ts) : plus
@@ -69,7 +69,7 @@ export default async function DocumentsPage({
       .select({ id: villas.id, nom: villas.nom, numero: villas.numero, domaineId: villas.domaineId })
       .from(villas)
       .orderBy(asc(villas.numero))
-  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId));
+  ).filter((v) => v.domaineId && domaineIdsActifs.has(v.domaineId) && villaEstGeree(v.nom));
   const villaIdsActifs = new Set(allVillas.map((v) => v.id));
 
   // Réservations proposées pour pré-remplir les conditions : séjours pas encore terminés, vrais

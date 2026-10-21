@@ -8,29 +8,36 @@ import { Badge } from "@/components/ui/badge";
 import { AddVillaDialog } from "@/components/app/add-villa-dialog";
 import { AddDomaineDialog } from "@/components/app/add-domaine-dialog";
 import { DomaineBadge } from "@/components/app/domaine-badge";
+import { logementEstIntegre } from "@/lib/domaines-actifs";
 import { Home, ChevronRight } from "lucide-react";
 
 export default async function AppartementsPage() {
   const db = getDb();
   const allDomaines = await db.select().from(domaines).orderBy(domaines.nom);
-  const allAppartements = await db
-    .select({
-      id: villas.id,
-      numero: villas.numero,
-      nom: villas.nom,
-      adresse: villas.adresse,
-      notes: villas.notes,
-      photoUrl: villas.photoUrl,
-      icalUrl: villas.icalUrl,
-      domaineId: villas.domaineId,
-      createdAt: villas.createdAt,
-      updatedAt: villas.updatedAt,
-      domaineNom: domaines.nom,
-    })
-    .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(eq(villas.type, "appartement"))
-    .orderBy(desc(villas.createdAt));
+  // 2026-10-21 : "on a 16 hébergements au total" — mêmes appartements que dans Hébergements
+  // (reliés à Beds24, hors logements retirés et Prestigia), voir logementEstIntegre.
+  const allAppartements = (
+    await db
+      .select({
+        id: villas.id,
+        numero: villas.numero,
+        nom: villas.nom,
+        adresse: villas.adresse,
+        notes: villas.notes,
+        photoUrl: villas.photoUrl,
+        icalUrl: villas.icalUrl,
+        domaineId: villas.domaineId,
+        type: villas.type,
+        beds24RoomId: villas.beds24RoomId,
+        createdAt: villas.createdAt,
+        updatedAt: villas.updatedAt,
+        domaineNom: domaines.nom,
+      })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(eq(villas.type, "appartement"))
+      .orderBy(desc(villas.createdAt))
+  ).filter((a) => logementEstIntegre(a));
 
   return (
     <div className="space-y-6">

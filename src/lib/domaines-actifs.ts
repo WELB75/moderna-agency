@@ -19,6 +19,12 @@ export function domaineEstActif(nom: string | null | undefined): boolean {
 // (Hébergements, calendrier planning, nouvelle réservation, tableau de bord, statistiques), pas
 // supprimées en base : leurs réservations, factures et fiches passées restent consultables.
 // Kamel, 2026-10-14 : "retire l'appart Prestigia golf" (Appart. Climatisé vue Piscine & Atlas).
+// 2026-10-21 : "on a 16 hébergements au total donc les autres supprime-les" — ces 6 logements
+// sont désormais retirés de TOUTES les listes de l'app (Propriétaires, Appartements, maintenance,
+// interventions, inventaire, documents, chat interne, espace maintenance, chiffres de la vitrine),
+// pas seulement du suivi au jour le jour. Toujours pas supprimés en base : une suppression
+// effacerait en cascade leurs réservations, fiches gendarmerie, contrats et paiements. Leur fiche
+// reste joignable par lien direct (/villas/<id>) pour l'historique.
 export const VILLAS_MASQUEES: string[] = [
   "Villa Elysée",
   "Villa Eline",
