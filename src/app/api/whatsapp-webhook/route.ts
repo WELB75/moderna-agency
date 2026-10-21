@@ -18,6 +18,7 @@ import { sendWhatsAppText, sendWhatsAppTextAndVoice, renvoyerVocalEnAttente, jou
 import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
 import { isMutedPhone } from "@/lib/whatsapp-agent/muted-phones";
+import { estChangementAgence, traiterChangementAgence } from "@/lib/whatsapp-agence";
 
 export const maxDuration = 60;
 
@@ -108,9 +109,16 @@ export async function POST(req: NextRequest) {
   const payload = await req.json();
 
   try {
-    const entry = payload?.entry?.[0];
-    const change = entry?.changes?.[0];
-    const value = change?.value;
+    // Ligne WhatsApp Business de l'agence (coexistence téléphone + app) : on enregistre pour la
+    // boîte Messages et on s'arrête là. Aucun agent, aucune réponse automatique sur ce numéro.
+    const changes: { field?: string; value?: Record<string, unknown> }[] = (payload?.entry ?? []).flatMap(
+      (e: { changes?: unknown[] }) => e?.changes ?? []
+    );
+    for (const c of changes.filter(estChangementAgence)) await traiterChangementAgence(c);
+
+    const change = changes.find((c) => !estChangementAgence(c));
+    if (!change) return NextResponse.json({ ok: true });
+    const value = change?.value as Record<string, any> | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
     const message = value?.messages?.[0];
 
     // Accusés de statut ("sent"/"delivered"/"read"/"failed") plutôt qu'un message entrant — jusque
