@@ -1,7 +1,7 @@
-import { desc, eq, isNotNull } from "drizzle-orm";
+import { desc, eq, gt, isNotNull, ne, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { getDb } from "@/db";
-import { villas, technicians, interventions, domaines, proprieteContacts } from "@/db/schema";
+import { villas, technicians, interventions, domaines, proprieteContacts, reservations } from "@/db/schema";
 import { Logo } from "@/components/app/logo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddInterventionDialog } from "@/components/app/add-intervention-dialog";
@@ -10,7 +10,8 @@ import { VillaFilterView, type VillaGroup } from "@/components/app/villa-filter-
 import { sortByUrgence } from "@/lib/intervention-urgence";
 import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, idsVillasActives, villaEstGeree } from "@/lib/domaines-actifs";
 import { isValidMaintenanceToken } from "@/lib/maintenance-access-token";
-import { Clock, CheckCircle2 } from "lucide-react";
+import { OwnerStayCalendar } from "@/components/app/owner-stay-calendar";
+import { Clock, CheckCircle2, CalendarDays } from "lucide-react";
 
 // Espace maintenance public — même contenu que l'onglet "Tâches" de l'app interne (/maintenance),
 // mais accessible sans compte Clerk via un jeton unique partagé (voir maintenance-access-token.ts)
@@ -85,6 +86,15 @@ export default async function MaintenanceSpacePage({ params }: { params: Promise
       .orderBy(desc(interventions.createdAt))
   ).filter((i) => domaineEstActif(i.domaineNom));
 
+  // Calendriers d'occupation : dates seulement (aucun nom de client ni contact) pour que le
+  // responsable maintenance voie quand une villa est vide et planifie les travaux en conséquence.
+  const maintenant = new Date();
+  const sejoursVilla = await db
+    .select({ villaId: reservations.villaId, checkIn: reservations.checkIn, checkOut: reservations.checkOut })
+    .from(reservations)
+    .where(and(ne(reservations.status, "annulee"), gt(reservations.checkOut, maintenant)));
+  const villasTriees = [...allVillas].sort((a, b) => a.nom.localeCompare(b.nom, "fr", { numeric: true }));
+
   const tachesEnAttente = villaInterventions.filter((i) => i.etape !== "termine");
   const tachesTerminees = villaInterventions
     .filter((i) => i.etape === "termine")
@@ -123,6 +133,37 @@ export default async function MaintenanceSpacePage({ params }: { params: Promise
         <AddInterventionDialog villas={allVillas} domaines={allDomaines} technicians={allTechnicians} contacts={allContacts} token={token} />
       </div>
 
+      <Tabs defaultValue="taches">
+        <TabsList>
+          <TabsTrigger value="taches">Tâches</TabsTrigger>
+          <TabsTrigger value="calendriers">
+            <CalendarDays className="h-3.5 w-3.5" />
+            Calendriers villas
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="calendriers" className="space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Jours en noir : villa louée. Les jours libres sont ceux où vous pouvez intervenir.
+          </p>
+          {villasTriees.map((v) => (
+            <details key={v.id} className="rounded-md border px-3 py-2">
+              <summary className="cursor-pointer text-sm font-medium">
+                {v.nom} (n°{v.numero})
+              </summary>
+              <div className="pt-3">
+                <OwnerStayCalendar
+                  now={maintenant}
+                  stays={sejoursVilla
+                    .filter((s) => s.villaId === v.id)
+                    .map((s) => ({ checkIn: new Date(s.checkIn), checkOut: new Date(s.checkOut) }))}
+                />
+              </div>
+            </details>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="taches">
       {villaInterventions.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">Aucune tâche pour l&apos;instant.</p>
       ) : (
@@ -170,6 +211,8 @@ export default async function MaintenanceSpacePage({ params }: { params: Promise
           </Tabs>
         </div>
       )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
