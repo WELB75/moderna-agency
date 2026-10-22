@@ -1,5 +1,6 @@
 "use server";
 
+import { normaliserNumerosSyndic } from "@/lib/syndic-numeros";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
@@ -15,7 +16,7 @@ export async function enregistrerSyndicLogement(villaId: string, entete: string,
   await auth.protect();
   const enteteNettoyee = entete.trim();
   const residenceNettoyee = residence.trim();
-  const whatsappNettoye = whatsapp.replace(/[^\d+]/g, "") || null;
+  const whatsappNettoye = normaliserNumerosSyndic(whatsapp);
   if (!enteteNettoyee || !residenceNettoyee) throw new Error("L'en-tête du syndic et la résidence sont obligatoires.");
 
   await assurerTableSyndic();

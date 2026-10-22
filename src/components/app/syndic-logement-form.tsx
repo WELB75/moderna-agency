@@ -86,8 +86,8 @@ export function SyndicLogementForm({
           <Input id="residence" name="residence" required defaultValue={residence ?? ""} placeholder="ISLI 2" autoComplete="off" />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="whatsapp">WhatsApp du syndic / gardien</Label>
-          <Input id="whatsapp" name="whatsapp" type="tel" defaultValue={whatsapp ?? ""} placeholder="+212 6 ..." autoComplete="off" />
+          <Label htmlFor="whatsapp">WhatsApp du syndic / gardien (plusieurs : séparés par une virgule)</Label>
+          <Input id="whatsapp" name="whatsapp" type="text" defaultValue={whatsapp ?? ""} placeholder="+212 6 ..., +212 6 ..." autoComplete="off" />
         </div>
       </div>
       <div className="flex flex-wrap gap-2">

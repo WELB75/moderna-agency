@@ -5,6 +5,7 @@ import { PrintButton } from "@/components/app/print-button";
 import { SyndicLogementForm } from "@/components/app/syndic-logement-form";
 import { getDeclarationSyndic } from "@/lib/syndic";
 import { DeclarationSyndicDocument } from "@/components/app/declaration-syndic-document";
+import { numerosPourEnvoi } from "@/lib/syndic-numeros";
 import { SyndicWhatsAppButton } from "@/components/app/syndic-whatsapp-button";
 import { cn } from "@/lib/utils";
 
@@ -89,7 +90,7 @@ export default async function DeclarationSyndicPage({ params }: { params: Promis
         {prete ? (
           <SyndicWhatsAppButton
             reservationId={d.reservationId}
-            whatsapp={d.syndic?.whatsapp ?? null}
+            numeros={numerosPourEnvoi(d.syndic?.whatsapp)}
             guestName={d.guestName}
             residence={d.syndic?.residence ?? ""}
             numeroAppartement={d.numeroAppartement}
