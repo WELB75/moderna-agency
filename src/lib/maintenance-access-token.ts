@@ -5,10 +5,10 @@
 // jamais faire confiance uniquement au rendu de la page.
 // MAINTENANCE_ACCESS_TOKEN reste le jeton partagé historique ; les variables
 // MAINTENANCE_ACCESS_TOKEN_<NOM> ci-dessous donnent des codes personnels à une personne précise
-// (ex. Imed) sans changer le lien déjà utilisé par le reste de l'équipe.
+// (ex. Rida) sans changer le lien déjà utilisé par le reste de l'équipe.
 export function isValidMaintenanceToken(token: string | undefined | null): boolean {
   if (!token) return false;
-  const validTokens = [process.env.MAINTENANCE_ACCESS_TOKEN, process.env.MAINTENANCE_ACCESS_TOKEN_IMED].filter(
+  const validTokens = [process.env.MAINTENANCE_ACCESS_TOKEN, process.env.MAINTENANCE_ACCESS_TOKEN_RIDA].filter(
     Boolean
   );
   return validTokens.includes(token);
