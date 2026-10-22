@@ -34,6 +34,7 @@ import { EditReservationTimeDialog } from "@/components/app/edit-reservation-tim
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip";
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
+import { DeclarationSyndicChip } from "@/components/app/declaration-syndic-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor } from "@/components/app/personnel-affectation-editor";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
@@ -324,6 +325,8 @@ export function ReservationAgendaCard({
                 <div className="flex flex-wrap gap-1.5">
                   <FichePoliceStatusChip reservationId={r.id} villaId={r.villaId} ficheId={r.ficheId} ficheStatut={r.ficheStatut} />
                   <ContratStatusChip contratId={r.contratId} contratStatut={r.contratStatut} villaId={r.villaId} reservationId={r.id} />
+                  {/* Appartements en résidence : déclaration sur l'honneur pour le syndic. */}
+                  {r.villaType === "appartement" ? <DeclarationSyndicChip reservationId={r.id} ficheStatut={r.ficheStatut} /> : null}
                 </div>
               ) : null}
               <div className="[&>div]:mt-0 [&>div]:rounded-xl [&>div]:px-3 [&>div]:py-2">
