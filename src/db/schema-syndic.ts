@@ -14,5 +14,7 @@ export const syndicLogements = pgTable("syndic_logements", {
   entete: text("entete").notNull(),
   // Nom court de la résidence dans le corps du texte (« Située à la résidence ISLI 2 »).
   residence: text("residence").notNull(),
+  // WhatsApp du syndic / gardien de la résidence : destinataire du lien du dossier du séjour.
+  whatsapp: text("whatsapp"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });

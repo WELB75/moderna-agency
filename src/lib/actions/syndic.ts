@@ -11,10 +11,11 @@ import { tracer } from "@/lib/journal";
 
 // En-tête du syndic d'un appartement, saisi une fois depuis la page de la déclaration (là où
 // l'équipe s'aperçoit qu'il manque) et réutilisé pour tous les séjours suivants.
-export async function enregistrerSyndicLogement(villaId: string, entete: string, residence: string) {
+export async function enregistrerSyndicLogement(villaId: string, entete: string, residence: string, whatsapp = "") {
   await auth.protect();
   const enteteNettoyee = entete.trim();
   const residenceNettoyee = residence.trim();
+  const whatsappNettoye = whatsapp.replace(/[^\d+]/g, "") || null;
   if (!enteteNettoyee || !residenceNettoyee) throw new Error("L'en-tête du syndic et la résidence sont obligatoires.");
 
   await assurerTableSyndic();
@@ -24,10 +25,10 @@ export async function enregistrerSyndicLogement(villaId: string, entete: string,
 
   await db
     .insert(syndicLogements)
-    .values({ villaId, entete: enteteNettoyee, residence: residenceNettoyee })
+    .values({ villaId, entete: enteteNettoyee, residence: residenceNettoyee, whatsapp: whatsappNettoye })
     .onConflictDoUpdate({
       target: syndicLogements.villaId,
-      set: { entete: enteteNettoyee, residence: residenceNettoyee, updatedAt: sql`now()` },
+      set: { entete: enteteNettoyee, residence: residenceNettoyee, whatsapp: whatsappNettoye, updatedAt: sql`now()` },
     });
 
   await tracer({

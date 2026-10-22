@@ -17,11 +17,13 @@ export function SyndicLogementForm({
   villaNom,
   entete,
   residence,
+  whatsapp,
 }: {
   villaId: string;
   villaNom: string;
   entete: string | null;
   residence: string | null;
+  whatsapp: string | null;
 }) {
   const router = useRouter();
   const dejaRenseigne = Boolean(entete && residence);
@@ -34,7 +36,8 @@ export function SyndicLogementForm({
         await enregistrerSyndicLogement(
           villaId,
           String(formData.get("entete") ?? ""),
-          String(formData.get("residence") ?? "")
+          String(formData.get("residence") ?? ""),
+          String(formData.get("whatsapp") ?? "")
         );
         toast.success(`En-tête du syndic enregistré pour ${villaNom}.`);
         setOuvert(false);
@@ -81,6 +84,10 @@ export function SyndicLogementForm({
         <div className="space-y-1.5">
           <Label htmlFor="residence">Résidence (dans le texte)</Label>
           <Input id="residence" name="residence" required defaultValue={residence ?? ""} placeholder="ISLI 2" autoComplete="off" />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="whatsapp">WhatsApp du syndic / gardien</Label>
+          <Input id="whatsapp" name="whatsapp" type="tel" defaultValue={whatsapp ?? ""} placeholder="+212 6 ..." autoComplete="off" />
         </div>
       </div>
       <div className="flex flex-wrap gap-2">

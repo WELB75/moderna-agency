@@ -1,7 +1,7 @@
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { getDb } from "@/db";
-import { reservations, villas, domaines } from "@/db/schema";
+import { reservations, villas, domaines, gendarmerieForms } from "@/db/schema";
 import { syndicLogements } from "@/db/schema-syndic";
 import { getReservationSecurityData } from "@/lib/security-data";
 import { numeroAffichable } from "@/lib/logement-format";
@@ -36,6 +36,7 @@ export function assurerTableSyndic(): Promise<void> {
           updated_at timestamptz NOT NULL DEFAULT now()
         )
       `);
+      await db.execute(sql`ALTER TABLE syndic_logements ADD COLUMN IF NOT EXISTS whatsapp text`);
     })().catch((err) => {
       tablePrete = null;
       throw err;
@@ -44,13 +45,13 @@ export function assurerTableSyndic(): Promise<void> {
   return tablePrete;
 }
 
-export type SyndicLogement = { entete: string; residence: string };
+export type SyndicLogement = { entete: string; residence: string; whatsapp: string | null };
 
 export async function getSyndicLogement(villaId: string): Promise<SyndicLogement | null> {
   await assurerTableSyndic();
   const db = getDb();
   const [row] = await db
-    .select({ entete: syndicLogements.entete, residence: syndicLogements.residence })
+    .select({ entete: syndicLogements.entete, residence: syndicLogements.residence, whatsapp: syndicLogements.whatsapp })
     .from(syndicLogements)
     .where(eq(syndicLogements.villaId, villaId))
     .limit(1);
@@ -151,4 +152,16 @@ export async function getDeclarationSyndic(reservationId: string): Promise<Decla
     fichePoliceComplete: adultes.length > 0,
     syndic,
   };
+}
+
+// Contrat (conditions de séjour) lié à ce séjour : la fiche police le référence, un contrat n'ayant
+// pas de colonne reservationId (voir contrat-donnees.ts).
+export async function getContratIdDuSejour(reservationId: string): Promise<string | null> {
+  const [f] = await getDb()
+    .select({ contratId: gendarmerieForms.contratId })
+    .from(gendarmerieForms)
+    .where(and(eq(gendarmerieForms.reservationId, reservationId), isNotNull(gendarmerieForms.contratId)))
+    .orderBy(desc(gendarmerieForms.createdAt))
+    .limit(1);
+  return f?.contratId ?? null;
 }
