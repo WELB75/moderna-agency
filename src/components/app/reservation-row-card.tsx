@@ -17,6 +17,7 @@ import { EditReservationTimeDialog } from "@/components/app/edit-reservation-tim
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip";
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
+import { DeclarationSyndicChip } from "@/components/app/declaration-syndic-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import type { PersonnelOption } from "@/lib/personnel-options";
@@ -452,6 +453,9 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                 villaId={r.villaId}
                 reservationId={r.id}
               />
+              {/* Appartements en résidence (Noria) : déclaration sur l'honneur pour le syndic /
+                  la sécurité, générée depuis la fiche police (Imane, 2026-10-22). */}
+              {r.villaType === "appartement" ? <DeclarationSyndicChip reservationId={r.id} ficheStatut={r.ficheStatut} /> : null}
             </div>
           )}
 
