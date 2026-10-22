@@ -459,6 +459,20 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       </Card>
 
       <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Inventaire de la villa</CardTitle>
+          <Button asChild variant="outline" size="sm">
+            <Link href={`/villas/${villa.id}/inventaire`}>Ouvrir</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Chambres, salles de bain, linge, cuisine : contenu et état de chaque pièce, avec photos.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle className="text-base">Inventaires</CardTitle>
         </CardHeader>
