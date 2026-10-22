@@ -13,6 +13,8 @@ const SIZES = {
   sm: { box: "h-5 w-5", icon: "h-3 w-3", text: "text-[10px]" },
   md: { box: "h-6 w-6", icon: "h-3.5 w-3.5", text: "text-[11px]" },
   lg: { box: "h-7 w-7", icon: "h-4 w-4", text: "text-[13px]" },
+  xl: { box: "h-10 w-10", icon: "h-6 w-6", text: "text-[18px]" },
+  "2xl": { box: "h-11 w-11", icon: "h-6 w-6", text: "text-[20px]" },
 } as const;
 
 export type CanalBadgeSize = keyof typeof SIZES;

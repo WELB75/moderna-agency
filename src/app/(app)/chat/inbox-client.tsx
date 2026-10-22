@@ -59,26 +59,10 @@ const CHANNEL_FILTERS: { value: InboxChannel | "all"; label: string }[] = [
   { value: "booking", label: "Booking.com" },
 ];
 
-function initials(name: string) {
-  const parts = name.replace(/[^\p{L}\s]/gu, "").trim().split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
-}
-
-function Avatar({ name, channel, size = "md" }: { name: string; channel: InboxChannel; size?: "md" | "lg" }) {
-  return (
-    <div className="relative shrink-0">
-      <div
-        className={cn(
-          "flex items-center justify-center rounded-full bg-primary/10 font-semibold text-primary",
-          size === "lg" ? "h-11 w-11 text-base" : "h-10 w-10 text-sm"
-        )}
-      >
-        {initials(name)}
-      </div>
-      {/* Pastille de canal partagée avec le calendrier (components/app/canal-badge.tsx). */}
-      <CanalDot source={channel} size="sm" className="absolute -bottom-0.5 -right-0.5 ring-2 ring-card" />
-    </div>
-  );
+// Le logo du canal (WhatsApp, Airbnb, Booking.com) tient lieu d'avatar : les initiales n'apprenaient
+// rien (Kamel, 2026-10-22).
+function Avatar({ channel, size = "md" }: { name: string; channel: InboxChannel; size?: "md" | "lg" }) {
+  return <CanalDot source={channel} size={size === "lg" ? "2xl" : "xl"} className="shrink-0" />;
 }
 
 function estAujourdhui(d: Date, now: Date) {
