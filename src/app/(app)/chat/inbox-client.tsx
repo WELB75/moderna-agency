@@ -198,11 +198,10 @@ export function InboxClient({
   notice?: string | null; // ex. Beds24 injoignable : la boîte WhatsApp s'affiche quand même
 }) {
   const [query, setQuery] = useState("");
-  const [tab, setTab] = useState<"tous" | "a_repondre">("tous");
+  const [tab, setTab] = useState<"tous" | "non_lus">("tous");
   const [channelFilter, setChannelFilter] = useState<InboxChannel | "all">("all");
   const [selectedKey, setSelectedKey] = useState<string | null>(initialKey ?? conversations[0]?.key ?? null);
 
-  const awaitingCount = conversations.filter((c) => c.awaitingReply).length;
 
   // Mobile : une seule colonne à la fois, la liste puis (au toucher) la conversation avec un bouton
   // retour. Ordinateur : liste et conversation côte à côte.
@@ -218,12 +217,14 @@ export function InboxClient({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return conversations.filter((c) => {
-      if (tab === "a_repondre" && !c.awaitingReply) return false;
+      if (tab === "non_lus" && !estNonLue(c)) return false;
       if (channelFilter !== "all" && c.channel !== channelFilter) return false;
       if (!q) return true;
       return c.name.toLowerCase().includes(q) || (c.logement ?? "").toLowerCase().includes(q);
     });
-  }, [conversations, query, tab, channelFilter]);
+    // estNonLue ne dépend que de `lus` (déjà listé) : la liste suit donc les conversations ouvertes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversations, query, tab, channelFilter, lus]);
 
   const selected = conversations.find((c) => c.key === selectedKey) ?? null;
 
@@ -303,10 +304,7 @@ export function InboxClient({
     return out;
   }, [selected]);
 
-  const sousTitre =
-    awaitingCount === 0
-      ? "Rien à répondre"
-      : `${awaitingCount} à répondre${nonLusCount > 0 ? ` · ${nonLusCount} non lu${nonLusCount > 1 ? "s" : ""}` : ""}`;
+  const sousTitre = nonLusCount === 0 ? "Tout est lu" : `${nonLusCount} non lu${nonLusCount > 1 ? "s" : ""}`;
 
   return (
     // Pleine hauteur de la zone utile : en-tête de l'app (3.5rem) et marges de page déduits ;
@@ -322,7 +320,7 @@ export function InboxClient({
         <div className="space-y-3 border-b border-border px-4 pb-3 pt-4">
           <div className="flex items-baseline justify-between gap-3">
             <h1 className="text-lg font-semibold tracking-tight">Messages</h1>
-            <p className={cn("text-xs", awaitingCount > 0 ? "font-medium text-foreground" : "text-muted-foreground")}>{sousTitre}</p>
+            <p className={cn("text-xs", nonLusCount > 0 ? "font-medium text-foreground" : "text-muted-foreground")}>{sousTitre}</p>
           </div>
           {notice ? <p className="text-xs text-amber-700 dark:text-amber-400">{notice}</p> : null}
 
@@ -350,7 +348,7 @@ export function InboxClient({
             {(
               [
                 ["tous", "Toutes"],
-                ["a_repondre", "À répondre"],
+                ["non_lus", "Non lus"],
               ] as const
             ).map(([value, label]) => (
               <button
@@ -363,14 +361,14 @@ export function InboxClient({
                 )}
               >
                 {label}
-                {value === "a_repondre" && awaitingCount > 0 ? (
+                {value === "non_lus" && nonLusCount > 0 ? (
                   <span
                     className={cn(
                       "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold",
                       tab === value ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"
                     )}
                   >
-                    {awaitingCount}
+                    {nonLusCount}
                   </span>
                 ) : null}
               </button>
@@ -386,13 +384,15 @@ export function InboxClient({
                   key={f.value}
                   type="button"
                   onClick={() => setChannelFilter(f.value)}
+                  title={f.label}
+                  aria-label={f.label}
                   className={cn(
                     "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
                     actif ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
                   )}
                 >
                   {f.value !== "all" ? <CanalDot source={f.value} size="xs" /> : null}
-                  {f.label}
+                  {f.value === "all" ? f.label : null}
                 </button>
               );
             })}
@@ -403,7 +403,7 @@ export function InboxClient({
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-sm text-muted-foreground">
               <Inbox className="h-6 w-6" />
-              {tab === "a_repondre" ? "Tout est répondu." : "Aucune conversation."}
+              {tab === "non_lus" ? "Aucun message non lu." : "Aucune conversation."}
             </div>
           ) : (
             <ul>
