@@ -36,6 +36,7 @@ const isPublicRoute = createRouteMatcher([
   "/payer/(.*)",
   "/dossier/(.*)",
   "/securite/villa/(.*)",
+  "/syndic/(.*)", // dossier du séjour envoyé au syndic de la résidence (comme /securite/villa)
   "/securite/domaine/(.*)",
   "/planning/(.*)",
   "/tuto/(.*)", // tuto pas à pas en lien public : le code aléatoire dans l'adresse fait office de clé (voir lib/tutos.ts)
