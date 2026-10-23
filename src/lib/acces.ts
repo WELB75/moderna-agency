@@ -10,12 +10,14 @@ import { accesEquipe } from "@/db/schema-acces";
 // "autorise" ; les autres sont redirigés vers /acces-refuse (voir src/proxy.ts) et apparaissent
 // "en attente" dans la page Accès, où un administrateur les valide en un clic.
 //
-// Administrateurs (« Kamel et Fouad » gèrent les accès, 2026-10-21) : permanents, toujours
+// Administrateurs (« Kamel, Fouad et Imad » gèrent les accès, 2026-10-21) : permanents, toujours
 // autorisés et administrateurs, même si la table est vide ou modifiée, pour que personne ne puisse
 // fermer la porte à tout le monde.
 export const ADMINS_PERMANENTS: { email: string; nom: string }[] = [
   { email: "tmshparis@gmail.com", nom: "Kamel Paris" },
   { email: "jaielfouad@gmail.com", nom: "Fouad Jaiel" },
+  // 2026-10-22, Kamel : « ajoute villamodernamarrakech@gmail.com comme admin principal ».
+  { email: "villamodernamarrakech@gmail.com", nom: "Imad" },
 ];
 
 // 2026-10-21 : « il faut autoriser tous ceux qui sont déjà sur l'app (Sanaa, Imad, Imane, Kamel,
