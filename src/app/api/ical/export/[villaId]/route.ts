@@ -92,11 +92,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ vill
 
   lines.push("END:VCALENDAR");
 
+  // Ce flux est relu en boucle par les plateformes qui l'importent (plus de 1 300 appels en 12 h
+  // le 2026-10-23, soit plus de la moitié de toutes les exécutions de fonctions du projet — sur
+  // l'offre gratuite de Vercel, c'est ce qui coûte le plus). Les dates sont désormais fermées en
+  // direct via Beds24 ; l'iCal n'est qu'un filet de sécurité, 10 minutes de fraîcheur suffisent
+  // largement : le CDN de Vercel sert la copie en cache (s-maxage) et la rafraîchit en arrière-plan
+  // (stale-while-revalidate) au lieu de réveiller une fonction à chaque lecture.
   return new NextResponse(lines.join("\r\n") + "\r\n", {
     status: 200,
     headers: {
       "Content-Type": "text/calendar; charset=utf-8",
-      "Cache-Control": "no-store",
+      "Cache-Control": "public, max-age=0, s-maxage=600, stale-while-revalidate=1800",
     },
   });
 }
