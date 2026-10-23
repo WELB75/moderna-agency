@@ -6,6 +6,7 @@ import { getDb } from "@/db";
 import { villas } from "@/db/schema";
 import { getPiecesInventaire } from "@/lib/villa-inventaire";
 import { VillaInventairePiece } from "@/components/app/villa-inventaire-piece";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { VillaInventaireAjout } from "@/components/app/villa-inventaire-ajout";
 
 const LIBELLE_TYPE = { chambre: "Chambre", salle_de_bain: "Salle de bain", zone: "Zone" } as const;
@@ -27,7 +28,15 @@ export default async function VillaInventairePage({ params }: { params: Promise<
           <ArrowLeft className="h-4 w-4" />
           {villa.nom}
         </Link>
-        <h1 className="text-xl font-semibold">Inventaire de {villa.nom}</h1>
+        <div className="flex items-center gap-1">
+          <h1 className="text-xl font-semibold">Inventaire de {villa.nom}</h1>
+          <CopyLinkButton
+            path={`/villas/${id}/inventaire`}
+            label="Copier le lien de l'inventaire"
+            successMessage="Lien copié."
+            iconOnly
+          />
+        </div>
         <p className="text-sm text-muted-foreground">
           {pieces.length} pièce{pieces.length > 1 ? "s" : ""} · {nbPhotos} photo{nbPhotos > 1 ? "s" : ""}
         </p>
