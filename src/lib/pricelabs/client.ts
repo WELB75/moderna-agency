@@ -80,6 +80,22 @@ export async function pricelabsGetPrices(
   });
 }
 
+// Recalcul immédiat des prix d'une annonce (équivalent du "Save & Refresh" de l'application
+// PriceLabs). Doc : POST /v1/refresh_listing — 3 appels par annonce et par 24 h, 10 par minute
+// pour le compte. Utilisé quand /listing_prices répond "Listing data does not exist in PriceLabs"
+// pour une annonce pourtant présente dans /listings : c'est le cas d'une annonce dont PriceLabs
+// n'a pas encore recalculé le calendrier du jour (vu le 2026-10-23 sur 6 logements d'un coup ;
+// ouvrir l'annonce dans PriceLabs, qui déclenche ce même recalcul, suffisait à débloquer).
+export type PricelabsRefreshDay = { date: string; price?: string | number; min_stay?: string | number } & Record<string, unknown>;
+
+export async function pricelabsRefreshListing(listingId: string, pms: string): Promise<PricelabsRefreshDay[]> {
+  const res = await pricelabsFetch<{ pricing_array?: PricelabsRefreshDay[] }>("/refresh_listing", {
+    method: "POST",
+    body: { listing_id: listingId, pms },
+  });
+  return res.pricing_array ?? [];
+}
+
 // Dérogations par date ("Date Specific Overrides", DSO) d'une annonce — utilisées pour fixer le
 // nombre de nuits minimum d'une date depuis l'app (panneau "Nombre de nuits minimum" de la vue
 // planning). Sans ça, une valeur écrite seulement dans Beds24 serait écrasée par PriceLabs à sa

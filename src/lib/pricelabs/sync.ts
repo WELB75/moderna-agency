@@ -1,7 +1,16 @@
 import { and, eq, gt, inArray, isNotNull, lt, ne, or } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, pricelabsPriceCache, reservations } from "@/db/schema";
-import { pricelabsGetListings, pricelabsGetPrices, PricelabsConfigError, type PricelabsDailyPrice } from "./client";
+import {
+  pricelabsGetListings,
+  pricelabsGetPrices,
+  pricelabsRefreshListing,
+  PricelabsConfigError,
+  type PricelabsDailyPrice,
+  type PricelabsListing,
+  type PricelabsListingPrices,
+} from "./client";
+import { compacterJours, type JourTarif, type JoursCompacts } from "./jours";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
 import { annoncesCandidates, choisirAnnonce } from "./annonce";
@@ -65,12 +74,16 @@ export type TarificationVilla = {
   minPrice: number | null;
   basePrice: number | null;
   maxPrice: number | null;
-  // minStay : nuits minimum calculées par PriceLabs pour une arrivée ce jour-là (absent des
-  // caches écrits avant le 20/10/2026, d'où l'optionnel).
-  days: { date: string; price: number | null; unbookable: boolean; minStay?: number | null }[];
+  // Calendrier journalier (prix, nuits minimum PriceLabs, jours bloqués) en forme compacte — voir
+  // lib/pricelabs/jours.ts ; `joursVilla(villa)` le déplie côté client.
+  jours: JoursCompacts;
   reservations: TarificationReservation[];
   syncedAt: string | null;
+  // Dernière erreur PriceLabs pour ce logement (les derniers prix connus restent affichés).
   error: string | null;
+  // Date de la dernière synchro PriceLabs réussie (premier jour du cache) : permet d'expliquer,
+  // quand `error` est renseigné, de quand datent les prix affichés.
+  prixDu: string | null;
 };
 
 // Récupère les prix de toutes les villas reliées à PriceLabs, en resynchronisant celles dont le
@@ -147,7 +160,7 @@ export async function getTarification(options: { force?: boolean; villaId?: stri
     const enDirhams = taux != null;
     const prix = (p: number | null | undefined): number | null =>
       p == null ? null : taux != null ? madVersEur(Number(p), taux) : Number(p);
-    const days = ((v.cacheDays as TarificationVilla["days"] | null) ?? []).map((d) => ({
+    const days: JourTarif[] = ((v.cacheDays as JourTarif[] | null) ?? []).map((d) => ({
       ...d,
       price: prix(d.price),
       unbookable: d.unbookable || occupe.has(d.date),
@@ -164,10 +177,11 @@ export async function getTarification(options: { force?: boolean; villaId?: stri
       minPrice: v.cacheMinPrice ? prix(Number(v.cacheMinPrice)) : null,
       basePrice: v.cacheBasePrice ? prix(Number(v.cacheBasePrice)) : null,
       maxPrice: v.cacheMaxPrice ? prix(Number(v.cacheMaxPrice)) : null,
-      days,
+      jours: compacterJours(days),
       reservations: resaVilla,
       syncedAt: v.cacheSyncedAt ? v.cacheSyncedAt.toISOString() : null,
       error: v.cacheLastError,
+      prixDu: days[0]?.date ?? null,
     };
   });
 }
@@ -298,6 +312,21 @@ async function reloadCache(villaIds: string[]) {
   return rows;
 }
 
+// Dernière demande de recalcul par annonce (mémoire de l'instance) : PriceLabs n'accepte que
+// 3 recalculs par annonce et par 24 h, on n'en redemande donc pas plus d'un toutes les 8 h,
+// même si la synchro (toutes les PRICELABS_CACHE_TTL_HOURS) retombe sur la même erreur.
+const DELAI_RECALCUL_MS = 8 * 60 * 60 * 1000;
+const recalculsDemandes = new Map<string, number>();
+
+function aBesoinDunRecalcul(listing: PricelabsListing, result: PricelabsListingPrices | undefined): boolean {
+  if (!result?.error || !/does not exist/i.test(result.error)) return false;
+  const derniere = recalculsDemandes.get(listing.id) ?? 0;
+  if (Date.now() - derniere < DELAI_RECALCUL_MS) return false;
+  if (recalculsDemandes.size > 500) recalculsDemandes.clear();
+  recalculsDemandes.set(listing.id, Date.now());
+  return true;
+}
+
 async function resyncVillas(targets: { id: string; candidates: string[] }[]) {
   const db = getDb();
   const listings = await pricelabsGetListings();
@@ -330,6 +359,31 @@ async function resyncVillas(targets: { id: string; candidates: string[] }[]) {
     dateISO(to)
   );
   const pricedByListingId = new Map(priced.map((p) => [p.id, p]));
+
+  // Annonces présentes dans PriceLabs mais dont le calendrier du jour n'est pas encore calculé
+  // ("Listing data does not exist in PriceLabs") : on demande le recalcul puis on relit les prix,
+  // au lieu d'afficher un triangle d'alerte toute la journée. Voir pricelabsRefreshListing.
+  const aRecalculer = resolved.filter((r) => aBesoinDunRecalcul(r.listing, pricedByListingId.get(r.listing.id)));
+  if (aRecalculer.length > 0) {
+    const recalculees: { id: string; pms: string }[] = [];
+    for (const r of aRecalculer) {
+      try {
+        await pricelabsRefreshListing(r.listing.id, r.listing.pms);
+        recalculees.push({ id: r.listing.id, pms: r.listing.pms });
+      } catch (err) {
+        // Quota de recalcul atteint (429) ou refus : on garde l'erreur d'origine et les derniers
+        // prix connus ; prochaine tentative au prochain cycle, après le délai ci-dessous.
+        console.error("[pricelabs] recalcul impossible pour", r.listing.id, err instanceof Error ? err.message : err);
+      }
+    }
+    if (recalculees.length > 0) {
+      try {
+        for (const p of await pricelabsGetPrices(recalculees, dateISO(from), dateISO(to))) pricedByListingId.set(p.id, p);
+      } catch (err) {
+        console.error("[pricelabs] relecture après recalcul impossible", err instanceof Error ? err.message : err);
+      }
+    }
+  }
 
   for (const r of resolved) {
     const result = pricedByListingId.get(r.listing.id);
