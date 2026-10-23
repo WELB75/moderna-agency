@@ -1,7 +1,7 @@
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { getDb } from "@/db";
-import { reservations, villas, domaines, gendarmerieForms } from "@/db/schema";
+import { reservations, villas, domaines, gendarmerieForms, contratsLocation } from "@/db/schema";
 import { syndicLogements } from "@/db/schema-syndic";
 import { getReservationSecurityData } from "@/lib/security-data";
 import { numeroAffichable } from "@/lib/logement-format";
@@ -154,14 +154,31 @@ export async function getDeclarationSyndic(reservationId: string): Promise<Decla
   };
 }
 
-// Contrat (conditions de séjour) lié à ce séjour : la fiche police le référence, un contrat n'ayant
-// pas de colonne reservationId (voir contrat-donnees.ts).
+// Contrat (conditions de séjour) lié à ce séjour. Deux circuits : le dossier généré depuis
+// Documents lie le contrat à la fiche police (gendarmerieForms.contratId) ; les conditions
+// acceptées à la fin d'une fiche police envoyée seule (/g/[id]) ne le sont volontairement pas
+// (voir signerConditionsFiche). Pour celles-ci, comme sur la fiche réservation, on retrouve le
+// contrat par logement + date d'arrivée, en préférant celui qui est signé.
 export async function getContratIdDuSejour(reservationId: string): Promise<string | null> {
-  const [f] = await getDb()
+  const db = getDb();
+  const [f] = await db
     .select({ contratId: gendarmerieForms.contratId })
     .from(gendarmerieForms)
     .where(and(eq(gendarmerieForms.reservationId, reservationId), isNotNull(gendarmerieForms.contratId)))
     .orderBy(desc(gendarmerieForms.createdAt))
     .limit(1);
-  return f?.contratId ?? null;
+  if (f?.contratId) return f.contratId;
+
+  const [r] = await db
+    .select({ villaId: reservations.villaId, checkIn: reservations.checkIn })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!r?.villaId) return null;
+  const contrats = await db
+    .select({ id: contratsLocation.id, statut: contratsLocation.statut })
+    .from(contratsLocation)
+    .where(and(eq(contratsLocation.villaId, r.villaId), eq(contratsLocation.dateArrivee, format(new Date(r.checkIn), "yyyy-MM-dd"))))
+    .orderBy(desc(contratsLocation.createdAt));
+  return (contrats.find((c) => c.statut === "signe") ?? contrats[0])?.id ?? null;
 }
