@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { auteursDuJournal, journalRecent, type EntreeJournal } from "@/lib/journal";
+import { auteursDuJournal, journalRecent, peutSupprimerJournal, type EntreeJournal } from "@/lib/journal";
+import { JournalSupprimerButton } from "@/components/app/journal-supprimer-button";
 import { formatHeureMaroc, LIBELLES_ACTION, LIBELLES_CATEGORIE } from "@/lib/journal-format";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +30,11 @@ function parJour(entrees: EntreeJournal[]): { jour: string; entrees: EntreeJourn
 
 export default async function JournalPage({ searchParams }: { searchParams: Promise<{ qui?: string; cat?: string }> }) {
   const { qui, cat } = await searchParams;
-  const [entrees, auteurs] = await Promise.all([journalRecent(300, { qui, categorie: cat }), auteursDuJournal()]);
+  const [entrees, auteurs, peutSupprimer] = await Promise.all([
+    journalRecent(300, { qui, categorie: cat }),
+    auteursDuJournal(),
+    peutSupprimerJournal(),
+  ]);
   const echecs = entrees.filter((e) => e.beds24Statut === "echec").length;
 
   return (
@@ -98,7 +103,19 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
                         {e.libelle ?? LIBELLES_ACTION[e.action] ?? e.action}
                         {e.villaNom ? ` · ${e.villaNom}` : ""}
                       </span>
-                      <span className="text-xs text-muted-foreground">{formatHeureMaroc(e.createdAt).split(" à ")[1]}</span>
+                      <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {formatHeureMaroc(e.createdAt).split(" à ")[1]}
+                        {peutSupprimer ? (
+                          <JournalSupprimerButton
+                            id={e.id}
+                            avertissement={
+                              e.action === "creation" || e.action === "fermeture_beds24"
+                                ? "Cette ligne sert à savoir si les dates ont été fermées sur Beds24 : la supprimer peut empêcher leur réouverture automatique si la réservation est supprimée plus tard. Clique à nouveau pour confirmer."
+                                : undefined
+                            }
+                          />
+                        ) : null}
+                      </span>
                     </div>
                     <span className={cn("text-xs", e.auteurType === "systeme" ? "text-muted-foreground" : "font-medium")}>
                       par {e.auteurNom ?? "inconnu"}
