@@ -1,6 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { beds24GetCalendar, Beds24ConfigError } from "@/lib/beds24/client";
+import { beds24GetCalendar, calendrierDepuisCacheParc, Beds24ConfigError } from "@/lib/beds24/client";
 
 // Détails jour par jour d'un logement Beds24 (prix nuitée, nuits min/max, arrivées et départs
 // bloqués), chargés à la demande quand on déplie une villa dans la vue planning du calendrier.
@@ -25,7 +25,9 @@ export async function GET(request: Request): Promise<NextResponse> {
   }
 
   try {
-    const days = await beds24GetCalendar(roomId, from, to);
+    // Le bandeau "Nuits isolées" vient en général de lire tout le parc sur la même période : on
+    // s'en sert plutôt que de rappeler Beds24 pour chaque logement déplié.
+    const days = calendrierDepuisCacheParc(roomId, from, to) ?? (await beds24GetCalendar(roomId, from, to));
     return NextResponse.json({ days });
   } catch (error) {
     console.error("[beds24/calendrier]", error instanceof Beds24ConfigError ? error.message : error);

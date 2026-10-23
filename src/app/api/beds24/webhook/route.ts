@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { runBeds24Sync } from "@/lib/beds24/sync";
 import { analyserNuitsIsolees } from "@/lib/beds24/nuits-isolees";
+import { invaliderCalendriersParc } from "@/lib/beds24/client";
 
 export const maxDuration = 60;
 
@@ -33,6 +34,9 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ success: false, error: "Non autorisé" }, { status: 401 });
   }
 
+  // Réservation créée/modifiée côté Beds24 : le planning doit relire les calendriers (voir le
+  // cache de beds24GetCalendarsParc) plutôt que servir une occupation périmée.
+  invaliderCalendriersParc();
   const result = await runBeds24Sync();
   // Nouvelle réservation = peut-être une nuit isolée créée à côté : on la débloque tout de suite
   // (voir lib/beds24/nuits-isolees.ts), sans attendre le cron ni la synchro PriceLabs.

@@ -159,6 +159,7 @@ export async function beds24AddInfoItems(items: { id: number; infoItems: Beds24I
 }
 
 export async function beds24WriteBookings(bookings: Beds24BookingWrite[]): Promise<Beds24BookingWriteResult[]> {
+  invaliderCalendriersParc();
   return beds24Fetch<Beds24BookingWriteResult[]>("/bookings", { method: "POST", body: bookings });
 }
 
@@ -184,6 +185,7 @@ export type Beds24CalendarWrite = {
 // anti-abus d'Airbnb qui verrouille les dates). C'est donc la méthode à privilégier pour tout
 // futur test de connexion à un channel (Airbnb, Booking.com...), jamais beds24WriteBookings.
 export async function beds24UpdateCalendar(updates: Beds24CalendarWrite[]): Promise<unknown> {
+  invaliderCalendriersParc();
   return beds24Fetch("/inventory/rooms/calendar", { method: "POST", body: updates });
 }
 
@@ -287,6 +289,70 @@ type Beds24CalendarRange = {
 
 export async function beds24GetCalendar(roomId: number, startDate: string, endDate: string): Promise<Beds24CalendarDay[]> {
   return (await beds24GetCalendars([roomId], startDate, endDate)).get(roomId) ?? [];
+}
+
+// --- Cache mémoire des calendriers de tout le parc (lecture seule, planning).
+//
+// Ouvrir la vue planning lisait Beds24 trois fois (18 mois × 16 logements, par tranches de 180
+// jours) pour le bandeau "Nuits isolées", puis une fois de plus par logement déplié — à chaque
+// ouverture de page, par chaque membre de l'équipe. Beds24 compte ces appels (crédits par 5 min)
+// et chaque lecture coûte du temps serveur sur Vercel. On garde donc la dernière lecture du parc
+// quelques minutes : le bandeau et les lignes de détail (/api/beds24/calendrier) s'y servent. Les
+// chemins qui écrivent ou vérifient après écriture (fermeture de dates, nuits minimum,
+// disponibilité avant réservation) n'y touchent pas et relisent toujours Beds24 en direct ; toute
+// écriture via ce client vide le cache.
+const DUREE_CACHE_PARC_MS = 5 * 60 * 1000;
+type CacheParc = { expire: number; debut: string; fin: string; parRoom: Map<number, Beds24CalendarDay[]> };
+let cacheParc: CacheParc | null = null;
+let lectureParcEnCours: { cle: string; promesse: Promise<Map<number, Beds24CalendarDay[]>> } | null = null;
+
+export function invaliderCalendriersParc(): void {
+  cacheParc = null;
+}
+
+// Calendriers de plusieurs logements sur une période, depuis le cache s'il couvre la demande,
+// sinon lus dans Beds24 (par tranches de `trancheJours`, limite de l'API) puis mis en cache. Deux
+// ouvertures simultanées partagent la même lecture.
+export async function beds24GetCalendarsParc(roomIds: number[], debut: string, fin: string, trancheJours = 180): Promise<Map<number, Beds24CalendarDay[]>> {
+  const ids = [...new Set(roomIds.filter((id) => Number.isInteger(id) && id > 0))];
+  const enCache = calendriersParcDepuisCache(ids, debut, fin);
+  if (enCache) return enCache;
+
+  const cle = `${ids.join(",")}|${debut}|${fin}`;
+  if (lectureParcEnCours?.cle === cle) return lectureParcEnCours.promesse;
+  const promesse = (async () => {
+    const parRoom = new Map<number, Beds24CalendarDay[]>(ids.map((id) => [id, []]));
+    for (let d = debut; d <= fin; d = ajouterJoursISO(d, trancheJours)) {
+      const finTranche = ajouterJoursISO(d, trancheJours - 1) < fin ? ajouterJoursISO(d, trancheJours - 1) : fin;
+      const tranche = await beds24GetCalendars(ids, d, finTranche);
+      for (const [id, jours] of tranche) parRoom.get(id)?.push(...jours);
+    }
+    cacheParc = { expire: Date.now() + DUREE_CACHE_PARC_MS, debut, fin, parRoom };
+    return parRoom;
+  })().finally(() => {
+    if (lectureParcEnCours?.cle === cle) lectureParcEnCours = null;
+  });
+  lectureParcEnCours = { cle, promesse };
+  return promesse;
+}
+
+function calendriersParcDepuisCache(ids: number[], debut: string, fin: string): Map<number, Beds24CalendarDay[]> | null {
+  if (!cacheParc || cacheParc.expire < Date.now()) return null;
+  if (debut < cacheParc.debut || fin > cacheParc.fin) return null;
+  if (!ids.every((id) => cacheParc!.parRoom.has(id))) return null;
+  const out = new Map<number, Beds24CalendarDay[]>();
+  for (const id of ids) out.set(id, (cacheParc.parRoom.get(id) ?? []).filter((j) => j.date >= debut && j.date <= fin));
+  return out;
+}
+
+// Calendrier d'un seul logement depuis le cache du parc (null si absent ou périmé) : la ligne de
+// détail d'un logement déplié n'a alors aucun appel Beds24 à faire.
+export function calendrierDepuisCacheParc(roomId: number, debut: string, fin: string): Beds24CalendarDay[] | null {
+  return calendriersParcDepuisCache([roomId], debut, fin)?.get(roomId) ?? null;
+}
+
+function ajouterJoursISO(date: string, n: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 }
 
 // Même lecture pour plusieurs logements en UN seul appel (roomId accepte une liste) : la

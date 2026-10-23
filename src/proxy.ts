@@ -66,8 +66,11 @@ export default clerkMiddleware(async (auth, req) => {
 });
 
 export const config = {
+  // Les flux iCal (/api/ical/export/...) sont publics et relus sans arrêt par Airbnb/Booking : ils
+  // ne passent plus du tout par ici (ni Clerk ni contrôle d'équipe à faire), et sont servis depuis
+  // le cache CDN — voir la route.
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    "/(api|trpc)(.*)",
+    "/((?!_next|api/ical/export|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    "/(api|trpc)((?!/ical/export).*)",
   ],
 };

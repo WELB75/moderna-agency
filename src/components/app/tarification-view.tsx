@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEstMobile } from "@/lib/use-est-mobile";
 import Image from "next/image";
-import Link from "next/link";
+import Link from "@/components/app/link";
 import { addDays, differenceInCalendarDays, format, formatDistanceToNow, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { deleteReservation } from "@/lib/actions/reservations";
 import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
 import { canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
+import { joursVilla } from "@/lib/pricelabs/jours";
 import { formatHeureMaroc } from "@/lib/journal-format";
 import { NuitsIsoleesPanel } from "@/components/app/nuits-isolees-panel";
 import { NuitsMinimumSheet, type CibleNuitsMin } from "@/components/app/nuits-minimum-sheet";
@@ -223,6 +224,15 @@ const LIGNES_DETAIL = [
 const JOURS_PASSES_PLANNING = 180;
 const JOURS_VISIBLES_AVANT_AUJOURDHUI = 4;
 
+// Fenêtre de colonnes réellement rendues (virtualisation horizontale). La grille compte 545 jours
+// × 16 logements ≈ 9 000 cases (plus 5 lignes × 545 par logement déplié) : tout rendre figeait le
+// téléphone à l'ouverture et à chaque défilement (le mois en en-tête changeait d'état à chaque
+// pixel, donc re-rendu complet). On ne rend que l'écran visible plus une marge de deux semaines de
+// chaque côté, et la fenêtre ne bouge que par pas d'une semaine pour ne pas re-rendre en continu.
+const MARGE_COLONNES = 14;
+const PAS_FENETRE = 7;
+type Fenetre = { debut: number; fin: number }; // index de colonne [debut, fin)
+
 type ReservationSelectionnee = { villaId: string; villaNom: string } & TarificationReservation;
 
 // Point d'entrée commun aux deux mises en page (grille desktop façon Airbnb, liste de cartes en
@@ -252,6 +262,11 @@ function TarificationCalendrier({
 }) {
   const [resaSelectionnee, setResaSelectionnee] = useState<ReservationSelectionnee | null>(null);
   const estMobile = useEstMobile();
+  // La grille n'est rendue que dans le navigateur : le serveur ne connaît pas la largeur de
+  // l'écran (useEstMobile y répond "ordinateur"), et rendre 9 000 cases dans le HTML pour les
+  // re-rendre aussitôt en version mobile doublait le travail du téléphone — et gonflait la page
+  // /calendrier à 2,6 Mo. Le temps de l'hydratation, une carte vide de la bonne hauteur.
+  const monte = useMonte();
 
   function handleNotesSaved(notes: string) {
     if (!resaSelectionnee) return;
@@ -261,15 +276,22 @@ function TarificationCalendrier({
 
   return (
     <>
-      <TarificationGrid
-        villas={villas}
-        tousLogements={tousLogements}
-        dims={estMobile ? DIMS_MOBILE : DIMS_BUREAU}
-        lectureSeule={lectureSeule}
-        nuitsIsolees={nuitsIsolees}
-        onNuitsMinModifiees={onNuitsMinModifiees}
-        onSelectReservation={setResaSelectionnee}
-      />
+      {monte ? (
+        <TarificationGrid
+          villas={villas}
+          tousLogements={tousLogements}
+          dims={estMobile ? DIMS_MOBILE : DIMS_BUREAU}
+          lectureSeule={lectureSeule}
+          nuitsIsolees={nuitsIsolees}
+          onNuitsMinModifiees={onNuitsMinModifiees}
+          onSelectReservation={setResaSelectionnee}
+        />
+      ) : (
+        <Card className="gap-0 overflow-hidden rounded-xl py-0">
+          <div className="h-10 border-b" />
+          <div className="animate-pulse" style={{ height: DIMS_BUREAU.headerMonth + DIMS_BUREAU.headerDays + villas.length * DIMS_BUREAU.row }} />
+        </Card>
+      )}
       <ReservationRecapDialog
         reservation={resaSelectionnee}
         lectureSeule={lectureSeule}
@@ -282,6 +304,16 @@ function TarificationCalendrier({
         }}
       />
     </>
+  );
+}
+
+// Vrai une fois le composant monté dans le navigateur (faux pendant le rendu serveur et
+// l'hydratation), sans effet ni état supplémentaire.
+function useMonte(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
   );
 }
 
@@ -299,6 +331,16 @@ function libelleJourCourt(d: Date): string {
 function libelleMois(d: Date): string {
   const mois = format(d, "MMMM", { locale: fr });
   return mois.charAt(0).toUpperCase() + mois.slice(1);
+}
+
+// Fenêtre de colonnes à rendre pour une position de défilement et une largeur visibles, arrondie
+// à la semaine pour que la valeur (et donc le rendu) ne change pas à chaque pixel.
+function fenetrePour(scrollLeft: number, largeurVisible: number, colWidth: number, nbColonnes: number): Fenetre {
+  const premiere = Math.floor(scrollLeft / colWidth);
+  const visibles = Math.ceil(largeurVisible / colWidth) + 1;
+  const debut = Math.max(0, Math.floor((premiere - MARGE_COLONNES) / PAS_FENETRE) * PAS_FENETRE);
+  const fin = Math.min(nbColonnes, Math.ceil((premiere + visibles + MARGE_COLONNES) / PAS_FENETRE) * PAS_FENETRE);
+  return { debut, fin };
 }
 
 // Grille villas × jours (logements en lignes, colonne fixe à gauche ; dates en colonnes avec
@@ -339,11 +381,48 @@ function TarificationGrid({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const debutVue = (JOURS_PASSES_PLANNING - JOURS_VISIBLES_AVANT_AUJOURDHUI) * COL_WIDTH;
+  const [largeurVisible, setLargeurVisible] = useState(() => (typeof window === "undefined" ? 1200 : window.innerWidth));
+  // Fenêtre initiale centrée sur l'ouverture (aujourd'hui), pas sur la colonne 0 : évite de rendre
+  // janvier pour défiler aussitôt vers aujourd'hui.
+  const [fenetre, setFenetre] = useState<Fenetre>(() => fenetrePour(debutVue, 1200, COL_WIDTH, dateStrings.length));
+  const [premierIndexVisible, setPremierIndexVisible] = useState(JOURS_PASSES_PLANNING - JOURS_VISIBLES_AVANT_AUJOURDHUI);
+  const rafRef = useRef<number | null>(null);
+
   useEffect(() => {
-    scrollRef.current?.scrollTo({ left: debutVue });
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTo({ left: debutVue });
+    const observer = new ResizeObserver(() => setLargeurVisible(el.clientWidth));
+    observer.observe(el);
+    setLargeurVisible(el.clientWidth);
+    return () => observer.disconnect();
     // Seulement à l'ouverture (et si la largeur des colonnes change) : jamais pendant la lecture.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [COL_WIDTH]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const prochaine = fenetrePour(el.scrollLeft, largeurVisible, COL_WIDTH, dateStrings.length);
+    setFenetre((f) => (f.debut === prochaine.debut && f.fin === prochaine.fin ? f : prochaine));
+  }, [largeurVisible, COL_WIDTH, dateStrings.length]);
+
+  function onScroll(e: React.UIEvent<HTMLDivElement>) {
+    const el = e.currentTarget;
+    if (rafRef.current !== null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const premier = Math.round(el.scrollLeft / COL_WIDTH);
+      // Le mois en en-tête ne change qu'à la frontière d'un mois : on ne met à jour l'état que là.
+      setPremierIndexVisible((prev) => (dateStrings[prev]?.slice(0, 7) === dateStrings[premier]?.slice(0, 7) ? prev : premier));
+      const prochaine = fenetrePour(el.scrollLeft, largeurVisible, COL_WIDTH, dateStrings.length);
+      setFenetre((f) => (f.debut === prochaine.debut && f.fin === prochaine.fin ? f : prochaine));
+    });
+  }
+  useEffect(() => () => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+  }, []);
+
   const [ouvertes, setOuvertes] = useState<Set<string>>(() => new Set());
   // Case "Nombre de nuits minimum" cliquée (panneau d'édition façon SuperHote) et compteur par
   // logement pour relire Beds24 après une modification.
@@ -361,7 +440,6 @@ function TarificationGrid({
   function toutBasculer() {
     setOuvertes(toutOuvert ? new Set() : new Set(villas.map((v) => v.id)));
   }
-  const [premierIndexVisible, setPremierIndexVisible] = useState(JOURS_PASSES_PLANNING - JOURS_VISIBLES_AVANT_AUJOURDHUI);
   // Mois affiché en grand dans l'en-tête : celui du premier jour visible à l'écran (suit le
   // défilement, comme "Octobre 2026" sur SuperHote).
   const dateEnTete = dateList[Math.min(Math.max(premierIndexVisible, 0), dateList.length - 1)];
@@ -388,6 +466,13 @@ function TarificationGrid({
     const timer = setInterval(maj, 5 * 60 * 1000);
     return () => clearInterval(timer);
   }, [COL_WIDTH]);
+
+  const largeurTotale = COL_WIDTH * dateList.length;
+  const colonnes = useMemo(() => {
+    const out: number[] = [];
+    for (let i = fenetre.debut; i < fenetre.fin; i++) out.push(i);
+    return out;
+  }, [fenetre]);
 
   return (
     <div className="space-y-3">
@@ -464,9 +549,11 @@ function TarificationGrid({
                     )}
                     <span className={`min-w-0 flex-1 font-semibold ${compact ? "line-clamp-2 text-xs leading-tight" : "truncate text-sm"}`}>{v.nom}</span>
                     {/* Prix PriceLabs indisponibles : petit signal dans la colonne des villas plutôt
-                        qu'un texte dans la ligne, qui passait sous les barres de réservation. */}
+                        qu'un texte dans la ligne, qui passait sous les barres de réservation. Le
+                        détail (quelle erreur, de quand datent les prix affichés) est dans la ligne
+                        "Prix nuitée" une fois le logement déplié — pas de survol sur téléphone. */}
                     {v.error ? (
-                      <span title="Prix temporairement indisponibles" aria-label="Prix temporairement indisponibles">
+                      <span title={explicationErreurPrix(v)} aria-label={explicationErreurPrix(v)}>
                         <AlertTriangle className={`shrink-0 text-amber-500 ${compact ? "h-3.5 w-3.5" : "h-4 w-4"}`} />
                       </span>
                     ) : null}
@@ -521,19 +608,16 @@ function TarificationGrid({
               <span className="text-xs text-muted-foreground">{format(dateEnTete, "yyyy")}</span>
             </div>
 
-            <div
-              ref={scrollRef}
-              className="overflow-x-auto"
-              onScroll={(e) => setPremierIndexVisible(Math.round(e.currentTarget.scrollLeft / COL_WIDTH))}
-            >
-              <div style={{ width: COL_WIDTH * dateList.length }}>
+            <div ref={scrollRef} className="overflow-x-auto" onScroll={onScroll}>
+              <div style={{ width: largeurTotale }}>
                 <div style={{ height: HEADER_MONTH_HEIGHT }} />
-                <div className="flex border-b" style={{ height: HEADER_DAYS_HEIGHT }}>
-                  {dateList.map((d, i) => {
+                <div className="relative border-b" style={{ height: HEADER_DAYS_HEIGHT }}>
+                  {colonnes.map((i) => {
+                    const d = dateList[i];
                     const estAujourdhui = dateStrings[i] === aujourdhui;
                     const weekEnd = d.getDay() === 0 || d.getDay() === 6;
                     return (
-                      <div key={dateStrings[i]} className="shrink-0 p-0.5 pb-1.5" style={{ width: COL_WIDTH }}>
+                      <div key={dateStrings[i]} className="absolute top-0 bottom-0 p-0.5 pb-1.5" style={{ left: i * COL_WIDTH, width: COL_WIDTH }}>
                         <div
                           className={`flex h-full flex-col items-center justify-center rounded-md leading-none ${
                             estAujourdhui ? "text-white" : weekEnd ? "bg-muted" : ""
@@ -554,6 +638,7 @@ function TarificationGrid({
                       <VillaCalendarRow
                         villa={v}
                         dateStrings={dateStrings}
+                        colonnes={colonnes}
                         aujourdhui={aujourdhui}
                         dims={dims}
                         nuitsIsolees={nuitsIsolees.get(v.id)}
@@ -563,6 +648,7 @@ function TarificationGrid({
                         <VillaDetailRows
                           villa={v}
                           dateStrings={dateStrings}
+                          colonnes={colonnes}
                           aujourdhui={aujourdhui}
                           dims={dims}
                           version={versionsDetails[v.id] ?? 0}
@@ -611,9 +697,23 @@ function TarificationGrid({
   );
 }
 
-function VillaCalendarRow({
+// Texte du triangle d'alerte : l'erreur PriceLabs telle quelle n'aide personne ("Listing data
+// does not exist in PriceLabs") — on dit ce que ça veut dire et de quand datent les prix affichés.
+function explicationErreurPrix(villa: TarificationVilla): string {
+  const depuis = villa.prixDu ? ` (prix PriceLabs du ${format(parseISO(villa.prixDu), "d MMM", { locale: fr })} affichés)` : " (aucun prix PriceLabs connu)";
+  if (villa.error && /does not exist/i.test(villa.error)) {
+    return `PriceLabs n'a pas encore recalculé cette annonce aujourd'hui${depuis}. Un recalcul a été demandé, réessayez « Actualiser les prix » dans quelques minutes.`;
+  }
+  if (villa.error && /introuvable/i.test(villa.error)) {
+    return `Annonce introuvable dans PriceLabs : identifiant à vérifier dans la fiche du logement${depuis}.`;
+  }
+  return `PriceLabs ne répond pas pour ce logement${depuis} : ${villa.error ?? ""}`.trim();
+}
+
+const VillaCalendarRow = memo(function VillaCalendarRow({
   villa,
   dateStrings,
+  colonnes,
   aujourdhui,
   dims,
   nuitsIsolees,
@@ -621,6 +721,7 @@ function VillaCalendarRow({
 }: {
   villa: TarificationVilla;
   dateStrings: string[];
+  colonnes: number[];
   aujourdhui: string;
   dims: Dims;
   nuitsIsolees?: Map<string, NuitIsolee>;
@@ -628,55 +729,59 @@ function VillaCalendarRow({
 }) {
   const { col: COL_WIDTH, row: ROW_HEIGHT, compact } = dims;
   const largeurTotale = COL_WIDTH * dateStrings.length;
-  const dayByDate = new Map(villa.days.map((d) => [d.date, d]));
-  const resas = reservationsVisibles(villa.reservations, dateStrings);
+  const dayByDate = useMemo(() => new Map(joursVilla(villa).map((d) => [d.date, d])), [villa]);
+  const resas = useMemo(() => reservationsVisibles(villa.reservations, dateStrings), [villa.reservations, dateStrings]);
   // Jours couverts par une barre : pas de prix ni de hachures dessous.
-  const couverts = new Set(resas.flatMap((r) => dateStrings.filter((d) => d >= r.checkIn && d < r.checkOut)));
+  const couverts = useMemo(() => new Set(resas.flatMap((r) => dateStrings.filter((d) => d >= r.checkIn && d < r.checkOut))), [resas, dateStrings]);
+  // Barres dont au moins une partie tombe dans la fenêtre rendue.
+  const premiereDate = dateStrings[colonnes[0] ?? 0];
+  const derniereDate = dateStrings[colonnes[colonnes.length - 1] ?? dateStrings.length - 1];
+  const resasFenetre = resas.filter((r) => r.checkIn <= derniereDate && r.checkOut > premiereDate);
 
   return (
     <div className="relative border-b" style={{ height: ROW_HEIGHT, width: largeurTotale }}>
-      <div className="absolute inset-0 flex">
-        {dateStrings.map((date) => {
-          const passe = date < aujourdhui;
-          const jour = dayByDate.get(date);
-          const couvert = couverts.has(date);
-          const bloque = !passe && !couvert && !villa.error && (!jour || jour.unbookable || jour.price == null);
-          const isolee = !passe && !couvert ? nuitsIsolees?.get(date) : undefined;
-          const isoleeBloquee = isolee?.statut === "a_debloquer" || isolee?.statut === "echec";
-          return (
-            <div
-              key={date}
-              className={`relative flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"}`}
-              style={{
-                width: COL_WIDTH,
-                backgroundImage: bloque
-                  ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 7px)"
-                  : undefined,
-              }}
-            >
-              {/* Nuit isolée entre deux séjours : orange tant qu'elle n'est pas réservable (nuits
-                  min. trop longues), verte une fois débloquée. */}
-              {isolee ? (
-                <span
-                  title={
-                    isoleeBloquee
-                      ? `Nuit isolée : ${isolee.minStay ?? "?"} nuits min. pour ${isolee.nuits} nuit(s) libre(s), non réservable`
-                      : `Nuit isolée réservable (${isolee.minStay ?? 1} nuit min.)`
-                  }
-                  className={`absolute top-1 left-1 rounded font-semibold leading-none ${compact ? "h-1.5 w-1.5 rounded-full" : "px-1 py-0.5 text-[9px]"} ${
-                    isoleeBloquee ? "bg-amber-500 text-white" : "bg-green-600/15 text-green-700 dark:text-green-400"
-                  } ${compact && !isoleeBloquee ? "bg-green-600" : ""}`}
-                >
-                  {compact ? null : "isolée"}
-                </span>
-              ) : null}
-              {!passe && !couvert && !bloque && jour?.price != null ? formatPrixCompact(jour.price, villa.currency) : null}
-            </div>
-          );
-        })}
-      </div>
+      {colonnes.map((i) => {
+        const date = dateStrings[i];
+        const passe = date < aujourdhui;
+        const jour = dayByDate.get(date);
+        const couvert = couverts.has(date);
+        const bloque = !passe && !couvert && !villa.error && (!jour || jour.unbookable || jour.price == null);
+        const isolee = !passe && !couvert ? nuitsIsolees?.get(date) : undefined;
+        const isoleeBloquee = isolee?.statut === "a_debloquer" || isolee?.statut === "echec";
+        return (
+          <div
+            key={date}
+            className={`absolute top-0 bottom-0 flex items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"}`}
+            style={{
+              left: i * COL_WIDTH,
+              width: COL_WIDTH,
+              backgroundImage: bloque
+                ? "repeating-linear-gradient(135deg, var(--border) 0px, var(--border) 1px, transparent 1px, transparent 7px)"
+                : undefined,
+            }}
+          >
+            {/* Nuit isolée entre deux séjours : orange tant qu'elle n'est pas réservable (nuits
+                min. trop longues), verte une fois débloquée. */}
+            {isolee ? (
+              <span
+                title={
+                  isoleeBloquee
+                    ? `Nuit isolée : ${isolee.minStay ?? "?"} nuits min. pour ${isolee.nuits} nuit(s) libre(s), non réservable`
+                    : `Nuit isolée réservable (${isolee.minStay ?? 1} nuit min.)`
+                }
+                className={`absolute top-1 left-1 rounded font-semibold leading-none ${compact ? "h-1.5 w-1.5 rounded-full" : "px-1 py-0.5 text-[9px]"} ${
+                  isoleeBloquee ? "bg-amber-500 text-white" : "bg-green-600/15 text-green-700 dark:text-green-400"
+                } ${compact && !isoleeBloquee ? "bg-green-600" : ""}`}
+              >
+                {compact ? null : "isolée"}
+              </span>
+            ) : null}
+            {!passe && !couvert && !bloque && jour?.price != null ? formatPrixCompact(jour.price, villa.currency) : null}
+          </div>
+        );
+      })}
 
-      {resas.map((r) => {
+      {resasFenetre.map((r) => {
         const { left, width } = barPosition(r, dateStrings, COL_WIDTH);
         const termine = r.checkOut <= aujourdhui;
         const canal = normaliseCanal(r.canal);
@@ -700,7 +805,7 @@ function VillaCalendarRow({
       })}
     </div>
   );
-}
+});
 
 type DetailJour = {
   date: string;
@@ -721,9 +826,14 @@ const cacheDetails = new Map<string, DetailJour[]>();
 // Ligne "Nombre de nuits minimum" : chaque case (aujourd'hui et après) ouvre le panneau
 // d'édition (onEditerMin), comme sur SuperHote v2. `version` change après une modification pour
 // relire Beds24 au lieu du cache.
-function VillaDetailRows({
+// Les détails sont lus d'aujourd'hui à la fin du planning (12 mois) : depuis que la grille remonte
+// 6 mois en arrière (2026-10-21), demander toute la fenêtre (545 jours) dépassait la limite de
+// l'API (/api/beds24/calendrier refuse au-delà de 400 jours : "Période trop longue") et les
+// lignes restaient vides. Les restrictions des jours passés n'ont de toute façon aucun intérêt.
+const VillaDetailRows = memo(function VillaDetailRows({
   villa,
   dateStrings,
+  colonnes,
   aujourdhui,
   dims,
   version = 0,
@@ -732,6 +842,7 @@ function VillaDetailRows({
 }: {
   villa: TarificationVilla;
   dateStrings: string[];
+  colonnes: number[];
   aujourdhui: string;
   dims: Dims;
   version?: number;
@@ -740,7 +851,7 @@ function VillaDetailRows({
 }) {
   const { col: COL_WIDTH, detailRow: DETAIL_ROW_HEIGHT, compact } = dims;
   const roomId = villa.beds24RoomId ? Number(villa.beds24RoomId) : null;
-  const from = dateStrings[0];
+  const from = aujourdhui;
   const to = dateStrings[dateStrings.length - 1];
   const cleCache = roomId ? `${roomId}:${from}:${to}:${version}` : null;
   const [details, setDetails] = useState<DetailJour[] | null>(() => (cleCache ? (cacheDetails.get(cleCache) ?? null) : null));
@@ -764,14 +875,22 @@ function VillaDetailRows({
     };
   }, [roomId, cleCache, from, to]);
 
-  const parDate = new Map((details ?? []).map((d) => [d.date, d]));
-  const prixPricelabs = new Map(villa.days.map((d) => [d.date, d.price]));
-  const minPricelabs = new Map(villa.days.map((d) => [d.date, d.minStay ?? null]));
+  const parDate = useMemo(() => new Map((details ?? []).map((d) => [d.date, d])), [details]);
+  const { prixPricelabs, minPricelabs } = useMemo(() => {
+    const jours = joursVilla(villa);
+    return {
+      prixPricelabs: new Map(jours.map((d) => [d.date, d.price])),
+      minPricelabs: new Map(jours.map((d) => [d.date, d.minStay ?? null])),
+    };
+  }, [villa]);
   const chargement = Boolean(roomId) && !details && !erreur;
-  const message = !roomId ? "Villa pas encore reliée à Beds24 : prix PriceLabs uniquement." : erreur;
+  const message = !roomId
+    ? "Villa pas encore reliée à Beds24 : prix PriceLabs uniquement."
+    : (erreur ?? (villa.error ? explicationErreurPrix(villa) : null));
 
   function valeur(ligne: (typeof LIGNES_DETAIL)[number]["key"], date: string): string {
     const d = parDate.get(date);
+    const passe = date < aujourdhui;
     switch (ligne) {
       case "prix": {
         const prix = d?.price ?? prixPricelabs.get(date) ?? null;
@@ -780,25 +899,26 @@ function VillaDetailRows({
       case "min": {
         // Beds24 (valeur réellement envoyée à Airbnb/Booking) ; à défaut celle de PriceLabs.
         const min = d?.minStay ?? (roomId ? null : (minPricelabs.get(date) ?? null));
-        return min != null ? String(min) : roomId ? "" : "—";
+        return min != null ? String(min) : roomId && !passe ? "" : "—";
       }
       case "max":
-        return d?.maxStay != null ? String(d.maxStay) : roomId ? "" : "—";
+        return d?.maxStay != null ? String(d.maxStay) : roomId && !passe ? "" : "—";
       case "arrivee":
-        return d ? (d.arriveeBloquee ? "Oui" : "Non") : roomId ? "" : "—";
+        return d ? (d.arriveeBloquee ? "Oui" : "Non") : roomId && !passe ? "" : "—";
       case "depart":
-        return d ? (d.departBloque ? "Oui" : "Non") : roomId ? "" : "—";
+        return d ? (d.departBloque ? "Oui" : "Non") : roomId && !passe ? "" : "—";
     }
   }
 
   return (
     <div className="relative bg-muted/40">
       {LIGNES_DETAIL.map((ligne) => (
-        <div key={ligne.key} className="flex border-b" style={{ height: DETAIL_ROW_HEIGHT, width: COL_WIDTH * dateStrings.length }}>
-          {dateStrings.map((date) => {
+        <div key={ligne.key} className="relative border-b" style={{ height: DETAIL_ROW_HEIGHT, width: COL_WIDTH * dateStrings.length }}>
+          {colonnes.map((i) => {
+            const date = dateStrings[i];
             const texte = valeur(ligne.key, date);
             const bloque = texte === "Oui";
-            const classeBase = `flex shrink-0 items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"} ${
+            const classeBase = `absolute top-0 bottom-0 flex items-center justify-end border-r tabular-nums ${compact ? "px-1 text-xs" : "px-2 text-sm"} ${
               date < aujourdhui ? "text-muted-foreground" : ""
             } ${bloque ? "font-semibold text-destructive" : ""}`;
             if (ligne.key === "min" && onEditerMin && roomId && date >= aujourdhui) {
@@ -824,14 +944,14 @@ function VillaDetailRows({
                         ? "font-semibold text-green-700 dark:text-green-400"
                         : ""
                   }`}
-                  style={{ width: COL_WIDTH }}
+                  style={{ left: i * COL_WIDTH, width: COL_WIDTH }}
                 >
                   {texte}
                 </button>
               );
             }
             return (
-              <div key={date} className={classeBase} style={{ width: COL_WIDTH }}>
+              <div key={date} className={classeBase} style={{ left: i * COL_WIDTH, width: COL_WIDTH }}>
                 {texte}
               </div>
             );
@@ -840,14 +960,14 @@ function VillaDetailRows({
       ))}
       {chargement || message ? (
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center" style={{ height: DETAIL_ROW_HEIGHT }}>
-          <span className="sticky left-3 rounded-md bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm">
+          <span className="sticky left-3 max-w-[70vw] truncate rounded-md bg-card px-2 py-1 text-xs text-muted-foreground shadow-sm" title={message ?? undefined}>
             {chargement ? "Chargement des détails Beds24…" : message}
           </span>
         </div>
       ) : null}
     </div>
   );
-}
+});
 
 // Barre de séjour : du milieu de la case d'arrivée au milieu de la case de départ (arrivée
 // l'après-midi, départ le matin), comme sur SuperHote. Un séjour commencé avant la fenêtre

@@ -12,6 +12,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
 import { DisponibiliteCalendar } from "@/components/app/disponibilite-calendar";
 import { useEstMobile } from "@/lib/use-est-mobile";
 import type { TarificationVilla } from "@/lib/pricelabs/sync";
+import { joursVilla } from "@/lib/pricelabs/jours";
 
 // Devis rapide — sorti du Calendrier (vue planning) pour devenir une page à part, juste sous
 // "Nouvelle réservation" dans le menu (Kamel, 2026-10-17 : "retire devis rapide d'ici et créer
@@ -52,8 +53,9 @@ function evaluerSejour(villa: TarificationVilla, debut: string, fin: string): { 
   let nuits = 0;
   let manquantes = 0;
   let prises = 0;
+  const parDate = new Map(joursVilla(villa).map((d) => [d.date, d]));
   for (let cursor = debutDate; cursor < finDate; cursor = addDays(cursor, 1)) {
-    const jour = villa.days.find((d) => d.date === format(cursor, "yyyy-MM-dd"));
+    const jour = parDate.get(format(cursor, "yyyy-MM-dd"));
     if (!jour) manquantes++;
     else if (jour.unbookable || jour.price == null) prises++;
     else {
@@ -90,12 +92,13 @@ export function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
 
   const calendrierVilla = useMemo(() => {
     if (!villa) return { nuitsPrises: new Set<string>(), libellesPrix: undefined, dernierJour: undefined };
-    const nuitsPrises = new Set(villa.days.filter((d) => d.unbookable || d.price == null).map((d) => d.date));
+    const jours = joursVilla(villa);
+    const nuitsPrises = new Set(jours.filter((d) => d.unbookable || d.price == null).map((d) => d.date));
     const libellesPrix = new Map(
-      villa.days.filter((d) => d.price != null).map((d) => [d.date, formatPrixCompact(d.price as number, villa.currency)])
+      jours.filter((d) => d.price != null).map((d) => [d.date, formatPrixCompact(d.price as number, villa.currency)])
     );
     // Départ possible le lendemain de la dernière nuit connue de PriceLabs, pas au-delà.
-    const derniere = villa.days.reduce<string | null>((max, d) => (max == null || d.date > max ? d.date : max), null);
+    const derniere = jours.reduce<string | null>((max, d) => (max == null || d.date > max ? d.date : max), null);
     const dernierJour = derniere ? format(addDays(parseISO(derniere), 1), "yyyy-MM-dd") : undefined;
     return { nuitsPrises, libellesPrix, dernierJour };
   }, [villa]);
@@ -103,7 +106,7 @@ export function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
   const prixCeSoir = useMemo(() => {
     if (!villa) return null;
     const aujourdhui = format(new Date(), "yyyy-MM-dd");
-    return villa.days.find((d) => d.date === aujourdhui) ?? null;
+    return joursVilla(villa).find((d) => d.date === aujourdhui) ?? null;
   }, [villa]);
 
   const devis = useMemo<DevisResultat | null>(() => {
@@ -252,11 +255,12 @@ function ApercuLogements({
 
   const lignes = useMemo(() => {
     return villas.map((v) => {
-      const ceSoir = v.days.find((d) => d.date === aujourdhui) ?? null;
+      const jours = joursVilla(v);
+      const ceSoir = jours.find((d) => d.date === aujourdhui) ?? null;
       const prisCeSoir = ceSoir ? ceSoir.unbookable || ceSoir.price == null : null;
       // Prochain changement d'état à partir d'aujourd'hui : "libre le ..." si occupé ce soir,
       // "libre jusqu'au ..." (prochaine nuit prise) si libre.
-      const futurs = v.days.filter((d) => d.date >= aujourdhui).sort((a, b) => a.date.localeCompare(b.date));
+      const futurs = jours.filter((d) => d.date >= aujourdhui).sort((a, b) => a.date.localeCompare(b.date));
       const estPris = (d: { unbookable: boolean; price: number | null }) => d.unbookable || d.price == null;
       let prochain: string | null = null;
       if (prisCeSoir === false) prochain = futurs.find(estPris)?.date ?? null;
