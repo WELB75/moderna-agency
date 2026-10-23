@@ -450,8 +450,8 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               <ContratStatusChip
                 contratId={r.contratId}
                 contratStatut={r.contratStatut}
-                villaId={r.villaId}
                 reservationId={r.id}
+                ficheId={r.ficheId}
               />
               {/* Appartements en résidence (Noria) : déclaration sur l'honneur pour le syndic /
                   la sécurité, générée depuis la fiche police (Imane, 2026-10-22). */}

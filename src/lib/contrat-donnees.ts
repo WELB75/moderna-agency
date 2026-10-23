@@ -4,12 +4,12 @@
 // Un contrat n'a pas de colonne reservationId : comme partout ailleurs dans l'app (dashboard,
 // fiche réservation), il est rattaché à son séjour par logement + date d'arrivée.
 
-import { and, desc, eq, gte, isNotNull, lt, ne } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, lt, ne } from "drizzle-orm";
 import { format } from "date-fns";
 import { getDb } from "@/db";
-import { contratsLocation, domaines, gendarmerieForms, reservations, villas } from "@/db/schema";
+import { contratsLocation, domaines, gendarmerieForms, gendarmerieOccupants, reservations, villas } from "@/db/schema";
 import { AGENCE_NOM } from "@/lib/contrat-template";
-import { sejourSansVoyageur, type ConditionsSejourData } from "@/lib/conditions-sejour";
+import { plateformeDe, sejourSansVoyageur, type ConditionsSejourData } from "@/lib/conditions-sejour";
 
 export const AUTEUR_CONDITIONS_AUTO = "Fiche police (automatique)";
 
@@ -110,6 +110,8 @@ export async function chargerConditionsFiche(formId: string): Promise<Conditions
     status: string;
     caution: string | null;
     devisePaiement: string;
+    loyerTotal: string | null;
+    montantPaye: string | null;
   } | null = null;
 
   if (f.reservationId) {
@@ -124,6 +126,8 @@ export async function chargerConditionsFiche(formId: string): Promise<Conditions
         status: reservations.status,
         caution: reservations.caution,
         devisePaiement: reservations.devisePaiement,
+        loyerTotal: reservations.loyerTotal,
+        montantPaye: reservations.montantPaye,
       })
       .from(reservations)
       .where(eq(reservations.id, f.reservationId))
@@ -132,8 +136,24 @@ export async function chargerConditionsFiche(formId: string): Promise<Conditions
     if (await contratSigneExiste(f.villaId, jour(resa.checkIn))) return null;
   }
 
+  // Identité du locataire : celle de l'occupant 1 de la fiche police (lue sur sa pièce d'identité)
+  // dès qu'elle est remplie, sinon le nom de la réservation.
+  const [occupant1] = await db
+    .select({ nom: gendarmerieOccupants.nom, prenom: gendarmerieOccupants.prenom, numeroPiece: gendarmerieOccupants.numeroPiece })
+    .from(gendarmerieOccupants)
+    .where(eq(gendarmerieOccupants.formId, formId))
+    .orderBy(asc(gendarmerieOccupants.createdAt))
+    .limit(1);
+  const identite = [occupant1?.prenom, occupant1?.nom].map((x) => x?.trim()).filter(Boolean).join(" ");
+
+  // Réservation directe : prix, acompte versé et solde repris de la réservation quand le prix
+  // total y est renseigné. Plateforme (Airbnb, Booking.com) : ceux de la plateforme font foi.
+  const total = resa && !plateformeDe(resa.canal) && Number(resa.loyerTotal) > 0 ? Number(resa.loyerTotal) : null;
+  const verse = total && resa ? Math.min(Math.max(Number(resa.montantPaye) || 0, 0), total) : 0;
+
   return {
-    locataireNom: resa?.guestName ?? null,
+    locataireNom: identite || resa?.guestName || null,
+    locatairePiece: occupant1?.numeroPiece?.trim() || null,
     logement: libelleLogement(f.villaNom, f.villaNumero),
     adresse: adresseLogement({ adresse: f.villaAdresse, domaineNom: f.domaineNom, domaineAdresse: f.domaineAdresse }),
     dateArrivee: resa ? jour(resa.checkIn) : null,
@@ -141,13 +161,10 @@ export async function chargerConditionsFiche(formId: string): Promise<Conditions
     nbAdultes: resa?.nbAdultes ?? f.nbAdultesPrevu ?? null,
     nbEnfants: resa?.nbEnfants ?? f.nbEnfantsPrevu ?? null,
     canal: resa?.canal ?? null,
-    // Montants jamais repris automatiquement : pour une résa plateforme ce sont ceux de la
-    // plateforme, et pour une résa directe ils n'ont pas été relus par l'équipe (un contrat avec
-    // montants se génère depuis Documents).
     devise: resa?.devisePaiement ?? "EUR",
-    montantTotal: null,
-    acompteMontant: null,
-    soldeMontant: null,
+    montantTotal: total ? total.toFixed(2) : null,
+    acompteMontant: total && verse > 0 ? verse.toFixed(2) : null,
+    soldeMontant: total ? (total - verse).toFixed(2) : null,
     soldeDateLimite: null,
     cautionMontant: resa?.caution ?? null,
     cautionDevise: resa?.devisePaiement ?? "EUR",
@@ -303,6 +320,7 @@ export async function chargerContrat(contratId: string): Promise<ContratCharge |
     ...contrat,
     conditions: {
       locataireNom: c.locataireNom,
+      locatairePiece: c.signatureClientPiece?.trim() || null,
       logement: libelleLogement(c.villaNom, c.villaNumero),
       adresse: adresseLogement({ adresse: c.villaAdresse, domaineNom, domaineAdresse }),
       dateArrivee: c.dateArrivee,
@@ -319,4 +337,64 @@ export async function chargerContrat(contratId: string): Promise<ContratCharge |
       cautionDevise: c.depotGarantieMontant ? c.devise : (resa?.devisePaiement ?? "EUR"),
     },
   };
+}
+
+// État du dossier voyageur de chaque séjour (fiche police + conditions), pour les écrans équipe.
+// Un contrat n'a pas de colonne reservationId : rattaché par logement + date d'arrivée, comme
+// partout ailleurs (voir l'en-tête du fichier).
+export type DossierSejour = {
+  ficheId: string | null;
+  ficheStatut: "complete" | "en_attente" | null;
+  contratId: string | null;
+  contratStatut: "signe" | "en_attente" | null;
+};
+
+export async function etatDossiersSejours(
+  sejours: { id: string; villaId: string | null; checkIn: Date }[]
+): Promise<Map<string, DossierSejour>> {
+  const db = getDb();
+  const etat = new Map<string, DossierSejour>();
+  if (sejours.length === 0) return etat;
+
+  const fiches = await db
+    .select({ id: gendarmerieForms.id, reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
+    .from(gendarmerieForms)
+    .where(inArray(gendarmerieForms.reservationId, sejours.map((s) => s.id)))
+    .orderBy(asc(gendarmerieForms.createdAt));
+  const ficheParResa = new Map<string, { id: string; complete: boolean }>();
+  for (const f of fiches) {
+    if (!f.reservationId) continue;
+    const actuelle = ficheParResa.get(f.reservationId);
+    if (!actuelle || (f.statut === "complete" && !actuelle.complete)) {
+      ficheParResa.set(f.reservationId, { id: f.id, complete: f.statut === "complete" });
+    }
+  }
+
+  const villaIds = Array.from(new Set(sejours.map((s) => s.villaId).filter((id): id is string => Boolean(id))));
+  const contrats =
+    villaIds.length > 0
+      ? await db
+          .select({ id: contratsLocation.id, villaId: contratsLocation.villaId, dateArrivee: contratsLocation.dateArrivee, statut: contratsLocation.statut })
+          .from(contratsLocation)
+          .where(inArray(contratsLocation.villaId, villaIds))
+      : [];
+  const contratParSejour = new Map<string, { id: string; statut: string }>();
+  for (const c of contrats) {
+    if (!c.villaId || !c.dateArrivee) continue;
+    const cle = `${c.villaId}|${c.dateArrivee}`;
+    const actuel = contratParSejour.get(cle);
+    if (!actuel || (c.statut === "signe" && actuel.statut !== "signe")) contratParSejour.set(cle, { id: c.id, statut: c.statut });
+  }
+
+  for (const s of sejours) {
+    const fiche = ficheParResa.get(s.id) ?? null;
+    const contrat = s.villaId ? (contratParSejour.get(`${s.villaId}|${jour(s.checkIn)}`) ?? null) : null;
+    etat.set(s.id, {
+      ficheId: fiche?.id ?? null,
+      ficheStatut: fiche ? (fiche.complete ? "complete" : "en_attente") : null,
+      contratId: contrat?.id ?? null,
+      contratStatut: contrat ? (contrat.statut === "signe" ? "signe" : "en_attente") : null,
+    });
+  }
+  return etat;
 }

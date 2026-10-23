@@ -4,9 +4,9 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { contratsLocation, gendarmerieForms, villas } from "@/db/schema";
+import { contratsLocation, gendarmerieForms, reservations, villas } from "@/db/schema";
 import { AGENCE_REPRESENTANT_DEFAUT } from "@/lib/contrat-template";
-import { derniereSignatureAgence } from "@/lib/contrat-donnees";
+import { chargerConditionsFiche, derniereSignatureAgence, signerConditionsFiche } from "@/lib/contrat-donnees";
 import { tracer } from "@/lib/journal";
 
 export async function generateContrat(input: {
@@ -199,4 +199,84 @@ export async function deleteContrat(contratId: string) {
     villaNom: contrat?.villaNom ?? null,
   });
   revalidatePath("/documents");
+}
+
+// Lien unique du client pour un séjour : /g/[fiche]. Il fait remplir la fiche police si elle ne
+// l'est pas, puis signer les conditions (préremplies depuis la réservation et la pièce d'identité) ;
+// si la fiche est déjà remplie, il ne propose que la signature. Aucune saisie côté équipe : on
+// copie ce lien. Crée la fiche du séjour si elle n'existe pas encore (réservation saisie à la main).
+export async function lienClientSejour(reservationId: string): Promise<string> {
+  await auth.protect();
+  const user = await currentUser();
+  const db = getDb();
+
+  const [resa] = await db
+    .select({ villaId: reservations.villaId, nbAdultes: reservations.nbAdultes, nbEnfants: reservations.nbEnfants })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!resa?.villaId) throw new Error("Réservation introuvable.");
+
+  const fiches = await db
+    .select({ id: gendarmerieForms.id, statut: gendarmerieForms.statut })
+    .from(gendarmerieForms)
+    .where(eq(gendarmerieForms.reservationId, reservationId))
+    .orderBy(asc(gendarmerieForms.createdAt));
+  const existante = fiches.find((f) => f.statut === "complete") ?? fiches[0];
+  if (existante) return `/g/${existante.id}`;
+
+  const [fiche] = await db
+    .insert(gendarmerieForms)
+    .values({
+      villaId: resa.villaId,
+      reservationId,
+      nbAdultesPrevu: resa.nbAdultes ?? null,
+      nbEnfantsPrevu: resa.nbEnfants ?? null,
+      createdByUserId: user?.id ?? null,
+      createdByName: user?.fullName ?? user?.username ?? "Équipe",
+    })
+    .returning({ id: gendarmerieForms.id });
+  revalidatePath("/documents");
+  return `/g/${fiche.id}`;
+}
+
+// Signature des conditions par un client dont la fiche police est déjà remplie (écran de /g/[id]).
+// Sans compte, comme la fiche elle-même : l'identifiant de la fiche fait office de clé. Le nom et
+// le numéro de pièce viennent de la fiche (jamais saisis par le client).
+export async function signerConditionsSeules(formId: string, signatureImage: string): Promise<void> {
+  if (!signatureImage.startsWith("data:image/") || signatureImage.length > 3_000_000) {
+    throw new Error("La signature est obligatoire.");
+  }
+  const db = getDb();
+  const [form] = await db
+    .select({ statut: gendarmerieForms.statut, villaId: gendarmerieForms.villaId, reservationId: gendarmerieForms.reservationId })
+    .from(gendarmerieForms)
+    .where(eq(gendarmerieForms.id, formId))
+    .limit(1);
+  if (!form || form.statut !== "complete") throw new Error("Fiche introuvable.");
+
+  const conditions = await chargerConditionsFiche(formId);
+  if (!conditions) throw new Error("Ces conditions sont déjà signées.");
+
+  await signerConditionsFiche(formId, {
+    nom: conditions.locataireNom ?? "",
+    piece: conditions.locatairePiece ?? "",
+    signatureImage,
+  });
+
+  const [villa] = form.villaId ? await db.select({ nom: villas.nom }).from(villas).where(eq(villas.id, form.villaId)).limit(1) : [];
+  const nom = conditions.locataireNom ?? "Client";
+  await tracer({
+    categorie: "contrat",
+    action: "conditions_signees",
+    libelle: "Conditions de séjour signées par le client",
+    resume: `${nom} · du ${conditions.dateArrivee ?? "?"} au ${conditions.dateDepart ?? "?"}`,
+    villaId: form.villaId,
+    villaNom: villa?.nom ?? null,
+    reservationId: form.reservationId,
+    auteur: { type: "humain", id: null, nom: `${nom} (client, lien de la fiche)`, email: null },
+  });
+
+  revalidatePath("/documents");
+  revalidatePath(`/g/${formId}`);
 }

@@ -324,7 +324,7 @@ export function ReservationAgendaCard({
               {isIn ? (
                 <div className="flex flex-wrap gap-1.5">
                   <FichePoliceStatusChip reservationId={r.id} villaId={r.villaId} ficheId={r.ficheId} ficheStatut={r.ficheStatut} />
-                  <ContratStatusChip contratId={r.contratId} contratStatut={r.contratStatut} villaId={r.villaId} reservationId={r.id} />
+                  <ContratStatusChip contratId={r.contratId} contratStatut={r.contratStatut} reservationId={r.id} ficheId={r.ficheId} />
                   {/* Appartements en résidence : déclaration sur l'honneur pour le syndic. */}
                   {r.villaType === "appartement" ? <DeclarationSyndicChip reservationId={r.id} ficheStatut={r.ficheStatut} /> : null}
                 </div>
