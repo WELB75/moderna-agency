@@ -35,7 +35,6 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
     auteursDuJournal(),
     peutSupprimerJournal(),
   ]);
-  const echecs = entrees.filter((e) => e.beds24Statut === "echec").length;
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -80,11 +79,6 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
             </Link>
           ) : null}
         </form>
-        {echecs > 0 ? (
-          <p className="mt-2 rounded-md bg-destructive/10 px-3 py-2 text-sm font-medium text-destructive">
-            {echecs} action{echecs > 1 ? "s" : ""} avec un échec Beds24 ci-dessous : vérifier que les dates sont bien fermées.
-          </p>
-        ) : null}
       </div>
 
       {entrees.length === 0 ? (
