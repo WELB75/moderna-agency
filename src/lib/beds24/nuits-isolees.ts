@@ -2,7 +2,14 @@ import { and, eq, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, pricelabsPriceCache } from "@/db/schema";
 import { nuitsMinManuelles } from "@/db/schema-nuits-isolees";
-import { beds24AlertesEcriture, beds24GetCalendars, beds24UpdateCalendar, type Beds24CalendarDay, type Beds24CalendarWrite } from "./client";
+import {
+  beds24AlertesEcriture,
+  beds24GetCalendars,
+  beds24GetCalendarsParc,
+  beds24UpdateCalendar,
+  type Beds24CalendarDay,
+  type Beds24CalendarWrite,
+} from "./client";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { nowInMorocco } from "@/lib/now";
 import { journaliser, type Auteur } from "@/lib/journal";
@@ -105,7 +112,11 @@ function assurerTablesNuitsMin(): Promise<void> {
 }
 
 // Lecture Beds24 par tranches (la fenêtre fait 18 mois) puis fusion par logement.
-async function lireCalendriers(roomIds: number[], debut: string, fin: string): Promise<Map<number, Beds24CalendarDay[]>> {
+// frais=false (rapport affiché à l'ouverture du planning) : lecture partagée et gardée quelques
+// minutes en mémoire (voir beds24GetCalendarsParc) — une seule lecture Beds24 pour toute l'équipe,
+// réutilisée par les lignes de détail. Les écritures relisent toujours Beds24 en direct.
+async function lireCalendriers(roomIds: number[], debut: string, fin: string, frais = true): Promise<Map<number, Beds24CalendarDay[]>> {
+  if (!frais) return beds24GetCalendarsParc(roomIds, debut, fin, TRANCHE_JOURS);
   const out = new Map<number, Beds24CalendarDay[]>(roomIds.map((id) => [id, []]));
   for (let d = debut; d <= fin; d = ajouterJours(d, TRANCHE_JOURS)) {
     const finTranche = ajouterJours(d, TRANCHE_JOURS - 1) < fin ? ajouterJours(d, TRANCHE_JOURS - 1) : fin;
@@ -206,7 +217,7 @@ export async function analyserNuitsIsolees(options: { appliquer: boolean; forcer
       .where(inArray(nuitsMinManuelles.roomId, lignes.map((l) => l.roomId)));
 
     const [calendriers, pricelabs] = await Promise.all([
-      lireCalendriers(lignes.map((l) => l.roomId), aujourdhui, fin),
+      lireCalendriers(lignes.map((l) => l.roomId), aujourdhui, fin, options.appliquer),
       nuitsMinPricelabs(lignes, aujourdhui, fin, options.appliquer),
     ]);
 
