@@ -134,6 +134,25 @@ export async function auteurConnecte(): Promise<Auteur> {
   }
 }
 
+// Seul Kamel peut supprimer des lignes du journal (2026-10-23, « donne-moi la possibilité à moi
+// seul de supprimer ce que je veux dans le journal »). Contrôle côté serveur, sur l'adresse e-mail
+// principale du compte Clerk, qui doit être vérifiée.
+export const EMAIL_SUPPRESSION_JOURNAL = "tmshparis@gmail.com";
+
+export async function peutSupprimerJournal(): Promise<boolean> {
+  try {
+    const user = await currentUser();
+    const principale = user?.primaryEmailAddress;
+    return Boolean(
+      principale &&
+        principale.verification?.status === "verified" &&
+        principale.emailAddress.trim().toLowerCase() === EMAIL_SUPPRESSION_JOURNAL
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function journaliser(entree: {
   action: JournalAction;
   auteur: Auteur;
