@@ -13,11 +13,14 @@ export function ConditionsAcceptation({
   lang,
   accepte,
   onAccepteChange,
+  sansAide = false,
 }: {
   data: ConditionsSejourData;
   lang: ConditionsLang;
   accepte: boolean;
   onAccepteChange: (value: boolean) => void;
+  // Signature hors fiche police (écran « conditions seules ») : pas de renvoi à la signature de l'occupant 1.
+  sansAide?: boolean;
 }) {
   const t = ACCEPTATION_TEXTE[lang];
   return (
@@ -37,7 +40,7 @@ export function ConditionsAcceptation({
             {t.case}
           </Label>
         </div>
-        <p className="text-xs text-muted-foreground">{t.aide}</p>
+        {sansAide ? null : <p className="text-xs text-muted-foreground">{t.aide}</p>}
       </CardContent>
     </Card>
   );

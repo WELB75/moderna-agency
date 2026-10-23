@@ -18,6 +18,9 @@ export type ConditionsLang = GendarmerieLang;
 
 export type ConditionsSejourData = {
   locataireNom: string | null;
+  // Numéro de la pièce d'identité (CIN / passeport) du locataire, repris de la fiche police : le
+  // client n'a rien à saisir, et l'agence sait exactement qui a signé.
+  locatairePiece?: string | null;
   logement: string; // "Villa Tania (n°3)"
   adresse: string; // jamais vide (repli sur le domaine, puis "Marrakech")
   dateArrivee: string | null; // YYYY-MM-DD
@@ -512,10 +515,25 @@ const TEXTES: Record<ConditionsLang, Textes> = {
   },
 };
 
+const LIBELLE_PIECE: Record<ConditionsLang, string> = {
+  fr: "pièce d'identité n°",
+  en: "ID no.",
+  es: "documento n.º",
+  nl: "ID-nr.",
+  ar: "وثيقة الهوية رقم",
+};
+
+function nomAvecPiece(d: ConditionsSejourData, lang: ConditionsLang): string | null {
+  const nom = d.locataireNom?.trim() || null;
+  const piece = d.locatairePiece?.trim();
+  if (!nom) return null;
+  return piece ? `${nom} (${LIBELLE_PIECE[lang]} ${piece})` : nom;
+}
+
 function champs(d: ConditionsSejourData, lang: ConditionsLang): Champs {
   const plateforme = plateformeDe(d.canal);
   return {
-    nom: d.locataireNom?.trim() || null,
+    nom: nomAvecPiece(d, lang),
     logement: d.logement,
     adresse: d.adresse,
     arrivee: formatDate(d.dateArrivee, lang),
@@ -617,3 +635,72 @@ export const ACCEPTATION_TEXTE: Record<
     erreurSignature: "توقيع المقيم 1 إلزامي.",
   },
 };
+
+// Écran « il ne reste que la signature » de /g/[id] : fiche police déjà remplie, conditions pas
+// encore signées (fiches remplies avant la mise en ligne des conditions, 18/10/2026, ou étape
+// ignorée). Les informations viennent de la pièce d'identité et de la réservation : le client ne
+// saisit rien, il relit, coche et signe.
+export const SIGNATURE_SEULE_TEXTE: Record<
+  ConditionsLang,
+  { titre: string; intro: string; signature: string; effacer: string; bouton: string; envoi: string; merci: string; erreurSignature: string }
+> = {
+  fr: {
+    titre: "Dernière étape : signer les conditions de séjour",
+    intro:
+      "Votre fiche de police est déjà enregistrée, merci. Il ne reste qu'à lire et signer les conditions de séjour ci-dessous. Vos informations ont été reprises de votre pièce d'identité et de votre réservation.",
+    signature: "Signature (avec le doigt ou la souris)",
+    effacer: "Effacer",
+    bouton: "Signer et envoyer",
+    envoi: "Envoi...",
+    merci: "Merci, les conditions de séjour ont bien été signées.",
+    erreurSignature: "La signature est obligatoire.",
+  },
+  en: {
+    titre: "Last step: sign the terms of stay",
+    intro:
+      "Your police form is already registered, thank you. You only need to read and sign the terms of stay below. Your details were taken from your ID document and your booking.",
+    signature: "Signature (with your finger or mouse)",
+    effacer: "Clear",
+    bouton: "Sign and submit",
+    envoi: "Sending...",
+    merci: "Thank you, the terms of stay have been signed.",
+    erreurSignature: "A signature is required.",
+  },
+  es: {
+    titre: "Último paso: firmar las condiciones de estancia",
+    intro:
+      "Su ficha de policía ya está registrada, gracias. Solo falta leer y firmar las condiciones de estancia. Sus datos se han tomado de su documento de identidad y de su reserva.",
+    signature: "Firma (con el dedo o el ratón)",
+    effacer: "Borrar",
+    bouton: "Firmar y enviar",
+    envoi: "Enviando...",
+    merci: "Gracias, las condiciones de estancia han sido firmadas.",
+    erreurSignature: "La firma es obligatoria.",
+  },
+  nl: {
+    titre: "Laatste stap: onderteken de verblijfsvoorwaarden",
+    intro:
+      "Uw politieformulier is al geregistreerd, dank u. U hoeft alleen nog de verblijfsvoorwaarden hieronder te lezen en te ondertekenen. Uw gegevens zijn overgenomen van uw identiteitsbewijs en uw reservering.",
+    signature: "Handtekening (met uw vinger of muis)",
+    effacer: "Wissen",
+    bouton: "Ondertekenen en verzenden",
+    envoi: "Verzenden...",
+    merci: "Dank u, de verblijfsvoorwaarden zijn ondertekend.",
+    erreurSignature: "Een handtekening is verplicht.",
+  },
+  ar: {
+    titre: "الخطوة الأخيرة: توقيع شروط الإقامة",
+    intro:
+      "تم تسجيل بطاقة الشرطة الخاصة بك، شكرًا. يبقى فقط قراءة شروط الإقامة أدناه والتوقيع عليها. تم أخذ بياناتك من وثيقة هويتك ومن حجزك.",
+    signature: "التوقيع (بالإصبع أو بالفأرة)",
+    effacer: "مسح",
+    bouton: "وقّع وأرسل",
+    envoi: "جارٍ الإرسال...",
+    merci: "شكرًا، تم توقيع شروط الإقامة.",
+    erreurSignature: "التوقيع إلزامي.",
+  },
+};
+
+export function langueConditions(langue: string | null | undefined): ConditionsLang {
+  return langue === "fr" || langue === "en" || langue === "es" || langue === "nl" || langue === "ar" ? langue : "fr";
+}

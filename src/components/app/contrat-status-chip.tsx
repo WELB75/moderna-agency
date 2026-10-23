@@ -1,46 +1,69 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { FileSignature } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { copierLienClient } from "@/components/app/lien-client-button";
 
-// Même rendu que StatusChip, mais cliquable — Kamel, 2026-09-01 : "quand on clic sur contrat y a
-// rien qu'il se passe, je veux ouvrir aussi la fiche contrat". Un contrat déjà généré ouvre sa
-// page de suivi ; sans contrat, direction la page où on le génère, villa et réservation déjà
-// pré-remplies (voir defaultVillaId/defaultReservationId sur GenerateContratForm).
+// Conditions de séjour d'une réservation. Signées : ouvre le contrat. Pas encore signées : un clic
+// copie le lien unique du client (/g/[fiche]), qui fait remplir la fiche police si besoin puis
+// signer les conditions déjà pré-remplies — plus aucun formulaire à remplir à la main (Kamel,
+// 2026-10-23 : « tout doit se remplir seul et ils ont juste à signer »).
 export function ContratStatusChip({
   contratId,
   contratStatut,
-  villaId,
   reservationId,
+  ficheId = null,
 }: {
   contratId: string | null;
   contratStatut: "signe" | "en_attente" | null;
-  villaId: string | null;
+  villaId?: string | null;
   reservationId: string;
+  ficheId?: string | null;
 }) {
+  const [enCours, setEnCours] = useState(false);
   const done = contratStatut === "signe";
-  const value = contratStatut === "signe" ? "Signé" : contratStatut === "en_attente" ? "En attente" : "Manquant";
-
-  const href = contratId
-    ? `/contrats/${contratId}`
-    : `/documents?onglet=contrat${villaId ? `&villaId=${villaId}` : ""}&reservationId=${reservationId}`;
-
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors",
-        done
-          ? "border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 dark:border-emerald-500/20"
-          : "border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 dark:border-amber-500/20"
-      )}
-    >
+  const classes = cn(
+    "flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors",
+    done
+      ? "border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 dark:border-emerald-500/20"
+      : "border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 dark:border-amber-500/20"
+  );
+  const contenu = (
+    <>
       <FileSignature className={cn("h-3.5 w-3.5 shrink-0", done ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400")} />
       <span className="min-w-0 truncate">
         <span className="text-muted-foreground">Conditions · </span>
-        <span className="font-medium text-foreground">{value}</span>
+        <span className="font-medium text-foreground">{done ? "Signé" : "À signer"}</span>
+        {done ? null : <span className="text-muted-foreground"> · copier le lien</span>}
       </span>
-    </Link>
+    </>
+  );
+
+  if (done && contratId) {
+    return (
+      <Link href={`/contrats/${contratId}`} className={classes}>
+        {contenu}
+      </Link>
+    );
+  }
+
+  async function copier() {
+    setEnCours(true);
+    try {
+      await copierLienClient(reservationId, ficheId);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impossible de créer le lien.");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <button type="button" onClick={copier} disabled={enCours} className={cn(classes, "text-left disabled:opacity-60")} title="Copier le lien client (fiche police + signature des conditions)">
+      {contenu}
+    </button>
   );
 }

@@ -16,7 +16,8 @@ import { PrintButton } from "@/components/app/print-button";
 import { DocumentsArrivees } from "@/components/app/documents-arrivees";
 import { deleteGendarmerieForm } from "@/lib/actions/gendarmerie";
 import { deleteContrat } from "@/lib/actions/contrats";
-import { derniereSignatureAgence } from "@/lib/contrat-donnees";
+import { derniereSignatureAgence, etatDossiersSejours } from "@/lib/contrat-donnees";
+import { LienSejourClient } from "@/components/app/lien-sejour-client";
 import { sejourSansVoyageur } from "@/lib/conditions-sejour";
 import { estContratV1 } from "@/lib/contrat-template";
 import { filtrerDomainesActifs, domaineEstActif, idsDomainesActifs, villaEstGeree } from "@/lib/domaines-actifs";
@@ -96,6 +97,18 @@ export default async function DocumentsPage({
   ).filter((r) => r.villaId && villaIdsActifs.has(r.villaId) && !sejourSansVoyageur(r));
 
   const signatureAgenceEnregistree = Boolean(await derniereSignatureAgence());
+
+  // Séjours proposés pour le lien client : réservation + état du dossier (fiche, conditions).
+  const etatDossiers = await etatDossiersSejours(
+    reservationsForContrat.map((r) => ({ id: r.id, villaId: r.villaId, checkIn: r.checkIn }))
+  );
+  const sejoursLien = reservationsForContrat.map((r) => ({
+    ...r,
+    villaNom: allVillas.find((v) => v.id === r.villaId)?.nom ?? "Logement",
+    ficheId: etatDossiers.get(r.id)?.ficheId ?? null,
+    ficheStatut: etatDossiers.get(r.id)?.ficheStatut ?? null,
+    contratStatut: etatDossiers.get(r.id)?.contratStatut ?? null,
+  }));
 
   // Historique : fiches remplies (les fiches en attente sont suivies dans Arrivées) et contrats.
   const fichesRemplies = (
@@ -240,23 +253,32 @@ export default async function DocumentsPage({
         </TabsContent>
 
         <TabsContent value="creer" className="space-y-6">
-          <p className="text-sm text-muted-foreground">
-            Pas besoin pour les réservations Airbnb / Booking.com : leur lien part tout seul. À utiliser pour une réservation
-            directe, ou un client qui n&apos;a pas reçu son lien.
-          </p>
           <section className="space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Conditions de séjour + fiche police
+              Lien client : fiche police + conditions de séjour
             </h2>
-            <GenerateContratForm
-              domaines={allDomaines}
-              villas={allVillas}
-              reservations={reservationsForContrat}
-              defaultVillaId={villaIdPrerempli}
-              defaultReservationId={reservationIdPrerempli}
-              signatureAgenceEnregistree={signatureAgenceEnregistree}
-            />
+            <p className="text-sm text-muted-foreground">
+              Un seul lien par séjour, pour tous les cas : il fait remplir la fiche police si elle ne l&apos;est pas, puis
+              signer les conditions. Tout est pré-rempli depuis la réservation et la pièce d&apos;identité du client. Les liens
+              Airbnb / Booking.com partent déjà tout seuls ; copie-le ici pour une réservation directe ou pour renvoyer un lien.
+            </p>
+            <LienSejourClient sejours={sejoursLien} defaultReservationId={reservationIdPrerempli} />
           </section>
+          <details className="rounded-xl border px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Cas particulier : sans réservation, ou montants à fixer à la main
+            </summary>
+            <div className="space-y-2 pt-3">
+              <GenerateContratForm
+                domaines={allDomaines}
+                villas={allVillas}
+                reservations={reservationsForContrat}
+                defaultVillaId={villaIdPrerempli}
+                defaultReservationId={reservationIdPrerempli}
+                signatureAgenceEnregistree={signatureAgenceEnregistree}
+              />
+            </div>
+          </details>
           <section className="space-y-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Fiche police seule</h2>
             <GenerateFichePoliceForm domaines={allDomaines} villas={allVillas} />

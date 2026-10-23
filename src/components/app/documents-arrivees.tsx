@@ -6,7 +6,7 @@ import { FileSignature, FileText, ShieldCheck, type LucideIcon } from "lucide-re
 import { getDb } from "@/db";
 import { contratsLocation, gendarmerieForms, reservations, villas } from "@/db/schema";
 import { CanalDot } from "@/components/app/canal-badge";
-import { CopyLinkButton } from "@/components/app/copy-link-button";
+import { LienClientButton } from "@/components/app/lien-client-button";
 import { statutCaution, statutFichePolice } from "@/components/app/suivi-arrivees";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { sejourSansVoyageur } from "@/lib/conditions-sejour";
@@ -58,8 +58,16 @@ function statutConditions(
   now: Date
 ): Statut {
   if (contrat?.statut === "signe") return { tone: "ok", label: "Signées" };
+  // Fiche déjà remplie (souvent avant la mise en ligne des conditions) : le même lien client
+  // n'affiche plus que les conditions pré-remplies à signer.
+  if (ficheComplete) {
+    return {
+      tone: now >= checkIn ? "urgent" : "attente",
+      label: "À signer",
+      detail: "Fiche déjà remplie : renvoyer le lien, il ne reste que la signature",
+    };
+  }
   if (contrat) return { tone: "attente", label: "Lien envoyé, pas signées" };
-  if (ficheComplete) return { tone: "neutre", label: "Non signées", detail: "Fiche remplie avant les conditions en ligne" };
   if (now >= checkIn) return { tone: "urgent", label: "Non signées" };
   return { tone: "neutre", label: "Avec la fiche police" };
 }
@@ -156,8 +164,9 @@ export async function DocumentsArrivees({ now }: { now: Date }) {
         <Compteur label="Sur place sans fiche" valeur={sansFiche} tone={sansFiche > 0 ? "urgent" : undefined} />
       </div>
       <p className="text-xs text-muted-foreground">
-        Le lien de la fiche police part automatiquement par Beds24 à J-2 (10h) ; le voyageur y signe aussi les conditions de
-        séjour. Copie le lien pour le renvoyer à la main (WhatsApp) si besoin.
+        Le lien client part automatiquement par Beds24 à J-2 (10h) : le voyageur y remplit sa fiche police puis signe les
+        conditions de séjour, déjà pré-remplies depuis sa réservation et sa pièce d&apos;identité. Même lien pour tout (fiche
+        faite ou non) : copie-le pour le renvoyer à la main (WhatsApp) si besoin.
       </p>
 
       {lignes.length === 0 ? (
@@ -195,13 +204,8 @@ export async function DocumentsArrivees({ now }: { now: Date }) {
               />
               <Chip icon={ShieldCheck} titre="Caution" statut={l.caution} href={`/reservations/${l.id}`} />
               <div className="flex justify-end">
-                {l.fiche && !l.fiche.complete ? (
-                  <CopyLinkButton
-                    path={`/g/${l.fiche.id}`}
-                    label="Copier le lien de la fiche police"
-                    successMessage="Lien de la fiche police copié."
-                    iconOnly
-                  />
+                {l.conditions.tone !== "ok" || (l.fiche && !l.fiche.complete) ? (
+                  <LienClientButton reservationId={l.id} ficheId={l.fiche?.id ?? null} label="Copier le lien client" iconOnly />
                 ) : null}
               </div>
             </li>

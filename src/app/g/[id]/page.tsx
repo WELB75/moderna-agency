@@ -4,6 +4,8 @@ import Image from "next/image";
 import { getDb } from "@/db";
 import { gendarmerieForms, gendarmerieOccupants, villas, reservations, contratsLocation } from "@/db/schema";
 import { chargerConditionsFiche } from "@/lib/contrat-donnees";
+import { langueConditions } from "@/lib/conditions-sejour";
+import { ConditionsSeulesForm } from "@/components/app/conditions-seules-form";
 import { Logo } from "@/components/app/logo";
 import { GendarmerieForm } from "@/components/app/gendarmerie-form";
 import { GendarmerieSignatureForm } from "@/components/app/gendarmerie-signature-form";
@@ -20,6 +22,7 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
     .select({
       id: gendarmerieForms.id,
       statut: gendarmerieForms.statut,
+      langue: gendarmerieForms.langue,
       villaNom: villas.nom,
       nbAdultes: reservations.nbAdultes,
       nbEnfants: reservations.nbEnfants,
@@ -43,8 +46,14 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
     redirect(`/dossier/${form.contratId}`);
   }
 
-  // Conditions de séjour acceptées en fin de fiche (null si déjà signées, blocage, fiche individuelle...).
-  const conditions = form.statut === "complete" ? null : await chargerConditionsFiche(form.id);
+  // Fiche remplie et dossier dont les conditions (contrat lié) restent à signer : lien de signature.
+  if (form.statut === "complete" && form.contratId && form.contratStatut && form.contratStatut !== "signe") {
+    redirect(`/c/${form.contratId}`);
+  }
+
+  // Conditions de séjour : acceptées en fin de fiche, ou signées seules quand la fiche est déjà
+  // remplie (null si déjà signées, blocage, fiche individuelle...).
+  const conditions = await chargerConditionsFiche(form.id);
 
   // Occupants déjà pré-remplis par Kamel depuis les passeports/CIN reçus (cas "attente_signature") :
   // le client n'a plus qu'à relire et signer, pas à ressaisir.
@@ -67,7 +76,9 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
         </div>
       </div>
 
-      {form.statut === "complete" ? (
+      {form.statut === "complete" && conditions ? (
+        <ConditionsSeulesForm formId={form.id} lang={langueConditions(form.langue)} conditions={conditions} />
+      ) : form.statut === "complete" ? (
         <div className="py-16 text-center">
           <p className="text-lg font-medium">
             Merci, ce formulaire a déjà été rempli. / Thank you, this form has already been submitted.
