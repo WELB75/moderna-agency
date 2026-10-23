@@ -505,7 +505,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                   envoyeAt={r.messageBienvenueEnvoyeAt}
                 />
               ) : null}
-              {r.guestPhone && r.domaineMapsUrl ? (
+              {r.domaineMapsUrl ? (
                 <LocationMessageButton
                   prominent
                   reservationId={r.id}

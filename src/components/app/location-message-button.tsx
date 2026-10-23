@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MapPin, ChevronDown } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,7 +26,7 @@ export function LocationMessageButton({
   envoyeAt,
 }: {
   reservationId: string;
-  phone: string;
+  phone: string | null;
   guestName: string;
   domaineNom: string;
   mapsUrl: string;
@@ -36,7 +37,16 @@ export function LocationMessageButton({
   const [envoye, setEnvoye] = useState(Boolean(envoyeAt));
 
   function handleClick(lang: MessageLang) {
-    window.open(toWhatsAppUrl(phone, buildLocationMessage(guestName, domaineNom, mapsUrl, wazeUrl, lang)), "_blank");
+    const message = buildLocationMessage(guestName, domaineNom, mapsUrl, wazeUrl, lang);
+    if (phone) {
+      window.open(toWhatsAppUrl(phone, message), "_blank");
+    } else {
+      // Sans numéro (ex. résa Booking/Airbnb) : on copie le message pour la conversation de la plateforme.
+      navigator.clipboard
+        .writeText(message)
+        .then(() => toast.success("Message copié : colle-le dans la conversation de la plateforme."))
+        .catch(() => toast.error("Impossible de copier le message."));
+    }
     setEnvoye(true);
     marquerMessageEnvoye(reservationId, "localisation").catch(() => {});
   }
