@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from "@/components/app/link";
 import { and, gte, lte, or, eq, ne, asc, desc, isNotNull, isNull, inArray } from "drizzle-orm";
 import {
   format,
@@ -83,7 +83,11 @@ export default async function DashboardPage({
   const rangeStart = startOfDay(viewAnchor);
   const rangeEnd = endOfDay(addDays(viewAnchor, DAYS_AHEAD - 1));
 
-  const upcoming = await db
+  // Toutes les lectures indépendantes partent en même temps (une seule attente réseau vers Neon au
+  // lieu d'une dizaine à la file) : la page s'affichait en ~750 ms côté serveur, surtout du temps
+  // d'aller-retour base, pas du calcul.
+  const [upcoming, activePersonnel, domainesCoords, qualiteById, allClients, upcomingMaintenance, allVillas, activeNow, [lastSync]] = await Promise.all([
+    db
     .select({
       id: reservations.id,
       guestName: reservations.guestName,
@@ -144,34 +148,76 @@ export default async function DashboardPage({
         )
       )
     )
-    .orderBy(asc(reservations.checkIn));
+    .orderBy(asc(reservations.checkIn)),
+    db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom)),
+    db.select({ nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude }).from(domaines),
+    getQualiteMoyenneById(db),
+    db.select({ nom: clients.nom, telephone: clients.telephone, notes: clients.notes }).from(clients),
+    db
+      .select({
+        id: maintenanceRecords.id,
+        equipement: maintenanceRecords.equipement,
+        prochaineDatePrevue: maintenanceRecords.prochaineDatePrevue,
+        villaNom: villas.nom,
+        villaNumero: villas.numero,
+        villaId: villas.id,
+        villaType: villas.type,
+        domaineNom: domaines.nom,
+      })
+      .from(maintenanceRecords)
+      .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .where(
+        and(isNotNull(maintenanceRecords.prochaineDatePrevue), lte(maintenanceRecords.prochaineDatePrevue, endOfDay(addDays(now, 30))))
+      )
+      .orderBy(asc(maintenanceRecords.prochaineDatePrevue)),
+    db
+      .select({
+        id: villas.id,
+        nom: villas.nom,
+        numero: villas.numero,
+        type: villas.type,
+        domaineNom: domaines.nom,
+      })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+      .orderBy(asc(villas.nom)),
+    db
+      .select({
+        villaId: reservations.villaId,
+        guestName: reservations.guestName,
+        checkIn: reservations.checkIn,
+        checkOut: reservations.checkOut,
+      })
+      .from(reservations)
+      .where(
+        and(
+          ne(reservations.status, "annulee"),
+          isNotNull(reservations.checkinValideAt),
+          isNull(reservations.checkoutValideAt)
+        )
+      ),
+    db
+      .select({ finishedAt: superhoteSyncLog.finishedAt, success: superhoteSyncLog.success })
+      .from(superhoteSyncLog)
+      .orderBy(desc(superhoteSyncLog.startedAt))
+      .limit(1),
+  ]);
 
   // Fiche police / contrat : indicateurs affichés sur chaque carte de réservation. La fiche
   // police est liée directement à la réservation (reservationId) ; le contrat n'a pas ce lien
   // en base, on le rapproche par villa + date d'arrivée identique.
   const reservationIds = upcoming.map((r) => r.id);
-  const relatedFiches =
+  const villaIdsForContrats = Array.from(new Set(upcoming.map((r) => r.villaId).filter((id): id is string => Boolean(id))));
+  const [relatedFiches, relatedContrats, relatedAffectations, recapRows] = await Promise.all([
     reservationIds.length > 0
-      ? await db
+      ? db
           .select({ id: gendarmerieForms.id, reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
           .from(gendarmerieForms)
           .where(inArray(gendarmerieForms.reservationId, reservationIds))
-      : [];
-  const ficheStatutByReservation = new Map<string, "complete" | "en_attente">();
-  const ficheIdByReservation = new Map<string, string>();
-  for (const f of relatedFiches) {
-    if (!f.reservationId) continue;
-    const current = ficheStatutByReservation.get(f.reservationId);
-    if (f.statut === "complete" || current !== "complete") {
-      ficheStatutByReservation.set(f.reservationId, f.statut === "complete" ? "complete" : "en_attente");
-      ficheIdByReservation.set(f.reservationId, f.id);
-    }
-  }
-
-  const villaIdsForContrats = Array.from(new Set(upcoming.map((r) => r.villaId).filter((id): id is string => Boolean(id))));
-  const relatedContrats =
+      : [],
     villaIdsForContrats.length > 0
-      ? await db
+      ? db
           .select({
             id: contratsLocation.id,
             villaId: contratsLocation.villaId,
@@ -180,23 +226,9 @@ export default async function DashboardPage({
           })
           .from(contratsLocation)
           .where(inArray(contratsLocation.villaId, villaIdsForContrats))
-      : [];
-  const contratByVillaAndDate = new Map<string, { id: string; statut: "signe" | "en_attente" }>();
-  for (const c of relatedContrats) {
-    if (!c.villaId || !c.dateArrivee) continue;
-    const key = `${c.villaId}|${c.dateArrivee}`;
-    const current = contratByVillaAndDate.get(key);
-    if (c.statut === "signe" || current?.statut !== "signe") {
-      contratByVillaAndDate.set(key, { id: c.id, statut: c.statut === "signe" ? "signe" : "en_attente" });
-    }
-  }
-
-  // Ménage/cuisine : qui est affecté à ce séjour, pour le voir directement sur la carte et
-  // pouvoir confirmer le ménage fait (ou en ajouter/retirer) sans devoir aller sur la page
-  // Personnel.
-  const relatedAffectations =
+      : [],
     reservationIds.length > 0
-      ? await db
+      ? db
           .select({
             id: personnelAffectations.id,
             reservationId: personnelAffectations.reservationId,
@@ -215,7 +247,46 @@ export default async function DashboardPage({
           .from(personnelAffectations)
           .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
           .where(inArray(personnelAffectations.reservationId, reservationIds))
-      : [];
+      : [],
+    reservationIds.length > 0
+      ? db
+          .select({
+            reservationId: reservationRecaps.reservationId,
+            token: reservationRecaps.token,
+            devise: reservationRecaps.devise,
+            avanceVersee: reservationRecaps.avanceVersee,
+            totalFinal: reservationRecaps.totalFinal,
+            modeReglement: reservationRecaps.modeReglement,
+            remarqueInterne: reservationRecaps.remarqueInterne,
+          })
+          .from(reservationRecaps)
+          .where(inArray(reservationRecaps.reservationId, reservationIds))
+      : [],
+  ]);
+  const ficheStatutByReservation = new Map<string, "complete" | "en_attente">();
+  const ficheIdByReservation = new Map<string, string>();
+  for (const f of relatedFiches) {
+    if (!f.reservationId) continue;
+    const current = ficheStatutByReservation.get(f.reservationId);
+    if (f.statut === "complete" || current !== "complete") {
+      ficheStatutByReservation.set(f.reservationId, f.statut === "complete" ? "complete" : "en_attente");
+      ficheIdByReservation.set(f.reservationId, f.id);
+    }
+  }
+
+  const contratByVillaAndDate = new Map<string, { id: string; statut: "signe" | "en_attente" }>();
+  for (const c of relatedContrats) {
+    if (!c.villaId || !c.dateArrivee) continue;
+    const key = `${c.villaId}|${c.dateArrivee}`;
+    const current = contratByVillaAndDate.get(key);
+    if (c.statut === "signe" || current?.statut !== "signe") {
+      contratByVillaAndDate.set(key, { id: c.id, statut: c.statut === "signe" ? "signe" : "en_attente" });
+    }
+  }
+
+  // Ménage/cuisine : qui est affecté à ce séjour, pour le voir directement sur la carte et
+  // pouvoir confirmer le ménage fait (ou en ajouter/retirer) sans devoir aller sur la page
+  // Personnel.
   // Ménage "sejour" (pendant le séjour, à la demande du client) et "depart" (fin de séjour, pour
   // préparer l'arrivée suivante) sont deux équipes potentiellement différentes — voir
   // personnelAffectationMomentEnum dans schema.ts.
@@ -246,21 +317,6 @@ export default async function DashboardPage({
   }
 
   // Récapitulatifs des réservations directes (avance, reste à encaisser, remarque interne, lien).
-  const recapRows =
-    reservationIds.length > 0
-      ? await db
-          .select({
-            reservationId: reservationRecaps.reservationId,
-            token: reservationRecaps.token,
-            devise: reservationRecaps.devise,
-            avanceVersee: reservationRecaps.avanceVersee,
-            totalFinal: reservationRecaps.totalFinal,
-            modeReglement: reservationRecaps.modeReglement,
-            remarqueInterne: reservationRecaps.remarqueInterne,
-          })
-          .from(reservationRecaps)
-          .where(inArray(reservationRecaps.reservationId, reservationIds))
-      : [];
   const recapByReservation = new Map(
     recapRows.map((x) => {
       const total = x.totalFinal ? Number(x.totalFinal) : null;
@@ -279,13 +335,10 @@ export default async function DashboardPage({
     })
   );
 
-  const activePersonnel = await db.select().from(personnel).where(eq(personnel.actif, true)).orderBy(asc(personnel.nom));
 
   // Coordonnées de chaque domaine (pour trier les options ménage/cuisine par proximité, voir
   // buildPersonnelOptions), précalculées pour chaque domaine avant le rendu — plusieurs séjours
   // partagent le même domaine, pas de cache paresseux pendant le rendu.
-  const domainesCoords = await db.select({ nom: domaines.nom, latitude: domaines.latitude, longitude: domaines.longitude }).from(domaines);
-  const qualiteById = await getQualiteMoyenneById(db);
   const menageOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "menage", d, qualiteById)]));
   const cuisineOptionsByDomaine = new Map(domainesCoords.map((d) => [d.nom, buildPersonnelOptions(activePersonnel, "cuisine", d, qualiteById)]));
   const menageOptionsSansDomaine = buildPersonnelOptions(activePersonnel, "menage", null, qualiteById);
@@ -299,7 +352,6 @@ export default async function DashboardPage({
 
   // Client connu : rapproché par téléphone (pas par nom, trop instable) — pour retrouver ses
   // habitudes s'il revient sans avoir à ouvrir la page Clients.
-  const allClients = await db.select({ nom: clients.nom, telephone: clients.telephone, notes: clients.notes }).from(clients);
   function findClient(guestPhone: string | null) {
     if (!guestPhone) return null;
     return allClients.find((c) => phonesMatch(c.telephone, guestPhone)) ?? null;
@@ -353,55 +405,10 @@ export default async function DashboardPage({
     DASHBOARD_DOMAINES.map((d) => [d, upcomingWithDocs.filter((r) => r.domaineNom === d)])
   );
 
-  const upcomingMaintenance = await db
-    .select({
-      id: maintenanceRecords.id,
-      equipement: maintenanceRecords.equipement,
-      prochaineDatePrevue: maintenanceRecords.prochaineDatePrevue,
-      villaNom: villas.nom,
-      villaNumero: villas.numero,
-      villaId: villas.id,
-      villaType: villas.type,
-      domaineNom: domaines.nom,
-    })
-    .from(maintenanceRecords)
-    .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .where(
-      and(isNotNull(maintenanceRecords.prochaineDatePrevue), lte(maintenanceRecords.prochaineDatePrevue, endOfDay(addDays(now, 30))))
-    )
-    .orderBy(asc(maintenanceRecords.prochaineDatePrevue));
-
-  const allVillas = await db
-    .select({
-      id: villas.id,
-      nom: villas.nom,
-      numero: villas.numero,
-      type: villas.type,
-      domaineNom: domaines.nom,
-    })
-    .from(villas)
-    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-    .orderBy(asc(villas.nom));
   const allVillasGerees = allVillas.filter((v) => villaEstGeree(v.nom));
 
   // Occupation réelle = check-in validé sur place mais check-out pas encore validé (pas juste
   // la période de la réservation) : reflète qui a vraiment les clés en ce moment, pas le calendrier.
-  const activeNow = await db
-    .select({
-      villaId: reservations.villaId,
-      guestName: reservations.guestName,
-      checkIn: reservations.checkIn,
-      checkOut: reservations.checkOut,
-    })
-    .from(reservations)
-    .where(
-      and(
-        ne(reservations.status, "annulee"),
-        isNotNull(reservations.checkinValideAt),
-        isNull(reservations.checkoutValideAt)
-      )
-    );
   const occupiedVillaIds = new Set(activeNow.map((r) => r.villaId));
   const occupantByVillaId = new Map(activeNow.filter((r) => r.villaId).map((r) => [r.villaId as string, r]));
   const villasLibres = allVillasGerees.filter((v) => !occupiedVillaIds.has(v.id));
@@ -438,12 +445,6 @@ export default async function DashboardPage({
   );
 
   const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(viewAnchor, i));
-
-  const [lastSync] = await db
-    .select({ finishedAt: superhoteSyncLog.finishedAt, success: superhoteSyncLog.success })
-    .from(superhoteSyncLog)
-    .orderBy(desc(superhoteSyncLog.startedAt))
-    .limit(1);
 
   // Tâches du jour (une ligne par check-out, ménage de départ, check-in, cuisine) avec dernier
   // départ / prochaine arrivée de la villa — uniquement sur la semaine en cours.
