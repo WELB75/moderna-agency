@@ -106,7 +106,17 @@ function parCanalVide(): Record<CanalBilan, number> {
   return { airbnb: 0, booking: 0, direct: 0, autre: 0 };
 }
 
-export async function getBilanProprietaire(villaId: string): Promise<BilanProprietaire> {
+// Séjour du propriétaire lui-même enregistré comme une réservation ordinaire (ex. "Mimoun",
+// 6-9 sept. 2026 sur Villa Wimiliim, créé dans SuperHote en Direct sans loyer) : son prénom et
+// pas de loyer, ce n'est pas une location — on ne le compte ni dans les nuits ni dans les séjours.
+// Un client qui porterait le même prénom mais avec un loyer renseigné reste compté.
+function estSejourDuProprietaire(guestName: string, proprietaireNom: string | null | undefined, loyerConnu: boolean): boolean {
+  const nom = (proprietaireNom ?? "").trim().toLowerCase();
+  if (!nom || loyerConnu) return false;
+  return guestName.trim().toLowerCase().startsWith(nom);
+}
+
+export async function getBilanProprietaire(villaId: string, options: { proprietaireNom?: string | null } = {}): Promise<BilanProprietaire> {
   const db = getDb();
   const debut = new Date(Date.UTC(DEBUT_BILAN.annee, DEBUT_BILAN.mois, 1));
   const maintenant = nowInMorocco();
@@ -150,9 +160,10 @@ export async function getBilanProprietaire(villaId: string): Promise<BilanPropri
   ]);
 
   // Séjours payants seulement : ni les blocages (propriétaire, travaux, "Blocage Airbnb", dates
-  // fermées), ni les séjours "Famille".
+  // fermées), ni les séjours "Famille", ni le propriétaire chez lui.
   const sejours = lignesResa
     .filter((r) => !sejourSansVoyageur(r) && normaliseCanal(r.canal) !== "bloque")
+    .filter((r) => !estSejourDuProprietaire(r.guestName, options.proprietaireNom, Number(r.loyerTotal ?? 0) > 0))
     .map((r) => {
       const checkIn = new Date(r.checkIn);
       const checkOut = new Date(r.checkOut);
