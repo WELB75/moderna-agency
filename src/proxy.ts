@@ -11,6 +11,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/ical/export/(.*)",
   "/api/whatsapp-webhook",
   "/api/telegram-webhook",
+  "/api/telegram-rappels", // crons matin/soir, protégés par CRON_SECRET dans la route
   "/api/staff-requests/sweep",
   "/api/maintenance/dispatch",
   "/api/beds24/sync", // cron quotidien, protégé par CRON_SECRET dans la route
