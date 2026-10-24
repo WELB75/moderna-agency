@@ -18,15 +18,19 @@ import { nowInMorocco } from "@/lib/now";
 //   au propriétaire), réparti au prorata des nuits passées dans chaque mois, sans déduction de la
 //   commission de l'agence ;
 // - dépenses = seulement les dépenses de caisse rattachées au logement en catégorie Hébergement
-//   (réparations, achats, entretien du bien) et Jardinier — pas le ménage ni la cuisine payés par
-//   l'agence pour les clients ;
+//   (réparations, achats, entretien du bien), Jardinier et Autre — pas le ménage, la cuisine ni
+//   les courses payés par l'agence pour les clients (catégories femmes_menage, cuisinieres,
+//   coursier, et les paiements du personnel créés automatiquement, sans catégorie). "Autre" est
+//   gardé parce que la caisse n'est pas toujours rangée au cordeau : la réparation du store de
+//   Villa Wimiliim du 3 sept. 2026 y est en "Autre" alors que les mêmes réparations sur Lila et
+//   Gaspard sont en "Hébergement" ;
 // - depuis août 2026, mois à venir inclus dès qu'ils ont des réservations confirmées (marqués
 //   "à venir" : c'est du prévisionnel).
 // Tout est converti en euros (les dépenses sont saisies en dirhams), au taux du jour de
 // lib/devises.ts — le montant d'origine est gardé sur chaque ligne de dépense.
 
 export const DEBUT_BILAN = { annee: 2026, mois: 7 }; // août 2026 (mois 0-11)
-export const CATEGORIES_DEPENSES_PROPRIETAIRE = ["hebergement", "jardinier"] as const;
+export const CATEGORIES_DEPENSES_PROPRIETAIRE = ["hebergement", "jardinier", "autre"] as const;
 const MAX_MOIS_A_VENIR = 12;
 
 export type CanalBilan = "airbnb" | "booking" | "direct" | "autre";
@@ -240,7 +244,7 @@ export async function getBilanProprietaire(villaId: string, options: { proprieta
       .map((d) => ({
         id: d.id,
         date: isoJourMaroc(new Date(d.createdAt)),
-        libelle: (d.description ?? "").trim() || (d.categorie === "jardinier" ? "Jardinage" : "Dépense pour le logement"),
+        libelle: (d.description ?? "").trim() || (d.categorie === "jardinier" ? "Jardinage" : d.categorie === "autre" ? "Dépense" : "Dépense pour le logement"),
         categorie: d.categorie ?? "hebergement",
         montantEur: versEuros(Number(d.montant), d.devise, madParEur),
         montantOrigine: Number(d.montant),
