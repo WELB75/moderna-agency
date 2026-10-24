@@ -59,6 +59,14 @@
     {
       "path": "/api/beds24/sync",
       "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/telegram-rappels?moment=matin",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/telegram-rappels?moment=soir",
+      "schedule": "0 18 * * *"
     }
   ]
 }
