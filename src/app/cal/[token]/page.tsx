@@ -62,7 +62,10 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
 
   // Bilan mensuel (loyers par canal, dépenses, solde) en parallèle des prix : deux requêtes
   // indépendantes, pas la peine de les enchaîner.
-  const [tarifsBruts, bilan] = await Promise.all([getTarification({ villaId: villa.id }), getBilanProprietaire(villa.id)]);
+  const [tarifsBruts, bilan] = await Promise.all([
+    getTarification({ villaId: villa.id }),
+    getBilanProprietaire(villa.id, { proprietaireNom: villa.proprietaireNom }),
+  ]);
   const tarifs = tarifsBruts.map(versionPublique);
 
   // Séjours propriétaire pas encore commencés : les seuls annulables depuis ce lien (même règle
