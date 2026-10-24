@@ -340,7 +340,7 @@ export function BilanProprietaire({ mois }: { mois: MoisBilan[] }) {
               {SOURCE_META[c].label}
             </span>
           ))}
-          {aVenir.length > 0 ? <span className="sm:ml-auto">Barres claires : mois à venir, déjà réservés.</span> : null}
+          {aVenir.length > 0 ? <span className="sm:ml-auto">Barres atténuées : mois à venir, déjà réservés.</span> : null}
         </div>
       </div>
 
