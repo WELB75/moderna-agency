@@ -7,8 +7,10 @@ import { personnel, personnelAffectations, reservations } from "@/db/schema";
 import { getTarification, type TarificationVilla } from "@/lib/pricelabs/sync";
 import { CANAL_SEJOUR_PROPRIETAIRE, villaDuCalendrierToken } from "@/lib/calendrier-partage";
 import { nowInMorocco } from "@/lib/now";
+import { getBilanProprietaire } from "@/lib/bilan-proprietaire";
 import { TarificationView } from "@/components/app/tarification-view";
 import { ProprietaireReservation, type SejourProprietaire } from "@/components/app/proprietaire-reservation";
+import { BilanProprietaire } from "@/components/app/bilan-proprietaire";
 import { Logo } from "@/components/app/logo";
 
 export const metadata: Metadata = {
@@ -20,6 +22,9 @@ export const metadata: Metadata = {
 // canal, nombre de voyageurs), sans téléphone, montants, notes internes, journal ni identifiant
 // Beds24 — retirés ICI, côté serveur, pour qu'ils ne transitent même pas dans le HTML envoyé au
 // navigateur (le mode lectureSeule du composant ne fait que masquer l'affichage).
+// Les montants des séjours (loyer total, part de chaque mois) sont en revanche bien envoyés plus
+// bas, dans la liste des réservations à venir et dans le bilan mensuel : c'est la villa du
+// propriétaire, et c'est précisément ce qu'il demande à voir.
 function versionPublique(villa: TarificationVilla): TarificationVilla {
   return {
     ...villa,
@@ -55,7 +60,10 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
   const villa = await villaDuCalendrierToken(token);
   if (!villa) notFound();
 
-  const tarifs = (await getTarification({ villaId: villa.id })).map(versionPublique);
+  // Bilan mensuel (loyers par canal, dépenses, solde) en parallèle des prix : deux requêtes
+  // indépendantes, pas la peine de les enchaîner.
+  const [tarifsBruts, bilan] = await Promise.all([getTarification({ villaId: villa.id }), getBilanProprietaire(villa.id)]);
+  const tarifs = tarifsBruts.map(versionPublique);
 
   // Séjours propriétaire pas encore commencés : les seuls annulables depuis ce lien (même règle
   // que annulerSejourProprietaire).
@@ -138,6 +146,21 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
       </div>
       <ProprietaireReservation token={token} nomParDefaut={villa.proprietaireNom || "Propriétaire"} sejours={sejours} />
       <TarificationView key={cleGrille} initialVillas={tarifs} lectureSeule />
+      {/* Bilan mensuel — Fouad, 2026-10-24 : "chaque mois, combien ils ont dépensé [...] et combien
+          ils ont encaissé sur Airbnb, en direct [...] un petit graphique sur la même page", pour
+          que le propriétaire voie la traçabilité et les chiffres d'un coup d'œil. Règles de calcul
+          et choix validés : lib/bilan-proprietaire.ts. */}
+      <section className="space-y-2">
+        <div>
+          <h2 className="text-sm font-semibold">Bilan mensuel</h2>
+          <p className="text-xs text-muted-foreground">
+            Loyers des séjours par canal (Airbnb, Booking.com, en direct) et dépenses engagées pour votre logement, mois par mois
+            depuis août 2026. Un séjour à cheval sur deux mois est réparti au prorata des nuits. Montants en euros
+            {bilan.aDesDirhams ? ` — les dépenses réglées en dirhams sont converties au taux du jour (1 € ≈ ${bilan.madParEur.toFixed(2).replace(".", ",")} DH)` : ""}.
+          </p>
+        </div>
+        <BilanProprietaire mois={bilan.mois} />
+      </section>
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Réservations à venir</h2>
         {aVenir.length === 0 ? (
