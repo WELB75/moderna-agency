@@ -1,3 +1,4 @@
+import { notifierKamelTelegram } from "@/lib/telegram";
 import { and, eq, isNotNull, gte, notInArray } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -372,5 +373,5 @@ async function notifySyncChanges(
   }
 
   // Best-effort : un échec d'envoi WhatsApp ne doit jamais faire échouer la synchronisation.
-  await notifyStaffWhatsApp(lines.join("\n")).catch(() => {});
+  await Promise.all([notifyStaffWhatsApp(lines.join("\n")).catch(() => {}), notifierKamelTelegram(lines.join("\n"))]);
 }
