@@ -1,5 +1,6 @@
 "use server";
 
+import { notifierKamelTelegram } from "@/lib/telegram";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq, and } from "drizzle-orm";
@@ -42,7 +43,13 @@ async function tracerIntervention(
   detail?: string,
   auteur?: Auteur
 ) {
-  await tracer({ ...(await infosIntervention(interventionId, detail)), action, libelle, auteur });
+  const infos = await infosIntervention(interventionId, detail);
+  await tracer({ ...infos, action, libelle, auteur });
+  // Un nouveau souci sur une villa est signalé à Kamel sur Telegram, quelle que soit l'origine
+  // (équipe, propriétaire, voyageur, technicien).
+  if (action === "intervention_creee") {
+    await notifierKamelTelegram(`Nouveau souci villa : ${libelle}${infos.resume ? `\n${infos.resume}` : ""}`);
+  }
 }
 
 async function nomTechnicien(technicianId: string | null): Promise<string> {

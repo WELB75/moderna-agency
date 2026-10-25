@@ -1,8 +1,9 @@
-import { and, asc, desc, eq, gte, lt, ne } from "drizzle-orm";
+import { and, asc, eq, gte, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
-import { domaines, reservations, telegramConversations, villas } from "@/db/schema";
+import { domaines, reservations, villas } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { formatUtcTime, nowInMorocco } from "@/lib/now";
+import { envoyerTelegram } from "@/lib/telegram";
 import { villaLabel } from "@/lib/whatsapp-agent/staff";
 
 // Rappels Telegram de Kamel (cron /api/telegram-rappels) : le matin pour la journée qui commence,
@@ -20,19 +21,6 @@ type Ligne = {
   canal: string | null;
   notes: string | null;
 };
-
-async function chatIdDeKamel(): Promise<string | null> {
-  // Conversation privée : l'id du chat est celui de l'utilisateur, donc TELEGRAM_ALLOWED_USER_ID
-  // convient tel quel. Sans lui, on prend la dernière conversation connue du bot (Kamel seul).
-  const allowed = process.env.TELEGRAM_ALLOWED_USER_ID;
-  if (allowed) return allowed;
-  const [row] = await getDb()
-    .select({ chatId: telegramConversations.chatId })
-    .from(telegramConversations)
-    .orderBy(desc(telegramConversations.updatedAt))
-    .limit(1);
-  return row?.chatId ?? null;
-}
 
 function formatLigne(l: Ligne): string {
   const details = [
@@ -99,21 +87,5 @@ export async function construireRappel(moment: MomentRappel, maintenant: Date = 
 }
 
 export async function envoyerRappelTelegram(moment: MomentRappel): Promise<{ sent: boolean; reason?: string }> {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return { sent: false, reason: "TELEGRAM_BOT_TOKEN manquant" };
-  const chatId = await chatIdDeKamel();
-  if (!chatId) return { sent: false, reason: "chat Telegram inconnu (écrire une fois au bot)" };
-
-  const text = await construireRappel(moment);
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  });
-  if (!res.ok) {
-    const detail = await res.text();
-    console.error("Échec envoi rappel Telegram:", res.status, detail);
-    return { sent: false, reason: `Telegram ${res.status}` };
-  }
-  return { sent: true };
+  return envoyerTelegram(await construireRappel(moment));
 }

@@ -1,3 +1,4 @@
+import { notifierKamelTelegram } from "@/lib/telegram";
 import { and, asc, eq, isNotNull, isNull, gte, lt, inArray, notInArray, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -547,7 +548,7 @@ async function notifySyncChanges(
     lines.push(`Annulation (Beds24) : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })})`);
   }
 
-  await notifyStaffWhatsApp(lines.join("\n")).catch(() => {});
+  await Promise.all([notifyStaffWhatsApp(lines.join("\n")).catch(() => {}), notifierKamelTelegram(lines.join("\n"))]);
 }
 
 // Sens app -> Beds24 : pousse une réservation créée/modifiée dans l'app vers Beds24, mais

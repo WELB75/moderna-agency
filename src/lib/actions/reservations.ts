@@ -17,6 +17,7 @@ import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { beds24WriteBookings } from "@/lib/beds24/client";
 import { fermerDatesBeds24, rouvrirDatesBeds24 } from "@/lib/beds24/fermeture";
 import { normaliseCanal } from "@/lib/canal";
+import { notifierKamelTelegram } from "@/lib/telegram";
 import { auteurConnecte, datesFermeesParLApp, journaliser, tracer, type Beds24Statut } from "@/lib/journal";
 
 function resumeSejour(guestName: string, canal: string | null, checkIn: string, checkOut: string): string {
@@ -177,6 +178,15 @@ export async function createReservation(formData: FormData) {
     beds24Statut,
     beds24Detail,
   });
+
+  // Prévient Kamel sur Telegram d'une réservation saisie dans l'app (pas pour un blocage
+  // propriétaire/travaux) — les réservations des plateformes passent par la synchro.
+  if (!estBlocage) {
+    const auteur = await auteurConnecte();
+    await notifierKamelTelegram(
+      `Nouvelle réservation saisie dans l'app : ${villa?.nom ?? "villa"} - ${resumeSejour(guestName, canal || "Direct", checkIn, checkOut)}${auteur.nom ? ` (par ${auteur.nom})` : ""}`
+    );
+  }
 
   // Récapitulatif partageable (prix PriceLabs, promo, avance, remarque interne) + jeton du lien
   // public /s/[token] — jamais bloquant pour la création elle-même.
