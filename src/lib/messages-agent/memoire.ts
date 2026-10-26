@@ -174,7 +174,12 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
 
   const cands = await candidats(mode);
   const connus = new Map<number, { nb: number; statut: string }>();
-  for (const f of await db.select().from(agentMemoireFils)) connus.set(f.bookingId, { nb: f.nbMessages, statut: f.statut });
+  const ilYA12h = Date.now() - 12 * 3600 * 1000;
+  for (const f of await db.select().from(agentMemoireFils)) {
+    // Un fil resté "vide" (pas encore de réponse de l'équipe) est relu plus tard : il peut avoir reçu des messages.
+    if (f.statut === "vide" && f.analyseAt.getTime() < ilYA12h) continue;
+    connus.set(f.bookingId, { nb: f.nbMessages, statut: f.statut });
+  }
 
   let aLire = [...cands.keys()];
   if (mode === "tout") {
