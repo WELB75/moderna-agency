@@ -386,7 +386,8 @@ Si des réponses se contredisent (ex. un prix qui a changé), garde la plus réc
     (refusees.length > 0 ? `\nSujets refusés par l'équipe (ne les recrée pas) :\n${refusees.map((f) => `- ${f.titre}`).join("\n")}\n` : "");
 
   const out = await client.messages.parse({
-    model: "claude-sonnet-5-5",
+    // Même modèle que les autres usages Sonnet de l'app : claude-sonnet-5-5 refuse thinking "disabled".
+    model: "claude-sonnet-5",
     max_tokens: 6000,
     thinking: { type: "disabled" },
     output_config: { effort: "medium", format: zodOutputFormat(FichesSchema) },
