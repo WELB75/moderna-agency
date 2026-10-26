@@ -49,3 +49,47 @@ test("bloc mémoire : les plus confirmées passent d'abord", () => {
   const bloc = blocMemoire([fiche({ titre: "Rare", nbSources: 1 }), fiche({ titre: "Fréquente", nbSources: 9 })], null);
   assert.ok(bloc.indexOf("Fréquente") < bloc.indexOf("Rare"));
 });
+
+import { calculerConnaissances, niveauPourPct, SUJETS } from "./memoire-regles.ts";
+
+const ech = (question: string, reponse = "ok", at: string | null = null) => ({ question, reponse, at });
+
+test("niveaux : sans donnée tout est à 0 %, indice global 0", () => {
+  const c = calculerConnaissances([], []);
+  assert.equal(c.global, 0);
+  assert.ok(c.sujets.every((s) => s.pct === 0 && s.niveau === "A découvrir"));
+  assert.equal(c.sujets.length, SUJETS.length);
+});
+
+test("niveaux : des échanges sur la piscine font monter la piscine, pas le wifi", () => {
+  const c = calculerConnaissances([], [ech("La piscine est-elle chauffée ?"), ech("Peut-on se baigner la nuit dans la piscine ?"), ech("Horaires de la piscine")]);
+  const piscine = c.sujets.find((s) => s.code === "piscine")!;
+  const wifi = c.sujets.find((s) => s.code === "wifi")!;
+  assert.equal(piscine.echanges, 3);
+  assert.ok(piscine.pct > 0 && piscine.pct <= 60, `piscine ${piscine.pct}`);
+  assert.equal(wifi.pct, 0);
+});
+
+test("niveaux : une fiche rédigée complète les échanges, plafond à 60 % sans fiche", () => {
+  const echanges = Array.from({ length: 40 }, () => ech("Quel est le code wifi ?"));
+  assert.ok(calculerConnaissances([], echanges).sujets.find((s) => s.code === "wifi")!.pct <= 60);
+  const avec = calculerConnaissances([{ theme: "equipements_wifi", titre: "Wifi", question: "wifi ?", reponse: "Le wifi est dispo", epingle: true }, { theme: "equipements_wifi", titre: "Wifi 2", question: "internet", reponse: "fibre" }], echanges);
+  assert.ok(avec.sujets.find((s) => s.code === "wifi")!.pct >= 95);
+});
+
+test("niveaux : accents et apostrophes ne gênent pas, les sigles courts ne matchent pas au milieu d'un mot", () => {
+  const c = calculerConnaissances([], [ech("Arrivée tardive après minuit possible ?"), ech("Mon adjoint arrive demain")]);
+  assert.equal(c.sujets.find((s) => s.code === "arrivee_tardive")!.echanges, 1);
+  assert.equal(c.sujets.find((s) => s.code === "bruit_fetes")!.echanges, 0);
+});
+
+test("niveaux : les échanges des 7 derniers jours sont comptés", () => {
+  const maintenant = new Date("2026-10-26T12:00:00Z");
+  const c = calculerConnaissances([], [ech("caution ?", "ok", "2026-10-25T12:00:00Z"), ech("caution ?", "ok", "2026-09-01T12:00:00Z")], maintenant);
+  assert.equal(c.cetteSemaine, 1);
+  assert.equal(c.sujets.find((s) => s.code === "caution")!.cetteSemaine, 1);
+});
+
+test("niveaux : libellés par palier", () => {
+  assert.deepEqual([0, 10, 30, 60, 80, 100].map(niveauPourPct), ["A découvrir", "Débutant", "Apprenti", "Confirmé", "Expert", "Maître"]);
+});
