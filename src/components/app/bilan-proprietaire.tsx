@@ -142,7 +142,7 @@ function LigneSejour({ s }: { s: SejourBilan }) {
         </span>
       </span>
       <span className="shrink-0 text-right tabular-nums">
-        {s.loyerConnu ? eur(s.montant) : <span className="text-muted-foreground">montant non renseigné</span>}
+        {s.loyerConnu ? <>{eur(s.montant)}{s.depuisEncaissement ? <span className="ml-1 text-xs text-muted-foreground">(encaissé)</span> : null}</> : <span className="text-muted-foreground">montant non renseigné</span>}
         {s.nuitsDansLeMois < s.nuitsTotal ? (
           <span className="block text-[11px] text-muted-foreground">
             {s.nuitsDansLeMois} nuit{s.nuitsDansLeMois > 1 ? "s" : ""} sur {s.nuitsTotal} ce mois-ci
