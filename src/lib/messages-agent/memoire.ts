@@ -9,7 +9,7 @@ import { agentMemoireBrut, agentMemoireFiches, agentMemoireFils, agentMemoireThe
 import { beds24GetBookings, beds24GetMessagesBulk, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
 import { LIGNE_AGENCE } from "@/lib/whatsapp-agence";
-import { anonymiser, libelleTheme, THEMES_EXTRACTION, type FicheMemoire, type ThemeCode } from "./memoire-regles";
+import { anonymiser, calculerConnaissances, libelleTheme, THEMES_EXTRACTION, type Connaissances, type FicheMemoire, type ThemeCode } from "./memoire-regles";
 
 // Mémoire de l'agent IA de la boîte de réception — Kamel, 2026-10-26 : "reprendre tout ce que les
 // clients disent, tout ce qu'ils demandent et tout ce qu'on leur répond pour alimenter la mémoire
@@ -444,3 +444,19 @@ export async function statsMemoire(): Promise<{ fils: number; filsAnalyses: numb
   return { fils: r.fils, filsAnalyses: r.fils_analyses, echanges: r.echanges, fiches: r.fiches, fichesActives: r.fiches_actives, derniere: r.derniere ? new Date(r.derniere) : null };
 }
 
+
+// Niveaux de connaissance par sujet (voir calculerConnaissances) : échanges réels les plus récents
+// (plafonnés pour rester léger) et fiches actives.
+export async function connaissancesAgent(): Promise<Connaissances> {
+  await assurerTablesMemoire();
+  const db = getDb();
+  const [echanges, fiches] = await Promise.all([
+    db
+      .select({ question: agentMemoireBrut.question, reponse: agentMemoireBrut.reponse, at: agentMemoireBrut.createdAt })
+      .from(agentMemoireBrut)
+      .orderBy(desc(agentMemoireBrut.createdAt))
+      .limit(5000),
+    db.select().from(agentMemoireFiches).where(eq(agentMemoireFiches.actif, true)),
+  ]);
+  return calculerConnaissances(fiches, echanges);
+}

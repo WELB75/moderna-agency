@@ -1,7 +1,8 @@
 import { asc, desc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { agentMemoireFiches } from "@/db/schema-memoire-agent";
-import { assurerTablesMemoire, statsMemoire } from "@/lib/messages-agent/memoire";
+import { assurerTablesMemoire, connaissancesAgent, statsMemoire } from "@/lib/messages-agent/memoire";
+import { ConnaissancesAgent } from "./connaissances-agent";
 import { MemoireAgentClient, type FicheAffichee } from "./memoire-agent-client";
 
 // L'apprentissage (lecture des fils, analyse, consolidation) tourne dans des actions appelées
@@ -10,9 +11,10 @@ export const maxDuration = 300;
 
 export default async function MemoireAgentPage() {
   await assurerTablesMemoire();
-  const [rows, stats] = await Promise.all([
+  const [rows, stats, connaissances] = await Promise.all([
     getDb().select().from(agentMemoireFiches).orderBy(asc(agentMemoireFiches.theme), desc(agentMemoireFiches.nbSources)),
     statsMemoire(),
+    connaissancesAgent(),
   ]);
   const fiches: FicheAffichee[] = rows.map((f) => ({
     id: f.id,
@@ -38,6 +40,7 @@ export default async function MemoireAgentPage() {
         </p>
       </div>
       <MemoireAgentClient fiches={fiches} stats={{ ...stats, derniere: stats.derniere ? stats.derniere.toISOString() : null }} />
+      <ConnaissancesAgent connaissances={connaissances} stats={{ filsAnalyses: stats.filsAnalyses, fichesActives: stats.fichesActives, echanges: stats.echanges }} />
     </div>
   );
 }
