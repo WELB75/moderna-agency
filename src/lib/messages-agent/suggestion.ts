@@ -4,6 +4,7 @@ import { z } from "zod";
 import { differenceInCalendarDays, format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { VILLAS } from "@/lib/whatsapp-agent/villas";
+import { blocMemoire, type FicheMemoire } from "./memoire-regles";
 
 // Agent IA de la boîte de réception Airbnb / Booking.com — Kamel, 2026-10-17 : "est-ce qu'on peut
 // l'intégrer à Booking et Airbnb ? Que ça réponde automatiquement avec l'agent IA". Première
@@ -46,6 +47,9 @@ export type ContexteSejour = {
   // null pour une demande d'information (pas encore de réservation).
   reservation: { guestName: string; checkIn: Date; checkOut: Date; canal: string | null; annulee: boolean; nbVoyageurs: number | null } | null;
   logement: ContexteLogement | null;
+  // Mémoire apprise des conversations passées (voir memoire.ts) : réponses réellement données par
+  // l'équipe à d'autres voyageurs. Facultative : sans elle l'agent répond comme avant.
+  memoire?: FicheMemoire[];
 };
 
 export type FilMessage = { deVoyageur: boolean; texte: string };
@@ -153,6 +157,14 @@ export async function suggererReponse(sejour: ContexteSejour, fil: FilMessage[],
     .map((m) => `${m.deVoyageur ? "Voyageur" : "Moderna Agency"} : ${m.texte}`)
     .join("\n\n");
 
+  const memoire = blocMemoire(sejour.memoire ?? [], sejour.logement?.nom ?? null);
+  const blocMemoireTexte = memoire
+    ? `\nMémoire de l'équipe — réponses réellement données à d'autres voyageurs (Airbnb et Booking.com) :
+${memoire}
+
+Comment t'en servir : inspire-toi-en pour le fond (prix, conditions, règles) et pour le ton. Les informations du séjour et du logement ci-dessus priment toujours en cas de différence (codes, caution, ménage, cuisinière, dates). Ne recopie jamais une donnée propre à un autre voyageur, et si une fiche te paraît dépassée ou ne correspond pas à la question, mets besoin_humain à true.\n`
+    : "";
+
   const message = await client.messages.parse({
     model: "claude-haiku-5-5",
     max_tokens: 1500,
@@ -167,10 +179,10 @@ ${sejourTexte}
 ${blocLogement(sejour, maintenant)}
 
 Infos générales : arrivée à partir de 15h, départ avant 11h. La piscine chauffée est une option payante : 30 € par jour (en euros), à demander avant l'arrivée. Aucun logement n'a de vis-à-vis.
-
+${blocMemoireTexte}
 Règles :
 - Écris en français, quelle que soit la langue du voyageur (la traduction est faite à l'envoi). Ton chaleureux, poli, bref, style message de plateforme — pas de pavé, pas d'émojis.
-- Ne réponds qu'avec les informations ci-dessus. N'invente jamais un code, un prix, un horaire, un équipement ou une règle. Si l'information manque, mets besoin_humain à true et dis-le dans raison.
+- Ne réponds qu'avec les informations ci-dessus (séjour, logement, mémoire de l'équipe). N'invente jamais un code, un prix, un horaire, un équipement ou une règle. Si l'information manque, mets besoin_humain à true et dis-le dans raison.
 - Ne communique jamais de code d'accès ou de wifi si le bloc logement dit de ne pas le faire. Ne cite aucun autre logement que celui de ce séjour.
 - Ne propose jamais de payer, réserver ou négocier en dehors de la plateforme, et ne donne pas de prix de séjour : renvoie vers la réservation sur la plateforme.
 - Mets besoin_humain à true (et propose au mieux un court accusé de réception) pour : remboursement, litige ou plainte, dégât, annulation ou changement de dates, arrivée anticipée ou départ tardif (tu ne peux rien promettre), demande d'argent ou de paiement, problème de sécurité ou médical, tarif ou remise, et toute question dont la réponse n'est pas dans les informations ci-dessus.

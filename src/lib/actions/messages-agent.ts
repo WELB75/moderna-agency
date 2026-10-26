@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { domaines, reservations, villas } from "@/db/schema";
 import { beds24GetBookings, beds24GetMessages } from "@/lib/beds24/client";
+import { fichesPourAgent } from "@/lib/messages-agent/memoire";
 import { suggererReponse, type ContexteLogement, type ContexteSejour, type FilMessage, type SuggestionReponse } from "@/lib/messages-agent/suggestion";
 
 const colonnesLogement = {
@@ -112,5 +113,5 @@ export async function suggererReponseIA(cible: { reservationId?: string | null; 
     .map((m) => ({ deVoyageur: m.source === "guest", texte: m.message }));
   if (!fil.some((m) => m.deVoyageur)) throw new Error("Aucun message du voyageur à qui répondre.");
 
-  return suggererReponse(sejour, fil);
+  return suggererReponse({ ...sejour, memoire: await fichesPourAgent() }, fil);
 }
