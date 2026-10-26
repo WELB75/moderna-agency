@@ -4,9 +4,10 @@ import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
-import { agentMemoireFiches } from "@/db/schema-memoire-agent";
+import { agentMemoireCodes, agentMemoireFiches } from "@/db/schema-memoire-agent";
+import { villas } from "@/db/schema";
 import { Beds24ConfigError } from "@/lib/beds24/client";
-import { apprendreLot, assurerTablesMemoire, consoliderTheme, themesAConsolider, type BilanApprentissage } from "@/lib/messages-agent/memoire";
+import { apprendreLot, assurerTablesMemoire, chercherCodes, consoliderTheme, themesAConsolider, type BilanApprentissage, type BilanCodes } from "@/lib/messages-agent/memoire";
 import { THEMES } from "@/lib/messages-agent/memoire-regles";
 import { tracer } from "@/lib/journal";
 
@@ -95,5 +96,53 @@ export async function ajouterFiche(theme: string, champs: ChampsFiche): Promise<
   if (!THEMES.some((t) => t.code === theme)) throw new Error("Thème inconnu.");
   await getDb().insert(agentMemoireFiches).values({ theme, ...nettoyer(champs), epingle: true, nbSources: 1 });
   await tracer({ categorie: "agent_ia", action: "memoire_ajoutee", libelle: "Fiche ajoutée à la mémoire de l'agent", resume: champs.titre.trim() });
+  revalidatePath("/memoire-agent");
+}
+
+// Cherche wifi, code du boîtier et code de la porte dans les messages déjà échangés avec les
+// voyageurs, et les propose (rien n'est appliqué sans clic).
+export async function chercherCodesAction(): Promise<BilanCodes> {
+  await auth.protect();
+  try {
+    const bilan = await chercherCodes();
+    revalidatePath("/memoire-agent");
+    return bilan;
+  } catch (err) {
+    console.error("Mémoire agent : recherche des codes:", err);
+    return { logements: 0, propositions: 0, deja: 0, erreurs: [message(err)] };
+  }
+}
+
+const COLONNE_CODE = { wifi: "codeWifi", boitier: "codeBoitier", porte: "codePorteEntree" } as const;
+const LIBELLE_CODE = { wifi: "wifi", boitier: "boîtier à clés", porte: "porte d'entrée" } as const;
+
+// Applique un code proposé sur la fiche du logement (remplace la valeur actuelle).
+export async function appliquerCodeAction(id: string): Promise<void> {
+  await auth.protect();
+  await assurerTablesMemoire();
+  const db = getDb();
+  const [p] = await db.select().from(agentMemoireCodes).where(eq(agentMemoireCodes.id, id)).limit(1);
+  if (!p) throw new Error("Proposition introuvable.");
+  const colonne = COLONNE_CODE[p.type as keyof typeof COLONNE_CODE];
+  if (!colonne) throw new Error("Type de code inconnu.");
+  const modifies = await db.update(villas).set({ [colonne]: p.valeur }).where(eq(villas.nom, p.villaNom)).returning({ id: villas.id });
+  if (modifies.length === 0) throw new Error(`Logement « ${p.villaNom} » introuvable.`);
+  await db.update(agentMemoireCodes).set({ statut: "applique" }).where(eq(agentMemoireCodes.id, id));
+  await tracer({
+    categorie: "villa",
+    action: "code_villa_modifie",
+    libelle: `Code ${LIBELLE_CODE[p.type as keyof typeof LIBELLE_CODE]} mis à jour depuis les messages`,
+    resume: p.villaNom,
+    villaId: modifies[0].id,
+    villaNom: p.villaNom,
+  });
+  revalidatePath("/memoire-agent");
+  revalidatePath("/villas");
+}
+
+export async function ignorerCodeAction(id: string): Promise<void> {
+  await auth.protect();
+  await assurerTablesMemoire();
+  await getDb().update(agentMemoireCodes).set({ statut: "ignore" }).where(eq(agentMemoireCodes.id, id));
   revalidatePath("/memoire-agent");
 }
