@@ -46,6 +46,7 @@ export type SejourBilan = {
   nuitsTotal: number;
   nuitsDansLeMois: number;
   montant: number; // part du loyer (EUR) attribuée à ce mois
+  depuisEncaissement?: boolean; // loyer non saisi : montant = somme déjà encaissée
   loyerConnu: boolean; // false : séjour sans loyer renseigné (compte pour les nuits, pas pour les loyers)
 };
 
@@ -138,6 +139,7 @@ export async function getBilanProprietaire(villaId: string, options: { proprieta
         checkOut: reservations.checkOut,
         loyerTotal: reservations.loyerTotal,
         devisePaiement: reservations.devisePaiement,
+        montantPaye: reservations.montantPaye,
       })
       .from(reservations)
       .where(and(eq(reservations.villaId, villaId), ne(reservations.status, "annulee"), gt(reservations.checkOut, debut)))
@@ -171,8 +173,14 @@ export async function getBilanProprietaire(villaId: string, options: { proprieta
     .map((r) => {
       const checkIn = new Date(r.checkIn);
       const checkOut = new Date(r.checkOut);
-      const loyer = r.loyerTotal ? Number(r.loyerTotal) : 0;
+      // Loyer jamais saisi (import SuperHote) mais de l'argent déjà encaissé : on prend ce qui a
+      // été réellement reçu plutôt que d'afficher 0 — c'est un minimum, signalé comme tel.
+      const loyerSaisi = r.loyerTotal ? Number(r.loyerTotal) : 0;
+      const paye = r.montantPaye ? Number(r.montantPaye) : 0;
+      const depuisEncaissement = loyerSaisi <= 0 && paye > 0;
+      const loyer = depuisEncaissement ? paye : loyerSaisi;
       return {
+        depuisEncaissement,
         id: r.id,
         nom: r.guestName,
         canal: canalBilan(r.canal),
@@ -235,6 +243,7 @@ export async function getBilanProprietaire(villaId: string, options: { proprieta
         nuitsDansLeMois,
         montant,
         loyerConnu: s.loyerConnu,
+        depuisEncaissement: s.depuisEncaissement,
       });
     }
 
