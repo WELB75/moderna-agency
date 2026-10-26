@@ -4,17 +4,20 @@ import { z } from "zod";
 import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { getDb } from "@/db";
-import { reservations, villas } from "@/db/schema";
+import { reservations, villas, whatsappOutboundMessages } from "@/db/schema";
 import { agentMemoireBrut, agentMemoireFiches, agentMemoireFils, agentMemoireThemes } from "@/db/schema-memoire-agent";
 import { beds24GetBookings, beds24GetMessagesBulk, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
+import { LIGNE_AGENCE } from "@/lib/whatsapp-agence";
 import { anonymiser, libelleTheme, THEMES_EXTRACTION, type FicheMemoire, type ThemeCode } from "./memoire-regles";
 
 // Mémoire de l'agent IA de la boîte de réception — Kamel, 2026-10-26 : "reprendre tout ce que les
 // clients disent, tout ce qu'ils demandent et tout ce qu'on leur répond pour alimenter la mémoire
 // de l'agent IA".
 //
-//  1. Les fils Airbnb / Booking.com sont lus via Beds24 (par lots, pour ménager le quota).
+//  1. Les fils Airbnb / Booking.com sont lus via Beds24 (par lots, pour ménager le quota), ainsi que
+//     les conversations clients de la ligne WhatsApp Business de l'agence (copie de tout ce qui
+//     passe sur le téléphone, y compris l'historique importé à la connexion).
 //  2. Claude (Haiku) en tire des échanges "question du voyageur -> réponse de l'équipe", puis ils
 //     sont anonymisés (noms, téléphones, emails, liens, codes) avant d'être stockés.
 //  3. Claude (Sonnet) consolide les échanges d'un thème en quelques fiches propres, en préférant
@@ -102,6 +105,40 @@ async function candidats(mode: "tout" | "recents"): Promise<Map<number, FilCandi
   return parId;
 }
 
+// Conversations de la ligne WhatsApp Business de l'agence (clients, voir whatsapp-agence.ts) : même
+// traitement que les fils Airbnb / Booking.com. L'identifiant d'un fil est négatif (dérivé du
+// numéro) pour ne jamais croiser un identifiant de réservation Beds24.
+function idFilWhatsapp(numero: string): number {
+  return -Number(numero.replace(/\D/g, "").slice(-12));
+}
+
+async function filsWhatsappAgence(mode: "tout" | "recents"): Promise<Map<number, { fil: FilCandidat; messages: Beds24Message[] }>> {
+  const rows = await getDb()
+    .select({ numero: whatsappOutboundMessages.destinataire, sens: whatsappOutboundMessages.sens, contenu: whatsappOutboundMessages.contenu, at: whatsappOutboundMessages.createdAt })
+    .from(whatsappOutboundMessages)
+    .where(and(eq(whatsappOutboundMessages.ligne, LIGNE_AGENCE), eq(whatsappOutboundMessages.canal, "texte")))
+    .orderBy(whatsappOutboundMessages.createdAt);
+
+  const parNumero = new Map<string, Beds24Message[]>();
+  for (const r of rows) {
+    const texte = r.contenu.trim();
+    if (!texte || texte.startsWith("[")) continue; // médias et réactions : juste un libellé
+    const liste = parNumero.get(r.numero) ?? [];
+    liste.push({ id: liste.length, bookingId: 0, time: r.at.toISOString(), read: true, message: texte, source: r.sens === "entrant" ? "guest" : "host" });
+    parNumero.set(r.numero, liste);
+  }
+
+  const limite = subDays(new Date(), FENETRE_RECENTS_JOURS).getTime();
+  const fils = new Map<number, { fil: FilCandidat; messages: Beds24Message[] }>();
+  for (const [numero, messages] of parNumero) {
+    if (mode === "recents" && new Date(messages[messages.length - 1].time).getTime() < limite) continue;
+    const id = idFilWhatsapp(numero);
+    messages.forEach((m) => (m.bookingId = id));
+    fils.set(id, { fil: { bookingId: id, villaNom: null, canal: "WhatsApp", noms: [] }, messages });
+  }
+  return fils;
+}
+
 // ---------- 2. Extraction d'un fil ----------
 
 const EchangesSchema = z.object({
@@ -130,7 +167,7 @@ async function extraireEchanges(fil: FilCandidat, messages: Beds24Message[]): Pr
     max_tokens: 3000,
     thinking: { type: "disabled" },
     output_config: { effort: "low", format: zodOutputFormat(EchangesSchema) },
-    system: `Tu analyses une conversation entre un voyageur et l'équipe de Moderna Agency (conciergerie de villas et appartements à Marrakech), sur Airbnb ou Booking.com. Tu extrais ce qui servira à répondre à d'autres voyageurs.
+    system: `Tu analyses une conversation entre un voyageur et l'équipe de Moderna Agency (conciergerie de villas et appartements à Marrakech), sur Airbnb, Booking.com ou WhatsApp. Tu extrais ce qui servira à répondre à d'autres voyageurs.
 
 Pour chaque question ou demande du voyageur à laquelle l'ÉQUIPE a réellement répondu, produis un échange : la demande et la réponse donnée, en français (traduis si la conversation est dans une autre langue).
 
@@ -173,6 +210,8 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
   const bilan: BilanApprentissage = { analyses: 0, vides: 0, erreurs: 0, echanges: 0, restants: 0 };
 
   const cands = await candidats(mode);
+  const whatsapp = await filsWhatsappAgence(mode);
+  for (const [id, w] of whatsapp) cands.set(id, w.fil);
   const connus = new Map<number, { nb: number; statut: string }>();
   const ilYA12h = Date.now() - 12 * 3600 * 1000;
   for (const f of await db.select().from(agentMemoireFils)) {
@@ -190,7 +229,8 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
   }
   if (aLire.length === 0) return bilan;
 
-  const messagesParFil = await beds24GetMessagesBulk(aLire);
+  const messagesParFil = await beds24GetMessagesBulk(aLire.filter((id) => id > 0));
+  for (const id of aLire) if (id < 0) messagesParFil.set(id, whatsapp.get(id)?.messages ?? []);
 
   type ATraiter = { fil: FilCandidat; messages: Beds24Message[] };
   const aAnalyser: ATraiter[] = [];

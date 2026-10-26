@@ -31,8 +31,8 @@ export default async function MemoireAgentPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Mémoire de l&apos;agent</h1>
         <p className="text-sm text-muted-foreground">
-          Ce que l&apos;agent IA a appris des conversations Airbnb et Booking.com : ce que les voyageurs demandent et ce que
-          l&apos;équipe répond. Quand tu génères une réponse dans Messages, l&apos;agent s&apos;appuie sur ces fiches (celles de
+          Ce que l&apos;agent IA a appris des conversations Airbnb, Booking.com et WhatsApp (ligne de l&apos;agence) : ce que les
+          voyageurs demandent et ce que l&apos;équipe répond. Quand tu génères une réponse dans Messages, l&apos;agent s&apos;appuie sur ces fiches (celles de
           tous les logements, plus celles du logement concerné). Les noms, téléphones, emails, liens et codes sont retirés avant
           stockage.
         </p>
