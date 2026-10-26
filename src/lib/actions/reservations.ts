@@ -2,7 +2,7 @@
 
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { format, subDays } from "date-fns";
 import { getDb } from "@/db";
 import { randomBytes } from "node:crypto";
@@ -17,6 +17,7 @@ import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { beds24WriteBookings } from "@/lib/beds24/client";
 import { fermerDatesBeds24, rouvrirDatesBeds24 } from "@/lib/beds24/fermeture";
 import { normaliseCanal } from "@/lib/canal";
+import { libelleMotif } from "@/lib/annulation-resa";
 import { notifierKamelTelegram } from "@/lib/telegram";
 import { auteurConnecte, datesFermeesParLApp, journaliser, tracer, type Beds24Statut } from "@/lib/journal";
 
@@ -440,6 +441,69 @@ export async function updateOperationalInfo(formData: FormData) {
 
   revalidatePath("/dashboard");
   revalidatePath("/villas");
+}
+
+// Annulation locale depuis le calendrier : soft delete (statut "annulee"), la ligne et l'ID Beds24
+// restent en base. La synchro Beds24 ne la recrée pas (voir statutApresSynchro) et rien n'est
+// annulé côté Booking.com / Airbnb / Beds24 : c'est un simple nettoyage du planning, par exemple
+// pour un client qui n'est jamais venu et dont la résa saisie à la main n'a pas d'ID Beds24.
+// Planning, disponibilités, stats, exports iCal et liens propriétaires excluent déjà "annulee".
+export async function annulerReservation(reservationId: string, motif: string): Promise<void> {
+  await auth.protect();
+  const libelleDuMotif = libelleMotif(motif);
+  if (!libelleDuMotif) throw new Error("Choisis un motif d'annulation.");
+
+  const db = getDb();
+  const [reservation] = await db
+    .select({
+      villaId: reservations.villaId,
+      villaNom: villas.nom,
+      guestName: reservations.guestName,
+      canal: reservations.canal,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      status: reservations.status,
+    })
+    .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!reservation) throw new Error("Réservation introuvable.");
+  if (reservation.status === "annulee") return; // déjà annulée (double clic, autre onglet)
+
+  const auteur = await auteurConnecte();
+  const marqueur = { motif, par: auteur.nom, le: new Date().toISOString() };
+  await db
+    .update(reservations)
+    .set({
+      status: "annulee",
+      rawData: sql`coalesce(${reservations.rawData}, '{}'::jsonb) || ${JSON.stringify({ annulationLocale: marqueur })}::jsonb`,
+      updatedAt: new Date(),
+    })
+    .where(eq(reservations.id, reservationId));
+
+  await journaliser({
+    action: "annulation",
+    auteur,
+    reservationId,
+    villaId: reservation.villaId,
+    villaNom: reservation.villaNom,
+    libelle: "Réservation annulée",
+    categorie: "reservation",
+    resume: `${resumeSejour(
+      reservation.guestName,
+      reservation.canal,
+      format(reservation.checkIn, "yyyy-MM-dd"),
+      format(reservation.checkOut, "yyyy-MM-dd")
+    )} · motif : ${libelleDuMotif}`,
+    beds24Statut: "non_concerne",
+    beds24Detail: "Annulation locale uniquement : rien n'a été annulé sur Beds24 ni sur la plateforme.",
+  });
+
+  revalidatePath("/calendrier");
+  revalidatePath("/dashboard");
+  revalidatePath("/villas");
+  revalidatePath("/journal");
 }
 
 export async function deleteReservation(reservationId: string) {

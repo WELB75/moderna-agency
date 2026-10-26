@@ -11,11 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, ArrowLeft, ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, ExternalLink, Info, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Building2, ChevronDown, ChevronsUpDown, ChevronUp, ExternalLink, Ban, Info, RefreshCw, Search } from "lucide-react";
 import { PhoneLink } from "@/components/app/phone-link";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
-import { deleteReservation } from "@/lib/actions/reservations";
+import { toast } from "sonner";
+import { annulerReservation, deleteReservation } from "@/lib/actions/reservations";
+import { avertissementEncaisse, encaisse, MOTIFS_ANNULATION, reservationsEnChevauchement } from "@/lib/annulation-resa";
 import { CanalBadge, CanalDot } from "@/components/app/canal-badge";
 import { canalPlanningStyle, normaliseCanal, SOURCE_META } from "@/lib/canal";
 import type { TarificationReservation, TarificationVilla } from "@/lib/pricelabs/sync";
@@ -84,6 +86,11 @@ export function TarificationView({
     setVillasTarifs((prev) =>
       prev.map((v) => (v.id !== villaId ? v : { ...v, reservations: v.reservations.filter((r) => r.id !== reservationId) }))
     );
+  }
+
+  // Annulation optimiste : la barre disparaît tout de suite, et revient si le serveur refuse.
+  function handleReservationRestauree(villaId: string, reservation: TarificationReservation) {
+    setVillasTarifs((prev) => prev.map((v) => (v.id !== villaId ? v : { ...v, reservations: [...v.reservations, reservation] })));
   }
 
   async function actualiser() {
@@ -180,6 +187,7 @@ export function TarificationView({
           onNuitsMinModifiees={() => setRechargementNuits((n) => n + 1)}
           onNotesUpdated={handleNotesUpdated}
           onReservationSupprimee={handleReservationSupprimee}
+          onReservationRestauree={handleReservationRestauree}
         />
       )}
     </div>
@@ -251,6 +259,7 @@ function TarificationCalendrier({
   onNuitsMinModifiees,
   onNotesUpdated,
   onReservationSupprimee,
+  onReservationRestauree,
 }: {
   villas: TarificationVilla[];
   tousLogements: TarificationVilla[];
@@ -259,6 +268,7 @@ function TarificationCalendrier({
   onNuitsMinModifiees: () => void;
   onNotesUpdated: (villaId: string, reservationId: string, notes: string) => void;
   onReservationSupprimee: (villaId: string, reservationId: string) => void;
+  onReservationRestauree: (villaId: string, reservation: TarificationReservation) => void;
 }) {
   const [resaSelectionnee, setResaSelectionnee] = useState<ReservationSelectionnee | null>(null);
   const estMobile = useEstMobile();
@@ -301,6 +311,19 @@ function TarificationCalendrier({
           if (!resaSelectionnee) return;
           onReservationSupprimee(resaSelectionnee.villaId, resaSelectionnee.id);
           setResaSelectionnee(null);
+        }}
+        onAnnuler={(motif) => {
+          if (!resaSelectionnee) return;
+          const { villaId, villaNom, ...resa } = resaSelectionnee;
+          void villaNom; // le planning ne garde que les champs de la réservation
+          onReservationSupprimee(villaId, resa.id);
+          setResaSelectionnee(null);
+          annulerReservation(resa.id, motif)
+            .then(() => toast.success("Réservation annulée."))
+            .catch((err) => {
+              onReservationRestauree(villaId, resa);
+              toast.error(err instanceof Error ? err.message : "Annulation impossible, la réservation a été remise.");
+            });
         }}
       />
     </>
@@ -731,6 +754,9 @@ const VillaCalendarRow = memo(function VillaCalendarRow({
   const largeurTotale = COL_WIDTH * dateStrings.length;
   const dayByDate = useMemo(() => new Map(joursVilla(villa).map((d) => [d.date, d])), [villa]);
   const resas = useMemo(() => reservationsVisibles(villa.reservations, dateStrings), [villa.reservations, dateStrings]);
+  // Deux séjours actifs sur les mêmes nuits (ex. résa saisie à la main jamais retirée + résa
+  // Beds24) : liseré rouge et badge pour les repérer sans chercher.
+  const enChevauchement = useMemo(() => reservationsEnChevauchement(villa.reservations), [villa.reservations]);
   // Jours couverts par une barre : pas de prix ni de hachures dessous.
   const couverts = useMemo(() => new Set(resas.flatMap((r) => dateStrings.filter((d) => d >= r.checkIn && d < r.checkOut))), [resas, dateStrings]);
   // Barres dont au moins une partie tombe dans la fenêtre rendue.
@@ -785,17 +811,25 @@ const VillaCalendarRow = memo(function VillaCalendarRow({
         const { left, width } = barPosition(r, dateStrings, COL_WIDTH);
         const termine = r.checkOut <= aujourdhui;
         const canal = normaliseCanal(r.canal);
+        const chevauche = enChevauchement.has(r.id);
         return (
           <button
             key={r.id}
             type="button"
-            title={`${r.guestName} · ${format(parseISO(r.checkIn), "d MMM", { locale: fr })} → ${format(parseISO(r.checkOut), "d MMM", { locale: fr })}`}
+            title={`${chevauche ? "Chevauchement : " : ""}${r.guestName} · ${format(parseISO(r.checkIn), "d MMM", { locale: fr })} → ${format(parseISO(r.checkOut), "d MMM", { locale: fr })}`}
             onClick={() => onSelectReservation({ villaId: villa.id, villaNom: villa.nom, ...r })}
             className={`absolute top-1.5 bottom-1.5 z-10 flex min-w-0 items-center rounded-lg border text-left font-semibold ${compact ? "px-1 text-xs" : "px-1.5 text-sm"} transition-[filter] hover:brightness-95 dark:hover:brightness-125 ${
               termine ? "opacity-50" : ""
-            }`}
+            } ${chevauche ? "ring-2 ring-red-500 ring-offset-0" : ""}`}
             style={{ left, width, ...canalPlanningStyle(canal) }}
           >
+            {chevauche ? (
+              <span
+                className={`pointer-events-none absolute right-1 -top-1.5 z-20 rounded-full bg-red-600 font-semibold leading-none text-white ${compact ? "px-1 py-0.5 text-[8px]" : "px-1.5 py-0.5 text-[10px]"}`}
+              >
+                {compact ? "!" : "Chevauchement"}
+              </span>
+            ) : null}
             <span className={`sticky left-1.5 flex min-w-0 items-center ${compact ? "gap-1" : "gap-2"}`}>
               <CanalDot canal={r.canal} size={compact ? "md" : "lg"} />
               <span className="truncate">{r.guestName}</span>
@@ -992,12 +1026,14 @@ function ReservationRecapDialog({
   onOpenChange,
   onNotesSaved,
   onSupprimee,
+  onAnnuler,
 }: {
   reservation: ReservationSelectionnee | null;
   lectureSeule: boolean;
   onOpenChange: (open: boolean) => void;
   onNotesSaved: (notes: string) => void;
   onSupprimee: () => void;
+  onAnnuler: (motif: string) => void;
 }) {
   const nuits = reservation ? differenceInCalendarDays(parseISO(reservation.checkOut), parseISO(reservation.checkIn)) : 0;
 
@@ -1103,6 +1139,7 @@ function ReservationRecapDialog({
                 </a>
               </Button>
             ) : null}
+            <AnnulerReservationInline key={reservation.id} reservation={reservation} onAnnuler={onAnnuler} />
             {/* Réservation créée dans l'app : la supprimer rouvre aussi les dates sur Beds24, donc
                 Airbnb et Booking.com (voir deleteReservation). Les réservations importées
                 (Airbnb, Booking, Superhote) se gèrent depuis leur plateforme. */}
@@ -1125,6 +1162,84 @@ function ReservationRecapDialog({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Annulation locale (soft delete) d'une réservation, confirmée dans la fenêtre elle-même : motif,
+// avertissement si de l'argent est déjà encaissé, puis un seul appel serveur (optimiste, géré par
+// le parent via onAnnuler).
+function AnnulerReservationInline({ reservation, onAnnuler }: { reservation: ReservationSelectionnee; onAnnuler: (motif: string) => void }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [motif, setMotif] = useState<string | null>(null);
+  const [vu, setVu] = useState(false);
+  const avertissement = avertissementEncaisse(encaisse(reservation), (n) => formatMontant(n, reservation.devise));
+  const synchronisee = reservation.source !== "manuel";
+  const pret = motif !== null && (avertissement === null || vu);
+
+  if (!ouvert) {
+    return (
+      <div className="flex justify-center">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive max-md:h-10"
+          onClick={() => setOuvert(true)}
+        >
+          <Ban className="h-4 w-4" />
+          Annuler la réservation
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+      <p className="font-medium">Pourquoi annuler cette réservation ?</p>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Motif de l'annulation">
+        {MOTIFS_ANNULATION.map((m) => (
+          <button
+            key={m.code}
+            type="button"
+            role="radio"
+            aria-checked={motif === m.code}
+            onClick={() => setMotif(m.code)}
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors max-md:py-2.5 ${
+              motif === m.code ? "border-[#660033] bg-[#660033] text-white" : "bg-background hover:bg-muted"
+            }`}
+          >
+            {m.libelle}
+          </button>
+        ))}
+      </div>
+      {avertissement ? (
+        <label className="flex items-start gap-2 rounded-md bg-destructive/10 px-2 py-1.5 text-xs font-medium text-destructive">
+          <input type="checkbox" className="mt-0.5" checked={vu} onChange={(e) => setVu(e.target.checked)} />
+          <span>
+            Attention : {avertissement}. Je confirme vouloir annuler quand même.
+          </span>
+        </label>
+      ) : null}
+      <p className="text-xs text-muted-foreground">
+        {synchronisee
+          ? "Nettoyage local uniquement : rien n'est annulé sur Booking.com, Airbnb ou Beds24, et la prochaine synchro ne la recrée pas."
+          : "Nettoyage local uniquement : rien n'est annulé sur Booking.com, Airbnb ou Beds24. Pour rouvrir les dates, utilise « Supprimer »."}
+      </p>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" size="sm" className="flex-1 max-md:h-10" onClick={() => setOuvert(false)}>
+          Retour
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          disabled={!pret}
+          className="flex-1 bg-[#660033] text-white hover:bg-[#660033]/90 max-md:h-10"
+          onClick={() => motif && onAnnuler(motif)}
+        >
+          Confirmer
+        </Button>
+      </div>
+    </div>
   );
 }
 

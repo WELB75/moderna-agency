@@ -8,6 +8,7 @@ import { parseIcs, parseGenericIcs } from "@/lib/ical/parse";
 import { nowInMorocco } from "@/lib/now";
 import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
+import { annuleeLocalement } from "@/lib/annulation-resa";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 
 export async function runIcalSync(): Promise<
@@ -89,7 +90,7 @@ export async function runIcalSync(): Promise<
         const guestName = toTitleCase(event.guestName?.trim() || event.summary?.trim() || "Réservation iCal");
 
         let existing = await db
-          .select({ id: reservations.id })
+          .select({ id: reservations.id, status: reservations.status, rawData: reservations.rawData })
           .from(reservations)
           .where(eq(reservations.superhoteBookingId, event.stableBookingId))
           .limit(1);
@@ -99,7 +100,7 @@ export async function runIcalSync(): Promise<
         // existante (même villa/dates) au nouvel identifiant stable au lieu d'en recréer une.
         if (existing.length === 0) {
           existing = await db
-            .select({ id: reservations.id })
+            .select({ id: reservations.id, status: reservations.status, rawData: reservations.rawData })
             .from(reservations)
             .where(
               and(
@@ -128,6 +129,9 @@ export async function runIcalSync(): Promise<
           rawData: { summary: event.summary },
           updatedAt: new Date(),
         };
+
+        // Annulée à la main dans l'app (nettoyage local) : on n'y touche plus.
+        if (existing.length > 0 && annuleeLocalement(existing[0])) continue;
 
         if (existing.length > 0) {
           // Le nombre d'adultes/enfants de Superhote est souvent faux (rempli à la main par
@@ -280,7 +284,7 @@ export async function runDirectPlatformSync(): Promise<{
         seenIds.push(stableId);
 
         const existing = await db
-          .select({ id: reservations.id })
+          .select({ id: reservations.id, status: reservations.status, rawData: reservations.rawData })
           .from(reservations)
           .where(eq(reservations.superhoteBookingId, stableId))
           .limit(1);
@@ -297,6 +301,8 @@ export async function runDirectPlatformSync(): Promise<{
           rawData: { summary: event.summary },
           updatedAt: new Date(),
         };
+
+        if (existing.length > 0 && annuleeLocalement(existing[0])) continue;
 
         if (existing.length > 0) {
           await db
