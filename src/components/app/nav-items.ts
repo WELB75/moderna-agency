@@ -17,6 +17,7 @@ import {
   BookOpen,
   Calculator,
   KeyRound,
+  Brain,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,6 +45,7 @@ export const navGroups: NavGroup[] = [
     label: "Communication & opérations",
     items: [
       { href: "/chat", label: "Messages", icon: MessagesSquare },
+      { href: "/memoire-agent", label: "Mémoire de l'agent", icon: Brain },
       { href: "/inventaire", label: "États des lieux", icon: ClipboardCheck },
       { href: "/maintenance", label: "Maintenance", icon: Wrench },
       { href: "/securite", label: "Sécurité", icon: ShieldCheck },

@@ -67,6 +67,10 @@
     {
       "path": "/api/telegram-rappels?moment=soir",
       "schedule": "0 18 * * *"
+    },
+    {
+      "path": "/api/messages-agent/apprendre",
+      "schedule": "0 3 * * *"
     }
   ]
 }

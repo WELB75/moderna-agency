@@ -14,6 +14,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/telegram-rappels", // crons matin/soir, protégés par CRON_SECRET dans la route
   "/api/staff-requests/sweep",
   "/api/maintenance/dispatch",
+  "/api/messages-agent/apprendre", // cron quotidien (mémoire de l'agent IA), protégé par CRON_SECRET dans la route
   "/api/beds24/sync", // cron quotidien, protégé par CRON_SECRET dans la route
   "/api/beds24/webhook", // appelé par Beds24, protégé par ?key= (BEDS24_WEBHOOK_SECRET) dans la route
   // Autorisation gérée par la route elle-même (compte Clerk, OU token technicien/villa valide en

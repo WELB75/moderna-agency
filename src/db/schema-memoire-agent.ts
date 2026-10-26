@@ -1,0 +1,47 @@
+import { pgTable, uuid, text, timestamp, integer, boolean, bigint } from "drizzle-orm/pg-core";
+
+// Mémoire de l'agent IA de la boîte de réception (voir src/lib/messages-agent/memoire.ts).
+// Trois niveaux : fils lus (agent_memoire_fils), échanges extraits et anonymisés
+// (agent_memoire_brut), puis fiches consolidées utilisées par l'agent (agent_memoire_fiches).
+// Tables créées à la volée (assurerTablesMemoire) : pas de migration à lancer sur Neon.
+
+export const agentMemoireFils = pgTable("agent_memoire_fils", {
+  bookingId: bigint("booking_id", { mode: "number" }).primaryKey(),
+  villaNom: text("villa_nom"),
+  canal: text("canal"),
+  nbMessages: integer("nb_messages").default(0).notNull(),
+  statut: text("statut").default("analyse").notNull(), // "analyse" | "vide" | "erreur"
+  analyseAt: timestamp("analyse_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const agentMemoireBrut = pgTable("agent_memoire_brut", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  bookingId: bigint("booking_id", { mode: "number" }).notNull(),
+  theme: text("theme").notNull(),
+  question: text("question").notNull(),
+  reponse: text("reponse").notNull(),
+  villaNom: text("villa_nom"), // renseigné seulement si la réponse est propre à ce logement
+  canal: text("canal"),
+  dateEchange: timestamp("date_echange", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const agentMemoireFiches = pgTable("agent_memoire_fiches", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  theme: text("theme").notNull(),
+  titre: text("titre").notNull(),
+  question: text("question").notNull(),
+  reponse: text("reponse").notNull(),
+  villaNom: text("villa_nom"), // null = tous les logements
+  actif: boolean("actif").default(true).notNull(),
+  // Fiche écrite ou corrigée à la main : la consolidation automatique n'y touche plus.
+  epingle: boolean("epingle").default(false).notNull(),
+  nbSources: integer("nb_sources").default(1).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const agentMemoireThemes = pgTable("agent_memoire_themes", {
+  theme: text("theme").primaryKey(),
+  consolideAt: timestamp("consolide_at", { withTimezone: true }).notNull(),
+});
