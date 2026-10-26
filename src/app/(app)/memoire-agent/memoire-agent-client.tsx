@@ -32,16 +32,19 @@ export function MemoireAgentClient({ fiches, stats }: { fiches: FicheAffichee[];
   const router = useRouter();
   const [progression, setProgression] = useState<string | null>(null);
   const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState<string | null>(null);
   const [ajout, setAjout] = useState(false);
 
   // Lit les fils par lots (chaque lot est un appel serveur de moins de 5 minutes), puis consolide
   // les thèmes concernés. S'arrête si un lot n'avance plus (évite de tourner en boucle).
   async function apprendre(mode: "tout" | "recents") {
     setEnCours(true);
+    setErreur(null);
     const total = { analyses: 0, vides: 0, erreurs: 0, echanges: 0 };
     try {
       for (let tour = 0; tour < 300; tour++) {
         const b = await apprendreLotAction(mode);
+        if (b.erreur) throw new Error(b.erreur);
         total.analyses += b.analyses;
         total.vides += b.vides;
         total.erreurs += b.erreurs;
@@ -50,16 +53,26 @@ export function MemoireAgentClient({ fiches, stats }: { fiches: FicheAffichee[];
         if (b.restants === 0 || b.analyses + b.vides + b.erreurs === 0) break;
       }
       let fichesCreees = 0;
+      const erreursFiches: string[] = [];
       for (let tour = 0; tour < 40; tour++) {
         setProgression(`Rédaction des fiches${fichesCreees ? ` (${fichesCreees} créées)` : ""}…`);
         const c = await consoliderAction();
         fichesCreees += c.fiches;
+        if (c.erreurs.length > 0) erreursFiches.push(...c.erreurs);
         if (c.restants === 0 || c.faits === 0) break;
       }
-      toast.success(`Mémoire à jour : ${total.analyses} conversations analysées, ${fichesCreees} fiches rédigées.`);
+      if (erreursFiches.length > 0) {
+        setErreur(`Rédaction des fiches impossible pour certains thèmes : ${erreursFiches.slice(0, 3).join(" | ").slice(0, 600)}`);
+        toast.error("Certaines fiches n'ont pas pu être rédigées (détail sous les boutons).");
+      } else {
+        toast.success(`Mémoire à jour : ${total.analyses} conversations analysées, ${fichesCreees} fiches rédigées.`);
+      }
       router.refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Apprentissage impossible.");
+      const detail = err instanceof Error ? err.message : "Apprentissage impossible.";
+      setErreur(detail.slice(0, 600));
+      toast.error("Apprentissage interrompu (détail sous les boutons).");
+      router.refresh();
     } finally {
       setProgression(null);
       setEnCours(false);
@@ -92,6 +105,7 @@ export function MemoireAgentClient({ fiches, stats }: { fiches: FicheAffichee[];
             </Button>
           </div>
           {progression ? <p className="text-sm text-muted-foreground">{progression}</p> : null}
+          {erreur ? <p className="break-words rounded-md bg-destructive/10 px-3 py-2 text-xs font-medium text-destructive">{erreur}</p> : null}
           <p className="text-xs text-muted-foreground">
             Les nouveaux messages sont aussi appris automatiquement chaque nuit. Une fiche que tu corriges ou ajoutes à la main
             n&apos;est jamais réécrite ; une fiche que tu désactives n&apos;est plus utilisée et n&apos;est pas recréée.

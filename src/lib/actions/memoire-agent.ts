@@ -17,27 +17,42 @@ function message(err: unknown): string {
   return err instanceof Error ? err.message : "Erreur.";
 }
 
+// En production, Next.js masque le message d'une erreur levée par une action serveur ("An error
+// occurred in the Server Components render...") : on renvoie donc l'erreur comme donnée, pour
+// qu'elle s'affiche telle quelle sur la page.
+export type ResultatLot = BilanApprentissage & { erreur?: string };
+
 // Un lot de fils à lire et analyser. La page rappelle cette action tant que `restants` > 0.
-export async function apprendreLotAction(mode: "tout" | "recents"): Promise<BilanApprentissage> {
+export async function apprendreLotAction(mode: "tout" | "recents"): Promise<ResultatLot> {
   await auth.protect();
   try {
     return await apprendreLot(mode);
   } catch (err) {
-    throw new Error(message(err));
+    console.error("Mémoire agent : lecture des fils:", err);
+    return { analyses: 0, vides: 0, erreurs: 0, echanges: 0, restants: 0, erreur: message(err) };
   }
 }
 
-// Consolide quelques thèmes à la fois ; renvoie combien il en reste.
-export async function consoliderAction(): Promise<{ faits: number; restants: number; fiches: number }> {
+// Consolide quelques thèmes à la fois (un thème en échec n'arrête pas les autres) ; renvoie
+// combien il en reste.
+export async function consoliderAction(): Promise<{ faits: number; restants: number; fiches: number; erreurs: string[] }> {
   await auth.protect();
   try {
     const sales = await themesAConsolider();
     const lot = sales.slice(0, 3);
-    const resultats = await Promise.all(lot.map((t) => consoliderTheme(t)));
+    const resultats = await Promise.allSettled(lot.map((t) => consoliderTheme(t)));
+    const erreurs = resultats.flatMap((r, i) => {
+      if (r.status === "fulfilled") return [];
+      console.error(`Mémoire agent : consolidation du thème ${lot[i]}:`, r.reason);
+      return [`${lot[i]} : ${message(r.reason)}`];
+    });
+    const fiches = resultats.reduce((total, r) => total + (r.status === "fulfilled" ? r.value : 0), 0);
     revalidatePath("/memoire-agent");
-    return { faits: lot.length, restants: sales.length - lot.length, fiches: resultats.reduce((a, b) => a + b, 0) };
+    // Les thèmes en échec restent "à consolider" : on s'arrête si rien n'a abouti (pas de boucle infinie).
+    return { faits: lot.length - erreurs.length, restants: sales.length - lot.length, fiches, erreurs };
   } catch (err) {
-    throw new Error(message(err));
+    console.error("Mémoire agent : consolidation:", err);
+    return { faits: 0, restants: 0, fiches: 0, erreurs: [message(err)] };
   }
 }
 
