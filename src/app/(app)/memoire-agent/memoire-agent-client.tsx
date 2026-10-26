@@ -110,7 +110,7 @@ export function MemoireAgentClient({ fiches, stats }: { fiches: FicheAffichee[];
 
       {fiches.length === 0 ? (
         <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Aucune fiche pour l&apos;instant. Clique sur « Apprendre de tout l&apos;historique » : l&apos;agent lit les conversations Airbnb et Booking.com puis rédige ses fiches (compte quelques minutes).
+          Aucune fiche pour l&apos;instant. Clique sur « Apprendre de tout l&apos;historique » : l&apos;agent lit les conversations Airbnb, Booking.com et WhatsApp puis rédige ses fiches (compte quelques minutes).
         </p>
       ) : (
         ordre.map((theme) => (
