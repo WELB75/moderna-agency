@@ -48,6 +48,7 @@ export type TarificationReservation = {
   checkOut: string; // YYYY-MM-DD
   montant: number | null;
   montantPaye: number | null;
+  cautionRecue: number | null; // caution déjà encaissée (null si aucune ou non reçue)
   devise: string;
   canal: string | null;
   source: string; // origine : "manuel" (créée dans l'app, supprimable), "beds24", "superhote"...
@@ -233,6 +234,8 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       checkOut: reservations.checkOut,
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
+      caution: reservations.caution,
+      cautionPayee: reservations.cautionPayee,
       devisePaiement: reservations.devisePaiement,
       canal: reservations.canal,
       source: reservations.source,
@@ -269,6 +272,7 @@ async function reservationsActivesParVilla(villaIds: string[]): Promise<Map<stri
       checkOut,
       montant: r.loyerTotal ? Number(r.loyerTotal) : null,
       montantPaye: r.montantPaye ? Number(r.montantPaye) : null,
+      cautionRecue: r.cautionPayee && r.caution ? Number(r.caution) : null,
       devise: r.devisePaiement,
       canal: r.canal,
       source: r.source,

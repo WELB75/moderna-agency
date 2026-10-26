@@ -19,6 +19,7 @@ import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
 import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
 import { BEDS24_VILLA_MAPPING } from "@/lib/beds24/mapping";
+import { statutApresSynchro } from "@/lib/annulation-resa";
 import { estSejourProprietaire, sejourSansVoyageur } from "@/lib/conditions-sejour";
 import { AUTEUR_SYNCHRO_BEDS24, journaliser } from "@/lib/journal";
 
@@ -279,6 +280,7 @@ export async function runBeds24Sync(): Promise<
             guestPhone: reservations.guestPhone,
             canal: reservations.canal,
             rawData: reservations.rawData,
+            status: reservations.status,
             caution: reservations.caution,
             cautionPayee: reservations.cautionPayee,
           })
@@ -348,6 +350,9 @@ export async function runBeds24Sync(): Promise<
             .set({
               ...values,
               canal,
+              // Annulée à la main dans l'app (nettoyage local) : elle le reste, même si Beds24 la
+              // renvoie encore active.
+              status: statutApresSynchro(existing, values.status),
               // Fusion plutôt que remplacement : garde raw_data.superhote.reference (lien Airbnb/Booking).
               rawData: sql`coalesce(${reservations.rawData}, '{}'::jsonb) || ${JSON.stringify(values.rawData)}::jsonb`,
               guestPhone: existing.guestPhone ?? values.guestPhone,
