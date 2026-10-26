@@ -1,7 +1,8 @@
-import { asc, desc } from "drizzle-orm";
+import { asc, desc, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { agentMemoireFiches } from "@/db/schema-memoire-agent";
 import { assurerTablesMemoire, connaissancesAgent, statsMemoire } from "@/lib/messages-agent/memoire";
+import { CodesTrouves, type PropositionCode } from "./codes-trouves";
 import { ConnaissancesAgent } from "./connaissances-agent";
 import { MemoireAgentClient, type FicheAffichee } from "./memoire-agent-client";
 
@@ -16,6 +17,19 @@ export default async function MemoireAgentPage() {
     statsMemoire(),
     connaissancesAgent(),
   ]);
+  const propositionsCodes = (
+    await getDb().execute(sql`
+      SELECT c.id, c.villa_nom, c.type, c.valeur, v.code_wifi, v.code_boitier, v.code_porte_entree
+      FROM agent_memoire_codes c LEFT JOIN villas v ON lower(v.nom) = lower(c.villa_nom)
+      WHERE c.statut = 'propose' ORDER BY c.villa_nom, c.type`)
+  ).rows as { id: string; villa_nom: string; type: "wifi" | "boitier" | "porte"; valeur: string; code_wifi: string | null; code_boitier: string | null; code_porte_entree: string | null }[];
+  const codes: PropositionCode[] = propositionsCodes.map((p) => ({
+    id: p.id,
+    villaNom: p.villa_nom,
+    type: p.type,
+    valeur: p.valeur,
+    actuel: p.type === "wifi" ? p.code_wifi : p.type === "boitier" ? p.code_boitier : p.code_porte_entree,
+  }));
   const fiches: FicheAffichee[] = rows.map((f) => ({
     id: f.id,
     theme: f.theme,
@@ -40,6 +54,7 @@ export default async function MemoireAgentPage() {
         </p>
       </div>
       <MemoireAgentClient fiches={fiches} stats={{ ...stats, derniere: stats.derniere ? stats.derniere.toISOString() : null }} />
+      <CodesTrouves propositions={codes} />
       <ConnaissancesAgent connaissances={connaissances} stats={{ filsAnalyses: stats.filsAnalyses, fichesActives: stats.fichesActives, echanges: stats.echanges }} />
     </div>
   );

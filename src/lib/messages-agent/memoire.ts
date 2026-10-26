@@ -5,7 +5,7 @@ import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { getDb } from "@/db";
 import { reservations, villas, whatsappOutboundMessages } from "@/db/schema";
-import { agentMemoireBrut, agentMemoireFiches, agentMemoireFils, agentMemoireThemes } from "@/db/schema-memoire-agent";
+import { agentMemoireBrut, agentMemoireCodes, agentMemoireFiches, agentMemoireFils, agentMemoireThemes } from "@/db/schema-memoire-agent";
 import { beds24GetBookings, beds24GetMessagesBulk, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
 import { LIGNE_AGENCE } from "@/lib/whatsapp-agence";
@@ -55,6 +55,10 @@ export function assurerTablesMemoire(): Promise<void> {
         reponse text NOT NULL, villa_nom text, actif boolean NOT NULL DEFAULT true, epingle boolean NOT NULL DEFAULT false,
         nb_sources integer NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`);
       await db.execute(sql`CREATE TABLE IF NOT EXISTS agent_memoire_themes (theme text PRIMARY KEY, consolide_at timestamptz NOT NULL)`);
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS agent_memoire_codes (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(), villa_nom text NOT NULL, type text NOT NULL, valeur text NOT NULL,
+        booking_id bigint, statut text NOT NULL DEFAULT 'propose', vu_at timestamptz NOT NULL DEFAULT now(),
+        UNIQUE (villa_nom, type, valeur))`);
     })().catch((err) => {
       tablesPretes = null;
       throw err;
@@ -459,4 +463,84 @@ export async function connaissancesAgent(): Promise<Connaissances> {
     db.select().from(agentMemoireFiches).where(eq(agentMemoireFiches.actif, true)),
   ]);
   return calculerConnaissances(fiches, echanges);
+}
+
+// ---------- 5. Codes retrouvés dans les messages ----------
+//
+// Les messages automatiques d'arrivée (et les réponses de l'équipe) contiennent souvent le wifi, le
+// code du boîtier à clés et celui de la porte. On les retrouve ici pour les PROPOSER (jamais
+// appliqués tout seuls) : l'équipe vérifie puis applique sur la fiche du logement. Ces valeurs
+// restent dans une table à part, hors de la mémoire de l'agent (qui ne retient aucun code).
+
+export type TypeCode = "wifi" | "boitier" | "porte";
+
+const CodesSchema = z.object({
+  wifi: z.string().nullable().describe("Nom du réseau wifi et mot de passe, tels qu'écrits, ou null."),
+  boitier: z.string().nullable().describe("Code du boîtier à clés (key box), ou null."),
+  porte: z.string().nullable().describe("Code de la porte d'entrée (serrure à code, digicode), ou null."),
+});
+
+const MOTS_CODES = /wi-?fi|mot de passe|password|code|boit|digicode|serrure|key ?box|lockbox|cl[ée]s?\b/i;
+
+export type BilanCodes = { logements: number; propositions: number; deja: number; erreurs: string[] };
+
+export async function chercherCodes(): Promise<BilanCodes> {
+  await assurerTablesMemoire();
+  const db = getDb();
+  const cands = await candidats("tout");
+  const ids = [...cands.values()].filter((c) => c.bookingId > 0 && c.villaNom).map((c) => c.bookingId);
+  const messages = await beds24GetMessagesBulk(ids);
+
+  // Messages de l'équipe qui parlent de codes, regroupés par logement (les plus récents d'abord).
+  const parLogement = new Map<string, { bookingId: number; time: number; texte: string }[]>();
+  for (const [id, liste] of messages) {
+    const villaNom = cands.get(id)?.villaNom;
+    if (!villaNom) continue;
+    for (const m of liste) {
+      if (m.source !== "host" || !MOTS_CODES.test(m.message ?? "")) continue;
+      const l = parLogement.get(villaNom) ?? [];
+      l.push({ bookingId: id, time: new Date(m.time).getTime(), texte: m.message.trim().slice(0, 1500) });
+      parLogement.set(villaNom, l);
+    }
+  }
+
+  const actuels = await db.select({ nom: villas.nom, wifi: villas.codeWifi, boitier: villas.codeBoitier, porte: villas.codePorteEntree }).from(villas);
+  const actuelParNom = new Map(actuels.map((v) => [v.nom.toLowerCase(), v]));
+  const bilan: BilanCodes = { logements: parLogement.size, propositions: 0, deja: 0, erreurs: [] };
+
+  await enParallele([...parLogement.entries()], 4, async ([villaNom, liste]) => {
+    const recents = liste.sort((a, b) => b.time - a.time).slice(0, 10);
+    try {
+      const out = await client.messages.parse({
+        model: "claude-haiku-5-5",
+        max_tokens: 800,
+        thinking: { type: "disabled" },
+        output_config: { effort: "low", format: zodOutputFormat(CodesSchema) },
+        system: `Tu lis des messages envoyés par l'équipe d'une conciergerie à des voyageurs d'un même logement (${villaNom}). Relève les informations d'accès du logement : wifi (réseau + mot de passe), code du boîtier à clés, code de la porte d'entrée.
+Règles : ne retiens une valeur que si elle est écrite explicitement dans les messages comme celle de ce logement. Recopie-la EXACTEMENT, sans la corriger. Si plusieurs valeurs différentes apparaissent, prends la plus récente (messages donnés du plus récent au plus ancien). Ne devine jamais : mets null en cas de doute. Ignore les codes de réservation, les numéros de téléphone et les montants.`,
+        messages: [{ role: "user", content: recents.map((m, i) => `Message ${i + 1} :\n${m.texte}`).join("\n\n---\n\n") }],
+      });
+      const trouve = out.parsed_output;
+      if (!trouve) return;
+      const actuel = actuelParNom.get(villaNom.toLowerCase());
+      for (const type of ["wifi", "boitier", "porte"] as const) {
+        const valeur = trouve[type]?.trim();
+        if (!valeur || valeur.length > 200) continue;
+        if (actuel && (actuel[type] ?? "").trim().toLowerCase() === valeur.toLowerCase()) {
+          bilan.deja += 1; // déjà renseigné pareil sur la fiche du logement
+          continue;
+        }
+        const inseres = await db
+          .insert(agentMemoireCodes)
+          .values({ villaNom, type, valeur, bookingId: recents[0].bookingId })
+          .onConflictDoNothing()
+          .returning({ id: agentMemoireCodes.id });
+        bilan.propositions += inseres.length;
+      }
+    } catch (err) {
+      console.error(`Mémoire agent : codes de ${villaNom} illisibles:`, err);
+      bilan.erreurs.push(`${villaNom} : ${err instanceof Error ? err.message : "erreur"}`.slice(0, 300));
+    }
+  });
+  return bilan;
 }

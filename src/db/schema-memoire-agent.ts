@@ -45,3 +45,15 @@ export const agentMemoireThemes = pgTable("agent_memoire_themes", {
   theme: text("theme").primaryKey(),
   consolideAt: timestamp("consolide_at", { withTimezone: true }).notNull(),
 });
+
+// Codes (wifi, boîtier, porte) retrouvés dans les messages et proposés à l'équipe : jamais
+// appliqués tout seuls sur la fiche du logement.
+export const agentMemoireCodes = pgTable("agent_memoire_codes", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  villaNom: text("villa_nom").notNull(),
+  type: text("type").notNull(), // "wifi" | "boitier" | "porte"
+  valeur: text("valeur").notNull(),
+  bookingId: bigint("booking_id", { mode: "number" }),
+  statut: text("statut").default("propose").notNull(), // "propose" | "applique" | "ignore"
+  vuAt: timestamp("vu_at", { withTimezone: true }).defaultNow().notNull(),
+});
