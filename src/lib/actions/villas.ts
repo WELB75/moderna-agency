@@ -111,6 +111,23 @@ export async function updateVillaCodePorteEntree(formData: FormData) {
   revalidatePath(`/villas/${villaId}`);
 }
 
+// Fiche de connaissances de la villa pour l'agent IA des messages Airbnb / Booking.com.
+export async function updateVillaBaseConnaissances(formData: FormData) {
+  await auth.protect();
+  const villaId = String(formData.get("villaId") ?? "").trim();
+  const baseConnaissances = String(formData.get("baseConnaissances") ?? "").trim();
+  if (!villaId) throw new Error("Villa introuvable.");
+
+  const db = getDb();
+  await db
+    .update(villas)
+    .set({ baseConnaissances: baseConnaissances || null, updatedAt: new Date() })
+    .where(eq(villas.id, villaId));
+  const nom = await nomVilla(villaId);
+  await tracer({ categorie: "logement", action: "logement_base_connaissances", libelle: "Fiche de connaissances de l'agent IA modifiée", resume: nom, villaId, villaNom: nom });
+  revalidatePath(`/villas/${villaId}`);
+}
+
 // Un troisième code possible, pour la porte de la chambre principale.
 export async function updateVillaCodeChambreMaster(formData: FormData) {
   await auth.protect();
