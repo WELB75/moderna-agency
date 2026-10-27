@@ -40,6 +40,7 @@ export type ContexteLogement = {
   codePorteEntree: string | null;
   codeWifi: string | null;
   guideBienvenueUrl: string | null;
+  baseConnaissances: string | null;
   repasInclusDansLoyer: boolean;
 };
 
@@ -134,6 +135,14 @@ function blocLogement(sejour: ContexteSejour, maintenant: Date): string {
     lignes.push(
       `Cuisinière (en supplément, en dirhams) : ${CUISINIERE_PETIT_DEJ_MAD} MAD/jour pour le petit-déjeuner seul, ${CUISINIERE_PETIT_DEJ_DEJEUNER_MAD} MAD/jour pour petit-déjeuner + déjeuner (carte des repas : ${CARTE_REPAS_URL}). ` +
         "Les courses (produits) et le coursier qui les apporte sont à la charge du voyageur, en plus. Précise-le à chaque fois qu'il parle d'une cuisinière."
+    );
+  }
+  // Fiche propre à cette villa (équipements, piscine, hammam, règlement...). Elle complète les
+  // lignes ci-dessus sans jamais les contredire : codes, caution, ménage et cuisinière restent
+  // régis par les règles de ce fichier.
+  if (renseigne(l.baseConnaissances)) {
+    lignes.push(
+      `\nFiche de connaissances de ${l.nom} (valable pour ce logement uniquement ; en cas de différence avec les informations ci-dessus sur les codes, la caution, le ménage ou la cuisinière, ce sont les informations ci-dessus qui priment) :\n${l.baseConnaissances.trim()}`
     );
   }
   return lignes.join("\n");

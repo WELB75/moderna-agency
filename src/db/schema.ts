@@ -137,6 +137,11 @@ export const villas = pgTable(
     // pour une chambre et 150 MAD pour les deux chambres".
     nbChambres: integer("nb_chambres"),
     codeWifi: text("code_wifi"),
+    // Fiche de connaissances propre à la villa, lue par l'agent IA de la boîte Airbnb / Booking.com
+    // (équipements, piscine, hammam, accès, règlement...). Jamais de code ni de prix ici : les codes
+    // ont leurs champs, et l'agent a ses propres règles sur la caution, le ménage et la cuisinière.
+    // Kamel, 2026-10-27 : "des sous-agents spécifiques pour chaque villa".
+    baseConnaissances: text("base_connaissances"),
     // Guide de bienvenue + instructions d'arrivée en photos — même document pour les deux usages
     // en pratique, un seul lien à tenir à jour (ex. Google Drive).
     guideBienvenueUrl: text("guide_bienvenue_url"),

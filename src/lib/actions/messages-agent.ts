@@ -22,6 +22,7 @@ const colonnesLogement = {
   codePorteEntree: villas.codePorteEntree,
   codeWifi: villas.codeWifi,
   guideBienvenueUrl: villas.guideBienvenueUrl,
+  baseConnaissances: villas.baseConnaissances,
   repasInclusDansLoyer: villas.repasInclusDansLoyer,
 };
 
@@ -43,6 +44,7 @@ function versContexteLogement(l: LigneLogement): ContexteLogement {
     codePorteEntree: l.codePorteEntree,
     codeWifi: l.codeWifi,
     guideBienvenueUrl: l.guideBienvenueUrl,
+    baseConnaissances: l.baseConnaissances,
     repasInclusDansLoyer: l.repasInclusDansLoyer,
   };
 }

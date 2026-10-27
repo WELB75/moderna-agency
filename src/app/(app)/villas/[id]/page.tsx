@@ -38,6 +38,7 @@ import {
   VillaCodeWifi,
   VillaGuideBienvenueUrl,
 } from "@/components/app/villa-code-boitier";
+import { VillaBaseConnaissances } from "@/components/app/villa-base-connaissances";
 import { VillaProprietaire } from "@/components/app/villa-proprietaire";
 import { ContactsSection } from "@/components/app/contacts-section";
 import { ProprietaireAccessButton } from "@/components/app/proprietaire-access-button";
@@ -81,6 +82,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
       codePorteEntree: villas.codePorteEntree,
       codeChambreMaster: villas.codeChambreMaster,
       codeWifi: villas.codeWifi,
+      baseConnaissances: villas.baseConnaissances,
       nbChambres: villas.nbChambres,
       guideBienvenueUrl: villas.guideBienvenueUrl,
       proprietaireNom: villas.proprietaireNom,
@@ -302,6 +304,7 @@ export default async function VillaDetailPage({ params }: { params: Promise<{ id
         <VillaCodeChambreMaster villaId={villa.id} codeChambreMaster={villa.codeChambreMaster} />
         <VillaCodeWifi villaId={villa.id} codeWifi={villa.codeWifi} />
         <VillaGuideBienvenueUrl villaId={villa.id} guideBienvenueUrl={villa.guideBienvenueUrl} />
+        <VillaBaseConnaissances villaId={villa.id} baseConnaissances={villa.baseConnaissances} />
         <VillaProprietaire
           villaId={villa.id}
           proprietaireNom={villa.proprietaireNom}
