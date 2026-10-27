@@ -36,6 +36,9 @@ const isPublicRoute = createRouteMatcher([
   "/r/(.*)",
   "/s/(.*)", // récapitulatif d'une réservation directe (lien de partage par jeton)
   "/payer/(.*)",
+  "/caution/(.*)", // page de caution du voyageur (n° de réservation dans l'adresse), voir app/caution
+  "/api/stripe/webhook", // appelé par Stripe, protégé par la signature (STRIPE_WEBHOOK_SECRET) dans la route
+  "/api/caution/sweep", // cron quotidien, protégé par CRON_SECRET (ou compte équipe) dans la route
   "/dossier/(.*)",
   "/securite/villa/(.*)",
   "/syndic/(.*)", // dossier du séjour envoyé au syndic de la résidence (comme /securite/villa)

@@ -16,6 +16,10 @@ import { journalDeLaReservation } from "@/lib/journal";
 import { normaliseCanal } from "@/lib/canal";
 import { nowInMorocco } from "@/lib/now";
 import { lienPlateforme } from "@/lib/lien-plateforme";
+import { CautionStripeCard } from "@/components/app/caution-stripe-card";
+import { cautionDeLaReservation } from "@/lib/caution/store";
+import { cautionDemandable, formatEuros } from "@/lib/caution/regles";
+import { chargerContexteCaution } from "@/lib/caution/service";
 
 // Fiche complète d'une réservation, identique à sa carte du tableau de bord (ménage/cuisine
 // éditables, validation check-in/out, documents...), mais accessible directement par id — pour
@@ -32,6 +36,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       checkOut: reservations.checkOut,
       source: reservations.source,
       canal: reservations.canal,
+      beds24BookingId: reservations.beds24BookingId,
       notes: reservations.notes,
       nbAdultes: reservations.nbAdultes,
       nbEnfants: reservations.nbEnfants,
@@ -216,6 +221,27 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     clientConnu,
   };
 
+  // Caution Stripe directe : visible pour les réservations où une caution est demandable (hors
+  // Airbnb) ou déjà enregistrée. Une erreur de lecture ne doit pas casser la fiche.
+  let cautionCarte: { montant: string; statut: string | null; detail: string | null } | null = null;
+  if (r.beds24BookingId) {
+    try {
+      const existante = await cautionDeLaReservation(r.id);
+      const ctx = await chargerContexteCaution(r.beds24BookingId);
+      const demandable = cautionDemandable({ canal: r.canal, status: ctx?.status ?? "confirmed", depart: new Date(r.checkOut), maintenant: nowInMorocco() });
+      if (existante || (ctx && demandable.ok)) {
+        const centimes = existante?.montantCentimes ?? ctx?.montantCentimes ?? 0;
+        cautionCarte = {
+          montant: formatEuros(centimes),
+          statut: existante?.statut ?? null,
+          detail: existante?.dernierEchec ?? (existante?.nbEmpreintes && existante.nbEmpreintes > 1 ? `renouvelée ${existante.nbEmpreintes - 1} fois` : null),
+        };
+      }
+    } catch (err) {
+      console.error("Fiche réservation : lecture de la caution Stripe impossible", err);
+    }
+  }
+
   return (
     <div className="max-w-2xl space-y-4">
       <Link href="/dashboard" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground md:min-h-0">
@@ -234,6 +260,16 @@ export default async function ReservationDetailPage({ params }: { params: Promis
         <ReservationRowCard r={row} kind="in" />
         <ReservationRowCard r={row} kind="out" />
       </div>
+
+      {cautionCarte && r.beds24BookingId ? (
+        <CautionStripeCard
+          reservationId={r.id}
+          beds24BookingId={r.beds24BookingId}
+          montantLibelle={cautionCarte.montant}
+          statut={cautionCarte.statut}
+          detail={cautionCarte.detail}
+        />
+      ) : null}
 
       <ReservationHistorique
         reservationId={r.id}
