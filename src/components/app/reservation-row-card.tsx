@@ -14,6 +14,7 @@ import { CheckoutMessageButton } from "@/components/app/checkout-message-button"
 import { DepartureMessageButton } from "@/components/app/departure-message-button";
 import { StayRatingButton } from "@/components/app/stay-rating-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
+import { ProlongerSejourDialog } from "@/components/app/prolonger-sejour-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip";
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
@@ -546,11 +547,14 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
           ) : null}
 
           <div className="flex flex-wrap items-center justify-between gap-1">
-            <EditReservationTimeDialog
-              reservationId={r.id}
-              checkIn={new Date(r.checkIn)}
-              checkOut={new Date(r.checkOut)}
-            />
+            <div className="flex items-center gap-1">
+              <EditReservationTimeDialog
+                reservationId={r.id}
+                checkIn={new Date(r.checkIn)}
+                checkOut={new Date(r.checkOut)}
+              />
+              <ProlongerSejourDialog reservationId={r.id} checkOut={new Date(r.checkOut)} />
+            </div>
             {/* Supprimer un doublon directement depuis la carte — Kamel, 2026-08-28 : "possible
                 d'avoir une icone corbeille afin de supprimer certains doublons ?". Le texte de
                 confirmation prévient quand la réservation vient d'un flux iCal : la supprimer ne

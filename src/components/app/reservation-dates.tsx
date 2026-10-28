@@ -4,6 +4,7 @@ import { LogIn, LogOut } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { nowInMorocco } from "@/lib/now";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
+import { ProlongerSejourDialog } from "@/components/app/prolonger-sejour-dialog";
 
 export function ReservationDates({
   checkIn,
@@ -23,6 +24,7 @@ export function ReservationDates({
       </div>
       {reservationId ? (
         <div className="flex justify-end">
+          <ProlongerSejourDialog reservationId={reservationId} checkOut={checkOut} />
           <EditReservationTimeDialog reservationId={reservationId} checkIn={checkIn} checkOut={checkOut} />
         </div>
       ) : null}

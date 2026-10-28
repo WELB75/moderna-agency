@@ -1,5 +1,6 @@
 "use client";
 
+import { ProlongerSejourDialog } from "@/components/app/prolonger-sejour-dialog";
 import { memo, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEstMobile } from "@/lib/use-est-mobile";
 import Image from "next/image";
@@ -188,6 +189,7 @@ export function TarificationView({
           onNotesUpdated={handleNotesUpdated}
           onReservationSupprimee={handleReservationSupprimee}
           onReservationRestauree={handleReservationRestauree}
+          onProlongee={actualiser}
         />
       )}
     </div>
@@ -260,6 +262,7 @@ function TarificationCalendrier({
   onNotesUpdated,
   onReservationSupprimee,
   onReservationRestauree,
+  onProlongee,
 }: {
   villas: TarificationVilla[];
   tousLogements: TarificationVilla[];
@@ -269,6 +272,7 @@ function TarificationCalendrier({
   onNotesUpdated: (villaId: string, reservationId: string, notes: string) => void;
   onReservationSupprimee: (villaId: string, reservationId: string) => void;
   onReservationRestauree: (villaId: string, reservation: TarificationReservation) => void;
+  onProlongee: () => void;
 }) {
   const [resaSelectionnee, setResaSelectionnee] = useState<ReservationSelectionnee | null>(null);
   const estMobile = useEstMobile();
@@ -307,6 +311,10 @@ function TarificationCalendrier({
         lectureSeule={lectureSeule}
         onOpenChange={(open) => !open && setResaSelectionnee(null)}
         onNotesSaved={handleNotesSaved}
+        onProlongee={() => {
+          setResaSelectionnee(null);
+          onProlongee();
+        }}
         onSupprimee={() => {
           if (!resaSelectionnee) return;
           onReservationSupprimee(resaSelectionnee.villaId, resaSelectionnee.id);
@@ -1025,6 +1033,7 @@ function ReservationRecapDialog({
   lectureSeule,
   onOpenChange,
   onNotesSaved,
+  onProlongee,
   onSupprimee,
   onAnnuler,
 }: {
@@ -1032,6 +1041,7 @@ function ReservationRecapDialog({
   lectureSeule: boolean;
   onOpenChange: (open: boolean) => void;
   onNotesSaved: (notes: string) => void;
+  onProlongee: () => void;
   onSupprimee: () => void;
   onAnnuler: (motif: string) => void;
 }) {
@@ -1139,6 +1149,13 @@ function ReservationRecapDialog({
                 </a>
               </Button>
             ) : null}
+            <div className="flex justify-center">
+              <ProlongerSejourDialog
+                reservationId={reservation.id}
+                checkOut={new Date(`${reservation.checkOut}T00:00:00Z`)}
+                onDone={onProlongee}
+              />
+            </div>
             <AnnulerReservationInline key={reservation.id} reservation={reservation} onAnnuler={onAnnuler} />
             {/* Réservation créée dans l'app : la supprimer rouvre aussi les dates sur Beds24, donc
                 Airbnb et Booking.com (voir deleteReservation). Les réservations importées

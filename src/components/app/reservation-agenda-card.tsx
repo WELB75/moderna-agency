@@ -31,6 +31,7 @@ import { CheckoutMessageButton } from "@/components/app/checkout-message-button"
 import { DepartureMessageButton } from "@/components/app/departure-message-button";
 import { StayRatingButton } from "@/components/app/stay-rating-button";
 import { EditReservationTimeDialog } from "@/components/app/edit-reservation-time-dialog";
+import { ProlongerSejourDialog } from "@/components/app/prolonger-sejour-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip";
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
@@ -411,6 +412,7 @@ export function ReservationAgendaCard({
             ) : null}
 
             <div className="ml-auto flex items-center gap-1">
+              <ProlongerSejourDialog reservationId={r.id} checkOut={new Date(r.checkOut)} />
               <EditReservationTimeDialog reservationId={r.id} checkIn={new Date(r.checkIn)} checkOut={new Date(r.checkOut)} />
               <ConfirmDeleteButton
                 action={deleteReservation.bind(null, r.id)}
