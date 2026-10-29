@@ -54,10 +54,10 @@ import { calculerConnaissances, niveauPourPct, SUJETS } from "./memoire-regles.t
 
 const ech = (question: string, reponse = "ok", at: string | null = null) => ({ question, reponse, at });
 
-test("niveaux : sans donnée tout est à 0 %, indice global 0", () => {
+test("niveaux : sans donnée, seules les règles déjà intégrées à l'agent ont un niveau", () => {
   const c = calculerConnaissances([], []);
-  assert.equal(c.global, 0);
-  assert.ok(c.sujets.every((s) => s.pct === 0 && s.niveau === "A découvrir"));
+  assert.ok(c.sujets.filter((s) => !s.integre).every((s) => s.pct === 0 && s.niveau === "A découvrir"));
+  assert.ok(c.sujets.filter((s) => s.integre).every((s) => s.pct > 0));
   assert.equal(c.sujets.length, SUJETS.length);
 });
 
@@ -92,4 +92,37 @@ test("niveaux : les échanges des 7 derniers jours sont comptés", () => {
 
 test("niveaux : libellés par palier", () => {
   assert.deepEqual([0, 10, 30, 60, 80, 100].map(niveauPourPct), ["A découvrir", "Débutant", "Apprenti", "Confirmé", "Expert", "Maître"]);
+});
+
+const logement = (o: Partial<{ nom: string; wifi: boolean; boitier: boolean; porte: boolean; localisation: boolean; description: string | null }> = {}) => ({
+  nom: "Villa X", wifi: false, boitier: false, porte: false, localisation: false, description: null, ...o,
+});
+
+test("logements : un code wifi saisi sur 2 logements sur 22 fait monter le wifi (plus à 0 %)", () => {
+  const logements = Array.from({ length: 22 }, (_, i) => logement({ nom: `V${i}`, wifi: i < 2 }));
+  const wifi = calculerConnaissances([], [], new Date(), logements).sujets.find((s) => s.code === "wifi")!;
+  assert.ok(wifi.pct > 0 && wifi.pct < 15, `wifi ${wifi.pct}`);
+  assert.deepEqual(wifi.logements, { renseignes: 2, total: 22 });
+});
+
+test("logements : tous les codes de clés renseignés font monter l'accès, sans conversation", () => {
+  const logements = Array.from({ length: 10 }, () => logement({ boitier: true, porte: true }));
+  const acces = calculerConnaissances([], [], new Date(), logements).sujets.find((s) => s.code === "cles_acces")!;
+  assert.equal(acces.pct, 50);
+  assert.deepEqual(acces.logements, { renseignes: 10, total: 10 });
+});
+
+test("logements : la description des logements compte pour les équipements", () => {
+  const logements = [logement({ description: "Belle villa avec piscine privée et jardin" }), logement({ description: null })];
+  const c = calculerConnaissances([], [], new Date(), logements);
+  assert.deepEqual(c.sujets.find((s) => s.code === "piscine")!.logements, { renseignes: 1, total: 2 });
+  assert.deepEqual(c.sujets.find((s) => s.code === "linge")!.logements, { renseignes: 0, total: 2 });
+});
+
+test("règles intégrées : la caution est connue de l'agent même sans conversation", () => {
+  const c = calculerConnaissances([], [], new Date(), [logement()]);
+  const caution = c.sujets.find((s) => s.code === "caution")!;
+  assert.equal(caution.integre, true);
+  assert.equal(caution.pct, 50);
+  assert.equal(c.sujets.find((s) => s.code === "wifi")!.integre, false);
 });

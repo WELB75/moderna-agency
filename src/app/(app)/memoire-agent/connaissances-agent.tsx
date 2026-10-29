@@ -58,8 +58,9 @@ export function ConnaissancesAgent({ connaissances: c, stats }: { connaissances:
       <div>
         <h2 className="text-lg font-semibold tracking-tight">Ce que l&apos;agent maîtrise</h2>
         <p className="text-sm text-muted-foreground">
-          Son niveau sur chaque sujet de notre activité. Le pourcentage monte avec le nombre de vrais échanges lus sur le sujet et avec les
-          fiches rédigées ou validées : sans fiche, un sujet plafonne à 60 %.
+          Son niveau sur chaque sujet de notre activité. Le pourcentage monte avec le nombre de vrais échanges lus sur le sujet, les fiches rédigées ou
+          validées, et pour certains sujets (wifi, clés, localisation, équipements) avec les informations saisies sur les
+          fiches des logements.
         </p>
       </div>
 
@@ -128,6 +129,8 @@ export function ConnaissancesAgent({ connaissances: c, stats }: { connaissances:
                       <p className="flex justify-between text-[11px] text-muted-foreground">
                         <span>
                           {s.niveau} · {s.echanges} échange{s.echanges > 1 ? "s" : ""} · {s.fiches} fiche{s.fiches > 1 ? "s" : ""}
+                          {s.logements ? ` · ${s.logements.renseignes}/${s.logements.total} logements renseignés` : ""}
+                          {s.integre ? " · règle de l'agence intégrée" : ""}
                         </span>
                         {s.cetteSemaine > 0 ? <span className="text-emerald-600 dark:text-emerald-400">+{s.cetteSemaine} cette semaine</span> : null}
                       </p>
