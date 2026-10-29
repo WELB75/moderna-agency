@@ -69,12 +69,24 @@
       "schedule": "0 18 * * *"
     },
     {
-      "path": "/api/messages-agent/apprendre",
+      "path": "/api/caution/sweep",
+      "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/messages-agent/apprendre?codes=1",
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/caution/sweep",
-      "schedule": "0 10 * * *"
+      "path": "/api/messages-agent/apprendre",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/messages-agent/apprendre",
+      "schedule": "0 15 * * *"
+    },
+    {
+      "path": "/api/messages-agent/apprendre",
+      "schedule": "0 21 * * *"
     }
   ]
 }
