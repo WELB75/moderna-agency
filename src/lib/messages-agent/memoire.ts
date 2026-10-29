@@ -4,12 +4,12 @@ import { z } from "zod";
 import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { getDb } from "@/db";
-import { reservations, villas, whatsappOutboundMessages } from "@/db/schema";
+import { domaines, reservations, villas, whatsappOutboundMessages } from "@/db/schema";
 import { agentMemoireBrut, agentMemoireCodes, agentMemoireFiches, agentMemoireFils, agentMemoireThemes } from "@/db/schema-memoire-agent";
 import { beds24GetBookings, beds24GetMessagesBulk, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
 import { LIGNE_AGENCE } from "@/lib/whatsapp-agence";
-import { anonymiser, calculerConnaissances, libelleTheme, THEMES_EXTRACTION, type Connaissances, type FicheMemoire, type ThemeCode } from "./memoire-regles";
+import { anonymiser, calculerConnaissances, libelleTheme, type LogementConnu, THEMES_EXTRACTION, type Connaissances, type FicheMemoire, type ThemeCode } from "./memoire-regles";
 
 // Mémoire de l'agent IA de la boîte de réception — Kamel, 2026-10-26 : "reprendre tout ce que les
 // clients disent, tout ce qu'ils demandent et tout ce qu'on leur répond pour alimenter la mémoire
@@ -454,15 +454,37 @@ export async function statsMemoire(): Promise<{ fils: number; filsAnalyses: numb
 export async function connaissancesAgent(): Promise<Connaissances> {
   await assurerTablesMemoire();
   const db = getDb();
-  const [echanges, fiches] = await Promise.all([
+  const [echanges, fiches, logementsBruts] = await Promise.all([
     db
       .select({ question: agentMemoireBrut.question, reponse: agentMemoireBrut.reponse, at: agentMemoireBrut.createdAt })
       .from(agentMemoireBrut)
       .orderBy(desc(agentMemoireBrut.createdAt))
       .limit(5000),
     db.select().from(agentMemoireFiches).where(eq(agentMemoireFiches.actif, true)),
+    db
+      .select({
+        nom: villas.nom,
+        wifi: villas.codeWifi,
+        boitier: villas.codeBoitier,
+        porte: villas.codePorteEntree,
+        adresse: villas.adresse,
+        description: villas.description,
+        mapsUrl: domaines.mapsUrl,
+        wazeUrl: domaines.wazeUrl,
+      })
+      .from(villas)
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id)),
   ]);
-  return calculerConnaissances(fiches, echanges);
+  const plein = (v: string | null) => Boolean(v && v.trim());
+  const logements: LogementConnu[] = logementsBruts.map((l) => ({
+    nom: l.nom,
+    wifi: plein(l.wifi),
+    boitier: plein(l.boitier),
+    porte: plein(l.porte),
+    localisation: plein(l.mapsUrl) || plein(l.wazeUrl) || plein(l.adresse),
+    description: l.description,
+  }));
+  return calculerConnaissances(fiches, echanges, new Date(), logements);
 }
 
 // ---------- 5. Codes retrouvés dans les messages ----------

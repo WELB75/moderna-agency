@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { estMembreEquipe } from "@/lib/acces";
-import { apprendreLot, consoliderTheme, themesAConsolider } from "@/lib/messages-agent/memoire";
+import { apprendreLot, chercherCodes, consoliderTheme, themesAConsolider } from "@/lib/messages-agent/memoire";
 
 export const maxDuration = 300;
 
-// Cron quotidien (vercel.json) : l'agent IA apprend des nouveaux messages Airbnb / Booking.com
+// Crons (vercel.json, 4 passages par jour) : l'agent IA apprend des nouveaux messages Airbnb / Booking.com
 // (fils des séjours récents où il y a du nouveau), puis consolide les thèmes concernés. Même
 // protection que les autres crons ; un compte de l'équipe peut aussi la lancer à la main.
 async function isAuthorized(req: NextRequest) {
@@ -37,7 +37,19 @@ export async function GET(req: NextRequest) {
     if (mode === "tout" && bilan.restants > 0) themes = []; // on consolide une fois tout lu
     let fiches = 0;
     for (const t of themes) fiches += await consoliderTheme(t);
-    return NextResponse.json({ ...bilan, themesConsolides: themes.length, fiches });
+    // ?codes=1 (passage de nuit) : cherche aussi wifi / boîtier / porte dans les messages et les
+    // propose sur la page Mémoire de l'agent. Jamais appliqués tout seuls.
+    let codes: { propositions: number; erreurs: string[] } | null = null;
+    if (req.nextUrl.searchParams.get("codes") === "1") {
+      try {
+        const c = await chercherCodes();
+        codes = { propositions: c.propositions, erreurs: c.erreurs };
+      } catch (err) {
+        console.error("Mémoire agent (cron) : codes:", err);
+        codes = { propositions: 0, erreurs: [err instanceof Error ? err.message : "Erreur"] };
+      }
+    }
+    return NextResponse.json({ ...bilan, themesConsolides: themes.length, fiches, codes });
   } catch (err) {
     console.error("Mémoire agent (cron):", err);
     return NextResponse.json({ error: err instanceof Error ? err.message : "Erreur" }, { status: 500 });

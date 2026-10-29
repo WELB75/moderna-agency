@@ -165,6 +165,11 @@ export type ConnaissanceSujet = {
   echanges: number;
   fiches: number;
   cetteSemaine: number; // échanges sur ce sujet appris ces 7 derniers jours
+  // Sujets qui reposent aussi sur les données saisies sur les logements (wifi, clés, localisation,
+  // équipements décrits) : combien de logements sont renseignés. null = sujet sans donnée de ce type.
+  logements: { renseignes: number; total: number } | null;
+  // Règle de l'agence déjà intégrée à l'agent (caution, ménage, cuisinière...), indépendamment des conversations.
+  integre: boolean;
 };
 
 export type Connaissances = {
@@ -190,13 +195,38 @@ function compilerMots(mots: string[]): RegExp | null {
   return new RegExp(`(?<![a-z0-9])(?:${alternatives.join("|")})`);
 }
 
+// Ce que l'app sait de chaque logement (fiche du logement), pour mesurer ce que l'agent connaît
+// au-delà des conversations : un code wifi saisi sur la fiche est une connaissance de l'agent.
+export type LogementConnu = {
+  nom: string;
+  wifi: boolean;
+  boitier: boolean;
+  porte: boolean;
+  localisation: boolean; // lien Maps/Waze du domaine ou adresse du logement
+  description: string | null;
+};
+
+// Règles de l'agence déjà écrites dans le prompt de l'agent (voir suggestion.ts) : montant de la
+// caution, frais de ménage, tarifs de la cuisinière, piscine chauffée, horaires d'arrivée/départ.
+const CONNAISSANCE_INTEGREE: Record<string, number> = {
+  caution: 1,
+  menage: 1,
+  cuisiniere: 1,
+  piscine: 0.4,
+  arrivee_tardive: 0.3,
+  depart_tardif: 0.3,
+};
+
+// Sujets "équipement" mesurés par la description des logements.
+const SUJETS_DESCRIPTION = new Set(["piscine", "clim_chauffage", "linge", "cuisine_electro", "exterieur"]);
+
 export type EchangeConnu = { question: string; reponse: string; at: Date | string | null };
 export type FicheConnue = { theme: string; titre: string; question: string; reponse: string; epingle?: boolean };
 
 // Part d'un échange réel (0 à 1) : plus il y en a sur un sujet, plus l'agent le connaît, avec un
 // rendement décroissant (5 échanges = 63 %, 10 = 86 %). Les fiches complètent : sans fiche rédigée
 // (ou validée à la main), un sujet plafonne à 60 %.
-export function calculerConnaissances(fiches: FicheConnue[], echanges: EchangeConnu[], maintenant = new Date()): Connaissances {
+export function calculerConnaissances(fiches: FicheConnue[], echanges: EchangeConnu[], maintenant = new Date(), logements: LogementConnu[] = []): Connaissances {
   const il_y_a_7_jours = maintenant.getTime() - 7 * 24 * 3600 * 1000;
   const echangesNormalises = echanges.map((e) => ({ texte: normaliser(`${e.question} ${e.reponse}`), recent: e.at ? new Date(e.at).getTime() >= il_y_a_7_jours : false }));
   const fichesNormalisees = fiches.map((f) => ({ ...f, texte: normaliser(`${f.titre} ${f.question} ${f.reponse}`) }));
@@ -210,8 +240,36 @@ export function calculerConnaissances(fiches: FicheConnue[], echanges: EchangeCo
       .reduce((total, f) => total + (f.epingle ? 1.5 : 1), 0);
     const echantillon = s.theme ? Math.min(1, nbFiches) : 1 - Math.exp(-nbEchanges / 5);
     const couverture = Math.min(1, nbFiches / 2);
-    const pct = s.theme ? Math.round(100 * couverture) : Math.min(100, Math.round(100 * (0.6 * echantillon + 0.4 * couverture)));
-    return { code: s.code, libelle: s.libelle, categorie: s.categorie, pct, niveau: niveauPourPct(pct), echanges: nbEchanges, fiches: Math.floor(nbFiches), cetteSemaine: recents };
+
+    // Données saisies sur les logements (wifi, clés, localisation, équipements décrits).
+    let couvertureLogements: number | null = null;
+    if (logements.length > 0) {
+      const parLogement = (note: (l: LogementConnu) => number) => logements.reduce((t, l) => t + note(l), 0);
+      if (s.code === "wifi") couvertureLogements = parLogement((l) => (l.wifi ? 1 : 0));
+      else if (s.code === "cles_acces") couvertureLogements = parLogement((l) => (l.boitier ? 0.5 : 0) + (l.porte ? 0.5 : 0));
+      else if (s.code === "trouver_logement") couvertureLogements = parLogement((l) => (l.localisation ? 1 : 0));
+      else if (SUJETS_DESCRIPTION.has(s.code) && re) couvertureLogements = parLogement((l) => (l.description && re.test(normaliser(l.description)) ? 1 : 0));
+    }
+    const integree = CONNAISSANCE_INTEGREE[s.code] ?? null;
+    const structure = couvertureLogements === null && integree === null ? null : Math.max(couvertureLogements === null ? 0 : couvertureLogements / logements.length, integree ?? 0);
+
+    let pct: number;
+    if (s.theme) pct = Math.round(100 * couverture);
+    else if (structure === null) pct = Math.min(100, Math.round(100 * (0.6 * echantillon + 0.4 * couverture)));
+    else pct = Math.min(100, Math.round(100 * (0.3 * echantillon + 0.2 * couverture + 0.5 * structure)));
+
+    return {
+      code: s.code,
+      libelle: s.libelle,
+      categorie: s.categorie,
+      pct,
+      niveau: niveauPourPct(pct),
+      echanges: nbEchanges,
+      fiches: Math.floor(nbFiches),
+      cetteSemaine: recents,
+      logements: couvertureLogements === null ? null : { renseignes: Math.round(couvertureLogements), total: logements.length },
+      integre: integree !== null,
+    };
   });
 
   const global = Math.round(sujets.reduce((t, s) => t + s.pct, 0) / sujets.length);
