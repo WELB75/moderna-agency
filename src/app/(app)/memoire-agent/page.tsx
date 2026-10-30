@@ -53,9 +53,9 @@ export default async function MemoireAgentPage() {
           stockage.
         </p>
       </div>
-      <MemoireAgentClient fiches={fiches} stats={{ ...stats, derniere: stats.derniere ? stats.derniere.toISOString() : null }} />
-      <CodesTrouves propositions={codes} />
       <ConnaissancesAgent connaissances={connaissances} stats={{ filsAnalyses: stats.filsAnalyses, fichesActives: stats.fichesActives, echanges: stats.echanges }} />
+      <CodesTrouves propositions={codes} />
+      <MemoireAgentClient fiches={fiches} stats={{ ...stats, derniere: stats.derniere ? stats.derniere.toISOString() : null }} />
     </div>
   );
 }
