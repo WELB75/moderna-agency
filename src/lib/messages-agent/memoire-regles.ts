@@ -293,3 +293,11 @@ export function trouverLogement(nomExport: string | null | undefined, noms: stri
   const proches = noms.filter((n) => norm(n).startsWith(cible) || cible.startsWith(norm(n)));
   return proches.length === 1 ? proches[0] : null;
 }
+
+// Logements que l'agence n'exploite plus : écartés du calcul de connaissance et des propositions de codes
+// (leur historique reste en base).
+export const LOGEMENTS_FERMES = ["Villa Kamel", "Villa Eline", "Villa Elysée", "Eva cosy", "Appart. Climatisé vue Piscine & Atlas – Prestigia"];
+
+export function logementExploite(nom: string): boolean {
+  return !LOGEMENTS_FERMES.some((f) => f.toLowerCase() === nom.toLowerCase());
+}
