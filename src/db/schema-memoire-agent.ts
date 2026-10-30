@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, timestamp, integer, boolean, bigint } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, timestamp, integer, boolean, bigint, bigserial, jsonb } from "drizzle-orm/pg-core";
 
 // Mémoire de l'agent IA de la boîte de réception (voir src/lib/messages-agent/memoire.ts).
 // Trois niveaux : fils lus (agent_memoire_fils), échanges extraits et anonymisés
@@ -56,4 +56,18 @@ export const agentMemoireCodes = pgTable("agent_memoire_codes", {
   bookingId: bigint("booking_id", { mode: "number" }),
   statut: text("statut").default("propose").notNull(), // "propose" | "applique" | "ignore"
   vuAt: timestamp("vu_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Historique de conversations importé depuis un export de la messagerie SuperHote (jsonl : plateforme,
+// logement, dates, messages). Les messages attendent ici d'être analysés ; une fois la conversation
+// traitée ils sont vidés (seuls les échanges anonymisés restent dans agent_memoire_brut).
+export const agentMemoireImport = pgTable("agent_memoire_import", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  cle: text("cle").notNull().unique(), // empreinte de la conversation : évite un double import
+  plateforme: text("plateforme").notNull(),
+  logement: text("logement"),
+  dateDebut: text("date_debut"), // "AAAA-MM-JJ" ou "AAAA-MM-JJ/AAAA-MM-JJ"
+  langue: text("langue"),
+  messages: jsonb("messages").$type<{ auteur: string; date: string; texte: string }[]>().notNull(),
+  traite: boolean("traite").default(false).notNull(),
 });

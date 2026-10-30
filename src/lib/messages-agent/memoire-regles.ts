@@ -281,3 +281,15 @@ export function calculerConnaissances(fiches: FicheConnue[], echanges: EchangeCo
     aEnrichir: [...sujets].sort((a, b) => a.pct - b.pct).slice(0, 3),
   };
 }
+
+// Nom de logement d'un export (« Livia C », « Maeva cosy ») -> nom exact dans l'app (« Livia Cosy »),
+// ou null s'il n'y a aucune correspondance claire.
+export function trouverLogement(nomExport: string | null | undefined, noms: string[]): string | null {
+  const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const cible = norm(nomExport ?? "");
+  if (!cible) return null;
+  const exact = noms.find((n) => norm(n) === cible);
+  if (exact) return exact;
+  const proches = noms.filter((n) => norm(n).startsWith(cible) || cible.startsWith(norm(n)));
+  return proches.length === 1 ? proches[0] : null;
+}

@@ -33,8 +33,20 @@ export async function GET(req: NextRequest) {
       bilan.restants = suite.restants;
       if (suite.analyses + suite.vides + suite.erreurs === 0) break;
     }
+    // Historique importé / fils jamais lus : on en traite un maximum dans le temps restant.
+    if (mode === "recents") {
+      while (Date.now() - debut < 150_000) {
+        const suite = await apprendreLot("tout");
+        bilan.analyses += suite.analyses;
+        bilan.vides += suite.vides;
+        bilan.erreurs += suite.erreurs;
+        bilan.echanges += suite.echanges;
+        bilan.restants = suite.restants;
+        if (suite.restants === 0 || suite.analyses + suite.vides + suite.erreurs === 0) break;
+      }
+    }
     let themes = (await themesAConsolider()).slice(0, 6);
-    if (mode === "tout" && bilan.restants > 0) themes = []; // on consolide une fois tout lu
+    if (bilan.restants > 0) themes = []; // on consolide une fois tout lu
     let fiches = 0;
     for (const t of themes) fiches += await consoliderTheme(t);
     // ?codes=1 (passage de nuit) : cherche aussi wifi / boîtier / porte dans les messages et les
