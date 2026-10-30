@@ -5,11 +5,11 @@ import { and, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { subDays } from "date-fns";
 import { getDb } from "@/db";
 import { domaines, reservations, villas, whatsappOutboundMessages } from "@/db/schema";
-import { agentMemoireBrut, agentMemoireCodes, agentMemoireFiches, agentMemoireFils, agentMemoireThemes } from "@/db/schema-memoire-agent";
+import { agentMemoireBrut, agentMemoireCodes, agentMemoireFiches, agentMemoireFils, agentMemoireImport, agentMemoireThemes } from "@/db/schema-memoire-agent";
 import { beds24GetBookings, beds24GetMessagesBulk, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
 import { LIGNE_AGENCE } from "@/lib/whatsapp-agence";
-import { anonymiser, calculerConnaissances, libelleTheme, type LogementConnu, THEMES_EXTRACTION, type Connaissances, type FicheMemoire, type ThemeCode } from "./memoire-regles";
+import { anonymiser, calculerConnaissances, libelleTheme, trouverLogement, type LogementConnu, THEMES_EXTRACTION, type Connaissances, type FicheMemoire, type ThemeCode } from "./memoire-regles";
 
 // Mémoire de l'agent IA de la boîte de réception — Kamel, 2026-10-26 : "reprendre tout ce que les
 // clients disent, tout ce qu'ils demandent et tout ce qu'on leur répond pour alimenter la mémoire
@@ -31,7 +31,7 @@ const LOT_TOUT = 50; // fils lus par appel en mode "tout" (un appel groupé Beds
 const FENETRE_RECENTS_JOURS = 60;
 const MAX_ANALYSES_PAR_APPEL = 60;
 const CONCURRENCE_ANALYSE = 6;
-const MAX_ENTREES_CONSOLIDATION = 80;
+const MAX_ENTREES_CONSOLIDATION = 150;
 
 let tablesPretes: Promise<void> | null = null;
 
@@ -55,6 +55,9 @@ export function assurerTablesMemoire(): Promise<void> {
         reponse text NOT NULL, villa_nom text, actif boolean NOT NULL DEFAULT true, epingle boolean NOT NULL DEFAULT false,
         nb_sources integer NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now())`);
       await db.execute(sql`CREATE TABLE IF NOT EXISTS agent_memoire_themes (theme text PRIMARY KEY, consolide_at timestamptz NOT NULL)`);
+      await db.execute(sql`CREATE TABLE IF NOT EXISTS agent_memoire_import (
+        id bigserial PRIMARY KEY, cle text NOT NULL UNIQUE, plateforme text NOT NULL, logement text, date_debut text,
+        langue text, messages jsonb NOT NULL, traite boolean NOT NULL DEFAULT false)`);
       await db.execute(sql`CREATE TABLE IF NOT EXISTS agent_memoire_codes (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(), villa_nom text NOT NULL, type text NOT NULL, valeur text NOT NULL,
         booking_id bigint, statut text NOT NULL DEFAULT 'propose', vu_at timestamptz NOT NULL DEFAULT now(),
@@ -143,6 +146,64 @@ async function filsWhatsappAgence(mode: "tout" | "recents"): Promise<Map<number,
   return fils;
 }
 
+// Conversations importées depuis un export SuperHote (voir agentMemoireImport). Identifiant de fil
+// négatif et petit (-1, -2...) : ni un identifiant Beds24 (positif) ni un fil WhatsApp (dérivé d'un
+// numéro de téléphone, très en dessous de -1 000 000).
+const estFilImport = (id: number) => id < 0 && id > -1_000_000;
+
+async function filsImport(): Promise<Map<number, FilCandidat>> {
+  const db = getDb();
+  const [lignes, logements] = await Promise.all([
+    db
+      .select({ id: agentMemoireImport.id, plateforme: agentMemoireImport.plateforme, logement: agentMemoireImport.logement })
+      .from(agentMemoireImport)
+      .where(eq(agentMemoireImport.traite, false)),
+    db.select({ nom: villas.nom }).from(villas),
+  ]);
+  const noms = logements.map((l) => l.nom);
+  const libellePlateforme: Record<string, string> = { airbnb: "Airbnb", booking: "Booking.com", autre: "Direct" };
+  const fils = new Map<number, FilCandidat>();
+  for (const l of lignes) {
+    fils.set(-l.id, { bookingId: -l.id, villaNom: trouverLogement(l.logement, noms), canal: libellePlateforme[l.plateforme] ?? l.plateforme, noms: [] });
+  }
+  return fils;
+}
+
+async function messagesImport(ids: number[]): Promise<Map<number, Beds24Message[]>> {
+  const parFil = new Map<number, Beds24Message[]>();
+  if (ids.length === 0) return parFil;
+  const lignes = await getDb()
+    .select({ id: agentMemoireImport.id, messages: agentMemoireImport.messages })
+    .from(agentMemoireImport)
+    .where(inArray(agentMemoireImport.id, ids.map((i) => -i)));
+  for (const l of lignes) {
+    parFil.set(
+      -l.id,
+      l.messages.map((m, i) => ({
+        id: i,
+        bookingId: -l.id,
+        // Les heures de l'export sont en UTC, sans fuseau : on le précise pour que la date soit lue pareil partout.
+        time: /Z|[+-]\d\d:?\d\d$/.test(m.date) ? m.date : `${m.date}${m.date.length <= 16 ? ":00" : ""}Z`,
+        read: true,
+        message: m.texte,
+        // Les étiquettes de l'export sont parfois fausses (messages de l'équipe copiés côté voyageur) :
+        // l'extraction déduit qui parle d'après le contenu (voir extraireEchanges).
+        source: m.auteur === "equipe" ? "host" : "guest",
+      }))
+    );
+  }
+  return parFil;
+}
+
+// Une fois la conversation traitée, son contenu brut n'a plus à rester en base.
+async function marquerImportTraite(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  await getDb()
+    .update(agentMemoireImport)
+    .set({ traite: true, messages: [] })
+    .where(inArray(agentMemoireImport.id, ids.map((i) => -i)));
+}
+
 // ---------- 2. Extraction d'un fil ----------
 
 const EchangesSchema = z.object({
@@ -160,8 +221,8 @@ type EchangeBrut = z.infer<typeof EchangesSchema>["echanges"][number];
 
 function filTexte(messages: Beds24Message[]): string {
   return messages
-    .slice(-40)
-    .map((m) => `${m.source === "guest" ? "Voyageur" : "Équipe"} : ${m.message.trim().slice(0, 1200)}`)
+    .slice(-60)
+    .map((m) => `${m.source === "guest" ? "Voyageur" : "Équipe"} : ${m.message.trim().slice(0, 1000)}`)
     .join("\n\n");
 }
 
@@ -179,6 +240,8 @@ Règles :
 - N'inclus JAMAIS de nom ou prénom, téléphone, email, lien, code d'accès, code wifi, numéro de réservation ni date précise de séjour : remplace par une formulation générique ("le voyageur", "à votre arrivée").
 - Garde les faits réutilisables : prix, horaires, conditions, règles, ce que l'équipe propose ou refuse, et la manière dont elle le formule.
 - Ignore : les messages automatiques ou modèles (bienvenue, instructions d'arrivée, codes), les simples remerciements, les demandes restées sans réponse de l'équipe, et les réponses sans contenu réutilisable ("je vérifie et je reviens vers vous").
+- Les étiquettes « Voyageur » / « Équipe » ne sont pas toujours fiables (certains messages de l'équipe sont copiés côté voyageur dans les exports) : déduis qui parle d'après le contenu. L'équipe accueille, donne des instructions, des prix, des conditions et des conseils ; le voyageur demande, s'informe et réserve.
+- Un nom de personne, de joueur, d'accompagnant ou d'entreprise cité dans un message ne doit jamais apparaître dans ta sortie.
 - N'invente rien : ne rapporte que ce que l'équipe a écrit.
 - Si rien n'est exploitable, renvoie une liste vide.`,
     messages: [
@@ -216,6 +279,8 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
   const cands = await candidats(mode);
   const whatsapp = await filsWhatsappAgence(mode);
   for (const [id, w] of whatsapp) cands.set(id, w.fil);
+  // Historique importé de SuperHote : lu une seule fois, en mode "tout".
+  if (mode === "tout") for (const [id, fil] of await filsImport()) cands.set(id, fil);
   const connus = new Map<number, { nb: number; statut: string }>();
   const ilYA12h = Date.now() - 12 * 3600 * 1000;
   for (const f of await db.select().from(agentMemoireFils)) {
@@ -234,7 +299,8 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
   if (aLire.length === 0) return bilan;
 
   const messagesParFil = await beds24GetMessagesBulk(aLire.filter((id) => id > 0));
-  for (const id of aLire) if (id < 0) messagesParFil.set(id, whatsapp.get(id)?.messages ?? []);
+  for (const id of aLire) if (id < 0 && !estFilImport(id)) messagesParFil.set(id, whatsapp.get(id)?.messages ?? []);
+  for (const [id, messages] of await messagesImport(aLire.filter(estFilImport))) messagesParFil.set(id, messages);
 
   type ATraiter = { fil: FilCandidat; messages: Beds24Message[] };
   const aAnalyser: ATraiter[] = [];
@@ -247,7 +313,8 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
       .sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
     const nb = messages.length;
     if (mode === "recents" && connus.get(id)?.nb === nb && connus.get(id)?.statut !== "erreur") continue; // rien de neuf
-    const echangeable = messages.some((m) => m.source === "guest") && messages.some((m) => m.source === "host");
+    // Export SuperHote : étiquettes peu fiables, une conversation à deux messages ou plus suffit.
+    const echangeable = estFilImport(id) ? nb >= 2 : messages.some((m) => m.source === "guest") && messages.some((m) => m.source === "host");
     if (!echangeable) videsOuInchanges.push({ id, nb, vide: true });
     else aAnalyser.push({ fil, messages });
   }
@@ -261,6 +328,7 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
         set: { nbMessages: sql`excluded.nb_messages`, statut: "vide", analyseAt: new Date() },
       });
     bilan.vides = videsOuInchanges.length;
+    await marquerImportTraite(videsOuInchanges.map((v) => v.id).filter(estFilImport));
   }
 
   if (mode === "recents" && aAnalyser.length > MAX_ANALYSES_PAR_APPEL) {
@@ -295,6 +363,7 @@ export async function apprendreLot(mode: "tout" | "recents"): Promise<BilanAppre
         .insert(agentMemoireFils)
         .values({ bookingId: fil.bookingId, villaNom: fil.villaNom, canal: fil.canal, nbMessages: messages.length, statut: "analyse" })
         .onConflictDoUpdate({ target: agentMemoireFils.bookingId, set: { nbMessages: messages.length, statut: "analyse", analyseAt: new Date() } });
+      if (estFilImport(fil.bookingId)) await marquerImportTraite([fil.bookingId]);
       bilan.analyses += 1;
       bilan.echanges += lignes.length;
     } catch (err) {

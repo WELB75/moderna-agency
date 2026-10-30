@@ -126,3 +126,15 @@ test("règles intégrées : la caution est connue de l'agent même sans conversa
   assert.equal(caution.pct, 50);
   assert.equal(c.sujets.find((s) => s.code === "wifi")!.integre, false);
 });
+
+import { trouverLogement } from "./memoire-regles.ts";
+
+test("export SuperHote : les noms de logement sont rattachés à ceux de l'app", () => {
+  const noms = ["Villa Azur", "Livia Cosy", "Maeva Cosy", "Mama cosy", "Villa Tania"];
+  assert.equal(trouverLogement("Livia C", noms), "Livia Cosy");
+  assert.equal(trouverLogement("Maeva cosy", noms), "Maeva Cosy");
+  assert.equal(trouverLogement("villa azur", noms), "Villa Azur");
+  assert.equal(trouverLogement("Villa Inconnue", noms), null);
+  assert.equal(trouverLogement("", noms), null);
+  assert.equal(trouverLogement("Villa", noms), null); // plusieurs villas : pas de choix arbitraire
+});
