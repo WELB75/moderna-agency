@@ -9,7 +9,7 @@ import { agentMemoireBrut, agentMemoireCodes, agentMemoireFiches, agentMemoireFi
 import { beds24GetBookings, beds24GetMessagesBulk, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
 import { LIGNE_AGENCE } from "@/lib/whatsapp-agence";
-import { anonymiser, calculerConnaissances, libelleTheme, trouverLogement, type LogementConnu, THEMES_EXTRACTION, type Connaissances, type FicheMemoire, type ThemeCode } from "./memoire-regles";
+import { anonymiser, calculerConnaissances, libelleTheme, logementExploite, trouverLogement, type LogementConnu, THEMES_EXTRACTION, type Connaissances, type FicheMemoire, type ThemeCode } from "./memoire-regles";
 
 // Mémoire de l'agent IA de la boîte de réception — Kamel, 2026-10-26 : "reprendre tout ce que les
 // clients disent, tout ce qu'ils demandent et tout ce qu'on leur répond pour alimenter la mémoire
@@ -545,7 +545,7 @@ export async function connaissancesAgent(): Promise<Connaissances> {
       .leftJoin(domaines, eq(villas.domaineId, domaines.id)),
   ]);
   const plein = (v: string | null) => Boolean(v && v.trim());
-  const logements: LogementConnu[] = logementsBruts.map((l) => ({
+  const logements: LogementConnu[] = logementsBruts.filter((l) => logementExploite(l.nom)).map((l) => ({
     nom: l.nom,
     wifi: plein(l.wifi),
     boitier: plein(l.boitier),
@@ -600,6 +600,7 @@ export async function chercherCodes(): Promise<BilanCodes> {
   const bilan: BilanCodes = { logements: parLogement.size, propositions: 0, deja: 0, erreurs: [] };
 
   await enParallele([...parLogement.entries()], 4, async ([villaNom, liste]) => {
+    if (!logementExploite(villaNom)) return;
     const recents = liste.sort((a, b) => b.time - a.time).slice(0, 10);
     try {
       const out = await client.messages.parse({
