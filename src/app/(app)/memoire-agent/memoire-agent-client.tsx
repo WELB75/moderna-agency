@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Brain, Pencil, Plus, RefreshCw } from "lucide-react";
+import { Brain, ChevronDown, Pencil, Plus, RefreshCw, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { ajouterFiche, apprendreLotAction, basculerFiche, consoliderAction, modifierFiche, supprimerFiche } from "@/lib/actions/memoire-agent";
-import { libelleTheme, THEMES } from "@/lib/messages-agent/memoire-regles";
+import { libelleTheme, rechercherFiches, THEMES } from "@/lib/messages-agent/memoire-regles";
 
 export type FicheAffichee = {
   id: string;
@@ -34,6 +34,10 @@ export function MemoireAgentClient({ fiches, stats }: { fiches: FicheAffichee[];
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
   const [ajout, setAjout] = useState(false);
+  const [recherche, setRecherche] = useState("");
+  const [choisie, setChoisie] = useState<string | null>(null);
+  const resultats = rechercherFiches(fiches, recherche);
+  const ficheChoisie = choisie ? fiches.find((f) => f.id === choisie) : undefined;
 
   // Lit les fils par lots (chaque lot est un appel serveur de moins de 5 minutes), puis consolide
   // les thèmes concernés. S'arrête si un lot n'avance plus (évite de tourner en boucle).
@@ -114,6 +118,67 @@ export function MemoireAgentClient({ fiches, stats }: { fiches: FicheAffichee[];
         </CardContent>
       </Card>
 
+      <div className="space-y-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={recherche}
+            onChange={(e) => {
+              setRecherche(e.target.value);
+              setChoisie(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && resultats[0]) {
+                setChoisie(resultats[0].id);
+                setRecherche("");
+              }
+            }}
+            placeholder="Chercher dans la mémoire (ex. pisc, arriv, wifi, bébé…)"
+            aria-label="Rechercher dans la mémoire de l'agent"
+            className="pl-9 pr-9 max-md:h-11"
+          />
+          {recherche || choisie ? (
+            <button
+              type="button"
+              onClick={() => {
+                setRecherche("");
+                setChoisie(null);
+              }}
+              aria-label="Effacer la recherche"
+              className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+        {recherche.trim() ? (
+          resultats.length > 0 ? (
+            <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+              {resultats.map((f) => (
+                <li key={f.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChoisie(f.id);
+                      setRecherche("");
+                    }}
+                    className="flex w-full flex-col gap-0.5 px-3 py-2 text-left hover:bg-muted max-md:py-3"
+                  >
+                    <span className="text-sm font-medium">{f.titre}</span>
+                    <span className="line-clamp-1 text-xs text-muted-foreground">
+                      {libelleTheme(f.theme)} · {f.question}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-1 text-sm text-muted-foreground">Aucune fiche ne correspond à « {recherche.trim()} ».</p>
+          )
+        ) : null}
+        {ficheChoisie ? <FicheCarte key={ficheChoisie.id} fiche={ficheChoisie} ouvertParDefaut /> : null}
+      </div>
+
       <div className="flex justify-end">
         <Button variant="outline" size="sm" onClick={() => setAjout((v) => !v)} className="max-md:h-10">
           <Plus className="h-4 w-4" />
@@ -129,7 +194,9 @@ export function MemoireAgentClient({ fiches, stats }: { fiches: FicheAffichee[];
       ) : (
         ordre.map((theme) => (
           <section key={theme} className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{libelleTheme(theme)}</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              {libelleTheme(theme)} <span className="font-normal normal-case">({(parTheme.get(theme) ?? []).length})</span>
+            </h2>
             <div className="space-y-2">
               {(parTheme.get(theme) ?? []).map((f) => (
                 <FicheCarte key={f.id} fiche={f} />
@@ -151,7 +218,8 @@ function Chiffre({ valeur, libelle }: { valeur: number; libelle: string }) {
   );
 }
 
-function FicheCarte({ fiche }: { fiche: FicheAffichee }) {
+function FicheCarte({ fiche, ouvertParDefaut = false }: { fiche: FicheAffichee; ouvertParDefaut?: boolean }) {
+  const [ouvert, setOuvert] = useState(ouvertParDefaut);
   const [edition, setEdition] = useState(false);
   const [titre, setTitre] = useState(fiche.titre);
   const [question, setQuestion] = useState(fiche.question);
@@ -181,15 +249,21 @@ function FicheCarte({ fiche }: { fiche: FicheAffichee }) {
 
   return (
     <Card className={actif ? "" : "opacity-60"}>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-2 max-md:py-3">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 flex-1 space-y-1">
             {edition ? (
               <Input value={titre} onChange={(e) => setTitre(e.target.value)} aria-label="Titre" />
             ) : (
-              <p className="font-medium">{fiche.titre}</p>
+              <button type="button" onClick={() => setOuvert((v) => !v)} aria-expanded={ouvert} className="flex w-full items-start gap-2 text-left">
+                <ChevronDown className={`mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform ${ouvert ? "rotate-180" : ""}`} />
+                <span className="min-w-0">
+                  <span className="block font-medium">{fiche.titre}</span>
+                  {ouvert ? null : <span className="line-clamp-1 block text-sm text-muted-foreground">{fiche.question}</span>}
+                </span>
+              </button>
             )}
-            <div className="flex flex-wrap gap-1.5">
+            <div className={`flex flex-wrap gap-1.5 ${edition ? "" : "pl-6"}`}>
               {fiche.villaNom ? <Badge variant="outline">{fiche.villaNom}</Badge> : <Badge variant="outline">Tous les logements</Badge>}
               {fiche.epingle ? <Badge variant="outline">Écrite ou corrigée à la main</Badge> : <Badge variant="outline">{fiche.nbSources} échange{fiche.nbSources > 1 ? "s" : ""}</Badge>}
             </div>
@@ -223,8 +297,8 @@ function FicheCarte({ fiche }: { fiche: FicheAffichee }) {
               </Button>
             </div>
           </div>
-        ) : (
-          <div className="space-y-1 text-sm">
+        ) : ouvert ? (
+          <div className="space-y-1 pl-6 text-sm">
             <p>
               <span className="text-muted-foreground">Question : </span>
               {fiche.question}
@@ -234,7 +308,7 @@ function FicheCarte({ fiche }: { fiche: FicheAffichee }) {
               {fiche.reponse}
             </p>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
   );

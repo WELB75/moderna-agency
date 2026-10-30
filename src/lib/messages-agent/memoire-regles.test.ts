@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { anonymiser, blocMemoire, type FicheMemoire } from "./memoire-regles.ts";
+import { anonymiser, blocMemoire, rechercherFiches, type FicheMemoire } from "./memoire-regles.ts";
 
 test("anonymisation : emails, liens et téléphones disparaissent", () => {
   const t = anonymiser("Écris à john.doe@gmail.com ou appelle le +33 6 12 34 56 78, voir https://maps.app.goo.gl/abc123 et www.exemple.com/x");
@@ -137,4 +137,13 @@ test("export SuperHote : les noms de logement sont rattachés à ceux de l'app",
   assert.equal(trouverLogement("Villa Inconnue", noms), null);
   assert.equal(trouverLogement("", noms), null);
   assert.equal(trouverLogement("Villa", noms), null); // plusieurs villas : pas de choix arbitraire
+});
+
+test("rechercherFiches : début de mot, accents ignorés, titre prioritaire", () => {
+  const f = (titre: string, question: string, reponse: string) => ({ titre, question, reponse, villaNom: null, theme: "autre" });
+  const fiches = [f("Piscine chauffée", "La piscine est-elle chauffée ?", "Oui, en hiver"), f("Arrivée tardive", "Puis-je arriver après minuit ?", "Oui, avec la piscine fermée"), f("Wifi", "Quel est le code ?", "Voir fiche")];
+  assert.deepEqual(rechercherFiches(fiches, "pisc").map((x) => x.titre), ["Piscine chauffée", "Arrivée tardive"]);
+  assert.deepEqual(rechercherFiches(fiches, "ARRIVEE").map((x) => x.titre), ["Arrivée tardive"]);
+  assert.deepEqual(rechercherFiches(fiches, "  "), []);
+  assert.deepEqual(rechercherFiches(fiches, "piscine minuit").map((x) => x.titre), ["Arrivée tardive"]);
 });

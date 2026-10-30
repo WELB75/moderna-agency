@@ -301,3 +301,31 @@ export const LOGEMENTS_FERMES = ["Villa Kamel", "Villa Eline", "Villa Elysée", 
 export function logementExploite(nom: string): boolean {
   return !LOGEMENTS_FERMES.some((f) => f.toLowerCase() === nom.toLowerCase());
 }
+
+// Recherche instantanée dans les fiches : chaque mot tapé doit être le début d'un mot de la fiche
+// (ou, dès 3 lettres, apparaître dedans). Les fiches dont le titre ou la question correspondent passent devant.
+export function rechercherFiches<T extends { titre: string; question: string; reponse: string; villaNom: string | null; theme: string }>(fiches: T[], saisie: string, max = 8): T[] {
+  const mots = normaliser(saisie).split(/[^a-z0-9]+/).filter(Boolean);
+  if (mots.length === 0) return [];
+  const resultats: { fiche: T; score: number }[] = [];
+  for (const fiche of fiches) {
+    const entete = normaliser(`${fiche.titre} ${fiche.question}`);
+    const corps = normaliser(`${fiche.reponse} ${fiche.villaNom ?? ""} ${libelleTheme(fiche.theme)}`);
+    let score = 0;
+    let tous = true;
+    for (const mot of mots) {
+      const debutEntete = entete.split(/[^a-z0-9]+/).some((w) => w.startsWith(mot));
+      const debutCorps = corps.split(/[^a-z0-9]+/).some((w) => w.startsWith(mot));
+      if (debutEntete) score += 3;
+      else if (debutCorps) score += 2;
+      else if (mot.length >= 3 && entete.includes(mot)) score += 1.5;
+      else if (mot.length >= 3 && corps.includes(mot)) score += 1;
+      else {
+        tous = false;
+        break;
+      }
+    }
+    if (tous) resultats.push({ fiche, score });
+  }
+  return resultats.sort((a, b) => b.score - a.score).slice(0, max).map((r) => r.fiche);
+}
