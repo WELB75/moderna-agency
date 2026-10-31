@@ -7,7 +7,8 @@ import { chargerConditionsFiche } from "@/lib/contrat-donnees";
 import { langueConditions } from "@/lib/conditions-sejour";
 import { ConditionsSeulesForm } from "@/components/app/conditions-seules-form";
 import { Logo } from "@/components/app/logo";
-import { GendarmerieForm } from "@/components/app/gendarmerie-form";
+import { GendarmerieFormProgressif } from "@/components/app/gendarmerie-form-progressif";
+import { chargerEtatFichePublic } from "@/lib/actions/gendarmerie-progressif";
 import { GendarmerieSignatureForm } from "@/components/app/gendarmerie-signature-form";
 
 // Le scan passeport (GendarmerieForm) lit la MRZ via OCR local (voir passport-ocr.ts) : plus lent
@@ -79,11 +80,16 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
       {form.statut === "complete" && conditions ? (
         <ConditionsSeulesForm formId={form.id} lang={langueConditions(form.langue)} conditions={conditions} />
       ) : form.statut === "complete" ? (
-        <div className="py-16 text-center">
-          <p className="text-lg font-medium">
-            Merci, ce formulaire a déjà été rempli. / Thank you, this form has already been submitted.
-          </p>
-        </div>
+        // Fiche complète : écran de confirmation du parcours progressif (permet encore d'ajouter
+        // les photos des enfants ou « une personne de plus »).
+        <GendarmerieFormProgressif
+          formId={form.id}
+          villaNom={form.villaNom ?? "votre logement"}
+          etatInitial={await chargerEtatFichePublic(form.id)}
+          nbEnfants={0}
+          conditions={null}
+          langueInitiale={form.langue}
+        />
       ) : form.statut === "attente_signature" ? (
         <GendarmerieSignatureForm
           formId={form.id}
@@ -92,12 +98,16 @@ export default async function PublicGendarmerieFormPage({ params }: { params: Pr
           conditions={conditions}
         />
       ) : (
-        <GendarmerieForm
+        // 2026-10-31 (Fouad) : enregistrement voyageur par voyageur — chacun remplit sa carte
+        // depuis son téléphone, ce qui est enregistré reste enregistré, la fiche est complète quand
+        // tous les adultes attendus sont là (lib/actions/gendarmerie-progressif.ts).
+        <GendarmerieFormProgressif
           formId={form.id}
           villaNom={form.villaNom ?? "votre logement"}
-          nbAdultes={form.nbAdultes ?? form.nbAdultesPrevu ?? 1}
+          etatInitial={await chargerEtatFichePublic(form.id)}
           nbEnfants={form.nbEnfants ?? form.nbEnfantsPrevu ?? 0}
           conditions={conditions}
+          langueInitiale={form.langue}
         />
       )}
     </div>
