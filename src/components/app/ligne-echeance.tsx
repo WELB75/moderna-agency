@@ -132,7 +132,12 @@ export function LigneEcheance({
         "flex w-[10.25rem] shrink-0 snap-start flex-col gap-1.5 rounded-xl border border-l-[3px] bg-card px-2.5 py-2 transition-colors hover:bg-muted/40",
         // PC : ligne de grille dans le bloc, plus de bordure propre, séparée par un filet.
         masqueePc && "sm:hidden",
-        "sm:grid sm:w-auto sm:h-[46px] sm:grid-cols-[14px_minmax(9rem,1.3fr)_minmax(0,1.6fr)_auto_minmax(7rem,auto)] sm:items-center sm:gap-x-3 sm:rounded-none sm:border-0 sm:border-b sm:border-l-[3px] sm:border-border sm:bg-transparent sm:px-3 sm:py-0",
+        // Colonnes fixes ou en fr, jamais « auto » : chaque ligne est sa propre grille, et une colonne
+        // auto prenait une largeur différente selon le texte, donc rien n'était aligné d'une ligne à
+        // l'autre (Fouad, 2026-10-31 : « tout doit être droit, bien propre et aligné »). Les deux
+        // badges ont chacun leur colonne de largeur fixe, calés à gauche : les « P » de Passeports
+        // et les « C » de Contrat tombent au même endroit sur toutes les lignes.
+        "sm:grid sm:w-auto sm:h-[46px] sm:grid-cols-[14px_minmax(0,1fr)_minmax(0,1.3fr)_8.75rem_6.5rem_8rem] sm:items-center sm:gap-x-3 sm:rounded-none sm:border-0 sm:border-b sm:border-l-[3px] sm:border-border sm:bg-transparent sm:px-3 sm:py-0",
         lisere
       )}
     >
@@ -152,18 +157,28 @@ export function LigneEcheance({
         </span>
       </span>
 
-      <span className="truncate text-[10.5px] text-muted-foreground sm:text-xs">
-        {guestName} · <span className="sm:hidden">{formatUtcDayMonthTime(checkIn)}</span>
-        <span className="hidden sm:inline">arrivée {formatUtcDayMonthTime(checkIn)}</span>
+      {/* Téléphone : « Nom · 05/11 15:00 » sur une ligne. PC : nom, et l'arrivée dessous, comme
+          le type sous le nom de la villa, pour que les deux colonnes aient la même structure. */}
+      <span className="min-w-0 truncate text-[10.5px] text-muted-foreground sm:hidden">
+        {guestName} · {formatUtcDayMonthTime(checkIn)}
+      </span>
+      <span className="hidden min-w-0 sm:block">
+        <span className="block truncate text-[13px] leading-tight text-foreground">{guestName}</span>
+        <span className="block truncate text-[11px] leading-tight text-muted-foreground">arrivée {formatUtcDayMonthTime(checkIn)}</span>
       </span>
 
-      <span className="flex gap-1 sm:gap-1.5">
-        <Badge ok={ficheOk} partiel={!ficheOk && Boolean(progressionFiche)} urgent={e.tone === "urgent"}>
-          {ficheTexte}
-        </Badge>
-        <Badge ok={contratOk} partiel={false} urgent={e.tone === "urgent"}>
-          {contratTexte}
-        </Badge>
+      {/* Téléphone : les deux badges côte à côte. PC : chacun dans sa colonne (display: contents). */}
+      <span className="flex gap-1 sm:contents">
+        <span className="sm:flex sm:min-w-0">
+          <Badge ok={ficheOk} partiel={!ficheOk && Boolean(progressionFiche)} urgent={e.tone === "urgent"}>
+            {ficheTexte}
+          </Badge>
+        </span>
+        <span className="sm:flex sm:min-w-0">
+          <Badge ok={contratOk} partiel={false} urgent={e.tone === "urgent"}>
+            {contratTexte}
+          </Badge>
+        </span>
       </span>
 
       {/* PC : délai aligné à droite, avec son libellé dessous. */}
