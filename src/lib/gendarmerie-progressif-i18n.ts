@@ -40,7 +40,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     title: "Fiche de police (gendarmerie)",
     subtitle: (v) => `Pour votre séjour à ${v}`,
     explication:
-      "Chaque adulte du groupe remplit sa propre fiche : scannez votre passeport, vérifiez, signez. Vous pouvez le faire chacun de votre côté, depuis votre propre téléphone : ce qui est enregistré reste enregistré.",
+      "Chaque adulte du groupe remplit sa propre fiche : scannez votre passeport, vérifiez, signez. Vous pouvez le faire chacun de votre côté, depuis votre propre téléphone : ce qui est enregistré reste enregistré. Faites-le dès maintenant si possible, et au plus tard la veille de votre arrivée.",
     howMany: "Combien d'adultes dans votre groupe ?",
     progress: (r, a) => `${r} adulte${r > 1 ? "s" : ""} sur ${a} enregistré${r > 1 ? "s" : ""}`,
     progressSansTotal: (r) => `${r} adulte${r > 1 ? "s" : ""} enregistré${r > 1 ? "s" : ""}`,
@@ -54,7 +54,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     alreadyDone: "Cette fiche est complète. Merci !",
     share: "Envoyer le lien aux autres voyageurs",
     shareMessage: (v, url, n) =>
-      `Bonjour ! Pour notre séjour à ${v}, chaque adulte doit remplir sa fiche de police (2 minutes : scan du passeport + signature). Il manque encore ${n} personne${n > 1 ? "s" : ""}. C'est ici : ${url}`,
+      `Bonjour ! Pour notre séjour à ${v}, chaque adulte doit remplir sa fiche de police (2 minutes : scan du passeport + signature). Il manque encore ${n} personne${n > 1 ? "s" : ""}. Si possible dès maintenant, au plus tard la veille de l'arrivée.\n\n${url}`,
     copyLink: "Copier le lien",
     copied: "Lien copié",
     addAnother: "Ajouter une autre personne depuis ce téléphone",
@@ -72,7 +72,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     title: "Police registration form",
     subtitle: (v) => `For your stay at ${v}`,
     explication:
-      "Each adult in the group fills in their own form: scan your passport, check, sign. You can each do it separately, from your own phone: whatever is saved stays saved.",
+      "Each adult in the group fills in their own form: scan your passport, check, sign. You can each do it separately, from your own phone: whatever is saved stays saved. Please do it now if you can, and at the latest the day before your arrival.",
     howMany: "How many adults are in your group?",
     progress: (r, a) => `${r} of ${a} adult${a > 1 ? "s" : ""} registered`,
     progressSansTotal: (r) => `${r} adult${r > 1 ? "s" : ""} registered`,
@@ -86,7 +86,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     alreadyDone: "This form is complete. Thank you!",
     share: "Send the link to the other travellers",
     shareMessage: (v, url, n) =>
-      `Hi! For our stay at ${v}, each adult has to fill in their police form (2 minutes: passport scan + signature). ${n} ${n > 1 ? "people are" : "person is"} still missing. Here: ${url}`,
+      `Hi! For our stay at ${v}, each adult has to fill in their police form (2 minutes: passport scan + signature). ${n} ${n > 1 ? "people are" : "person is"} still missing. Now if you can, at the latest the day before arrival.\n\n${url}`,
     copyLink: "Copy link",
     copied: "Link copied",
     addAnother: "Add another person from this phone",
@@ -104,7 +104,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     title: "Ficha de policía",
     subtitle: (v) => `Para su estancia en ${v}`,
     explication:
-      "Cada adulto del grupo rellena su propia ficha: escanee su pasaporte, compruebe, firme. Pueden hacerlo cada uno por su lado, desde su propio teléfono: lo que se guarda, se queda guardado.",
+      "Cada adulto del grupo rellena su propia ficha: escanee su pasaporte, compruebe, firme. Pueden hacerlo cada uno por su lado, desde su propio teléfono: lo que se guarda, se queda guardado. Háganlo ahora si es posible, y a más tardar la víspera de su llegada.",
     howMany: "¿Cuántos adultos hay en su grupo?",
     progress: (r, a) => `${r} de ${a} adulto${a > 1 ? "s" : ""} registrado${r > 1 ? "s" : ""}`,
     progressSansTotal: (r) => `${r} adulto${r > 1 ? "s" : ""} registrado${r > 1 ? "s" : ""}`,
@@ -118,7 +118,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     alreadyDone: "Esta ficha está completa. ¡Gracias!",
     share: "Enviar el enlace a los demás viajeros",
     shareMessage: (v, url, n) =>
-      `¡Hola! Para nuestra estancia en ${v}, cada adulto debe rellenar su ficha de policía (2 minutos: escaneo del pasaporte + firma). Falta${n > 1 ? "n" : ""} ${n} persona${n > 1 ? "s" : ""}. Aquí: ${url}`,
+      `¡Hola! Para nuestra estancia en ${v}, cada adulto debe rellenar su ficha de policía (2 minutos: escaneo del pasaporte + firma). Falta${n > 1 ? "n" : ""} ${n} persona${n > 1 ? "s" : ""}. Ahora si es posible, a más tardar la víspera de la llegada.\n\n${url}`,
     copyLink: "Copiar enlace",
     copied: "Enlace copiado",
     addAnother: "Añadir otra persona desde este teléfono",
@@ -136,7 +136,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     title: "بطاقة الشرطة",
     subtitle: (v) => `لإقامتكم في ${v}`,
     explication:
-      "يملأ كل شخص بالغ في المجموعة بطاقته الخاصة: امسح جواز سفرك، تحقق، ثم وقّع. يمكن لكل واحد فعل ذلك من هاتفه الخاص: ما تم حفظه يبقى محفوظًا.",
+      "يملأ كل شخص بالغ في المجموعة بطاقته الخاصة: امسح جواز سفرك، تحقق، ثم وقّع. يمكن لكل واحد فعل ذلك من هاتفه الخاص: ما تم حفظه يبقى محفوظًا. يُرجى القيام بذلك الآن إن أمكن، وعلى أبعد تقدير في اليوم السابق لوصولكم.",
     howMany: "كم عدد البالغين في مجموعتكم؟",
     progress: (r, a) => `تم تسجيل ${r} من ${a} بالغين`,
     progressSansTotal: (r) => `تم تسجيل ${r} بالغين`,
@@ -150,7 +150,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     alreadyDone: "هذه البطاقة مكتملة. شكرًا!",
     share: "إرسال الرابط إلى بقية المسافرين",
     shareMessage: (v, url, n) =>
-      `مرحبًا! لإقامتنا في ${v}، يجب على كل بالغ ملء بطاقة الشرطة الخاصة به (دقيقتان: مسح جواز السفر + توقيع). لا يزال ينقص ${n} شخص. الرابط: ${url}`,
+      `مرحبًا! لإقامتنا في ${v}، يجب على كل بالغ ملء بطاقة الشرطة الخاصة به (دقيقتان: مسح جواز السفر + توقيع). لا يزال ينقص ${n} شخص. الآن إن أمكن، وعلى أبعد تقدير في اليوم السابق للوصول.\n\n${url}`,
     copyLink: "نسخ الرابط",
     copied: "تم نسخ الرابط",
     addAnother: "إضافة شخص آخر من هذا الهاتف",
@@ -168,7 +168,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     title: "Politieformulier",
     subtitle: (v) => `Voor uw verblijf in ${v}`,
     explication:
-      "Elke volwassene in de groep vult zijn eigen formulier in: scan uw paspoort, controleer, onderteken. Ieder kan dit apart doen, vanaf de eigen telefoon: wat is opgeslagen, blijft opgeslagen.",
+      "Elke volwassene in de groep vult zijn eigen formulier in: scan uw paspoort, controleer, onderteken. Ieder kan dit apart doen, vanaf de eigen telefoon: wat is opgeslagen, blijft opgeslagen. Doe het nu als het kan, en uiterlijk de dag vóór uw aankomst.",
     howMany: "Hoeveel volwassenen telt uw groep?",
     progress: (r, a) => `${r} van ${a} volwassene${a > 1 ? "n" : ""} geregistreerd`,
     progressSansTotal: (r) => `${r} volwassene${r > 1 ? "n" : ""} geregistreerd`,
@@ -182,7 +182,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     alreadyDone: "Dit formulier is volledig. Bedankt!",
     share: "Stuur de link naar de andere reizigers",
     shareMessage: (v, url, n) =>
-      `Hallo! Voor ons verblijf in ${v} moet elke volwassene zijn politieformulier invullen (2 minuten: paspoort scannen + handtekening). Er ontbreekt nog ${n} perso${n > 1 ? "nen" : "on"}. Hier: ${url}`,
+      `Hallo! Voor ons verblijf in ${v} moet elke volwassene zijn politieformulier invullen (2 minuten: paspoort scannen + handtekening). Er ontbreekt nog ${n} perso${n > 1 ? "nen" : "on"}. Nu als het kan, uiterlijk de dag vóór aankomst.\n\n${url}`,
     copyLink: "Link kopiëren",
     copied: "Link gekopieerd",
     addAnother: "Nog iemand toevoegen vanaf deze telefoon",
