@@ -1,7 +1,7 @@
 import { FileClock } from "lucide-react";
 import { chargerArriveesDocuments, progressionFiche } from "@/lib/arrivees-documents";
 import { calculerEcheance } from "@/lib/echeance-documents";
-import { TuileEcheance } from "@/components/app/tuile-echeance";
+import { ListeEcheances } from "@/components/app/liste-echeances";
 import { SectionLabel } from "@/components/app/dashboard-ui";
 
 // « Prochaines échéances » — Fouad, 2026-10-31 : « je voulais un vrai compteur qu'on voit tout le
@@ -10,12 +10,17 @@ import { SectionLabel } from "@/components/app/dashboard-ui";
 // semaine affichée, et celui du bloc « Fiche police, contrat et caution » seulement une fois le
 // bloc déplié.
 //
-// Ici : une tuile par arrivée des 10 prochains jours dont les documents ne sont pas tous réglés
-// (fiche police complète + contrat signé), toujours visible dès l'ouverture, avec un gros compteur
-// qui tourne en direct jusqu'à la limite J-1 (24 h avant l'arrivée, lib/echeance-documents.ts)
-// et, dessous, ce qui manque : « Fiche police 2/4 » (passeports reçus / attendus, voir
-// lib/arrivees-documents.ts) et « Contrat à signer ». Les arrivées déjà en ordre n'apparaissent
-// pas : la bande est une liste de choses à surveiller, pas un agenda.
+// Ici : une ligne par arrivée des 10 prochains jours dont les documents ne sont pas tous réglés
+// (fiche police complète + contrat signé), toujours visible dès l'ouverture, avec le compteur
+// jusqu'à la limite J-1 (24 h avant l'arrivée, lib/echeance-documents.ts) et ce qui manque :
+// « Passeports 2/4 » (reçus / attendus, voir lib/arrivees-documents.ts) et « Contrat ». Les
+// arrivées déjà en ordre n'apparaissent pas : c'est une liste de choses à surveiller, pas un agenda.
+//
+// 2026-10-31, deuxième passe : la première version (une carte par arrivée, gros chiffre, fond
+// rouge) faisait « des gros blocs » sur PC. Désormais un seul bloc, une ligne par arrivée sur PC
+// (liste-echeances.tsx), de petites bulles qui défilent au doigt sur téléphone ; le chrono ne tourne
+// à la seconde que sous 24 h / en retard (ligne-echeance.tsx). Liseré bordeaux = villa, vert
+// d'eau = appartement.
 //
 // Gris : on a le temps. Orange : moins de 24 h avant la limite. Rouge : limite dépassée / arrivé
 // sans papiers. Les retards passent en tête, puis par date d'arrivée.
@@ -37,26 +42,31 @@ export async function EcheancesArrivees({ now }: { now: Date }) {
 
   return (
     <section aria-label="Prochaines échéances" className="space-y-2">
-      <div className="flex items-center gap-2">
-        <FileClock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-        <SectionLabel>Prochaines échéances · fiche police et contrat avant J-1</SectionLabel>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <div className="flex items-center gap-2">
+          <FileClock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+          <SectionLabel>
+            Prochaines échéances · fiche police et contrat avant J-1 · {aSurveiller.length}
+          </SectionLabel>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] bg-primary" aria-hidden />Villa</span>
+          <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] bg-teal-500/80" aria-hidden />Appartement</span>
+        </div>
       </div>
-      {/* Défilement horizontal sur téléphone (une tuile = ~15rem), grille sur grand écran. */}
-      <div className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 lg:grid-cols-3 xl:grid-cols-4">
-        {aSurveiller.map((a) => (
-          <TuileEcheance
-            key={a.id}
-            reservationId={a.id}
-            villaNom={a.villaNom ?? "Logement"}
-            guestName={a.guestName}
-            checkIn={a.checkIn}
-            ficheStatut={a.ficheStatut}
-            contratStatut={a.contratStatut}
-            progressionFiche={progressionFiche(a.fiche)}
-            ficheId={a.fiche?.id ?? null}
-          />
-        ))}
-      </div>
+      <ListeEcheances
+        lignes={aSurveiller.map((a) => ({
+          reservationId: a.id,
+          villaNom: a.villaNom ?? "Logement",
+          villaType: a.villaType,
+          guestName: a.guestName,
+          checkIn: a.checkIn,
+          ficheStatut: a.ficheStatut,
+          contratStatut: a.contratStatut,
+          progressionFiche: progressionFiche(a.fiche),
+          ficheId: a.fiche?.id ?? null,
+        }))}
+      />
     </section>
   );
 }
