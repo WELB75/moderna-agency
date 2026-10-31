@@ -1,20 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, ChevronDown } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { marquerMessageEnvoye } from "@/lib/actions/reservations";
-import { toWhatsAppUrl } from "@/lib/phone";
-import { buildWelcomeMessage, type MessageLang } from "@/lib/message-templates";
-import { cn } from "@/lib/utils";
+import { Sparkles } from "lucide-react";
+import { MessageLangueButton } from "@/components/app/message-langue-button";
+import { buildWelcomeMessage } from "@/lib/message-templates";
 
+// Langue automatique d'après les messages du voyageur (voir MessageLangueButton).
 export function WelcomeMessageButton({
   reservationId,
   phone,
@@ -40,44 +30,17 @@ export function WelcomeMessageButton({
   prominent?: boolean;
   envoyeAt?: Date | null;
 }) {
-  const [envoye, setEnvoye] = useState(Boolean(envoyeAt));
-
-  function handleClick(lang: MessageLang) {
-    const message = buildWelcomeMessage(guestName, villaNom, mapsUrl, wazeUrl, codeBoitier, guideBienvenueUrl, lang, repasInclus);
-    if (phone) {
-      window.open(toWhatsAppUrl(phone, message), "_blank");
-    } else {
-      // Sans numéro (ex. résa Airbnb importée par iCal) : on copie le message pour la conversation Airbnb.
-      navigator.clipboard
-        .writeText(message)
-        .then(() => toast.success("Message copié : colle-le dans la conversation Airbnb."))
-        .catch(() => toast.error("Impossible de copier le message."));
-    }
-    setEnvoye(true);
-    marquerMessageEnvoye(reservationId, "bienvenue").catch(() => {});
-  }
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size={prominent ? "default" : "sm"}
-          className={cn(
-            prominent && "w-full justify-start rounded-xl border-primary/30 py-5 text-primary hover:bg-primary/5",
-            envoye && "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-400"
-          )}
-        >
-          <Sparkles className="h-3.5 w-3.5 shrink-0" />
-          {prominent ? <span className="flex-1 text-center">Message de bienvenue</span> : "Message de bienvenue"}
-          <ChevronDown className="h-3 w-3 shrink-0" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuItem onClick={() => handleClick("fr")}>Français</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => handleClick("en")}>English</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <MessageLangueButton
+      reservationId={reservationId}
+      phone={phone}
+      icon={Sparkles}
+      label="Message de bienvenue"
+      type="bienvenue"
+      build={(lang) => buildWelcomeMessage(guestName, villaNom, mapsUrl, wazeUrl, codeBoitier, guideBienvenueUrl, lang, repasInclus)}
+      prominent={prominent}
+      envoyeAt={envoyeAt}
+      copieToast="Message copié : colle-le dans la conversation Airbnb."
+    />
   );
 }

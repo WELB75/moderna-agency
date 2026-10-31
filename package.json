@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/lib/fiche-police-progression.test.ts src/lib/echeance-documents.test.ts src/lib/annulation-resa.test.ts src/lib/messages-agent/memoire-regles.test.ts src/lib/caution/regles.test.ts",
+    "test": "node --test src/lib/langue-voyageur.test.ts src/lib/fiche-police-progression.test.ts src/lib/echeance-documents.test.ts src/lib/annulation-resa.test.ts src/lib/messages-agent/memoire-regles.test.ts src/lib/caution/regles.test.ts",
     "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
     "db:push": "dotenv -e .env.local -- drizzle-kit push",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio"
