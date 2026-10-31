@@ -6,7 +6,8 @@ export type MessageLang = "fr" | "en";
 // Carte tarifs cuisinière (formules petit-déj / petit-déj + déjeuner) envoyée en pièce jointe
 // (lien image, WhatsApp l'affiche en aperçu) dans le message d'arrivée et le message de
 // bienvenue. Kamel, 2026-08-13.
-const CARTE_REPAS_URL = "https://loyak6makvlkxqye.public.blob.vercel-storage.com/welcome/carte-repas-moderna-agency.png";
+// 2026-10-31 (Fouad) : plus de lien vers la carte des repas dans les messages (la carte est en
+// cours de refonte) — on dit seulement si la cuisinière est incluse ou non.
 
 // Message unique envoyé au client avant son arrivée : demande l'horaire, transmet le lien de la
 // fiche de police dans le même message si elle n'est pas déjà complétée, et propose la cuisinière
@@ -30,11 +31,11 @@ export function buildArrivalMessage(
   repasInclus: boolean = false
 ): string {
   const cuisineFr = repasInclus
-    ? `Une cuisinière est déjà incluse dans votre séjour, sans supplément (voir formules ci-joint) :\n${CARTE_REPAS_URL}\nSeuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
-    : `Souhaitez-vous également les services d'une cuisinière pendant votre séjour ? Formules ci-joint :\n${CARTE_REPAS_URL}`;
+    ? `Une cuisinière est déjà incluse dans votre séjour, sans supplément. Seuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
+    : `Souhaitez-vous également les services d'une cuisinière pendant votre séjour ? Dites-le-nous et nous vous indiquerons les formules.`;
   const cuisineEn = repasInclus
-    ? `A cook is already included in your stay, at no extra cost (menu attached):\n${CARTE_REPAS_URL}\nOnly the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
-    : `Would you also like the services of a cook during your stay? Formulas attached:\n${CARTE_REPAS_URL}`;
+    ? `A cook is already included in your stay, at no extra cost. Only the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
+    : `Would you also like the services of a cook during your stay? Let us know and we will send you the options.`;
 
   if (lang === "en") {
     const when = isSameDay(checkIn, now)
@@ -103,11 +104,11 @@ export function buildWelcomeMessage(
   repasInclus: boolean = false
 ): string {
   const carteRepasFr = repasInclus
-    ? `🍽️ Une cuisinière est déjà incluse dans votre séjour, sans supplément (formules ci-joint) :\n${CARTE_REPAS_URL}\nSeuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
-    : `🍽️ Envie d'une cuisinière pendant votre séjour ? Formules ci-joint :\n${CARTE_REPAS_URL}`;
+    ? `🍽️ Une cuisinière est déjà incluse dans votre séjour, sans supplément. Seuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
+    : `🍽️ Envie d'une cuisinière pendant votre séjour ? Dites-le-nous et nous vous indiquerons les formules.`;
   const carteRepasEn = repasInclus
-    ? `🍽️ A cook is already included in your stay, at no extra cost (menu attached):\n${CARTE_REPAS_URL}\nOnly the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
-    : `🍽️ Would you like a cook during your stay? Formulas attached:\n${CARTE_REPAS_URL}`;
+    ? `🍽️ A cook is already included in your stay, at no extra cost. Only the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
+    : `🍽️ Would you like a cook during your stay? Let us know and we will send you the options.`;
 
   if (lang === "en") {
     const lines = [
@@ -158,9 +159,9 @@ export function buildWelcomeMessage(
 // on se repete"). Disponible en français et en anglais.
 export function buildCuisineCoursesMessage(guestName: string, lang: MessageLang = "fr"): string {
   if (lang === "en") {
-    return `Hello ${guestName},\n\nFor the groceries, you have two options:\n\n1. You do the shopping yourself, and our cook will prepare the meals with what you've bought.\n\n2. You let us know what you'd like for breakfast and lunch the day after your arrival, and we'll send our runner to do the shopping for you (the cost of the groceries and fuel will be charged to you). The receipt will be given to you as proof of purchase.\n\nYou can browse our menu to make your choice for the day after your arrival here: ${CARTE_REPAS_URL}\n\nFor the rest of your stay, you can arrange things directly with the cook day by day — she will pass the order on to our runner based on what you'd like.\n\nThank you very much.`;
+    return `Hello ${guestName},\n\nFor the groceries, you have two options:\n\n1. You do the shopping yourself, and our cook will prepare the meals with what you've bought.\n\n2. You let us know what you'd like for breakfast and lunch the day after your arrival, and we'll send our runner to do the shopping for you (the cost of the groceries and fuel will be charged to you). The receipt will be given to you as proof of purchase.\n\nJust tell us what you would like for the day after your arrival.\n\nFor the rest of your stay, you can arrange things directly with the cook day by day — she will pass the order on to our runner based on what you'd like.\n\nThank you very much.`;
   }
-  return `Bonjour ${guestName},\n\nPour les courses, deux possibilités s'offrent à vous :\n\n1. Vous faites vous-même les courses, et notre cuisinière prépare les repas avec ce que vous aurez acheté.\n\n2. Vous nous indiquez vos souhaits pour le petit-déjeuner et le déjeuner du lendemain de votre arrivée, et nous envoyons notre coursier faire les courses pour vous (le montant des courses et l'essence vous seront facturés). Le ticket de caisse vous sera remis comme justificatif.\n\nVous pouvez consulter notre carte pour faire votre choix du lendemain de votre arrivée ici : ${CARTE_REPAS_URL}\n\nPour la suite de votre séjour, vous pourrez vous organiser directement avec la cuisinière au jour le jour : elle se chargera de faire passer la commande à notre coursier selon vos envies.\n\nMerci beaucoup.`;
+  return `Bonjour ${guestName},\n\nPour les courses, deux possibilités s'offrent à vous :\n\n1. Vous faites vous-même les courses, et notre cuisinière prépare les repas avec ce que vous aurez acheté.\n\n2. Vous nous indiquez vos souhaits pour le petit-déjeuner et le déjeuner du lendemain de votre arrivée, et nous envoyons notre coursier faire les courses pour vous (le montant des courses et l'essence vous seront facturés). Le ticket de caisse vous sera remis comme justificatif.\n\nDites-nous simplement vos envies pour le lendemain de votre arrivée.\n\nPour la suite de votre séjour, vous pourrez vous organiser directement avec la cuisinière au jour le jour : elle se chargera de faire passer la commande à notre coursier selon vos envies.\n\nMerci beaucoup.`;
 }
 
 // Message envoyé le matin du départ, avec la procédure de checkout — distinct de
