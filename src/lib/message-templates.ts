@@ -46,7 +46,7 @@ export function buildArrivalMessage(
     const base = `Hello ${guestName},\n\nI hope you are doing well.\n\nThis is Kamel, regarding your check-in ${when}.\n\nDo you have an idea of your arrival time at the villa?`;
 
     const fiche = ficheLink
-      ? `For the police registration form (required for the security of the domain and to protect you as well as the owner), just fill it in here: ${ficheLink}\nTake a photo of your passport's photo page and the fields fill in automatically — just check and sign.`
+      ? `For the police registration form (required for the security of the domain and to protect you as well as the owner), just fill it in here: ${ficheLink}\nTake a photo of your passport's photo page and the fields fill in automatically — just check and sign.\nEach adult fills in their own form (2 minutes): you can do yours now and forward the same link to the others, whatever is saved stays saved. Everything must be done 24 hours before arrival.`
       : null;
 
     return [base, fiche, cuisineEn, "Thank you,\nKamel, Moderna Agency"].filter(Boolean).join("\n\n");
@@ -61,7 +61,7 @@ export function buildArrivalMessage(
   const base = `Bonjour ${guestName},\n\nJ'espère que vous allez bien.\n\nC'est Kamel, pour votre check-in ${quand}.\n\nAvez-vous une idée de votre horaire d'arrivée à la villa ?`;
 
   const fiche = ficheLink
-    ? `Pour la fiche de police (obligatoire, sécurité du domaine et protection du client comme du propriétaire), remplissez-la simplement ici : ${ficheLink}\nPrenez juste en photo la page avec votre photo sur le passeport, les champs se remplissent automatiquement — il ne reste plus qu'à vérifier et signer.`
+    ? `Pour la fiche de police (obligatoire, sécurité du domaine et protection du client comme du propriétaire), remplissez-la simplement ici : ${ficheLink}\nPrenez juste en photo la page avec votre photo sur le passeport, les champs se remplissent automatiquement — il ne reste plus qu'à vérifier et signer.\nChaque adulte remplit sa propre fiche (2 minutes) : faites la vôtre dès maintenant et transférez le même lien aux autres, ce qui est enregistré reste enregistré. Le tout doit être fait 24 h avant l'arrivée.`
     : null;
 
   return [base, fiche, cuisineFr, "Merci,\nKamel, Moderna Agency"].filter(Boolean).join("\n\n");
