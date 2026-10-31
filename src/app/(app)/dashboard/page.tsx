@@ -35,6 +35,7 @@ import { type PlanVilla } from "@/components/app/domaine-plan-moderna-ii";
 import { DomainePlanTrigger } from "@/components/app/domaine-plan-trigger";
 import { DashboardOverview } from "@/components/app/dashboard-overview";
 import { SuiviArrivees } from "@/components/app/suivi-arrivees";
+import { EcheancesArrivees } from "@/components/app/echeances-arrivees";
 import { type ReservationRow } from "@/components/app/reservation-row-card";
 import { ReservationAgendaCard } from "@/components/app/reservation-agenda-card";
 import { RowIcon, RowTitle } from "@/components/app/dashboard-ui";
@@ -537,6 +538,8 @@ export default async function DashboardPage({
       {offsetSemaines === 0 ? (
         <section className="space-y-4" aria-label="Aujourd'hui">
           <DashboardOverview now={now} />
+          {/* Compteurs permanents fiche police + contrat (Fouad, 2026-10-31), avant le bloc replié. */}
+          <EcheancesArrivees now={now} />
           <SuiviArrivees now={now} />
         </section>
       ) : null}

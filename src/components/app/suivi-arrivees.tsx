@@ -1,14 +1,11 @@
 import Link from "next/link";
-import { and, asc, eq, gte, inArray, lte, ne } from "drizzle-orm";
-import { addDays, endOfDay, format, startOfDay } from "date-fns";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Clock, FileSignature, FileText, ShieldCheck, type LucideIcon } from "lucide-react";
-import { getDb } from "@/db";
-import { contratsLocation, gendarmerieForms, reservations, villas } from "@/db/schema";
 import { EcheanceDocuments } from "@/components/app/echeance-documents";
 import { calculerEcheance, echeanceDocuments } from "@/lib/echeance-documents";
+import { chargerArriveesDocuments, progressionFiche } from "@/lib/arrivees-documents";
 import { CanalDot } from "@/components/app/canal-badge";
-import { villaEstGeree } from "@/lib/domaines-actifs";
 import { cn } from "@/lib/utils";
 import { RowChevron, RowIcon, RowTitle, StatusDot, summaryRowClass } from "@/components/app/dashboard-ui";
 
@@ -30,15 +27,6 @@ import { RowChevron, RowIcon, RowTitle, StatusDot, summaryRowClass } from "@/com
 // limite J-1 (lib/echeance-documents.ts) ; les arrivées en retard remontent en tête de liste.
 
 const NB_JOURS = 7;
-
-// Pas de voyageur à suivre : blocages (assistant "Blocage · ...", dates fermées iCal, résas Beds24
-// nommées "Blocage Airbnb"...) et séjours "Famille" (ni caution ni fiche police demandées) — même
-// esprit que estBlocage/ficheRequise dans security-data.ts.
-const NOM_SANS_VOYAGEUR = /^(blocage|date bloqu|not available|blocked|indisponible)/i;
-function aSuivre(r: { canal: string | null; guestName: string }): boolean {
-  const canal = r.canal ?? "";
-  return !canal.startsWith("Blocage") && canal !== "Famille" && !NOM_SANS_VOYAGEUR.test(r.guestName.trim());
-}
 
 type StatutTone = "ok" | "attente" | "urgent" | "neutre";
 
@@ -99,13 +87,22 @@ export function statutCaution(
   };
 }
 
-export function statutFichePolice(r: { checkIn: Date }, fiche: "complete" | "en_attente" | null, now: Date): Statut {
+// `progression` : « 2/4 passeports » quand une partie du groupe s'est déjà enregistrée
+// (enregistrement voyageur par voyageur, 2026-10-31) — remplace alors « En attente ».
+export function statutFichePolice(
+  r: { checkIn: Date },
+  fiche: "complete" | "en_attente" | null,
+  now: Date,
+  progression: string | null = null
+): Statut {
   if (fiche === "complete") return { tone: "ok", label: "Faite" };
   const lien = aJourHeure(r.checkIn, -2, 10);
-  if (now >= r.checkIn) return { tone: "urgent", label: "Manquante", detail: "Voyageur arrivé sans fiche" };
-  if (now >= echeanceDocuments(r.checkIn)) return { tone: "urgent", label: "En attente", detail: "Limite J-1 dépassée" };
+  const enCours = progression ?? "En attente";
+  if (now >= r.checkIn) return { tone: "urgent", label: progression ?? "Manquante", detail: "Voyageur arrivé sans fiche complète" };
+  if (now >= echeanceDocuments(r.checkIn)) return { tone: "urgent", label: enCours, detail: "Limite J-1 dépassée" };
+  if (progression) return { tone: "attente", label: progression, detail: "Il manque encore des passeports" };
   if (now < lien) return { tone: "neutre", label: "Lien pas encore envoyé", detail: `Envoi prévu ${quand(lien)}` };
-  return { tone: "attente", label: "En attente", detail: "Lien envoyé, pas encore remplie" };
+  return { tone: "attente", label: enCours, detail: "Lien envoyé, pas encore remplie" };
 }
 
 export function statutContrat(r: { checkIn: Date }, contrat: "signe" | "en_attente" | null, now: Date): Statut {
@@ -137,84 +134,17 @@ function StatutChip({ icon: Icon, titre, statut, href }: { icon: LucideIcon; tit
 }
 
 export async function SuiviArrivees({ now }: { now: Date }) {
-  const db = getDb();
-  const debut = startOfDay(now);
-  const fin = endOfDay(addDays(now, NB_JOURS - 1));
-
-  const arrivees = (
-    await db
-      .select({
-        id: reservations.id,
-        guestName: reservations.guestName,
-        checkIn: reservations.checkIn,
-        canal: reservations.canal,
-        caution: reservations.caution,
-        cautionPayee: reservations.cautionPayee,
-        villaId: villas.id,
-        villaNom: villas.nom,
-      })
-      .from(reservations)
-      .leftJoin(villas, eq(reservations.villaId, villas.id))
-      .where(and(ne(reservations.status, "annulee"), gte(reservations.checkIn, debut), lte(reservations.checkIn, fin)))
-      .orderBy(asc(reservations.checkIn))
-  ).filter((r) => villaEstGeree(r.villaNom) && aSuivre(r));
-
-  const ids = arrivees.map((r) => r.id);
-  const villaIds = Array.from(new Set(arrivees.map((r) => r.villaId).filter((id): id is string => Boolean(id))));
-  const [fiches, contrats] = await Promise.all([
-    ids.length > 0
-      ? db
-          .select({ id: gendarmerieForms.id, reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
-          .from(gendarmerieForms)
-          .where(inArray(gendarmerieForms.reservationId, ids))
-      : [],
-    // Le contrat n'est pas lié à la réservation en base : rapproché par villa + date d'arrivée,
-    // comme sur les cartes de l'agenda (dashboard/page.tsx).
-    villaIds.length > 0
-      ? db
-          .select({ id: contratsLocation.id, villaId: contratsLocation.villaId, dateArrivee: contratsLocation.dateArrivee, statut: contratsLocation.statut })
-          .from(contratsLocation)
-          .where(inArray(contratsLocation.villaId, villaIds))
-      : [],
-  ]);
-  const contratParVillaEtDate = new Map<string, { id: string; statut: "signe" | "en_attente" }>();
-  for (const c of contrats) {
-    if (!c.villaId || !c.dateArrivee) continue;
-    const cle = `${c.villaId}|${c.dateArrivee}`;
-    const actuel = contratParVillaEtDate.get(cle);
-    if (c.statut === "signe" || actuel?.statut !== "signe") {
-      contratParVillaEtDate.set(cle, { id: c.id, statut: c.statut === "signe" ? "signe" : "en_attente" });
-    }
-  }
-  // Une fiche "complete" l'emporte sur une fiche en attente créée en double pour le même séjour.
-  const ficheParResa = new Map<string, { id: string; statut: "complete" | "en_attente" }>();
-  for (const f of fiches) {
-    if (!f.reservationId) continue;
-    const actuelle = ficheParResa.get(f.reservationId);
-    if (!actuelle || (f.statut === "complete" && actuelle.statut !== "complete")) {
-      ficheParResa.set(f.reservationId, { id: f.id, statut: f.statut === "complete" ? "complete" : "en_attente" });
-    }
-  }
+  // Chargement commun avec les tuiles « Prochaines échéances » (lib/arrivees-documents.ts).
+  const arrivees = await chargerArriveesDocuments(now, NB_JOURS);
 
   const lignes = arrivees
-    .map((r) => {
-      const fiche = ficheParResa.get(r.id) ?? null;
-      const cle = r.villaId ? `${r.villaId}|${format(r.checkIn, "yyyy-MM-dd")}` : null;
-      const contrat = cle ? (contratParVillaEtDate.get(cle) ?? null) : null;
-      const ficheStatut = fiche?.statut ?? null;
-      const contratStatut = contrat?.statut ?? null;
-      return {
-        ...r,
-        fiche,
-        contrat,
-        ficheStatut,
-        contratStatut,
-        caution: statutCaution(r, now),
-        police: statutFichePolice(r, ficheStatut, now),
-        conditions: statutContrat(r, contratStatut, now),
-        echeance: calculerEcheance({ checkIn: r.checkIn, ficheStatut, contratStatut }, now),
-      };
-    })
+    .map((r) => ({
+      ...r,
+      caution: statutCaution(r, now),
+      police: statutFichePolice(r, r.ficheStatut, now, progressionFiche(r.fiche)),
+      conditions: statutContrat(r, r.contratStatut, now),
+      echeance: calculerEcheance({ checkIn: r.checkIn, ficheStatut: r.ficheStatut, contratStatut: r.contratStatut }, now),
+    }))
     // Ce qui est en retard (limite J-1 dépassée, ou arrivé sans papiers) en tête, puis par
     // arrivée : on voit d'abord ce qu'il faut traiter tout de suite.
     .sort((a, b) => {
