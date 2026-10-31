@@ -9,12 +9,10 @@ import {
   ChevronDown,
   CircleCheck,
   DoorClosedLocked,
-  FileText,
   Info,
   KeyRound,
   LogIn,
   LogOut,
-  ScrollText,
   UserCheck,
   Users,
   Wallet,
@@ -34,6 +32,7 @@ import { EditReservationTimeDialog } from "@/components/app/edit-reservation-tim
 import { ProlongerSejourDialog } from "@/components/app/prolonger-sejour-dialog";
 import { ValidateCheckinCheckoutButton } from "@/components/app/validate-checkin-checkout-button";
 import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip";
+import { EcheanceDocuments } from "@/components/app/echeance-documents";
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
 import { DeclarationSyndicChip } from "@/components/app/declaration-syndic-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
@@ -89,7 +88,10 @@ export function ReservationAgendaCard({
   const isBloque = Boolean(r.canal && normaliseCanal(r.canal) === "bloque");
   const nuits = Math.max(0, differenceInCalendarDays(new Date(r.checkOut), new Date(r.checkIn)));
 
-  const statuts = resumeStatuts(r, kind, isProprietaire);
+  const statuts = resumeStatuts(r, kind);
+  // Blocage (dates fermées, séjour propriétaire importé...) : pas de voyageur, donc ni fiche
+  // police ni contrat à suivre.
+  const suivreDocuments = isIn && !isProprietaire && !isBloque;
 
   return (
     <details
@@ -162,8 +164,14 @@ export function ReservationAgendaCard({
             ) : null}
             {isIn && nuits > 0 ? <span className="hidden shrink-0 text-xs sm:inline">· {nuits} nuit{nuits > 1 ? "s" : ""}</span> : null}
           </p>
-          {statuts.length > 0 || r.notes ? (
+          {statuts.length > 0 || r.notes || suivreDocuments ? (
             <p className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+              {/* Fiche police + contrat : un seul compte à rebours jusqu'à la limite J-1 (24 h
+                  avant l'arrivée), au lieu de deux mentions "Fiche police" / "Contrat" sans
+                  notion d'urgence. */}
+              {suivreDocuments ? (
+                <EcheanceDocuments checkIn={new Date(r.checkIn)} ficheStatut={r.ficheStatut} contratStatut={r.contratStatut} />
+              ) : null}
               {statuts.map((s) => (
                 <StatutMini key={s.label} {...s} />
               ))}
@@ -431,24 +439,10 @@ type StatutMiniProps = { label: string; tone: "ok" | "attente" | "urgent" | "neu
 
 // Points clés affichés dans la ligne de résumé, sans ouvrir la carte : ce qui conditionne
 // l'arrivée (fiche police, contrat, cuisine prévue) ou le départ (ménage, cash à apporter).
-function resumeStatuts(r: ReservationRow, kind: "in" | "out", isProprietaire: boolean): StatutMiniProps[] {
+function resumeStatuts(r: ReservationRow, kind: "in" | "out"): StatutMiniProps[] {
   const out: StatutMiniProps[] = [];
-  // Blocage (dates fermées, séjour propriétaire importé...) : pas de voyageur, donc ni fiche
-  // police ni contrat à suivre.
-  const bloque = Boolean(r.canal && normaliseCanal(r.canal) === "bloque");
   if (kind === "in") {
-    if (!isProprietaire && !bloque) {
-      out.push({
-        icon: FileText,
-        label: r.ficheStatut === "complete" ? "Fiche police faite" : "Fiche police",
-        tone: r.ficheStatut === "complete" ? "ok" : "attente",
-      });
-      out.push({
-        icon: ScrollText,
-        label: r.contratStatut === "signe" ? "Contrat signé" : "Contrat",
-        tone: r.contratStatut === "signe" ? "ok" : "attente",
-      });
-    }
+    // Fiche police / contrat : voir EcheanceDocuments dans la ligne de résumé.
     if (r.cuisineAssignes.length > 0) {
       out.push({ icon: ChefHat, label: `Cuisine : ${r.cuisineAssignes.map((a) => a.nom.split(" ")[0]).join(", ")}`, tone: "ok" });
     }

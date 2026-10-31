@@ -542,58 +542,30 @@ export default async function DashboardPage({
       ) : null}
 
       <Tabs defaultValue="Domaine Moderna II" className="gap-4">
-        {/* Barre de la semaine : navigateur de semaine, domaines, options. Une seule ligne sur
-            grand écran ; sur téléphone et tablette, les onglets passent sur leur propre ligne,
-            pleine largeur (Kamel, 2026-10-16 : "voir directement 2-3 jours à venir sans
-            scroller"). La loupe n'est plus répétée ici : la recherche est déjà dans l'en-tête. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="order-1 flex items-center gap-2">
-            <div className="inline-flex h-10 items-center rounded-xl border border-border bg-card p-0.5">
-              <Link
-                href={offsetSemaines - 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines - 1}`}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Semaine précédente"
-                title="Semaine précédente"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-              <h2 className="px-1 text-sm font-semibold tracking-tight sm:text-[15px]">
-                {offsetSemaines === 0
-                  ? "Cette semaine"
-                  : `${format(rangeStart, "d MMM", { locale: fr })} – ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
-              </h2>
-              <Link
-                href={offsetSemaines + 1 === 0 ? "/dashboard" : `/dashboard?semaine=${offsetSemaines + 1}`}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-                aria-label="Semaine suivante"
-                title="Semaine suivante"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Link>
-            </div>
-            {offsetSemaines !== 0 ? (
-              <Link href="/dashboard" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
-                Aujourd&apos;hui
-              </Link>
-            ) : null}
-          </div>
-
-          <TabsList className="order-3 h-11 w-full gap-1 rounded-xl bg-muted p-1 lg:order-2 lg:h-10 lg:w-auto lg:min-w-0 lg:max-w-md lg:flex-1">
+        {/* 2026-10-30 (Fouad, « disposition plus compréhensible ») : la ligne du haut ne porte plus
+            que le filtre par domaine (pleine largeur, libellés courts sur téléphone pour ne plus
+            voir « Villa Modern… ») et le bouton d'options ; la navigation de semaine descend juste
+            au-dessus de l'agenda, qui est la seule chose qu'elle fait défiler. Avant, les deux
+            étaient côte à côte et on ne savait pas si « Cette semaine » filtrait les onglets ou
+            l'inverse. La loupe n'est plus répétée ici : la recherche est déjà dans l'en-tête. */}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <TabsList className="h-11 min-w-0 flex-1 gap-1 rounded-xl bg-muted p-1 lg:h-10 lg:max-w-md">
             {DASHBOARD_DOMAINES.map((d) => (
               <TabsTrigger
                 key={d}
                 value={d}
                 className="h-9 min-w-0 flex-1 rounded-lg px-2 text-[13px] font-semibold sm:text-sm lg:h-8 data-active:bg-primary data-active:text-primary-foreground data-active:shadow-none"
               >
-                <span className="truncate">{domaineLabel(d)}</span>
+                <span className="truncate sm:hidden">{domaineLabelCourt(d)}</span>
+                <span className="hidden truncate sm:inline">{domaineLabel(d)}</span>
               </TabsTrigger>
             ))}
           </TabsList>
 
           {/* Synchro/import : rarement utilisés au quotidien, repliés derrière un seul bouton. */}
-          <details className="group relative order-2 ml-auto lg:order-3">
+          <details className="group relative shrink-0">
             <summary
-              className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-xl border border-border bg-card text-muted-foreground marker:content-none hover:text-foreground [&::-webkit-details-marker]:hidden"
+              className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-xl border border-border bg-card text-muted-foreground marker:content-none hover:text-foreground lg:h-10 lg:w-10 [&::-webkit-details-marker]:hidden"
               aria-label="Options"
               title="Options"
             >
@@ -625,12 +597,79 @@ export default async function DashboardPage({
               <VillasLibresRow villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
             </div>
 
-            <Agenda reservations={upcomingByDomaine.get(d)!} days={days} now={now} semaineCourante={offsetSemaines === 0} />
+            <div className="space-y-3">
+              <SemaineNav offsetSemaines={offsetSemaines} rangeStart={rangeStart} rangeEnd={rangeEnd} reservations={upcomingByDomaine.get(d)!} />
+              <Agenda reservations={upcomingByDomaine.get(d)!} days={days} now={now} semaineCourante={offsetSemaines === 0} />
+            </div>
 
             <MaintenanceCard maintenance={maintenanceByDomaine.get(d)!} />
           </TabsContent>
         ))}
       </Tabs>
+    </div>
+  );
+}
+
+// Libellés courts des onglets sur téléphone (« Moderna 2 », « Moderna 1 », « Noria » — mêmes
+// noms d'usage que la carte du personnel) : à trois onglets sur 360px, « Villa Moderna 2 » était
+// coupé en « Villa Modern… ».
+function domaineLabelCourt(nom: string): string {
+  return domaineLabel(nom).replace(/^Villa /, "");
+}
+
+// En-tête de l'agenda : navigation de semaine à gauche, bilan de la semaine (arrivées/départs du
+// domaine affiché) à droite. Les flèches gardent l'onglet actif (même URL, paramètre semaine).
+function SemaineNav({
+  offsetSemaines,
+  rangeStart,
+  rangeEnd,
+  reservations: resas,
+}: {
+  offsetSemaines: number;
+  rangeStart: Date;
+  rangeEnd: Date;
+  reservations: ReservationRow[];
+}) {
+  const nbIn = resas.filter((r) => new Date(r.checkIn) >= rangeStart && new Date(r.checkIn) <= rangeEnd).length;
+  const nbOut = resas.filter((r) => new Date(r.checkOut) >= rangeStart && new Date(r.checkOut) <= rangeEnd).length;
+  const hrefSemaine = (n: number) => (n === 0 ? "/dashboard" : `/dashboard?semaine=${n}`);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="inline-flex h-10 items-center rounded-xl border border-border bg-card p-0.5">
+        <Link
+          href={hrefSemaine(offsetSemaines - 1)}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Semaine précédente"
+          title="Semaine précédente"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Link>
+        <h2 className="px-1 text-sm font-semibold tracking-tight sm:text-[15px]">
+          {offsetSemaines === 0
+            ? "Cette semaine"
+            : `${format(rangeStart, "d MMM", { locale: fr })} – ${format(rangeEnd, "d MMM yyyy", { locale: fr })}`}
+        </h2>
+        <Link
+          href={hrefSemaine(offsetSemaines + 1)}
+          className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          aria-label="Semaine suivante"
+          title="Semaine suivante"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Link>
+      </div>
+      {offsetSemaines !== 0 ? (
+        <Link href="/dashboard" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+          Revenir à aujourd&apos;hui
+        </Link>
+      ) : null}
+      <span className="ml-auto text-xs text-muted-foreground">
+        {nbIn + nbOut === 0
+          ? "Rien de prévu"
+          : [nbIn > 0 ? `${nbIn} arrivée${nbIn > 1 ? "s" : ""}` : null, nbOut > 0 ? `${nbOut} départ${nbOut > 1 ? "s" : ""}` : null]
+              .filter(Boolean)
+              .join(" · ")}
+      </span>
     </div>
   );
 }
