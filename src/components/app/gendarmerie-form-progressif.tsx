@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Copy, Loader2, Plus, ScanLine, Share2, UserCheck, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -95,7 +94,6 @@ export function GendarmerieFormProgressif({
   conditions?: ConditionsSejourData | null;
   langueInitiale?: string | null;
 }) {
-  const router = useRouter();
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
   const [etat, setEtat] = useState<EtatFiche>(etatInitial);
   const [attendusSaisi, setAttendusSaisi] = useState<string>(etatInitial.attendus ? String(etatInitial.attendus) : "");
@@ -238,7 +236,11 @@ export function GendarmerieFormProgressif({
         setAccepteConditions(false);
         pad.clear();
         window.scrollTo({ top: 0, behavior: "smooth" });
-        router.refresh();
+        // Pas de router.refresh() ici : l'état renvoyé par l'action suffit, et le rechargement du
+        // rendu serveur juste après (fonction Vercel à froid, base Neon endormie) laissait le
+        // navigateur WhatsApp sur une page blanche — une cliente a cru que « ça beugue », un
+        // rafraîchissement manuel remettait tout (Fouad, 2026-10-31). Les autres voyageurs voient
+        // le bon compte en ouvrant le lien (revalidatePath côté action).
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur / Error");
       }
@@ -288,7 +290,6 @@ export function GendarmerieFormProgressif({
         const nouvelEtat = await fixerNombreAdultesPublic(formId, n);
         setEtat(nouvelEtat);
         setAttendusSaisi(String(n));
-        router.refresh();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur / Error");
       }
