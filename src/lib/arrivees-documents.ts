@@ -39,6 +39,7 @@ export type ArriveeDocuments = {
   nbAdultes: number | null;
   villaId: string | null;
   villaNom: string | null;
+  villaType: "villa" | "appartement" | null;
   fiche: FicheArrivee | null;
   contrat: { id: string; statut: "signe" | "en_attente" } | null;
   ficheStatut: "complete" | "en_attente" | null;
@@ -62,6 +63,7 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
         nbAdultes: reservations.nbAdultes,
         villaId: villas.id,
         villaNom: villas.nom,
+        villaType: villas.type,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
