@@ -21,7 +21,6 @@ const client = new Anthropic();
 // whatsapp-agent/agent.ts) : en dirhams, en plus du loyer.
 const CUISINIERE_PETIT_DEJ_MAD = 200;
 const CUISINIERE_PETIT_DEJ_DEJEUNER_MAD = 300;
-const CARTE_REPAS_URL = "https://loyak6makvlkxqye.public.blob.vercel-storage.com/welcome/carte-repas-moderna-agency.png";
 
 // Les codes d'accès ne sont communicables qu'à partir de la veille de l'arrivée (jusqu'au départ),
 // et jamais pour une simple demande d'information ou une réservation annulée.
@@ -128,12 +127,12 @@ function blocLogement(sejour: ContexteSejour, maintenant: Date): string {
     lignes.push("Cuisinière : service proposé uniquement sur les villas, pas sur cet appartement — ne la propose pas.");
   } else if (l.repasInclusDansLoyer) {
     lignes.push(
-      `Cuisinière : INCLUSE dans le prix de la villa, aucun supplément pour ses services (carte des repas : ${CARTE_REPAS_URL}). ` +
+      `Cuisinière : INCLUSE dans le prix de la villa, aucun supplément pour ses services. ` +
         "Le voyageur règle seulement les courses et le coursier. Précise-le à chaque fois qu'il parle d'une cuisinière."
     );
   } else {
     lignes.push(
-      `Cuisinière (en supplément, en dirhams) : ${CUISINIERE_PETIT_DEJ_MAD} MAD/jour pour le petit-déjeuner seul, ${CUISINIERE_PETIT_DEJ_DEJEUNER_MAD} MAD/jour pour petit-déjeuner + déjeuner (carte des repas : ${CARTE_REPAS_URL}). ` +
+      `Cuisinière (en supplément, en dirhams) : ${CUISINIERE_PETIT_DEJ_MAD} MAD/jour pour le petit-déjeuner seul, ${CUISINIERE_PETIT_DEJ_DEJEUNER_MAD} MAD/jour pour petit-déjeuner + déjeuner. ` +
         "Les courses (produits) et le coursier qui les apporte sont à la charge du voyageur, en plus. Précise-le à chaque fois qu'il parle d'une cuisinière."
     );
   }
