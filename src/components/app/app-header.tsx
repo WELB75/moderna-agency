@@ -17,7 +17,9 @@ export function AppHeader() {
       <div className="flex shrink-0 items-center gap-2 md:hidden">
         <Logo size={28} />
       </div>
-      <div className="flex min-w-0 flex-1 justify-end md:justify-start">
+      {/* La recherche prend toute la largeur disponible entre le logo et les actions (Fouad,
+          2026-10-30) — avant : limitée à ~24rem à gauche, le reste de l'en-tête restait vide. */}
+      <div className="flex min-w-0 flex-1">
         <GlobalSearchOverlay variant="bar" />
       </div>
       <div className="flex shrink-0 items-center gap-2">

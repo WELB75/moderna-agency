@@ -17,6 +17,11 @@ import { cn } from "@/lib/utils";
 // (avant : `md` avec une largeur fixe de 34rem, qui écrasait "Bonjour Kamel" en colonne d'un mot
 // par ligne dès que la fenêtre faisait moins de ~1100px). En dessous, ils prennent toute la
 // largeur sous la salutation.
+//
+// 2026-10-30 (Fouad) : plus d'emoji 👋 à côté du prénom, et sur téléphone les trois tuiles
+// empilent icône + chiffre au-dessus du libellé complet (« Arrivées », « Départs », « Sur
+// place ») — avant, le libellé était à côté de l'icône et finissait tronqué en « Arri… / Dé… /
+// Sur… » dès 400px de large.
 export async function DashboardOverview({ now }: { now: Date }) {
   const db = getDb();
   const user = await currentUser().catch(() => null);
@@ -43,7 +48,7 @@ export async function DashboardOverview({ now }: { now: Date }) {
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
       <div className="min-w-0 shrink-0">
         <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">
-          {prenom ? `Bonjour ${prenom}` : "Bonjour"} 👋
+          {prenom ? `Bonjour ${prenom}` : "Bonjour"}
         </h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           <span className="capitalize">{format(now, "EEEE d MMMM yyyy", { locale: fr })}</span>
@@ -71,14 +76,17 @@ function DayStat({ icon: Icon, label, count, tone }: { icon: LucideIcon; label: 
   return (
     <Link
       href="/calendrier?vue=jour"
-      className="flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5 transition-colors hover:border-primary/40"
+      className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 sm:flex-row sm:items-center sm:gap-3"
     >
-      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl", TONES[tone])}>
-        <Icon className="h-4 w-4" />
+      <span className="flex items-center gap-2 sm:contents">
+        <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 sm:rounded-xl", TONES[tone])}>
+          <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+        </span>
+        <span className="text-xl font-semibold leading-none tabular-nums sm:hidden">{count}</span>
       </span>
       <span className="min-w-0 leading-tight">
-        <span className="block text-xl font-semibold tabular-nums">{count}</span>
-        <span className="block truncate text-xs text-muted-foreground sm:text-[13px]">{label}</span>
+        <span className="hidden text-xl font-semibold tabular-nums sm:block">{count}</span>
+        <span className="block whitespace-nowrap text-xs text-muted-foreground sm:truncate sm:text-[13px]">{label}</span>
       </span>
     </Link>
   );

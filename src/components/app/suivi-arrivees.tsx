@@ -2,9 +2,11 @@ import Link from "next/link";
 import { and, asc, eq, gte, inArray, lte, ne } from "drizzle-orm";
 import { addDays, endOfDay, format, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Clock, FileText, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Clock, FileSignature, FileText, ShieldCheck, type LucideIcon } from "lucide-react";
 import { getDb } from "@/db";
-import { gendarmerieForms, reservations, villas } from "@/db/schema";
+import { contratsLocation, gendarmerieForms, reservations, villas } from "@/db/schema";
+import { EcheanceDocuments } from "@/components/app/echeance-documents";
+import { calculerEcheance, echeanceDocuments } from "@/lib/echeance-documents";
 import { CanalDot } from "@/components/app/canal-badge";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { cn } from "@/lib/utils";
@@ -22,6 +24,10 @@ import { RowChevron, RowIcon, RowTitle, StatusDot, summaryRowClass } from "@/com
 // "10 - J-2 10h : fiche police"), lien caution J-1 à 10h puis rappel le jour J à 10h ("Caution
 // ... - lien J-1 10h"). Ce sont les heures prévues, pas une confirmation d'envoi : une réservation
 // faite à la dernière minute reçoit ses liens dès la réservation.
+
+// 2026-10-30 (Fouad) : « la fiche police et le contrat doivent être réglés 24 h avant l'arrivée ».
+// Le bloc suit donc aussi le contrat, et chaque arrivée porte un compte à rebours jusqu'à cette
+// limite J-1 (lib/echeance-documents.ts) ; les arrivées en retard remontent en tête de liste.
 
 const NB_JOURS = 7;
 
@@ -97,8 +103,16 @@ export function statutFichePolice(r: { checkIn: Date }, fiche: "complete" | "en_
   if (fiche === "complete") return { tone: "ok", label: "Faite" };
   const lien = aJourHeure(r.checkIn, -2, 10);
   if (now >= r.checkIn) return { tone: "urgent", label: "Manquante", detail: "Voyageur arrivé sans fiche" };
+  if (now >= echeanceDocuments(r.checkIn)) return { tone: "urgent", label: "En attente", detail: "Limite J-1 dépassée" };
   if (now < lien) return { tone: "neutre", label: "Lien pas encore envoyé", detail: `Envoi prévu ${quand(lien)}` };
   return { tone: "attente", label: "En attente", detail: "Lien envoyé, pas encore remplie" };
+}
+
+export function statutContrat(r: { checkIn: Date }, contrat: "signe" | "en_attente" | null, now: Date): Statut {
+  if (contrat === "signe") return { tone: "ok", label: "Signé" };
+  if (now >= r.checkIn) return { tone: "urgent", label: "Non signé", detail: "Voyageur arrivé sans contrat" };
+  if (now >= echeanceDocuments(r.checkIn)) return { tone: "urgent", label: "À signer", detail: "Limite J-1 dépassée" };
+  return { tone: "attente", label: "À signer", detail: contrat ? "Lien envoyé, pas encore signé" : "Pas encore généré" };
 }
 
 function StatutChip({ icon: Icon, titre, statut, href }: { icon: LucideIcon; titre: string; statut: Statut; href?: string }) {
@@ -136,6 +150,7 @@ export async function SuiviArrivees({ now }: { now: Date }) {
         canal: reservations.canal,
         caution: reservations.caution,
         cautionPayee: reservations.cautionPayee,
+        villaId: villas.id,
         villaNom: villas.nom,
       })
       .from(reservations)
@@ -145,13 +160,32 @@ export async function SuiviArrivees({ now }: { now: Date }) {
   ).filter((r) => villaEstGeree(r.villaNom) && aSuivre(r));
 
   const ids = arrivees.map((r) => r.id);
-  const fiches =
+  const villaIds = Array.from(new Set(arrivees.map((r) => r.villaId).filter((id): id is string => Boolean(id))));
+  const [fiches, contrats] = await Promise.all([
     ids.length > 0
-      ? await db
+      ? db
           .select({ id: gendarmerieForms.id, reservationId: gendarmerieForms.reservationId, statut: gendarmerieForms.statut })
           .from(gendarmerieForms)
           .where(inArray(gendarmerieForms.reservationId, ids))
-      : [];
+      : [],
+    // Le contrat n'est pas lié à la réservation en base : rapproché par villa + date d'arrivée,
+    // comme sur les cartes de l'agenda (dashboard/page.tsx).
+    villaIds.length > 0
+      ? db
+          .select({ id: contratsLocation.id, villaId: contratsLocation.villaId, dateArrivee: contratsLocation.dateArrivee, statut: contratsLocation.statut })
+          .from(contratsLocation)
+          .where(inArray(contratsLocation.villaId, villaIds))
+      : [],
+  ]);
+  const contratParVillaEtDate = new Map<string, { id: string; statut: "signe" | "en_attente" }>();
+  for (const c of contrats) {
+    if (!c.villaId || !c.dateArrivee) continue;
+    const cle = `${c.villaId}|${c.dateArrivee}`;
+    const actuel = contratParVillaEtDate.get(cle);
+    if (c.statut === "signe" || actuel?.statut !== "signe") {
+      contratParVillaEtDate.set(cle, { id: c.id, statut: c.statut === "signe" ? "signe" : "en_attente" });
+    }
+  }
   // Une fiche "complete" l'emporte sur une fiche en attente créée en double pour le même séjour.
   const ficheParResa = new Map<string, { id: string; statut: "complete" | "en_attente" }>();
   for (const f of fiches) {
@@ -162,28 +196,45 @@ export async function SuiviArrivees({ now }: { now: Date }) {
     }
   }
 
-  const lignes = arrivees.map((r) => {
-    const fiche = ficheParResa.get(r.id) ?? null;
-    return {
-      ...r,
-      fiche,
-      caution: statutCaution(r, now),
-      police: statutFichePolice(r, fiche?.statut ?? null, now),
-    };
-  });
+  const lignes = arrivees
+    .map((r) => {
+      const fiche = ficheParResa.get(r.id) ?? null;
+      const cle = r.villaId ? `${r.villaId}|${format(r.checkIn, "yyyy-MM-dd")}` : null;
+      const contrat = cle ? (contratParVillaEtDate.get(cle) ?? null) : null;
+      const ficheStatut = fiche?.statut ?? null;
+      const contratStatut = contrat?.statut ?? null;
+      return {
+        ...r,
+        fiche,
+        contrat,
+        ficheStatut,
+        contratStatut,
+        caution: statutCaution(r, now),
+        police: statutFichePolice(r, ficheStatut, now),
+        conditions: statutContrat(r, contratStatut, now),
+        echeance: calculerEcheance({ checkIn: r.checkIn, ficheStatut, contratStatut }, now),
+      };
+    })
+    // Ce qui est en retard (limite J-1 dépassée, ou arrivé sans papiers) en tête, puis par
+    // arrivée : on voit d'abord ce qu'il faut traiter tout de suite.
+    .sort((a, b) => {
+      const ua = a.echeance.tone === "urgent" || a.caution.tone === "urgent" ? 0 : 1;
+      const ub = b.echeance.tone === "urgent" || b.caution.tone === "urgent" ? 0 : 1;
+      return ua - ub || a.checkIn.getTime() - b.checkIn.getTime();
+    });
 
+  const documentsARegler = lignes.filter((l) => l.echeance.etat === "a_temps" || l.echeance.etat === "bientot").length;
+  const documentsEnRetard = lignes.filter((l) => l.echeance.etat === "retard" || l.echeance.etat === "arrive").length;
   const cautionsEnAttente = lignes.filter((l) => l.caution.tone === "attente" || l.caution.tone === "urgent").length;
-  const fichesEnAttente = lignes.filter((l) => l.police.tone === "attente" || l.police.tone === "urgent").length;
-  const urgents = lignes.filter((l) => l.caution.tone === "urgent" || l.police.tone === "urgent").length;
-  // Prochaine arrivée qui attend encore quelque chose du voyageur : affichée dans la ligne repliée.
-  const prochaine = lignes.find(
-    (l) => l.checkIn > now && (l.caution.tone === "attente" || l.police.tone === "attente")
-  );
+  const urgents = lignes.filter((l) => l.echeance.tone === "urgent" || l.caution.tone === "urgent").length;
+  // Prochaine limite J-1 à venir avec des documents encore manquants : affichée dans la ligne repliée.
+  const prochaine = lignes.find((l) => l.echeance.etat === "a_temps" || l.echeance.etat === "bientot");
+  const toutEnOrdre = lignes.length > 0 && urgents === 0 && documentsARegler === 0 && cautionsEnAttente === 0;
 
   // Toujours replié au chargement (Kamel, 2026-10-16 puis 2026-10-19 : trop de place, surtout sur
   // mobile) ; l'urgence reste visible en rouge dans la ligne du résumé. Ligne de résumé au même
   // gabarit que les autres blocs de l'accueil (voir dashboard-ui.tsx).
-  const tone: StatutTone = urgents > 0 ? "urgent" : cautionsEnAttente + fichesEnAttente > 0 ? "attente" : "ok";
+  const tone: StatutTone = urgents > 0 ? "urgent" : documentsARegler + cautionsEnAttente > 0 ? "attente" : "ok";
   return (
     <details className="group rounded-2xl border border-border bg-card">
       <summary className={summaryRowClass}>
@@ -192,29 +243,31 @@ export async function SuiviArrivees({ now }: { now: Date }) {
           sub={
             lignes.length === 0 ? (
               "Aucune arrivée dans les 7 prochains jours"
+            ) : toutEnOrdre ? (
+              <StatusDot tone="ok">Tout est en ordre : fiches police, contrats et cautions réglés</StatusDot>
             ) : (
               <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                {documentsEnRetard > 0 ? (
+                  <StatusDot tone="urgent">
+                    {documentsEnRetard} en retard (limite J-1 dépassée)
+                  </StatusDot>
+                ) : null}
+                <StatusDot tone={documentsARegler > 0 ? "attente" : "ok"}>
+                  {documentsARegler} fiche{documentsARegler > 1 ? "s" : ""}/contrat{documentsARegler > 1 ? "s" : ""} à régler avant J-1
+                </StatusDot>
                 <StatusDot tone={cautionsEnAttente > 0 ? "attente" : "ok"}>
                   {cautionsEnAttente} caution{cautionsEnAttente > 1 ? "s" : ""} en attente
                 </StatusDot>
-                <StatusDot tone={fichesEnAttente > 0 ? "attente" : "ok"}>
-                  {fichesEnAttente} fiche{fichesEnAttente > 1 ? "s" : ""} police en attente
-                </StatusDot>
-                {urgents > 0 ? (
-                  <StatusDot tone="urgent">
-                    {urgents} arrivé{urgents > 1 ? "s" : ""} sans fiche ou caution
-                  </StatusDot>
-                ) : null}
                 {prochaine ? (
                   <span className="hidden sm:inline">
-                    Prochaine : {prochaine.villaNom ?? "Logement"} {tempsRestant(prochaine.checkIn, now)}
+                    Prochaine limite : {prochaine.villaNom ?? "Logement"} {tempsRestant(echeanceDocuments(prochaine.checkIn), now)}
                   </span>
                 ) : null}
               </span>
             )
           }
         >
-          Caution et fiche police
+          Fiche police, contrat et caution
           <span className="ml-1.5 font-normal text-muted-foreground">· 7 jours</span>
         </RowTitle>
         {lignes.length > 0 ? (
@@ -228,28 +281,46 @@ export async function SuiviArrivees({ now }: { now: Date }) {
       {lignes.length === 0 ? null : (
         <ul className="divide-y divide-border border-t border-border">
           {lignes.map((l) => {
-            const urgent = l.caution.tone === "urgent" || l.police.tone === "urgent";
+            const urgent = l.echeance.tone === "urgent" || l.caution.tone === "urgent";
             const restant = tempsRestant(l.checkIn, now);
             return (
-              <li key={l.id} className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-center sm:gap-3">
-                <Link href={`/reservations/${l.id}`} className="flex min-w-0 items-center gap-2.5 hover:opacity-80">
-                  <CanalDot canal={l.canal} size="md" />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium">{l.villaNom ?? "Logement"} · {l.guestName}</span>
-                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3 shrink-0" />
-                      {format(l.checkIn, "EEE d MMM", { locale: fr })} ·{" "}
-                      <span className={cn("font-medium", urgent ? "text-red-600 dark:text-red-400" : "text-foreground")}>{restant}</span>
+              <li
+                key={l.id}
+                className={cn(
+                  "grid gap-2 px-4 py-3 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:gap-3",
+                  urgent && "bg-red-500/[0.03]"
+                )}
+              >
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <Link href={`/reservations/${l.id}`} className="flex min-w-0 items-center gap-2.5 hover:opacity-80">
+                    <CanalDot canal={l.canal} size="md" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{l.villaNom ?? "Logement"} · {l.guestName}</span>
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        Arrivée {format(l.checkIn, "EEE d MMM 'à' HH'h'", { locale: fr })} ·{" "}
+                        <span className={cn("font-medium", urgent ? "text-red-600 dark:text-red-400" : "text-foreground")}>{restant}</span>
+                      </span>
                     </span>
-                  </span>
-                </Link>
-                <StatutChip
-                  icon={FileText}
-                  titre="Fiche police"
-                  statut={l.police}
-                  href={l.fiche ? (l.fiche.statut === "complete" ? `/gendarmerie/${l.fiche.id}` : `/g/${l.fiche.id}`) : undefined}
-                />
-                <StatutChip icon={ShieldCheck} titre="Caution" statut={l.caution} href={`/reservations/${l.id}`} />
+                  </Link>
+                  {/* Compte à rebours jusqu'à la limite J-1 (24 h avant l'arrivée). */}
+                  <EcheanceDocuments checkIn={l.checkIn} ficheStatut={l.ficheStatut} contratStatut={l.contratStatut} variant="pastille" className="self-start" />
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3 lg:contents">
+                  <StatutChip
+                    icon={FileText}
+                    titre="Fiche police"
+                    statut={l.police}
+                    href={l.fiche ? (l.fiche.statut === "complete" ? `/gendarmerie/${l.fiche.id}` : `/g/${l.fiche.id}`) : undefined}
+                  />
+                  <StatutChip
+                    icon={FileSignature}
+                    titre="Contrat"
+                    statut={l.conditions}
+                    href={l.contrat?.statut === "signe" ? `/contrats/${l.contrat.id}` : `/reservations/${l.id}`}
+                  />
+                  <StatutChip icon={ShieldCheck} titre="Caution" statut={l.caution} href={`/reservations/${l.id}`} />
+                </div>
               </li>
             );
           })}
