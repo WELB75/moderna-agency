@@ -81,10 +81,17 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
             reservationId: gendarmerieForms.reservationId,
             statut: gendarmerieForms.statut,
             nbAdultesPrevu: gendarmerieForms.nbAdultesPrevu,
-            occupants: sql<number>`(select count(*) from ${gendarmerieOccupants} where ${gendarmerieOccupants.formId} = ${gendarmerieForms.id})`.mapWith(Number),
+            occupants: sql<number>`count(${gendarmerieOccupants.id})`.mapWith(Number),
           })
           .from(gendarmerieForms)
+          // Passeports reçus comptés par jointure + group by, pas par sous-requête : avec
+          // `(select count(*) from occupants where form_id = ${gendarmerieForms.id})`, drizzle
+          // rendait `"form_id" = "id"` sans préfixe de table, donc `id` était celui de l'occupant
+          // → toujours 0 (Fouad, 2026-10-31 : « y a deux passeports déjà faits et sur la ligne y a
+          // écrit 0/5 »).
+          .leftJoin(gendarmerieOccupants, eq(gendarmerieOccupants.formId, gendarmerieForms.id))
           .where(inArray(gendarmerieForms.reservationId, ids))
+          .groupBy(gendarmerieForms.id)
       : [],
     // Le contrat n'est pas lié à la réservation en base : rapproché par villa + date d'arrivée,
     // comme sur les cartes de l'agenda (dashboard/page.tsx).
