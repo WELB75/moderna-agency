@@ -3,6 +3,7 @@ import { addDays, endOfDay, format, startOfDay } from "date-fns";
 import { getDb } from "@/db";
 import { contratsLocation, gendarmerieForms, gendarmerieOccupants, reservations, villas } from "@/db/schema";
 import { villaEstGeree } from "@/lib/domaines-actifs";
+import { sejourSansVoyageur } from "@/lib/conditions-sejour";
 
 // Arrivées à venir et état de leurs documents (fiche police, contrat, caution) — source commune
 // des tuiles « Prochaines échéances » de l'accueil et du bloc « Fiche police, contrat et caution »
@@ -14,12 +15,14 @@ import { villaEstGeree } from "@/lib/domaines-actifs";
 // pour afficher « 2/4 » au staff.
 
 // Pas de voyageur à suivre : blocages (assistant "Blocage · ...", dates fermées iCal, résas Beds24
-// nommées "Blocage Airbnb"...) et séjours "Famille" (ni caution ni fiche police demandées) — même
-// esprit que estBlocage/ficheRequise dans security-data.ts.
-const NOM_SANS_VOYAGEUR = /^(blocage|date bloqu|not available|blocked|indisponible)/i;
+// nommées "Blocage Airbnb" ou "Travaux ...") et séjours du propriétaire. Les séjours « Famille »
+// sont suivis, eux (Kamel, 2026-11-01 : « travaux et propriétaire on n'a pas besoin, mais famille
+// tu mets ») : la fiche police est demandée, pas le contrat (voir `contratRequis`).
+export function estSejourFamille(canal: string | null): boolean {
+  return canal === "Famille";
+}
 export function arriveeASuivre(r: { canal: string | null; guestName: string }): boolean {
-  const canal = r.canal ?? "";
-  return !canal.startsWith("Blocage") && canal !== "Famille" && !NOM_SANS_VOYAGEUR.test(r.guestName.trim());
+  return !sejourSansVoyageur({ canal: estSejourFamille(r.canal) ? null : r.canal, guestName: r.guestName });
 }
 
 export type FicheArrivee = {
@@ -44,6 +47,9 @@ export type ArriveeDocuments = {
   villaType: "villa" | "appartement" | null;
   fiche: FicheArrivee | null;
   contrat: { id: string; statut: "signe" | "en_attente" } | null;
+  // Faux pour un séjour Famille : pas de conditions de séjour à signer, donc `contratStatut` y est
+  // traité comme réglé (« signe ») pour que l'échéance ne dépende que de la fiche police.
+  contratRequis: boolean;
   ficheStatut: "complete" | "en_attente" | null;
   contratStatut: "signe" | "en_attente" | null;
 };
@@ -157,7 +163,8 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
       fiche,
       contrat,
       ficheStatut: fiche?.statut ?? null,
-      contratStatut: contrat?.statut ?? null,
+      contratRequis: !estSejourFamille(r.canal),
+      contratStatut: estSejourFamille(r.canal) ? "signe" : (contrat?.statut ?? null),
     };
   });
 }
