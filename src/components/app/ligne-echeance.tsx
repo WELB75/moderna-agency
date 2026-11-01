@@ -93,7 +93,9 @@ export function LigneEcheance({
   const limite = echeanceDocuments(checkIn);
   const reste = limite.getTime() - now.getTime();
   const e = calculerEcheance({ checkIn, ficheStatut, contratStatut }, now);
-  const enDirect = e.tone === "urgent" || reste <= SEUIL_CHRONO_MS;
+  // Rouge dès que le compteur passe sous 24 h, tant que les documents ne sont pas prêts (Kamel, 2026-11-01).
+  const tone = e.etat !== "ok" && reste <= SEUIL_CHRONO_MS ? "urgent" : e.tone;
+  const enDirect = tone === "urgent" || reste <= SEUIL_CHRONO_MS;
 
   // Tic à la seconde seulement quand le chrono est visible, sinon à la minute (Vercel Hobby :
   // on garde le navigateur tranquille).
@@ -164,7 +166,7 @@ export function LigneEcheance({
       )}
     >
       {/* Point d'état (PC seulement ; sur téléphone la couleur du délai suffit). */}
-      <span className={cn("hidden h-2 w-2 shrink-0 rounded-full sm:block", POINT[e.tone])} aria-hidden />
+      <span className={cn("hidden h-2 w-2 shrink-0 rounded-full sm:block", POINT[tone])} aria-hidden />
 
       {/* Téléphone : villa + délai sur la même ligne. PC : colonne villa. */}
       <span className="flex min-w-0 items-baseline justify-between gap-2 sm:block">
@@ -174,7 +176,7 @@ export function LigneEcheance({
             {villaType === "appartement" ? "Appartement" : villaType === "villa" ? "Villa" : "Logement"}
           </span>
         </span>
-        <span className={cn("shrink-0 text-[11.5px] tabular-nums sm:hidden", TEXTE[e.tone])} suppressHydrationWarning>
+        <span className={cn("shrink-0 text-[11.5px] tabular-nums sm:hidden", TEXTE[tone])} suppressHydrationWarning>
           {valeur}
         </span>
       </span>
@@ -192,12 +194,12 @@ export function LigneEcheance({
       {/* Téléphone : les deux badges côte à côte. PC : chacun dans sa colonne (display: contents). */}
       <span className="flex gap-1 sm:contents">
         <span className="sm:flex sm:min-w-0">
-          <Badge ok={ficheOk} partiel={passeportsRecus} envoye={ficheEnAttenteEnvoyee} urgent={e.tone === "urgent"}>
+          <Badge ok={ficheOk} partiel={passeportsRecus} envoye={ficheEnAttenteEnvoyee} urgent={tone === "urgent"}>
             {ficheTexte}
           </Badge>
         </span>
         <span className="sm:flex sm:min-w-0">
-          <Badge ok={contratOk && contratRequis} partiel={false} envoye={false} urgent={contratRequis && e.tone === "urgent"}>
+          <Badge ok={contratOk && contratRequis} partiel={false} envoye={false} urgent={contratRequis && tone === "urgent"}>
             {contratTexte}
           </Badge>
         </span>
@@ -205,7 +207,7 @@ export function LigneEcheance({
 
       {/* PC : délai aligné à droite, avec son libellé dessous. */}
       <span className="hidden text-right sm:block">
-        <span className={cn("block text-[12.5px] leading-tight tabular-nums", TEXTE[e.tone])} suppressHydrationWarning>
+        <span className={cn("block text-[12.5px] leading-tight tabular-nums", TEXTE[tone])} suppressHydrationWarning>
           {valeur}
         </span>
         <span className="block text-[10.5px] leading-tight text-muted-foreground">{titre}</span>
