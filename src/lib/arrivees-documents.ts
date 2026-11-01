@@ -30,6 +30,10 @@ export type FicheArrivee = {
   statut: "complete" | "en_attente";
   occupantsRecus: number;
   occupantsAttendus: number | null;
+  // Passeports d'enfants (photos, pas de fiche) : reçus / annoncés. Kamel, 2026-11-01 : « il faut
+  // qu'on ait les passeports de tout le monde » — la fiche n'est verte que quand ils sont là.
+  enfantsRecus: number;
+  enfantsAttendus: number;
 };
 
 export type ArriveeDocuments = {
@@ -69,6 +73,7 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
         caution: reservations.caution,
         cautionPayee: reservations.cautionPayee,
         nbAdultes: reservations.nbAdultes,
+        nbEnfants: reservations.nbEnfants,
         messageArriveeEnvoyeAt: reservations.messageArriveeEnvoyeAt,
         villaId: villas.id,
         villaNom: villas.nom,
@@ -90,6 +95,8 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
             reservationId: gendarmerieForms.reservationId,
             statut: gendarmerieForms.statut,
             nbAdultesPrevu: gendarmerieForms.nbAdultesPrevu,
+            nbEnfantsPrevu: gendarmerieForms.nbEnfantsPrevu,
+            enfantsRecus: sql<number>`jsonb_array_length(coalesce(${gendarmerieForms.enfantsPassportUrls}, '[]'::jsonb))`.mapWith(Number),
             occupants: sql<number>`count(${gendarmerieOccupants.id})`.mapWith(Number),
           })
           .from(gendarmerieForms)
@@ -124,7 +131,7 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
 
   // Une fiche "complete" l'emporte sur une fiche en attente créée en double pour le même séjour ;
   // entre deux fiches en attente, celle qui a déjà reçu le plus de passeports.
-  const ficheParResa = new Map<string, FicheArrivee & { nbAdultesPrevu: number | null }>();
+  const ficheParResa = new Map<string, FicheArrivee & { nbAdultesPrevu: number | null; nbEnfantsPrevu: number | null }>();
   for (const f of fiches) {
     if (!f.reservationId) continue;
     const candidate = {
@@ -132,13 +139,16 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
       statut: (f.statut === "complete" ? "complete" : "en_attente") as "complete" | "en_attente",
       occupantsRecus: f.occupants ?? 0,
       occupantsAttendus: null,
+      enfantsRecus: f.enfantsRecus ?? 0,
+      enfantsAttendus: 0,
       nbAdultesPrevu: f.nbAdultesPrevu,
+      nbEnfantsPrevu: f.nbEnfantsPrevu,
     };
     const actuelle = ficheParResa.get(f.reservationId);
     if (
       !actuelle ||
       (candidate.statut === "complete" && actuelle.statut !== "complete") ||
-      (candidate.statut === actuelle.statut && candidate.occupantsRecus > actuelle.occupantsRecus)
+      (candidate.statut === actuelle.statut && candidate.occupantsRecus + candidate.enfantsRecus > actuelle.occupantsRecus + actuelle.enfantsRecus)
     ) {
       ficheParResa.set(f.reservationId, candidate);
     }
@@ -152,6 +162,8 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
           statut: f.statut,
           occupantsRecus: f.occupantsRecus,
           occupantsAttendus: nombreAdultesAttendus({ nbAdultesPrevu: f.nbAdultesPrevu, nbAdultes: r.nbAdultes }),
+          enfantsRecus: f.enfantsRecus,
+          enfantsAttendus: Math.max(0, f.nbEnfantsPrevu ?? r.nbEnfants ?? 0),
         }
       : null;
     const cle = r.villaId ? `${r.villaId}|${format(r.checkIn, "yyyy-MM-dd")}` : null;
@@ -162,7 +174,9 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
       ficheEnvoyee: Boolean(messageArriveeEnvoyeAt),
       fiche,
       contrat,
-      ficheStatut: fiche?.statut ?? null,
+      // Statut d'affichage : « complete » en base dès que les adultes sont là (la sécurité est
+      // prévenue à ce moment), mais pas « faite » pour le staff tant qu'il manque un passeport d'enfant.
+      ficheStatut: fiche ? (ficheToutRecue(fiche) ? "complete" : "en_attente") : null,
       contratRequis: !estSejourFamille(r.canal),
       contratStatut: estSejourFamille(r.canal) ? "signe" : (contrat?.statut ?? null),
     };
@@ -176,11 +190,24 @@ export function nombreAdultesAttendus(x: { nbAdultesPrevu: number | null; nbAdul
   return n && n > 0 ? n : null;
 }
 
-// Texte « 2/4 passeports » pour le staff ; null si rien à dire (fiche complète ou aucun reçu sans
-// nombre attendu connu).
+// Passeports d'enfants encore manquants (0 si tout est reçu ou si aucun enfant n'est annoncé).
+export function enfantsManquants(fiche: FicheArrivee): number {
+  return Math.max(0, fiche.enfantsAttendus - fiche.enfantsRecus);
+}
+
+// Fiche terminée pour le staff : adultes enregistrés (statut « complete » en base) ET passeports
+// des enfants annoncés tous reçus.
+export function ficheToutRecue(fiche: FicheArrivee): boolean {
+  return fiche.statut === "complete" && enfantsManquants(fiche) === 0;
+}
+
+// Texte « 2/4 passeports » pour le staff (adultes + enfants) ; null si rien à dire (fiche terminée
+// ou aucun reçu sans nombre attendu connu).
 export function progressionFiche(fiche: FicheArrivee | null): string | null {
-  if (!fiche || fiche.statut === "complete") return null;
-  if (fiche.occupantsAttendus) return `${fiche.occupantsRecus}/${fiche.occupantsAttendus} passeports`;
-  if (fiche.occupantsRecus > 0) return `${fiche.occupantsRecus} passeport${fiche.occupantsRecus > 1 ? "s" : ""} reçu${fiche.occupantsRecus > 1 ? "s" : ""}`;
+  if (!fiche || ficheToutRecue(fiche)) return null;
+  const enfantsRecus = Math.min(fiche.enfantsRecus, fiche.enfantsAttendus);
+  const recus = fiche.occupantsRecus + enfantsRecus;
+  if (fiche.occupantsAttendus) return `${recus}/${fiche.occupantsAttendus + fiche.enfantsAttendus} passeports`;
+  if (recus > 0) return `${recus} passeport${recus > 1 ? "s" : ""} reçu${recus > 1 ? "s" : ""}`;
   return null;
 }

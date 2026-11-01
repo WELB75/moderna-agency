@@ -201,6 +201,9 @@ export function GendarmerieFormProgressif({
   const dir = lang === "ar" ? "rtl" : "ltr";
   const complete = etat.statut === "complete";
   const manquants = etat.attendus ? Math.max(0, etat.attendus - etat.recus) : null;
+  // Passeports d'enfants annoncés mais pas encore reçus : rappelés au voyageur même quand les
+  // adultes sont tous enregistrés (la fiche reste « à compléter » côté agence).
+  const enfantsAAjouter = Math.max(0, (etat.enfantsAttendus ?? 0) - etat.enfantsPhotos);
   // Les conditions ne sont proposées qu'au premier qui s'enregistre (le serveur ignore ensuite).
   const proposerConditions = Boolean(conditions) && etat.recus === 0;
 
@@ -328,6 +331,10 @@ export function GendarmerieFormProgressif({
             ) : null}
           </CardContent>
         </Card>
+
+        {enfantsAAjouter > 0 ? (
+          <p className="rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-center text-sm font-medium">{p.childrenMissing(enfantsAAjouter)}</p>
+        ) : null}
 
         {!complete ? (
           <div className="space-y-2">
