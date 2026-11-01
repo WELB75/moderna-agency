@@ -27,9 +27,9 @@ import { calculerEcheance, dureeCourte, echeanceDocuments } from "@/lib/echeance
 export const SEUIL_CHRONO_MS = 24 * 60 * 60 * 1000;
 
 const LISERE = {
-  villa: "border-l-primary",
-  appartement: "border-l-teal-500/80",
-  inconnu: "border-l-border",
+  villa: "border-l-primary sm:border-l-primary",
+  appartement: "border-l-teal-500/80 sm:border-l-teal-500/80",
+  inconnu: "border-l-border sm:border-l-border",
 } as const;
 
 const TEXTE = {
@@ -154,7 +154,7 @@ export function LigneEcheance({
         // l'autre (Fouad, 2026-10-31 : « tout doit être droit, bien propre et aligné »). Les deux
         // badges ont chacun leur colonne de largeur fixe, calés à gauche : les « P » de Passeports
         // et les « C » de Contrat tombent au même endroit sur toutes les lignes.
-        "sm:grid sm:w-auto sm:h-[46px] sm:grid-cols-[14px_minmax(0,1fr)_minmax(0,1.3fr)_8.75rem_6.5rem_8rem] sm:items-center sm:gap-x-3 sm:rounded-none sm:border-0 sm:border-b sm:border-l-[3px] sm:border-border sm:bg-transparent sm:px-3 sm:py-0",
+        "sm:grid sm:w-auto sm:h-[46px] sm:grid-cols-[14px_minmax(0,1fr)_minmax(0,1.3fr)_8.75rem_6.5rem_8rem] sm:items-center sm:gap-x-3 sm:rounded-none sm:border-0 sm:border-b sm:border-l-[3px] sm:border-b-border sm:bg-transparent sm:px-3 sm:py-0",
         lisere
       )}
     >

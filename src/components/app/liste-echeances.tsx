@@ -16,7 +16,7 @@ export function ListeEcheances({ lignes }: { lignes: LigneEcheanceProps[] }) {
   const cachees = lignes.slice(VISIBLES_PC);
 
   return (
-    <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:block sm:overflow-visible sm:rounded-2xl sm:border sm:bg-card sm:px-0 sm:pb-0">
+    <div className="-mx-4 flex snap-x gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:block sm:overflow-hidden sm:rounded-2xl sm:border sm:bg-card sm:px-0 sm:pb-0">
       {lignes.map((l, i) => (
         <LigneEcheance key={l.reservationId} {...l} masqueePc={!tout && i >= VISIBLES_PC} />
       ))}
