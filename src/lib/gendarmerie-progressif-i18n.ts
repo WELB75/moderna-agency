@@ -32,6 +32,7 @@ export type ProgressifText = {
   nameRequired: string;
   signatureRequired: string;
   childrenSaved: string;
+  childrenMissing: (n: number) => string;
   childrenSave: string;
   conditionsNote: string;
 };
@@ -67,6 +68,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     nameRequired: "Le nom ou le prénom est obligatoire.",
     signatureRequired: "La signature est obligatoire.",
     childrenSaved: "Photos des enfants enregistrées.",
+    childrenMissing: (n) => `Il manque encore ${n} passeport${n > 1 ? "s" : ""} d'enfant. Ajoutez-${n > 1 ? "les" : "le"} ci-dessous.`,
     childrenSave: "Enregistrer les photos des enfants",
     conditionsNote: "Votre signature ci-dessus vaut signature des conditions de séjour pour tout le groupe.",
   },
@@ -100,6 +102,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     nameRequired: "Last name or first name is required.",
     signatureRequired: "Signature is required.",
     childrenSaved: "Children's photos saved.",
+    childrenMissing: (n) => `${n} child passport${n > 1 ? "s are" : " is"} still missing. Please add ${n > 1 ? "them" : "it"} below.`,
     childrenSave: "Save the children's photos",
     conditionsNote: "Your signature above also signs the terms of stay for the whole group.",
   },
@@ -133,6 +136,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     nameRequired: "El apellido o el nombre es obligatorio.",
     signatureRequired: "La firma es obligatoria.",
     childrenSaved: "Fotos de los niños guardadas.",
+    childrenMissing: (n) => `Falta${n > 1 ? "n" : ""} ${n} pasaporte${n > 1 ? "s" : ""} de niño${n > 1 ? "s" : ""}. Añádalo${n > 1 ? "s" : ""} abajo.`,
     childrenSave: "Guardar las fotos de los niños",
     conditionsNote: "Su firma de arriba vale también como firma de las condiciones de estancia para todo el grupo.",
   },
@@ -166,6 +170,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     nameRequired: "الاسم أو اللقب إلزامي.",
     signatureRequired: "التوقيع إلزامي.",
     childrenSaved: "تم حفظ صور الأطفال.",
+    childrenMissing: (n) => `ينقص ${n} جواز سفر للأطفال. يرجى إضافته أدناه.`,
     childrenSave: "حفظ صور الأطفال",
     conditionsNote: "توقيعك أعلاه يُعدّ توقيعًا على شروط الإقامة باسم المجموعة كلها.",
   },
@@ -199,6 +204,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     nameRequired: "Achternaam of voornaam is verplicht.",
     signatureRequired: "Handtekening is verplicht.",
     childrenSaved: "Foto's van de kinderen opgeslagen.",
+    childrenMissing: (n) => `Er ${n > 1 ? "ontbreken" : "ontbreekt"} nog ${n} kinderpaspoort${n > 1 ? "en" : ""}. Voeg ${n > 1 ? "ze" : "het"} hieronder toe.`,
     childrenSave: "Foto's van de kinderen opslaan",
     conditionsNote: "Uw handtekening hierboven geldt ook als ondertekening van de verblijfsvoorwaarden voor de hele groep.",
   },
