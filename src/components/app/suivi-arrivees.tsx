@@ -142,7 +142,7 @@ export async function SuiviArrivees({ now }: { now: Date }) {
       ...r,
       caution: statutCaution(r, now),
       police: statutFichePolice(r, r.ficheStatut, now, progressionFiche(r.fiche)),
-      conditions: statutContrat(r, r.contratStatut, now),
+      conditions: r.contratRequis ? statutContrat(r, r.contratStatut, now) : ({ tone: "neutre", label: "Non requis" } as Statut),
       echeance: calculerEcheance({ checkIn: r.checkIn, ficheStatut: r.ficheStatut, contratStatut: r.contratStatut }, now),
     }))
     // Ce qui est en retard (limite J-1 dépassée, ou arrivé sans papiers) en tête, puis par

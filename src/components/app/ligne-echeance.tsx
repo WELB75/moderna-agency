@@ -72,6 +72,8 @@ export type LigneEcheanceProps = {
   progressionFiche: string | null;
   ficheId: string | null;
   ficheEnvoyee: boolean;
+  // Faux pour un séjour Famille : le contrat n'est pas demandé.
+  contratRequis?: boolean;
 };
 
 export function LigneEcheance({
@@ -84,6 +86,7 @@ export function LigneEcheance({
   contratStatut,
   progressionFiche,
   ficheEnvoyee,
+  contratRequis = true,
   masqueePc = false,
 }: LigneEcheanceProps & { masqueePc?: boolean }) {
   const [now, setNow] = useState(() => nowInMorocco());
@@ -137,7 +140,7 @@ export function LigneEcheance({
           ? `Envoyée · ${attendus}`
           : "Fiche envoyée"
         : "Fiche à envoyer";
-  const contratTexte = contratOk ? "Contrat ✓" : contratStatut ? "Contrat à signer" : "Contrat";
+  const contratTexte = !contratRequis ? "Sans contrat" : contratOk ? "Contrat ✓" : contratStatut ? "Contrat à signer" : "Contrat";
   const lisere = LISERE[villaType ?? "inconnu"];
 
   return (
@@ -194,7 +197,7 @@ export function LigneEcheance({
           </Badge>
         </span>
         <span className="sm:flex sm:min-w-0">
-          <Badge ok={contratOk} partiel={false} envoye={false} urgent={e.tone === "urgent"}>
+          <Badge ok={contratOk && contratRequis} partiel={false} envoye={false} urgent={contratRequis && e.tone === "urgent"}>
             {contratTexte}
           </Badge>
         </span>
