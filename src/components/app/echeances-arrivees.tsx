@@ -65,6 +65,7 @@ export async function EcheancesArrivees({ now }: { now: Date }) {
           contratStatut: a.contratStatut,
           progressionFiche: progressionFiche(a.fiche),
           ficheId: a.fiche?.id ?? null,
+          ficheEnvoyee: a.ficheEnvoyee,
         }))}
       />
     </section>

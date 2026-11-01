@@ -71,6 +71,7 @@ export type LigneEcheanceProps = {
   contratStatut: "signe" | "en_attente" | null;
   progressionFiche: string | null;
   ficheId: string | null;
+  ficheEnvoyee: boolean;
 };
 
 export function LigneEcheance({
@@ -82,7 +83,7 @@ export function LigneEcheance({
   ficheStatut,
   contratStatut,
   progressionFiche,
-  ficheId,
+  ficheEnvoyee,
   masqueePc = false,
 }: LigneEcheanceProps & { masqueePc?: boolean }) {
   const [now, setNow] = useState(() => nowInMorocco());
@@ -119,7 +120,23 @@ export function LigneEcheance({
 
   const ficheOk = ficheStatut === "complete";
   const contratOk = contratStatut === "signe";
-  const ficheTexte = ficheOk ? "Fiche police ✓" : progressionFiche ? (progressionFiche.includes("/") ? `Passeports ${progressionFiche.split(" ")[0]}` : progressionFiche) : ficheId ? "Fiche police en attente" : "Fiche police";
+  // Fiche police : « Envoyée » dès que le message d'arrivée (avec le lien) est parti, pour savoir
+  // d'un coup d'œil si le voyageur l'a reçue avant même qu'il commence à la remplir (Kamel,
+  // 2026-11-01). Dès qu'un passeport est reçu, c'est la progression qui parle.
+  const passeportsRecus = progressionFiche ? !progressionFiche.startsWith("0/") && !progressionFiche.startsWith("0 ") : false;
+  const attendus = progressionFiche?.includes("/") ? progressionFiche.split(" ")[0] : null;
+  const ficheEnAttenteEnvoyee = !ficheOk && ficheEnvoyee && !passeportsRecus;
+  const ficheTexte = ficheOk
+    ? "Fiche police ✓"
+    : passeportsRecus
+      ? progressionFiche!.includes("/")
+        ? `Passeports ${attendus}`
+        : progressionFiche!
+      : ficheEnvoyee
+        ? attendus
+          ? `Envoyée · ${attendus}`
+          : "Fiche envoyée"
+        : "Fiche à envoyer";
   const contratTexte = contratOk ? "Contrat ✓" : contratStatut ? "Contrat à signer" : "Contrat";
   const lisere = LISERE[villaType ?? "inconnu"];
 
@@ -170,12 +187,12 @@ export function LigneEcheance({
       {/* Téléphone : les deux badges côte à côte. PC : chacun dans sa colonne (display: contents). */}
       <span className="flex gap-1 sm:contents">
         <span className="sm:flex sm:min-w-0">
-          <Badge ok={ficheOk} partiel={!ficheOk && Boolean(progressionFiche)} urgent={e.tone === "urgent"}>
+          <Badge ok={ficheOk} partiel={passeportsRecus} envoye={ficheEnAttenteEnvoyee} urgent={e.tone === "urgent"}>
             {ficheTexte}
           </Badge>
         </span>
         <span className="sm:flex sm:min-w-0">
-          <Badge ok={contratOk} partiel={false} urgent={e.tone === "urgent"}>
+          <Badge ok={contratOk} partiel={false} envoye={false} urgent={e.tone === "urgent"}>
             {contratTexte}
           </Badge>
         </span>
@@ -192,7 +209,7 @@ export function LigneEcheance({
   );
 }
 
-function Badge({ ok, partiel, urgent, children }: { ok: boolean; partiel: boolean; urgent: boolean; children: React.ReactNode }) {
+function Badge({ ok, partiel, envoye, urgent, children }: { ok: boolean; partiel: boolean; envoye: boolean; urgent: boolean; children: React.ReactNode }) {
   return (
     <span
       className={cn(
@@ -201,9 +218,11 @@ function Badge({ ok, partiel, urgent, children }: { ok: boolean; partiel: boolea
           ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
           : partiel
             ? "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-            : urgent
-              ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
-              : "border-border text-muted-foreground"
+            : envoye
+              ? "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400"
+              : urgent
+                ? "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400"
+                : "border-border text-muted-foreground"
       )}
     >
       {children}
