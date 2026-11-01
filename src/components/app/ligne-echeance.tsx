@@ -148,14 +148,16 @@ export function LigneEcheance({
         // Téléphone : bulle compacte dans la bande défilante.
         "flex w-[10.25rem] shrink-0 snap-start flex-col gap-1.5 rounded-xl border border-l-[3px] bg-card px-2.5 py-2 transition-colors hover:bg-muted/40",
         // PC : ligne de grille dans le bloc, plus de bordure propre, séparée par un filet.
-        masqueePc && "sm:hidden",
         // Colonnes fixes ou en fr, jamais « auto » : chaque ligne est sa propre grille, et une colonne
         // auto prenait une largeur différente selon le texte, donc rien n'était aligné d'une ligne à
         // l'autre (Fouad, 2026-10-31 : « tout doit être droit, bien propre et aligné »). Les deux
         // badges ont chacun leur colonne de largeur fixe, calés à gauche : les « P » de Passeports
         // et les « C » de Contrat tombent au même endroit sur toutes les lignes.
         "sm:grid sm:w-auto sm:h-[46px] sm:grid-cols-[14px_minmax(0,1fr)_minmax(0,1.3fr)_8.75rem_6.5rem_8rem] sm:items-center sm:gap-x-3 sm:rounded-none sm:border-0 sm:border-b sm:border-l-[3px] sm:border-b-border sm:bg-transparent sm:px-3 sm:py-0",
-        lisere
+        lisere,
+        // En dernier : tailwind-merge garde la dernière classe `display`, donc placé avant « sm:grid »
+        // le masquage était silencieusement écarté et toutes les lignes s'affichaient sur PC.
+        masqueePc && "sm:hidden"
       )}
     >
       {/* Point d'état (PC seulement ; sur téléphone la couleur du délai suffit). */}
