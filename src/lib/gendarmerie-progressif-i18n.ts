@@ -9,6 +9,7 @@ export type ProgressifText = {
   subtitle: (villaNom: string) => string;
   explication: string;
   howMany: string;
+  howManyChildren: string;
   progress: (recus: number, attendus: number) => string;
   progressSansTotal: (recus: number) => string;
   registered: string;
@@ -42,6 +43,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     explication:
       "Chaque adulte du groupe remplit sa propre fiche : scannez votre passeport, vérifiez, signez. Vous pouvez le faire chacun de votre côté, depuis votre propre téléphone : ce qui est enregistré reste enregistré. Faites-le dès maintenant si possible, et au plus tard la veille de votre arrivée.",
     howMany: "Combien d'adultes dans votre groupe ?",
+    howManyChildren: "Combien d'enfants dans votre groupe ?",
     progress: (r, a) => `${r} adulte${r > 1 ? "s" : ""} sur ${a} enregistré${r > 1 ? "s" : ""}`,
     progressSansTotal: (r) => `${r} adulte${r > 1 ? "s" : ""} enregistré${r > 1 ? "s" : ""}`,
     registered: "Déjà enregistrés :",
@@ -74,6 +76,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     explication:
       "Each adult in the group fills in their own form: scan your passport, check, sign. You can each do it separately, from your own phone: whatever is saved stays saved. Please do it now if you can, and at the latest the day before your arrival.",
     howMany: "How many adults are in your group?",
+    howManyChildren: "How many children are in your group?",
     progress: (r, a) => `${r} of ${a} adult${a > 1 ? "s" : ""} registered`,
     progressSansTotal: (r) => `${r} adult${r > 1 ? "s" : ""} registered`,
     registered: "Already registered:",
@@ -106,6 +109,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     explication:
       "Cada adulto del grupo rellena su propia ficha: escanee su pasaporte, compruebe, firme. Pueden hacerlo cada uno por su lado, desde su propio teléfono: lo que se guarda, se queda guardado. Háganlo ahora si es posible, y a más tardar la víspera de su llegada.",
     howMany: "¿Cuántos adultos hay en su grupo?",
+    howManyChildren: "¿Cuántos niños hay en su grupo?",
     progress: (r, a) => `${r} de ${a} adulto${a > 1 ? "s" : ""} registrado${r > 1 ? "s" : ""}`,
     progressSansTotal: (r) => `${r} adulto${r > 1 ? "s" : ""} registrado${r > 1 ? "s" : ""}`,
     registered: "Ya registrados:",
@@ -138,6 +142,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     explication:
       "يملأ كل شخص بالغ في المجموعة بطاقته الخاصة: امسح جواز سفرك، تحقق، ثم وقّع. يمكن لكل واحد فعل ذلك من هاتفه الخاص: ما تم حفظه يبقى محفوظًا. يُرجى القيام بذلك الآن إن أمكن، وعلى أبعد تقدير في اليوم السابق لوصولكم.",
     howMany: "كم عدد البالغين في مجموعتكم؟",
+    howManyChildren: "كم عدد الأطفال في مجموعتكم؟",
     progress: (r, a) => `تم تسجيل ${r} من ${a} بالغين`,
     progressSansTotal: (r) => `تم تسجيل ${r} بالغين`,
     registered: "المسجلون:",
@@ -170,6 +175,7 @@ export const PROGRESSIF_TEXT: Record<GendarmerieLang, ProgressifText> = {
     explication:
       "Elke volwassene in de groep vult zijn eigen formulier in: scan uw paspoort, controleer, onderteken. Ieder kan dit apart doen, vanaf de eigen telefoon: wat is opgeslagen, blijft opgeslagen. Doe het nu als het kan, en uiterlijk de dag vóór uw aankomst.",
     howMany: "Hoeveel volwassenen telt uw groep?",
+    howManyChildren: "Hoeveel kinderen telt uw groep?",
     progress: (r, a) => `${r} van ${a} volwassene${a > 1 ? "n" : ""} geregistreerd`,
     progressSansTotal: (r) => `${r} volwassene${r > 1 ? "n" : ""} geregistreerd`,
     registered: "Al geregistreerd:",

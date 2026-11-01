@@ -97,6 +97,7 @@ export function GendarmerieFormProgressif({
   const [lang, setLang] = useState<GendarmerieLang | null>(null);
   const [etat, setEtat] = useState<EtatFiche>(etatInitial);
   const [attendusSaisi, setAttendusSaisi] = useState<string>(etatInitial.attendus ? String(etatInitial.attendus) : "");
+  const [enfantsSaisi, setEnfantsSaisi] = useState<string>(String(etatInitial.enfantsAttendus ?? nbEnfants));
   const [occupant, setOccupant] = useState<OccupantInput>(() => emptyOccupant());
   const [accepteConditions, setAccepteConditions] = useState(false);
   const [enregistre, setEnregistre] = useState<string | null>(null); // prénom de la fiche qu'on vient d'enregistrer
@@ -222,15 +223,21 @@ export function GendarmerieFormProgressif({
       return;
     }
     const nbAttendus = Number(attendusSaisi);
+    const nbEnfantsAttendus = enfantsSaisi.trim() === "" ? null : Math.max(0, Math.min(20, Math.floor(Number(enfantsSaisi)) || 0));
     const data: OccupantInput = { ...occupant, signatureImage: pad.toDataUrl() };
     startTransition(async () => {
       try {
         const nouvelEtat = await enregistrerOccupantPublic(formId, lang!, data, {
           accepteConditions: proposerConditions && accepteConditions,
           nbAdultesAttendus: etat.recus === 0 && nbAttendus > 0 ? nbAttendus : null,
+          nbEnfantsAttendus: etat.recus === 0 ? nbEnfantsAttendus : null,
         });
         ecrireStockage(DRAFT_STORAGE(formId), null);
         setEtat(nouvelEtat);
+        // Un emplacement photo par enfant annoncé, moins ceux déjà reçus.
+        if (etat.recus === 0 && nbEnfantsAttendus !== null) {
+          setEnfantsPhotos(Array.from({ length: Math.max(0, nbEnfantsAttendus - nouvelEtat.enfantsPhotos) }, () => ""));
+        }
         setEnregistre(occupant.prenom.trim() || occupant.nom.trim());
         setOccupant(emptyOccupant());
         setAccepteConditions(false);
@@ -362,22 +369,41 @@ export function GendarmerieFormProgressif({
       <p className="rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{p.explication}</p>
 
       {etat.recus === 0 ? (
-        <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2">
-          <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-          <Label htmlFor="nb-adultes" className="flex-1 font-normal">
-            {p.howMany}
-          </Label>
-          <Input
-            id="nb-adultes"
-            type="number"
-            inputMode="numeric"
-            min={1}
-            max={30}
-            className="h-11 w-20 text-center md:h-8"
-            value={attendusSaisi}
-            onChange={(e) => setAttendusSaisi(e.target.value)}
-            dir="ltr"
-          />
+        <div className="space-y-2">
+          <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2">
+            <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Label htmlFor="nb-adultes" className="flex-1 font-normal">
+              {p.howMany}
+            </Label>
+            <Input
+              id="nb-adultes"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={30}
+              className="h-11 w-20 text-center md:h-8"
+              value={attendusSaisi}
+              onChange={(e) => setAttendusSaisi(e.target.value)}
+              dir="ltr"
+            />
+          </div>
+          <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2">
+            <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Label htmlFor="nb-enfants" className="flex-1 font-normal">
+              {p.howManyChildren}
+            </Label>
+            <Input
+              id="nb-enfants"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={20}
+              className="h-11 w-20 text-center md:h-8"
+              value={enfantsSaisi}
+              onChange={(e) => setEnfantsSaisi(e.target.value)}
+              dir="ltr"
+            />
+          </div>
         </div>
       ) : null}
 
