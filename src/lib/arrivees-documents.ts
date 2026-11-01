@@ -37,6 +37,8 @@ export type ArriveeDocuments = {
   caution: string | null;
   cautionPayee: boolean;
   nbAdultes: number | null;
+  // Le bouton « Message d'arrivée » (qui embarque le lien de la fiche police) a été utilisé.
+  ficheEnvoyee: boolean;
   villaId: string | null;
   villaNom: string | null;
   villaType: "villa" | "appartement" | null;
@@ -61,6 +63,7 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
         caution: reservations.caution,
         cautionPayee: reservations.cautionPayee,
         nbAdultes: reservations.nbAdultes,
+        messageArriveeEnvoyeAt: reservations.messageArriveeEnvoyeAt,
         villaId: villas.id,
         villaNom: villas.nom,
         villaType: villas.type,
@@ -147,8 +150,10 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
       : null;
     const cle = r.villaId ? `${r.villaId}|${format(r.checkIn, "yyyy-MM-dd")}` : null;
     const contrat = cle ? (contratParVillaEtDate.get(cle) ?? null) : null;
+    const { messageArriveeEnvoyeAt, ...resa } = r;
     return {
-      ...r,
+      ...resa,
+      ficheEnvoyee: Boolean(messageArriveeEnvoyeAt),
       fiche,
       contrat,
       ficheStatut: fiche?.statut ?? null,
