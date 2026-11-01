@@ -195,9 +195,14 @@ export default async function DashboardPage({
         and(
           ne(reservations.status, "annulee"),
           isNotNull(reservations.checkinValideAt),
-          isNull(reservations.checkoutValideAt)
+          isNull(reservations.checkoutValideAt),
+          // Un départ jamais validé ne doit pas garder la villa "occupée" indéfiniment : au-delà
+          // du jour de départ prévu, la réservation n'occupe plus le plan.
+          gte(reservations.checkOut, startOfDay(now))
         )
-      ),
+      )
+      // Si deux réservations restent actives sur la même villa, la plus récente l'emporte.
+      .orderBy(asc(reservations.checkIn)),
     db
       .select({ finishedAt: superhoteSyncLog.finishedAt, success: superhoteSyncLog.success })
       .from(superhoteSyncLog)
