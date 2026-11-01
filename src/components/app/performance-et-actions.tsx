@@ -7,6 +7,7 @@ import {
   ArrowRight,
   CalendarDays,
   FileWarning,
+  BedDouble,
   Gauge,
   HandCoins,
   MessageCircle,
@@ -31,10 +32,13 @@ export async function PerformanceEtActions({ now, unreadChatCount }: { now: Date
   const db = getDb();
   const madParEur = await getMadParEur();
   const todayEnd = endOfDay(now);
-  const debutMois = startOfMonth(now);
   const debutAnnee = startOfYear(now);
   const year = now.getFullYear();
   const monthIndex = now.getMonth();
+  const moisDernier = addMonths(startOfMonth(now), -1);
+  // Fenêtre élargie à l'année précédant le mois dernier (en janvier, mois dernier = décembre N-1,
+  // référence = décembre N-2) : un seul aller-retour base pour les comparaisons N-1.
+  const debutFenetre = new Date(moisDernier.getFullYear() - 1, 0, 1);
 
   const logements = (
     await db
@@ -44,9 +48,9 @@ export async function PerformanceEtActions({ now, unreadChatCount }: { now: Date
   ).filter((v) => domaineEstActif(v.domaineNom) && villaEstGeree(v.nom));
   const logementIds = new Set(logements.map((v) => v.id));
 
-  // Toutes les réservations qui touchent l'année en cours (pour le CA cumulé) — le mois en cours
-  // et "aujourd'hui" en sont des sous-ensembles, un seul aller-retour base suffit.
-  const resaToutes = await db
+  // Toutes les réservations qui touchent la fenêtre (année en cours, mois dernier et leurs
+  // références N-1) — un seul aller-retour base suffit.
+  const resaFenetre = await db
       .select({
         id: reservations.id,
         villaId: reservations.villaId,
@@ -65,37 +69,50 @@ export async function PerformanceEtActions({ now, unreadChatCount }: { now: Date
         and(
           ne(reservations.status, "annulee"),
           lt(reservations.checkIn, addDays(todayEnd, 31)),
-          gte(reservations.checkOut, debutAnnee)
+          gte(reservations.checkOut, debutFenetre)
         )
       );
   // Les KPI du mois suivent les règles de la page Statistiques (logements gérés des domaines
   // actifs uniquement) ; les actions et la journée portent sur toutes les réservations, comme les
   // vues Jour/Liste du calendrier vers lesquelles elles renvoient.
-  const resaAnnee = resaToutes.filter((r) => r.villaId && logementIds.has(r.villaId));
+  const resaAnnee = resaFenetre.filter((r) => r.villaId && logementIds.has(r.villaId));
+  // Les compteurs « Ce qui a besoin de vous » restent limités à l'année en cours, comme avant
+  // l'élargissement de la fenêtre.
+  const resaToutes = resaFenetre.filter((r) => new Date(r.checkOut) >= debutAnnee);
 
   // --- Performance du mois ---------------------------------------------------------------------
-  let nuiteesMois = 0;
-  let caMois = 0;
-  let caAnnee = 0;
-  let reservationsDuMois = 0;
-  for (const r of resaAnnee) {
-    const checkIn = new Date(r.checkIn);
-    const checkOut = new Date(r.checkOut);
-    const loyer = r.loyerTotal ? Number(r.loyerTotal) : 0;
-    nuiteesMois += nuiteesDansLeMois(checkIn, checkOut, year, monthIndex);
-    if (checkIn >= debutMois && checkIn < addMonths(debutMois, 1)) {
-      reservationsDuMois++;
-    }
-    if (loyer > 0) {
-      caMois += versEuros(montantProrata(loyer, checkIn, checkOut, year, monthIndex), r.devisePaiement, madParEur);
-      for (let m = 0; m <= monthIndex; m++) {
-        caAnnee += versEuros(montantProrata(loyer, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
+  // Mêmes règles pour tous les mois : nuits et loyers au prorata, euros, dénominateur = nombre de
+  // logements gérés aujourd'hui × jours du mois (aussi pour la référence N-1).
+  function kpisDuMois(y: number, m: number) {
+    const debut = new Date(y, m, 1);
+    const fin = addMonths(debut, 1);
+    let nuitees = 0;
+    let ca = 0;
+    let caCumul = 0;
+    let nbReservations = 0;
+    for (const r of resaAnnee) {
+      const checkIn = new Date(r.checkIn);
+      const checkOut = new Date(r.checkOut);
+      const loyer = r.loyerTotal ? Number(r.loyerTotal) : 0;
+      nuitees += nuiteesDansLeMois(checkIn, checkOut, y, m);
+      if (checkIn >= debut && checkIn < fin) nbReservations++;
+      if (loyer > 0) {
+        ca += versEuros(montantProrata(loyer, checkIn, checkOut, y, m), r.devisePaiement, madParEur);
+        for (let k = 0; k <= m; k++) {
+          caCumul += versEuros(montantProrata(loyer, checkIn, checkOut, y, k), r.devisePaiement, madParEur);
+        }
       }
     }
+    const nuitsDisponibles = logements.length * new Date(y, m + 1, 0).getDate();
+    const taux = nuitsDisponibles > 0 ? (nuitees / nuitsDisponibles) * 100 : 0;
+    return { nuitees, ca, caCumul, nbReservations, taux };
   }
-  const joursDansLeMois = new Date(year, monthIndex + 1, 0).getDate();
-  const nuitsDisponibles = logements.length * joursDansLeMois;
-  const tauxOccupation = nuitsDisponibles > 0 ? (nuiteesMois / nuitsDisponibles) * 100 : 0;
+
+  const moisCourant = kpisDuMois(year, monthIndex);
+  const moisCourantN1 = kpisDuMois(year - 1, monthIndex);
+  const dernier = kpisDuMois(moisDernier.getFullYear(), moisDernier.getMonth());
+  const dernierN1 = kpisDuMois(moisDernier.getFullYear() - 1, moisDernier.getMonth());
+  const libelleMois = (y: number, m: number) => format(new Date(y, m, 1), "MMM yyyy", { locale: fr });
 
   // --- Ce qui a besoin de vous -----------------------------------------------------------------
   const impayees = resaToutes.filter((r) => estImpayee(r, now));
@@ -154,10 +171,71 @@ export async function PerformanceEtActions({ now, unreadChatCount }: { now: Date
       <section className="space-y-2.5">
         <SectionHeader title="Performance du mois" />
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border lg:grid-cols-4">
-          <KpiTile icon={Gauge} label="Taux d'occupation" value={tauxOccupation.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} unit="%" />
-          <KpiTile icon={Wallet} label={`CA de ${format(now, "MMMM", { locale: fr })}`} value={euros.format(caMois)} unit="€" />
-          <KpiTile icon={HandCoins} label={`Depuis le 1ᵉʳ janvier ${year}`} value={euros.format(caAnnee)} unit="€" />
-          <KpiTile icon={CalendarDays} label="Réservations du mois" value={String(reservationsDuMois)} />
+          <KpiTile
+            icon={Gauge}
+            label="Taux d'occupation"
+            value={nombre1(moisCourant.taux)}
+            unit="%"
+            compare={comparerTaux(moisCourant.taux, moisCourantN1.taux, libelleMois(year - 1, monthIndex))}
+          />
+          <KpiTile
+            icon={Wallet}
+            label={`CA de ${format(now, "MMMM", { locale: fr })}`}
+            value={euros.format(moisCourant.ca)}
+            unit="€"
+            compare={comparerMontant(moisCourant.ca, moisCourantN1.ca, libelleMois(year - 1, monthIndex))}
+          />
+          <KpiTile
+            icon={HandCoins}
+            label={`Depuis le 1ᵉʳ janvier ${year}`}
+            value={euros.format(moisCourant.caCumul)}
+            unit="€"
+            compare={comparerMontant(
+              moisCourant.caCumul,
+              moisCourantN1.caCumul,
+              monthIndex === 0
+                ? libelleMois(year - 1, 0)
+                : `${format(new Date(year - 1, 0, 1), "MMM", { locale: fr })}–${libelleMois(year - 1, monthIndex)}`
+            )}
+          />
+          <KpiTile
+            icon={CalendarDays}
+            label="Réservations du mois"
+            value={String(moisCourant.nbReservations)}
+            compare={comparerNombre(moisCourant.nbReservations, moisCourantN1.nbReservations, libelleMois(year - 1, monthIndex))}
+          />
+        </div>
+      </section>
+
+      <section className="space-y-2.5">
+        <SectionHeader title={`Mois dernier · ${format(moisDernier, "MMMM yyyy", { locale: fr })}`} />
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border bg-border lg:grid-cols-4">
+          <KpiTile
+            icon={Gauge}
+            label="Taux d'occupation"
+            value={nombre1(dernier.taux)}
+            unit="%"
+            compare={comparerTaux(dernier.taux, dernierN1.taux, libelleMois(moisDernier.getFullYear() - 1, moisDernier.getMonth()))}
+          />
+          <KpiTile
+            icon={Wallet}
+            label={`CA de ${format(moisDernier, "MMMM", { locale: fr })}`}
+            value={euros.format(dernier.ca)}
+            unit="€"
+            compare={comparerMontant(dernier.ca, dernierN1.ca, libelleMois(moisDernier.getFullYear() - 1, moisDernier.getMonth()))}
+          />
+          <KpiTile
+            icon={BedDouble}
+            label="Nuitées vendues"
+            value={euros.format(dernier.nuitees)}
+            compare={comparerNombre(dernier.nuitees, dernierN1.nuitees, libelleMois(moisDernier.getFullYear() - 1, moisDernier.getMonth()))}
+          />
+          <KpiTile
+            icon={CalendarDays}
+            label="Réservations du mois"
+            value={String(dernier.nbReservations)}
+            compare={comparerNombre(dernier.nbReservations, dernierN1.nbReservations, libelleMois(moisDernier.getFullYear() - 1, moisDernier.getMonth()))}
+          />
         </div>
       </section>
 
@@ -213,7 +291,59 @@ function SectionHeader({ title, href, linkLabel }: { title: string; href?: strin
   );
 }
 
-function KpiTile({ icon: Icon, label, value, unit }: { icon: LucideIcon; label: string; value: string; unit?: string }) {
+type Ecart = { texte: string; ton: "hausse" | "baisse" | "stable" };
+type Comparaison = { label: string; value: string; delta: Ecart | null };
+
+const nombre1 = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+const signe = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "");
+
+// Écart relatif en %, sans écart affiché quand la référence N-1 est à zéro (division impossible).
+function ecartRelatif(actuel: number, precedent: number): Ecart | null {
+  if (!(precedent > 0)) return null;
+  const pct = Math.round(((actuel - precedent) / precedent) * 100);
+  return { texte: `${signe(pct)}${Math.abs(pct)} %`, ton: pct > 0 ? "hausse" : pct < 0 ? "baisse" : "stable" };
+}
+
+function comparerMontant(actuel: number, precedent: number, label: string): Comparaison {
+  return { label, value: `${euros.format(precedent)} €`, delta: ecartRelatif(actuel, precedent) };
+}
+
+function comparerNombre(actuel: number, precedent: number, label: string): Comparaison {
+  return { label, value: euros.format(precedent), delta: ecartRelatif(actuel, precedent) };
+}
+
+// Taux d'occupation : l'écart est en points, pas en % relatif.
+function comparerTaux(actuel: number, precedent: number, label: string): Comparaison {
+  const ecart = Math.round((actuel - precedent) * 10) / 10;
+  return {
+    label,
+    value: `${nombre1(precedent)} %`,
+    delta:
+      precedent > 0
+        ? { texte: `${signe(ecart)}${nombre1(Math.abs(ecart))} pt`, ton: ecart > 0 ? "hausse" : ecart < 0 ? "baisse" : "stable" }
+        : null,
+  };
+}
+
+const TON_ECART: Record<Ecart["ton"], string> = {
+  hausse: "text-emerald-600 dark:text-emerald-400",
+  baisse: "text-red-600 dark:text-red-400",
+  stable: "text-muted-foreground",
+};
+
+function KpiTile({
+  icon: Icon,
+  label,
+  value,
+  unit,
+  compare,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  unit?: string;
+  compare?: Comparaison;
+}) {
   return (
     <div className="space-y-2 bg-card p-3 sm:p-4">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -226,6 +356,12 @@ function KpiTile({ icon: Icon, label, value, unit }: { icon: LucideIcon; label: 
         {value}
         {unit ? <span className="ml-1 text-base font-medium text-muted-foreground">{unit}</span> : null}
       </p>
+      {compare ? (
+        <p className="text-xs leading-snug tabular-nums text-muted-foreground">
+          {compare.delta ? <span className={`font-medium ${TON_ECART[compare.delta.ton]}`}>{compare.delta.texte} </span> : null}
+          vs {compare.label} : {compare.value}
+        </p>
+      ) : null}
     </div>
   );
 }
