@@ -10,7 +10,7 @@ import { SectionLabel } from "@/components/app/dashboard-ui";
 // semaine affichée, et celui du bloc « Fiche police, contrat et caution » seulement une fois le
 // bloc déplié.
 //
-// Ici : une ligne par arrivée des 20 prochains jours dont les documents ne sont pas tous réglés
+// Ici : une ligne par arrivée des 30 prochains jours dont les documents ne sont pas tous réglés
 // (fiche police complète + contrat signé), toujours visible dès l'ouverture, avec le compteur
 // jusqu'à la limite J-1 (24 h avant l'arrivée, lib/echeance-documents.ts) et ce qui manque :
 // « Passeports 2/4 » (reçus / attendus, voir lib/arrivees-documents.ts) et « Contrat ». Les
@@ -29,7 +29,8 @@ import { SectionLabel } from "@/components/app/dashboard-ui";
 // Gris : on a le temps. Orange : moins de 24 h avant la limite. Rouge : limite dépassée / arrivé
 // sans papiers. Les retards passent en tête, puis par date d'arrivée.
 
-const NB_JOURS = 20;
+// Kamel, 2026-11-01 : « Voir plus » doit montrer tout le mois, donc 30 jours (et non plus 20).
+const NB_JOURS = 30;
 
 export async function EcheancesArrivees({ now }: { now: Date }) {
   const arrivees = await chargerArriveesDocuments(now, NB_JOURS);
