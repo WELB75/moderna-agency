@@ -8,7 +8,6 @@ import { StatistiquesTable, type LogementMoisStats, type LogementStatsRow } from
 import { StatistiquesCharts, type PortfolioMoisStats } from "@/components/app/statistiques-charts";
 import { PerformanceEtActions } from "@/components/app/performance-et-actions";
 import { getUnreadChatCount } from "@/lib/actions/chat";
-import { ImportSuperhoteCsvDialog } from "@/components/app/import-superhote-csv-dialog";
 
 export default async function StatistiquesPage({
   searchParams,
@@ -79,12 +78,8 @@ export default async function StatistiquesPage({
   // Le loyer/montant payé ne vient jamais automatiquement de Superhote : leur iCal ne transmet
   // pas les prix (limitation du format), donc ces champs ne se remplissent que par saisie
   // manuelle ou par l'import du CSV Superhote (qui, lui, couvre tous les canaux — Direct, Airbnb,
-  // Booking.com — pas seulement ce que Kamel encaisse en direct). On compte ici les réservations
-  // sans loyer connu pour prévenir Kamel que le CA affiché est sous-estimé tant qu'il n'a pas
-  // importé un CSV frais couvrant la période.
-  let nbReservationsSansLoyer = 0;
-  let nbReservationsAvecNuitsCetteAnnee = 0;
-
+  // Booking.com — pas seulement ce que Kamel encaisse en direct). Le bandeau qui prévenait d'un CA
+  // sous-estimé (réservations sans loyer) a été retiré à la demande de Kamel, 2026-11-01.
   for (const r of reservationsAnnee) {
     if (!r.villaId) continue;
     const mois = statsParVilla.get(r.villaId);
@@ -93,11 +88,9 @@ export default async function StatistiquesPage({
     const checkOut = new Date(r.checkOut);
     const loyerTotal = r.loyerTotal ? Number(r.loyerTotal) : 0;
     const montantPaye = r.montantPaye ? Number(r.montantPaye) : 0;
-    let aDesNuitsCetteAnnee = false;
     for (let m = 0; m < 12; m++) {
       const nuits = nuiteesDansLeMois(checkIn, checkOut, year, m);
       if (nuits <= 0) continue;
-      aDesNuitsCetteAnnee = true;
       mois[m].nuitees += nuits;
       if (loyerTotal > 0) {
         mois[m].ca += versEuros(montantProrata(loyerTotal, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
@@ -105,10 +98,6 @@ export default async function StatistiquesPage({
       if (montantPaye > 0) {
         mois[m].encaisse += versEuros(montantProrata(montantPaye, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
       }
-    }
-    if (aDesNuitsCetteAnnee) {
-      nbReservationsAvecNuitsCetteAnnee++;
-      if (loyerTotal <= 0) nbReservationsSansLoyer++;
     }
   }
 
@@ -158,19 +147,6 @@ export default async function StatistiquesPage({
       </div>
 
       <PerformanceEtActions now={new Date()} unreadChatCount={unreadChatCount} />
-
-      {nbReservationsSansLoyer > 0 ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
-          <p>
-            <span className="font-medium">{nbReservationsSansLoyer}</span> réservation
-            {nbReservationsSansLoyer > 1 ? "s" : ""} sur {nbReservationsAvecNuitsCetteAnnee} n&apos;
-            {nbReservationsSansLoyer > 1 ? "ont" : "a"} pas de loyer renseigné (le CA affiché est donc sous-estimé) —
-            Superhote ne transmet pas les prix par iCal, quel que soit le canal (Direct, Airbnb, Booking.com) : seul un
-            import du CSV Superhote (Calendriers → Actions → Exporter les réservations) les remplit.
-          </p>
-          <ImportSuperhoteCsvDialog />
-        </div>
-      ) : null}
 
       <StatistiquesCharts mois={portfolioMois} />
 
