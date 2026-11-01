@@ -34,6 +34,8 @@ export type EtatFiche = {
   // Prénoms déjà enregistrés (jamais de données de pièce d'identité côté public).
   prenoms: string[];
   enfantsPhotos: number;
+  // Nombre d'enfants annoncé (fiche, sinon réservation) ; null tant qu'il n'est pas connu.
+  enfantsAttendus: number | null;
 };
 
 async function etatFiche(formId: string): Promise<EtatFiche> {
@@ -42,8 +44,10 @@ async function etatFiche(formId: string): Promise<EtatFiche> {
     .select({
       statut: gendarmerieForms.statut,
       nbAdultesPrevu: gendarmerieForms.nbAdultesPrevu,
+      nbEnfantsPrevu: gendarmerieForms.nbEnfantsPrevu,
       enfantsPassportUrls: gendarmerieForms.enfantsPassportUrls,
       nbAdultesResa: reservations.nbAdultes,
+      nbEnfantsResa: reservations.nbEnfants,
     })
     .from(gendarmerieForms)
     .leftJoin(reservations, eq(gendarmerieForms.reservationId, reservations.id))
@@ -62,6 +66,7 @@ async function etatFiche(formId: string): Promise<EtatFiche> {
     attendus: attendusBrut && attendusBrut > 0 ? attendusBrut : null,
     prenoms: occupants.map((o) => (o.prenom?.trim() || o.nom?.trim() || "?").split(" ")[0]),
     enfantsPhotos: (form.enfantsPassportUrls ?? []).length,
+    enfantsAttendus: form.nbEnfantsPrevu ?? form.nbEnfantsResa ?? null,
   };
 }
 
@@ -153,7 +158,7 @@ export async function enregistrerOccupantPublic(
   formId: string,
   langue: string,
   occupant: OccupantInput,
-  options: { accepteConditions?: boolean; nbAdultesAttendus?: number | null } = {}
+  options: { accepteConditions?: boolean; nbAdultesAttendus?: number | null; nbEnfantsAttendus?: number | null } = {}
 ): Promise<EtatFiche> {
   const db = getDb();
   const [form] = await db.select().from(gendarmerieForms).where(eq(gendarmerieForms.id, formId)).limit(1);
@@ -186,6 +191,10 @@ export async function enregistrerOccupantPublic(
 
   const majFiche: Partial<typeof gendarmerieForms.$inferInsert> = { langue };
   if (options.nbAdultesAttendus && options.nbAdultesAttendus > 0) majFiche.nbAdultesPrevu = options.nbAdultesAttendus;
+  // 0 est une réponse valable (« pas d'enfants »), donc on teste null et non la valeur.
+  if (options.nbEnfantsAttendus != null && options.nbEnfantsAttendus >= 0) {
+    majFiche.nbEnfantsPrevu = Math.min(Math.floor(options.nbEnfantsAttendus), 20);
+  }
   await db.update(gendarmerieForms).set(majFiche).where(eq(gendarmerieForms.id, formId));
 
   // Conditions de séjour : acceptées par le premier qui s'enregistre (le voyageur principal), sans
