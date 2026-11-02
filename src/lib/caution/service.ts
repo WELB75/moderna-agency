@@ -37,6 +37,9 @@ export type ContexteCaution = {
   beds24BookingId: string;
   villaId: string | null;
   villaNom: string;
+  // Image à la une du logement (photo principale, à défaut la 1re de la galerie) affichée sur la
+  // page de caution pour que le voyageur reconnaisse tout de suite son séjour.
+  villaPhotoUrl: string | null;
   prenom: string;
   guestName: string;
   checkIn: Date;
@@ -69,6 +72,8 @@ export async function chargerContexteCaution(beds24BookingId: string): Promise<C
       villaId: villas.id,
       villaNom: villas.nom,
       beds24RoomId: villas.beds24RoomId,
+      villaPhotoUrl: villas.photoUrl,
+      villaGalerie: villas.galleryUrls,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -83,6 +88,7 @@ export async function chargerContexteCaution(beds24BookingId: string): Promise<C
     beds24BookingId,
     villaId: r.villaId,
     villaNom: r.villaNom ?? "Votre logement",
+    villaPhotoUrl: r.villaPhotoUrl || r.villaGalerie?.[0] || null,
     prenom: premier.charAt(0).toUpperCase() + premier.slice(1).toLowerCase(),
     guestName: r.guestName,
     checkIn: r.checkIn,
