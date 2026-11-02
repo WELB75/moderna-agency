@@ -349,6 +349,9 @@ export async function runBeds24Sync(): Promise<
             .update(reservations)
             .set({
               ...values,
+              // Prix Beds24 à 0 (réservation directe saisie sans prix) : on garde le loyer déjà
+              // renseigné dans l'app (ou repris de SuperHote) au lieu de le remettre à vide.
+              loyerTotal: sql`coalesce(${values.loyerTotal}::numeric, ${reservations.loyerTotal})`,
               canal,
               // Annulée à la main dans l'app (nettoyage local) : elle le reste, même si Beds24 la
               // renvoie encore active.
@@ -374,6 +377,7 @@ export async function runBeds24Sync(): Promise<
             .update(reservations)
             .set({
               ...values,
+              loyerTotal: sql`coalesce(${values.loyerTotal}::numeric, ${reservations.loyerTotal})`,
               // Fusion plutôt que remplacement : garde raw_data.superhote.reference (lien Airbnb/Booking).
               rawData: sql`coalesce(${reservations.rawData}, '{}'::jsonb) || ${JSON.stringify(values.rawData)}::jsonb`,
               guestPhone: duplicate.guestPhone ?? values.guestPhone,
