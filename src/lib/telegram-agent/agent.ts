@@ -208,7 +208,7 @@ const tools: Tool[] = [
 function buildSystemPrompt(today: string, villasPromptList: string, utilisateur: UtilisateurTelegram) {
   const interlocuteur = utilisateur.principal
     ? `Tu es l'assistant personnel de Kamel sur Telegram, pour Moderna Agency (conciergerie de villas à Marrakech). Il te dicte des instructions (texte ou vocal transcrit) et tu agis directement dans l'application via tes outils. Ton seul interlocuteur est Kamel lui-même — jamais de client, jamais d'employé.`
-    : `Tu es l'assistant de l'équipe Moderna Agency (conciergerie de villas à Marrakech) sur Telegram. Tu parles avec ${utilisateur.nom}, de l'équipe, qui te dicte des instructions (texte ou vocal transcrit) ; tu agis directement dans l'application via tes outils. Partout où les consignes ci-dessous disent "Kamel", il s'agit de ${utilisateur.nom}, la personne qui te parle. Pour ${utilisateur.nom}, financePar vaut toujours "societe" (jamais "loyers_perso").`;
+    : `Tu es l'assistant de l'équipe Moderna Agency (conciergerie de villas à Marrakech) sur Telegram. Tu parles avec ${utilisateur.nom}, de l'équipe, qui te dicte des instructions (texte ou vocal transcrit) ; tu agis directement dans l'application via tes outils. Partout où les consignes ci-dessous disent "Kamel", il s'agit de ${utilisateur.nom}, la personne qui te parle.`;
   return `${interlocuteur}
 
 Date d'aujourd'hui : ${today}.
@@ -269,7 +269,7 @@ async function recordCashEntry(input: Record<string, unknown>, utilisateur: Util
       villaId: villa?.id ?? null,
       reservationId: resa?.id ?? null,
       type: input.type as "depense" | "loyer" | "extra" | "remise" | "restitution",
-      financePar: utilisateur.principal && input.type === "depense" && input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
+      financePar: input.type === "depense" && input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
       moyenPaiement: "especes",
       montant: String(input.montant),
       devise: (input.devise as string) || "MAD",
@@ -312,7 +312,7 @@ async function cancelLastEntry(utilisateur: UtilisateurTelegram) {
   return { ok: true, annule: { type: last.type, montant: last.montant, devise: last.devise, description: last.description } };
 }
 
-async function getCashSummary() {
+async function getCashSummary(voirTout: boolean) {
   const db = getDb();
   const rows = (
     await db
@@ -326,7 +326,7 @@ async function getCashSummary() {
       .from(cashEntries)
       .leftJoin(villas, eq(cashEntries.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-  ).filter((r) => domaineEstActif(r.domaineNom));
+  ).filter((r) => voirTout || domaineEstActif(r.domaineNom));
 
   const devises = [...new Set(rows.map((r) => r.devise))];
   const summary: Record<string, Record<string, number>> = {};
@@ -479,7 +479,7 @@ async function markStaffPaid(input: Record<string, unknown>, utilisateur: Utilis
       villaId: match.villaId,
       reservationId: match.reservationId,
       type: "depense",
-      financePar: utilisateur.principal && input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
+      financePar: input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
       moyenPaiement: "especes",
       montant: montant.toFixed(2),
       devise: "MAD",
@@ -537,7 +537,7 @@ async function getPersonnelSummary(personnelNom: string) {
 // couvre ce jour), et maintenance prévue (maintenanceRecords.prochaineDatePrevue). Le ménage en
 // cours de séjour ("sejour") n'a pas de date précise en base (juste "à faire pendant le
 // séjour") — impossible de dire fiablement s'il tombe "demain" précisément, donc pas inclus ici.
-async function getAgenda(dateStr: string) {
+async function getAgenda(dateStr: string, voirTout: boolean) {
   const db = getDb();
   const day = new Date(`${dateStr}T00:00:00`);
   if (Number.isNaN(day.getTime())) return { erreur: "Date invalide." };
@@ -553,7 +553,7 @@ async function getAgenda(dateStr: string) {
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(and(ne(reservations.status, "annulee"), gte(reservations.checkIn, dayStart), lte(reservations.checkIn, dayEnd)))
-  ).filter((r) => domaineEstActif(r.domaineNom));
+  ).filter((r) => voirTout || domaineEstActif(r.domaineNom));
 
   const departures = (
     await db
@@ -562,7 +562,7 @@ async function getAgenda(dateStr: string) {
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(and(ne(reservations.status, "annulee"), gte(reservations.checkOut, dayStart), lte(reservations.checkOut, dayEnd)))
-  ).filter((r) => domaineEstActif(r.domaineNom));
+  ).filter((r) => voirTout || domaineEstActif(r.domaineNom));
 
   const departureIds = departures.map((d) => d.id);
   const menageDepart =
@@ -587,7 +587,7 @@ async function getAgenda(dateStr: string) {
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(and(ne(reservations.status, "annulee"), lte(reservations.checkIn, dayEnd), gte(reservations.checkOut, dayStart)))
-  ).filter((r) => domaineEstActif(r.domaineNom));
+  ).filter((r) => voirTout || domaineEstActif(r.domaineNom));
 
   const activeStayIds = activeStays.map((s) => s.id);
   const cuisine =
@@ -613,7 +613,7 @@ async function getAgenda(dateStr: string) {
       .leftJoin(villas, eq(maintenanceRecords.villaId, villas.id))
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(and(gte(maintenanceRecords.prochaineDatePrevue, dayStart), lte(maintenanceRecords.prochaineDatePrevue, dayEnd)))
-  ).filter((m) => domaineEstActif(m.domaineNom));
+  ).filter((m) => voirTout || domaineEstActif(m.domaineNom));
 
   const villaLabel = (v: { villaNom: string | null; villaNumero: string | null }) =>
     v.villaNom ? `${v.villaNom} (n°${v.villaNumero})` : "villa inconnue";
@@ -707,7 +707,7 @@ export async function runAgentTurn(messages: MessageParam[], utilisateur: Utilis
             result = await cancelLastEntry(utilisateur);
             break;
           case "get_cash_summary":
-            result = await getCashSummary();
+            result = await getCashSummary(utilisateur.voirTout);
             break;
           case "find_reservation":
             result = await findReservation(input);
@@ -725,7 +725,7 @@ export async function runAgentTurn(messages: MessageParam[], utilisateur: Utilis
             result = await updateVillaCode(input);
             break;
           case "get_agenda":
-            result = await getAgenda(String(input.date));
+            result = await getAgenda(String(input.date), utilisateur.voirTout);
             break;
           case "get_villa_codes":
             result = await getVillaCodes(String(input.villaNom));

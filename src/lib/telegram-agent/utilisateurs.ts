@@ -4,11 +4,18 @@
 // celui de Kamel (le principal : rappels, notifications, "loyers perso"). Chaque entrée peut porter
 // un prénom : "123456,9208341954:Fouad". Sans prénom, Kamel est nommé "Kamel" et les autres
 // reprennent leur prénom Telegram.
+//
+// 2026-11-02, Kamel : Fouad doit avoir accès à tout, comme lui, et en plus à toutes les
+// réservations (appartements et villas). Les personnes listées après Kamel ont donc les mêmes
+// droits (y compris "loyers perso"), ne subissent pas le masquage de domaine (Noria) du programme
+// et du solde de caisse, et reçoivent aussi les rappels et notifications.
 
 export type UtilisateurTelegram = {
   id: string;
   nom: string;
   principal: boolean;
+  // Voit aussi les domaines mis de côté (Noria) dans le programme du jour et le solde de caisse.
+  voirTout: boolean;
   // Valeur de createdByUserId dans la caisse. Le principal garde "telegram-agent" (historique), les
   // autres ont la leur : "annuler" ne touche ainsi que les mouvements de la personne qui parle.
   auteurId: string;
@@ -36,13 +43,13 @@ export function trouverUtilisateur(
   if (index === -1) return null;
   const principal = index === 0;
   const nom = liste[index].nom ?? (principal ? "Kamel" : prenomTelegram?.trim() || "Équipe");
-  return { id: fromId, nom, principal, auteurId: principal ? "telegram-agent" : `telegram-agent:${fromId}` };
+  return { id: fromId, nom, principal, voirTout: !principal, auteurId: principal ? "telegram-agent" : `telegram-agent:${fromId}` };
 }
 
-// Identifiant du principal (Kamel) : destinataire des rappels et notifications.
-export function idPrincipal(env: string | undefined = process.env.TELEGRAM_ALLOWED_USER_ID): string | null {
-  return entrees(env)[0]?.id ?? null;
+// Identifiants de toutes les personnes autorisées : destinataires des rappels et notifications.
+export function idsAutorises(env: string | undefined = process.env.TELEGRAM_ALLOWED_USER_ID): string[] {
+  return entrees(env).map((e) => e.id);
 }
 
 // Utilisateur par défaut (comportement historique, Kamel seul).
-export const UTILISATEUR_PRINCIPAL: UtilisateurTelegram = { id: "", nom: "Kamel", principal: true, auteurId: "telegram-agent" };
+export const UTILISATEUR_PRINCIPAL: UtilisateurTelegram = { id: "", nom: "Kamel", principal: true, voirTout: false, auteurId: "telegram-agent" };
