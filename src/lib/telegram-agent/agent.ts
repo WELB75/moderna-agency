@@ -15,6 +15,7 @@ import {
   maintenanceRecords,
 } from "@/db/schema";
 import { domaineEstActif } from "@/lib/domaines-actifs";
+import { UTILISATEUR_PRINCIPAL, type UtilisateurTelegram } from "@/lib/telegram-agent/utilisateurs";
 import { getVillaCodes, getOccupation, getDisponibilites } from "@/lib/telegram-agent/consultation";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 
@@ -204,8 +205,11 @@ const tools: Tool[] = [
   },
 ];
 
-function buildSystemPrompt(today: string, villasPromptList: string) {
-  return `Tu es l'assistant personnel de Kamel sur Telegram, pour Moderna Agency (conciergerie de villas à Marrakech). Il te dicte des instructions (texte ou vocal transcrit) et tu agis directement dans l'application via tes outils. Ton seul interlocuteur est Kamel lui-même — jamais de client, jamais d'employé.
+function buildSystemPrompt(today: string, villasPromptList: string, utilisateur: UtilisateurTelegram) {
+  const interlocuteur = utilisateur.principal
+    ? `Tu es l'assistant personnel de Kamel sur Telegram, pour Moderna Agency (conciergerie de villas à Marrakech). Il te dicte des instructions (texte ou vocal transcrit) et tu agis directement dans l'application via tes outils. Ton seul interlocuteur est Kamel lui-même — jamais de client, jamais d'employé.`
+    : `Tu es l'assistant de l'équipe Moderna Agency (conciergerie de villas à Marrakech) sur Telegram. Tu parles avec ${utilisateur.nom}, de l'équipe, qui te dicte des instructions (texte ou vocal transcrit) ; tu agis directement dans l'application via tes outils. Partout où les consignes ci-dessous disent "Kamel", il s'agit de ${utilisateur.nom}, la personne qui te parle. Pour ${utilisateur.nom}, financePar vaut toujours "societe" (jamais "loyers_perso").`;
+  return `${interlocuteur}
 
 Date d'aujourd'hui : ${today}.
 
@@ -254,7 +258,7 @@ async function findReservationByGuestName(
   return resa ?? null;
 }
 
-async function recordCashEntry(input: Record<string, unknown>) {
+async function recordCashEntry(input: Record<string, unknown>, utilisateur: UtilisateurTelegram) {
   const db = getDb();
   const villa = await findVilla(input.villaNom as string | undefined);
   const resa = await findReservationByGuestName(input.guestName as string | undefined);
@@ -265,15 +269,15 @@ async function recordCashEntry(input: Record<string, unknown>) {
       villaId: villa?.id ?? null,
       reservationId: resa?.id ?? null,
       type: input.type as "depense" | "loyer" | "extra" | "remise" | "restitution",
-      financePar: input.type === "depense" && input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
+      financePar: utilisateur.principal && input.type === "depense" && input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
       moyenPaiement: "especes",
       montant: String(input.montant),
       devise: (input.devise as string) || "MAD",
       description: String(input.description),
       responsable: (input.responsable as string) || null,
       photoUrls: [],
-      createdByUserId: "telegram-agent",
-      createdByName: "Kamel (Telegram)",
+      createdByUserId: utilisateur.auteurId,
+      createdByName: `${utilisateur.nom} (Telegram)`,
     })
     .returning();
 
@@ -295,12 +299,12 @@ async function recordCashEntry(input: Record<string, unknown>) {
   };
 }
 
-async function cancelLastEntry() {
+async function cancelLastEntry(utilisateur: UtilisateurTelegram) {
   const db = getDb();
   const [last] = await db
     .select()
     .from(cashEntries)
-    .where(eq(cashEntries.createdByUserId, "telegram-agent"))
+    .where(eq(cashEntries.createdByUserId, utilisateur.auteurId))
     .orderBy(desc(cashEntries.createdAt))
     .limit(1);
   if (!last) return { ok: false, erreur: "Rien à annuler." };
@@ -452,7 +456,7 @@ async function markMenageDone(input: Record<string, unknown>) {
   return { ok: true, personnelNom: match.personnelNom, villaNom: match.villaNom, guestName: match.guestName };
 }
 
-async function markStaffPaid(input: Record<string, unknown>) {
+async function markStaffPaid(input: Record<string, unknown>, utilisateur: UtilisateurTelegram) {
   const match = await findAffectation(String(input.personnelNom), String(input.guestName), input.villaNom as string | undefined);
   if (!match) return { ok: false, erreur: "Affectation introuvable — vérifie le prénom, le client et la villa." };
   if (match.payeAt) return { ok: false, erreur: `${match.personnelNom} est déjà marquée payée pour ce séjour.` };
@@ -475,15 +479,15 @@ async function markStaffPaid(input: Record<string, unknown>) {
       villaId: match.villaId,
       reservationId: match.reservationId,
       type: "depense",
-      financePar: input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
+      financePar: utilisateur.principal && input.financePar === "loyers_perso" ? "loyers_perso" : "societe",
       moyenPaiement: "especes",
       montant: montant.toFixed(2),
       devise: "MAD",
       description: `Paiement ${match.role === "menage" ? "ménage" : "cuisine"} — ${match.personnelNom} (${match.villaNom ?? "villa"})`,
       responsable: match.personnelNom,
       photoUrls: [],
-      createdByUserId: "telegram-agent",
-      createdByName: "Kamel (Telegram)",
+      createdByUserId: utilisateur.auteurId,
+      createdByName: `${utilisateur.nom} (Telegram)`,
     })
     .returning();
   // Lien conservé (comme markAffectationPaidSolo) pour que la dépense parte avec l'affectation
@@ -655,20 +659,20 @@ async function updateVillaCode(input: Record<string, unknown>) {
   return { ok: true, villaNom: villa.nom, champ: input.champ, valeur: input.valeur };
 }
 
-async function postTeamNote(input: Record<string, unknown>) {
+async function postTeamNote(input: Record<string, unknown>, utilisateur: UtilisateurTelegram) {
   const villa = await findVilla(input.villaNom as string | undefined);
   const db = getDb();
   await db.insert(chatMessages).values({
     categorie: input.categorie as ChatCategorie,
     villaId: villa?.id ?? null,
     message: String(input.message),
-    createdByUserId: "telegram-agent",
-    createdByName: "Kamel (Telegram)",
+    createdByUserId: utilisateur.auteurId,
+    createdByName: `${utilisateur.nom} (Telegram)`,
   });
   return { ok: true };
 }
 
-export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
+export async function runAgentTurn(messages: MessageParam[], utilisateur: UtilisateurTelegram = UTILISATEUR_PRINCIPAL): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
   const villasPromptList = await getVillasPromptList();
   while (true) {
@@ -677,7 +681,7 @@ export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
       max_tokens: 1024,
       thinking: { type: "disabled" },
       output_config: { effort: "low" },
-      system: [{ type: "text", text: buildSystemPrompt(today, villasPromptList), cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: buildSystemPrompt(today, villasPromptList, utilisateur), cache_control: { type: "ephemeral" } }],
       tools,
       messages,
     });
@@ -697,10 +701,10 @@ export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
         const input = block.input as Record<string, unknown>;
         switch (block.name) {
           case "record_cash_entry":
-            result = await recordCashEntry(input);
+            result = await recordCashEntry(input, utilisateur);
             break;
           case "cancel_last_entry":
-            result = await cancelLastEntry();
+            result = await cancelLastEntry(utilisateur);
             break;
           case "get_cash_summary":
             result = await getCashSummary();
@@ -712,7 +716,7 @@ export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
             result = await markMenageDone(input);
             break;
           case "mark_staff_paid":
-            result = await markStaffPaid(input);
+            result = await markStaffPaid(input, utilisateur);
             break;
           case "get_personnel_summary":
             result = await getPersonnelSummary(String(input.personnelNom));
@@ -733,7 +737,7 @@ export async function runAgentTurn(messages: MessageParam[]): Promise<string> {
             result = await getDisponibilites(String(input.du), input.au ? String(input.au) : undefined);
             break;
           case "post_team_note":
-            result = await postTeamNote(input);
+            result = await postTeamNote(input, utilisateur);
             break;
           default:
             result = { erreur: "Outil inconnu" };
