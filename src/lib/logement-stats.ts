@@ -38,3 +38,25 @@ export function anneeStart(year: number): Date {
 export function anneeEnd(year: number): Date {
   return endOfMonth(new Date(year, 11, 1));
 }
+
+// Onglets Villas / Appartements / Total de la page Statistiques — Fouad, 2026-11-02 : "on a que
+// les villas... un onglet villa, un onglet appartement et un onglet total". Le filtre passe par
+// l'URL (?type=) pour que les KPI (composant serveur), les graphiques et le tableau suivent tous
+// le même périmètre, et que l'année choisie se conserve en changeant d'onglet.
+export type TypeStats = "villa" | "appartement" | "total";
+
+export function parseTypeStats(valeur: string | undefined): TypeStats {
+  return valeur === "villa" || valeur === "appartement" ? valeur : "total";
+}
+
+export function logementDansPerimetre(type: "villa" | "appartement", perimetre: TypeStats): boolean {
+  return perimetre === "total" || type === perimetre;
+}
+
+export function lienStatistiques(params: { annee?: number; type: TypeStats }): string {
+  const search = new URLSearchParams();
+  if (params.annee !== undefined) search.set("annee", String(params.annee));
+  if (params.type !== "total") search.set("type", params.type);
+  const qs = search.toString();
+  return qs ? `/statistiques?${qs}` : "/statistiques";
+}
