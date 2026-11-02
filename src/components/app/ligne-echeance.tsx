@@ -74,6 +74,8 @@ export type LigneEcheanceProps = {
   ficheEnvoyee: boolean;
   // Faux pour un séjour Famille : le contrat n'est pas demandé.
   contratRequis?: boolean;
+  cautionStatut?: "recue" | "a_recevoir" | "aucune";
+  cautionMontant?: number | null;
 };
 
 export function LigneEcheance({
@@ -87,12 +89,14 @@ export function LigneEcheance({
   progressionFiche,
   ficheEnvoyee,
   contratRequis = true,
+  cautionStatut = "aucune",
+  cautionMontant = null,
   masqueePc = false,
 }: LigneEcheanceProps & { masqueePc?: boolean }) {
   const [now, setNow] = useState(() => nowInMorocco());
   const limite = echeanceDocuments(checkIn);
   const reste = limite.getTime() - now.getTime();
-  const e = calculerEcheance({ checkIn, ficheStatut, contratStatut }, now);
+  const e = calculerEcheance({ checkIn, ficheStatut, contratStatut, cautionStatut }, now);
   // Rouge dès que le compteur passe sous 24 h, tant que les documents ne sont pas prêts (Kamel, 2026-11-01).
   const tone = e.etat !== "ok" && reste <= SEUIL_CHRONO_MS ? "urgent" : e.tone;
   const enDirect = tone === "urgent" || reste <= SEUIL_CHRONO_MS;
@@ -143,6 +147,12 @@ export function LigneEcheance({
           : "Fiche envoyée"
         : "Fiche à envoyer";
   const contratTexte = !contratRequis ? "Sans contrat" : contratOk ? "Contrat ✓" : contratStatut ? "Contrat à signer" : "Contrat";
+  const cautionTexte =
+    cautionStatut === "recue"
+      ? "Caution ✓"
+      : cautionStatut === "a_recevoir"
+        ? `Caution${cautionMontant ? ` ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(cautionMontant)} €` : ""}`
+        : "Sans caution";
   const lisere = LISERE[villaType ?? "inconnu"];
 
   return (
@@ -158,7 +168,7 @@ export function LigneEcheance({
         // l'autre (Fouad, 2026-10-31 : « tout doit être droit, bien propre et aligné »). Les deux
         // badges ont chacun leur colonne de largeur fixe, calés à gauche : les « P » de Passeports
         // et les « C » de Contrat tombent au même endroit sur toutes les lignes.
-        "sm:grid sm:w-auto sm:h-[46px] sm:grid-cols-[14px_minmax(0,1fr)_minmax(0,1.3fr)_8.75rem_6.5rem_8rem] sm:items-center sm:gap-x-3 sm:rounded-none sm:border-0 sm:border-b sm:border-l-[3px] sm:border-b-border sm:bg-transparent sm:px-3 sm:py-0",
+        "sm:grid sm:w-auto sm:h-[46px] sm:grid-cols-[14px_minmax(0,1fr)_minmax(0,1.3fr)_8.75rem_6.5rem_7.5rem_8rem] sm:items-center sm:gap-x-3 sm:rounded-none sm:border-0 sm:border-b sm:border-l-[3px] sm:border-b-border sm:bg-transparent sm:px-3 sm:py-0",
         lisere,
         // En dernier : tailwind-merge garde la dernière classe `display`, donc placé avant « sm:grid »
         // le masquage était silencieusement écarté et toutes les lignes s'affichaient sur PC.
@@ -192,7 +202,7 @@ export function LigneEcheance({
       </span>
 
       {/* Téléphone : les deux badges côte à côte. PC : chacun dans sa colonne (display: contents). */}
-      <span className="flex gap-1 sm:contents">
+      <span className="flex flex-wrap gap-1 sm:contents">
         <span className="sm:flex sm:min-w-0">
           <Badge ok={ficheOk} partiel={passeportsRecus} envoye={ficheEnAttenteEnvoyee} urgent={tone === "urgent"}>
             {ficheTexte}
@@ -201,6 +211,11 @@ export function LigneEcheance({
         <span className="sm:flex sm:min-w-0">
           <Badge ok={contratOk && contratRequis} partiel={false} envoye={false} urgent={contratRequis && tone === "urgent"}>
             {contratTexte}
+          </Badge>
+        </span>
+        <span className="sm:flex sm:min-w-0">
+          <Badge ok={cautionStatut === "recue"} partiel={false} envoye={false} urgent={cautionStatut === "a_recevoir" && tone === "urgent"}>
+            {cautionTexte}
           </Badge>
         </span>
       </span>
