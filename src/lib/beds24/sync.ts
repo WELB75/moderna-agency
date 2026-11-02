@@ -118,7 +118,7 @@ type ConversionLoyer = { deviseOrigine: "MAD"; montantOrigine: number; madParEur
 //   euros plus tard, une ancienne résa reste en dirhams chez Beds24).
 // Le montant d'origine et le taux sont gardés dans rawData ; le taux est réutilisé tant que le
 // montant ne change pas, pour que le loyer ne bouge pas d'une synchro à l'autre.
-async function loyerEnEuros(
+export async function loyerEnEuros(
   booking: Beds24Booking,
   contexte: {
     canal: string;

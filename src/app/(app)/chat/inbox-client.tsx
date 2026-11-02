@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, Inbox, MessageCircle, Search, X } from "lucide-react";
+import { ArrowLeft, CalendarDays, ChevronDown, Inbox, MessageCircle, Search, X } from "lucide-react";
 import { CanalDot } from "@/components/app/canal-badge";
 import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
 import { WhatsAppAgenceReplyForm } from "@/components/app/whatsapp-agence-reply-form";
@@ -17,6 +17,10 @@ import { cn } from "@/lib/utils";
 export type InboxChannel = "airbnb" | "booking" | "direct" | "whatsapp";
 export type InboxStatus = "en_cours" | "a_venir" | "termine" | "autre";
 
+// Fiche du séjour affichée en haut de la conversation (nuits, voyageurs, prix total en euros).
+export type InboxSejour = { nuits: number; voyageurs: number | null; prixEur: number | null };
+export type InboxLogementType = "villa" | "appartement";
+
 export type InboxMessage = { fromContact: boolean; text: string; tool?: boolean; at: string | null };
 
 export type InboxConversation = {
@@ -27,6 +31,8 @@ export type InboxConversation = {
   statusLabel: string;
   stay: string | null; // "10 → 13 oct."
   logement: string | null;
+  logementType?: InboxLogementType | null; // filtre Villas / Appartements
+  sejour?: InboxSejour | null;
   lastAt: string; // ISO
   preview: string;
   awaitingReply: boolean;
@@ -58,6 +64,64 @@ const CHANNEL_FILTERS: { value: InboxChannel | "all"; label: string }[] = [
   { value: "airbnb", label: "Airbnb" },
   { value: "booking", label: "Booking.com" },
 ];
+
+const LOGEMENT_FILTERS: { value: InboxLogementType | "all"; label: string }[] = [
+  { value: "villa", label: "Villas" },
+  { value: "appartement", label: "Appartements" },
+];
+
+const PRIX = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+// Résumé d'une ligne : "5 nuits · 5 voyageurs · 1 815,22 €".
+function resumeSejour(s: InboxSejour): string {
+  return [
+    s.nuits > 0 ? `${s.nuits} nuit${s.nuits > 1 ? "s" : ""}` : null,
+    s.voyageurs ? `${s.voyageurs} voyageur${s.voyageurs > 1 ? "s" : ""}` : null,
+    s.prixEur != null ? PRIX.format(s.prixEur) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+// Fiche du séjour façon Airbnb (Kamel, 2026-11-02 : "plus clair... qu'on récupère le prix total de
+// la demande de réservation"). Téléphone : une seule ligne de résumé, qu'on déplie d'un toucher ;
+// ordinateur : toujours dépliée, en quatre blocs.
+function FicheSejour({ c }: { c: InboxConversation }) {
+  const [ouverte, setOuverte] = useState(false);
+  const sejour = c.sejour;
+  if (!sejour || !c.stay) return null;
+  const resume = resumeSejour(sejour);
+  const blocs: { label: string; valeur: string | null }[] = [
+    { label: "Dates", valeur: [c.stay, sejour.nuits > 0 ? `${sejour.nuits} nuit${sejour.nuits > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ") },
+    { label: "Voyageurs", valeur: sejour.voyageurs ? String(sejour.voyageurs) : null },
+    { label: "Prix total", valeur: sejour.prixEur != null ? PRIX.format(sejour.prixEur) : null },
+    { label: "Logement", valeur: c.logement },
+  ];
+  return (
+    <div className="border-b border-border bg-card">
+      <button
+        type="button"
+        onClick={() => setOuverte((v) => !v)}
+        aria-expanded={ouverte}
+        className="flex w-full items-center gap-2 px-4 py-2.5 text-left md:hidden"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{c.statusLabel}</span>
+          <span className="block truncate text-sm font-semibold">{c.stay}{resume ? ` · ${resume}` : ""}</span>
+        </span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", ouverte && "rotate-180")} />
+      </button>
+      <div className={cn("grid-cols-2 gap-x-4 gap-y-3 px-4 pb-3 md:grid md:grid-cols-4 md:py-3", ouverte ? "grid" : "hidden")}>
+        {blocs.map((b) => (
+          <div key={b.label} className="min-w-0">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{b.label}</p>
+            <p className={cn("truncate text-sm", b.valeur ? "font-semibold" : "text-muted-foreground")}>{b.valeur ?? "—"}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Le logo du canal (WhatsApp, Airbnb, Booking.com) tient lieu d'avatar : les initiales n'apprenaient
 // rien (Kamel, 2026-10-22).
@@ -184,6 +248,7 @@ export function InboxClient({
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<"tous" | "non_lus">("tous");
   const [channelFilter, setChannelFilter] = useState<InboxChannel | "all">("all");
+  const [logementFilter, setLogementFilter] = useState<InboxLogementType | "all">("all");
   const [selectedKey, setSelectedKey] = useState<string | null>(initialKey ?? conversations[0]?.key ?? null);
 
 
@@ -203,12 +268,13 @@ export function InboxClient({
     return conversations.filter((c) => {
       if (tab === "non_lus" && !estNonLue(c)) return false;
       if (channelFilter !== "all" && c.channel !== channelFilter) return false;
+      if (logementFilter !== "all" && c.logementType !== logementFilter) return false;
       if (!q) return true;
       return c.name.toLowerCase().includes(q) || (c.logement ?? "").toLowerCase().includes(q);
     });
     // estNonLue ne dépend que de `lus` (déjà listé) : la liste suit donc les conversations ouvertes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversations, query, tab, channelFilter, lus]);
+  }, [conversations, query, tab, channelFilter, logementFilter, lus]);
 
   const selected = conversations.find((c) => c.key === selectedKey) ?? null;
 
@@ -359,8 +425,9 @@ export function InboxClient({
             ))}
           </div>
 
-          {/* Canaux : pastilles plutôt qu'une liste déroulante — on voit d'un coup d'œil où on est. */}
-          <div className="flex flex-wrap gap-1.5">
+          {/* Canaux puis type de logement : pastilles sur une seule ligne qui défile (téléphone), au
+              lieu d'une liste déroulante ou de plusieurs lignes qui mangent la liste. */}
+          <div className="-mx-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {CHANNEL_FILTERS.map((f) => {
               const actif = channelFilter === f.value;
               return (
@@ -371,7 +438,7 @@ export function InboxClient({
                   title={f.label}
                   aria-label={f.label}
                   className={cn(
-                    "inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
+                    "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors",
                     actif ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -380,14 +447,44 @@ export function InboxClient({
                 </button>
               );
             })}
+            <span className="mx-0.5 h-4 w-px shrink-0 bg-border" aria-hidden />
+            {LOGEMENT_FILTERS.map((f) => {
+              const actif = logementFilter === f.value;
+              return (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => setLogementFilter(actif ? "all" : f.value)}
+                  aria-pressed={actif}
+                  className={cn(
+                    "inline-flex h-7 shrink-0 items-center rounded-full border px-2.5 text-xs font-medium transition-colors",
+                    actif ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {f.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-12 text-center text-sm text-muted-foreground">
               <Inbox className="h-6 w-6" />
               {tab === "non_lus" ? "Aucun message non lu." : "Aucune conversation."}
+              {logementFilter !== "all" || channelFilter !== "all" ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogementFilter("all");
+                    setChannelFilter("all");
+                  }}
+                  className="text-xs font-medium text-primary underline underline-offset-2"
+                >
+                  Retirer les filtres
+                </button>
+              ) : null}
             </div>
           ) : (
             <ul>
@@ -477,7 +574,9 @@ export function InboxClient({
               </div>
             </div>
 
-            <div ref={filMessagesRef} className="flex-1 overflow-y-auto bg-muted/30 px-3 py-4 md:px-6">
+            <FicheSejour key={selected.key} c={selected} />
+
+            <div ref={filMessagesRef} className="flex-1 overflow-y-auto overscroll-contain bg-muted/30 px-3 py-4 md:px-6">
               {selected.messages.length === 0 ? (
                 <p className="py-10 text-center text-sm text-muted-foreground">Aucun message dans cette conversation.</p>
               ) : (
