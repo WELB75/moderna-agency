@@ -15,6 +15,8 @@ import { getMadParEur } from "@/lib/devises";
 import { StatistiquesTable, type LogementMoisStats, type LogementStatsRow } from "@/components/app/statistiques-table";
 import { StatistiquesCharts, type PortfolioMoisStats } from "@/components/app/statistiques-charts";
 import { PerformanceEtActions } from "@/components/app/performance-et-actions";
+import { StatistiquesCanauxLogements, type CanalStats, type LogementAnneeStats } from "@/components/app/statistiques-canaux-logements";
+import { normaliseCanal, type CanalKey } from "@/lib/canal";
 import { StatistiquesTypeTabs } from "@/components/app/statistiques-type-tabs";
 import { getUnreadChatCount } from "@/lib/actions/chat";
 
@@ -64,6 +66,7 @@ export default async function StatistiquesPage({
         loyerTotal: reservations.loyerTotal,
         montantPaye: reservations.montantPaye,
         devisePaiement: reservations.devisePaiement,
+        canal: reservations.canal,
       })
       .from(reservations)
       .where(and(ne(reservations.status, "annulee"), lt(reservations.checkIn, finAnneeExclusive), isNotNull(reservations.villaId)))
@@ -95,10 +98,31 @@ export default async function StatistiquesPage({
   // manuelle ou par l'import du CSV Superhote (qui, lui, couvre tous les canaux — Direct, Airbnb,
   // Booking.com — pas seulement ce que Kamel encaisse en direct). Le bandeau qui prévenait d'un CA
   // sous-estimé (réservations sans loyer) a été retiré à la demande de Kamel, 2026-11-01.
+  const CANAUX: CanalKey[] = ["airbnb", "booking", "direct", "autre", "bloque"];
+  const canalVide = () => ({ nuitees: 0, ca: 0 });
+  const parCanal = Object.fromEntries(CANAUX.map((c) => [c, { resas: 0, nuitees: 0, ca: 0 }])) as Record<CanalKey, CanalStats>;
+  const anneeParVilla = new Map<string, LogementAnneeStats>(
+    allVillas.map((v) => [
+      v.id,
+      {
+        villaId: v.id,
+        nom: v.nom,
+        nuitees: 0,
+        nuitsDisponibles: Math.round((finAnneeExclusive.getTime() - debutAnnee.getTime()) / 86_400_000),
+        resas: 0,
+        ca: 0,
+        canaux: Object.fromEntries(CANAUX.map((c) => [c, canalVide()])) as LogementAnneeStats["canaux"],
+      },
+    ])
+  );
+
   for (const r of reservationsAnnee) {
     if (!r.villaId) continue;
     const mois = statsParVilla.get(r.villaId);
     if (!mois) continue;
+    const canal = normaliseCanal(r.canal);
+    const annee = anneeParVilla.get(r.villaId)!;
+    let nuitsAnnee = 0;
     const checkIn = new Date(r.checkIn);
     const checkOut = new Date(r.checkOut);
     const loyerTotal = r.loyerTotal ? Number(r.loyerTotal) : 0;
@@ -107,12 +131,24 @@ export default async function StatistiquesPage({
       const nuits = nuiteesDansLeMois(checkIn, checkOut, year, m);
       if (nuits <= 0) continue;
       mois[m].nuitees += nuits;
+      nuitsAnnee += nuits;
+      annee.nuitees += nuits;
+      annee.canaux[canal].nuitees += nuits;
+      parCanal[canal].nuitees += nuits;
       if (loyerTotal > 0) {
-        mois[m].ca += versEuros(montantProrata(loyerTotal, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
+        const ca = versEuros(montantProrata(loyerTotal, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
+        mois[m].ca += ca;
+        annee.ca += ca;
+        annee.canaux[canal].ca += ca;
+        parCanal[canal].ca += ca;
       }
       if (montantPaye > 0) {
         mois[m].encaisse += versEuros(montantProrata(montantPaye, checkIn, checkOut, year, m), r.devisePaiement, madParEur);
       }
+    }
+    if (nuitsAnnee > 0) {
+      annee.resas += 1;
+      parCanal[canal].resas += 1;
     }
   }
 
@@ -166,6 +202,8 @@ export default async function StatistiquesPage({
       <PerformanceEtActions now={new Date()} unreadChatCount={unreadChatCount} perimetre={perimetre} />
 
       <StatistiquesCharts mois={portfolioMois} perimetre={perimetre} />
+
+      <StatistiquesCanauxLogements year={year} parCanal={parCanal} logements={[...anneeParVilla.values()]} />
 
       <StatistiquesTable rows={rows} year={year} perimetre={perimetre} />
     </div>
