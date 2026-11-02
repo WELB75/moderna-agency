@@ -81,6 +81,7 @@ export async function EcheancesArrivees({ now }: { now: Date }) {
           contratRequis: a.contratRequis,
           cautionStatut: a.cautionStatut,
           cautionMontant: Number(a.caution) > 0 ? Number(a.caution) : null,
+          cautionDevise: a.devisePaiement,
         }))}
       />
     </section>

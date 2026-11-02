@@ -51,8 +51,10 @@ export type ContexteCaution = {
 
 // Montant demandé : celui de la réservation (posé par la synchro Beds24 selon la villa), à défaut
 // celui du groupe de la propriété (lib/beds24/mapping.ts).
-function montantDemande(caution: string | null, beds24RoomId: string | null): number | null {
-  const direct = enCentimes(caution);
+// Stripe prélève en euros : le montant de la réservation n'est repris que s'il est en euros. Une
+// réservation saisie en dirhams (caution 10 000 MAD) demanderait sinon 10 000 € au voyageur.
+function montantDemande(caution: string | null, devise: string | null, beds24RoomId: string | null): number | null {
+  const direct = (devise ?? "EUR").trim().toUpperCase() === "EUR" ? enCentimes(caution) : null;
   if (direct) return direct;
   const mapping = beds24RoomId ? BEDS24_VILLA_MAPPING.find((m) => String(m.roomId) === beds24RoomId) : null;
   return mapping ? enCentimes(mapping.caution) : null;
@@ -69,6 +71,7 @@ export async function chargerContexteCaution(beds24BookingId: string): Promise<C
       status: reservations.status,
       canal: reservations.canal,
       caution: reservations.caution,
+      devisePaiement: reservations.devisePaiement,
       villaId: villas.id,
       villaNom: villas.nom,
       beds24RoomId: villas.beds24RoomId,
@@ -80,7 +83,7 @@ export async function chargerContexteCaution(beds24BookingId: string): Promise<C
     .where(eq(reservations.beds24BookingId, beds24BookingId))
     .limit(1);
   if (!r) return null;
-  const montant = montantDemande(r.caution, r.beds24RoomId);
+  const montant = montantDemande(r.caution, r.devisePaiement, r.beds24RoomId);
   if (!montant) return null;
   const premier = r.guestName.trim().split(/\s+/)[0] ?? "";
   return {

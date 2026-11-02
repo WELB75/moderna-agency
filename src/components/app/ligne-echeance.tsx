@@ -24,6 +24,12 @@ import { calculerEcheance, dureeCourte, echeanceDocuments } from "@/lib/echeance
 //
 // Client pour le tic ; suppressHydrationWarning parce que la seconde diffère entre serveur et navigateur.
 
+// Devise de la caution : euros par défaut, dirhams quand la réservation est saisie en MAD / DH.
+function symboleDevise(devise: string | null | undefined): string {
+  const d = (devise ?? "EUR").trim().toUpperCase();
+  return d === "MAD" || d === "DH" || d === "DHS" ? "MAD" : "€";
+}
+
 export const SEUIL_CHRONO_MS = 24 * 60 * 60 * 1000;
 
 const LISERE = {
@@ -76,6 +82,7 @@ export type LigneEcheanceProps = {
   contratRequis?: boolean;
   cautionStatut?: "recue" | "a_recevoir" | "aucune";
   cautionMontant?: number | null;
+  cautionDevise?: string | null;
 };
 
 export function LigneEcheance({
@@ -91,6 +98,7 @@ export function LigneEcheance({
   contratRequis = true,
   cautionStatut = "aucune",
   cautionMontant = null,
+  cautionDevise = null,
   masqueePc = false,
 }: LigneEcheanceProps & { masqueePc?: boolean }) {
   const [now, setNow] = useState(() => nowInMorocco());
@@ -151,7 +159,7 @@ export function LigneEcheance({
     cautionStatut === "recue"
       ? "Caution ✓"
       : cautionStatut === "a_recevoir"
-        ? `Caution${cautionMontant ? ` ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(cautionMontant)} €` : ""}`
+        ? `Caution${cautionMontant ? ` ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(cautionMontant)} ${symboleDevise(cautionDevise)}` : ""}`
         : "Sans caution";
   const lisere = LISERE[villaType ?? "inconnu"];
 

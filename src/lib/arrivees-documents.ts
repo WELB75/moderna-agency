@@ -42,6 +42,8 @@ export type ArriveeDocuments = {
   checkIn: Date;
   canal: string | null;
   caution: string | null;
+  // Devise du loyer et de la caution (EUR, MAD...) : une réservation saisie en dirhams a sa caution en dirhams.
+  devisePaiement: string;
   cautionPayee: boolean;
   nbAdultes: number | null;
   // Le bouton « Message d'arrivée » (qui embarque le lien de la fiche police) a été utilisé.
@@ -71,6 +73,7 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
         checkIn: reservations.checkIn,
         canal: reservations.canal,
         caution: reservations.caution,
+        devisePaiement: reservations.devisePaiement,
         cautionPayee: reservations.cautionPayee,
         nbAdultes: reservations.nbAdultes,
         nbEnfants: reservations.nbEnfants,
