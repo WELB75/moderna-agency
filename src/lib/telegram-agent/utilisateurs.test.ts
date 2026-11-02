@@ -1,17 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { idPrincipal, trouverUtilisateur } from "./utilisateurs.ts";
+import { idsAutorises, trouverUtilisateur } from "./utilisateurs.ts";
 
 const ENV = "111, 9208341954:Fouad";
 
 test("utilisateurs Telegram : le premier est Kamel, le principal", () => {
   const u = trouverUtilisateur("111", "K", ENV);
-  assert.deepEqual(u, { id: "111", nom: "Kamel", principal: true, auteurId: "telegram-agent" });
+  assert.deepEqual(u, { id: "111", nom: "Kamel", principal: true, voirTout: false, auteurId: "telegram-agent" });
 });
 
-test("utilisateurs Telegram : Fouad a son nom et son propre auteur de caisse", () => {
+test("utilisateurs Telegram : Fouad a son nom, voit tout et a son propre auteur de caisse", () => {
   const u = trouverUtilisateur("9208341954", "Autre", ENV);
-  assert.deepEqual(u, { id: "9208341954", nom: "Fouad", principal: false, auteurId: "telegram-agent:9208341954" });
+  assert.deepEqual(u, { id: "9208341954", nom: "Fouad", principal: false, voirTout: true, auteurId: "telegram-agent:9208341954" });
 });
 
 test("utilisateurs Telegram : sans prénom configuré, prénom Telegram", () => {
@@ -25,6 +25,7 @@ test("utilisateurs Telegram : inconnu ou liste vide refusés", () => {
 
 test("utilisateurs Telegram : un seul identifiant (ancien format) reste valide", () => {
   assert.equal(trouverUtilisateur("111", null, "111")?.principal, true);
-  assert.equal(idPrincipal("111"), "111");
-  assert.equal(idPrincipal(ENV), "111");
+  assert.deepEqual(idsAutorises("111"), ["111"]);
+  assert.deepEqual(idsAutorises(ENV), ["111", "9208341954"]);
+  assert.deepEqual(idsAutorises(undefined), []);
 });
