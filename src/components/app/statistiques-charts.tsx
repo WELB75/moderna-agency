@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 import { Bar, BarChart, Line, LineChart, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { MOIS_LABELS } from "@/lib/logement-stats";
+import { MOIS_LABELS, type TypeStats } from "@/lib/logement-stats";
 
 export type PortfolioMoisStats = {
   ca: number;
@@ -30,7 +30,13 @@ const DOT_GRID_STYLE: CSSProperties = {
 // Vue d'ensemble du portefeuille au-dessus du tableau détaillé par logement — les deux
 // indicateurs qui manquaient pour se comparer à un vrai dashboard analytics. Kamel, 2026-09-04,
 // style graphique repris de Stripe le 2026-09-08.
-export function StatistiquesCharts({ mois }: { mois: PortfolioMoisStats[] }) {
+const LIBELLE_PERIMETRE: Record<TypeStats, string> = {
+  villa: "Villas, par mois",
+  appartement: "Appartements, par mois",
+  total: "Portefeuille complet, par mois",
+};
+
+export function StatistiquesCharts({ mois, perimetre }: { mois: PortfolioMoisStats[]; perimetre: TypeStats }) {
   const data = mois.map((m, i) => ({
     month: MOIS_LABELS[i],
     ca: Math.round(m.ca),
@@ -42,7 +48,7 @@ export function StatistiquesCharts({ mois }: { mois: PortfolioMoisStats[] }) {
       <Card>
         <CardHeader>
           <CardTitle>Chiffre d&apos;affaires</CardTitle>
-          <CardDescription>Portefeuille complet, par mois</CardDescription>
+          <CardDescription>{LIBELLE_PERIMETRE[perimetre]}</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer config={caConfig} className="max-h-64 w-full" style={DOT_GRID_STYLE}>
@@ -59,7 +65,7 @@ export function StatistiquesCharts({ mois }: { mois: PortfolioMoisStats[] }) {
       <Card>
         <CardHeader>
           <CardTitle>Taux d&apos;occupation</CardTitle>
-          <CardDescription>Portefeuille complet, par mois</CardDescription>
+          <CardDescription>{LIBELLE_PERIMETRE[perimetre]}</CardDescription>
         </CardHeader>
         <CardContent>
           <ChartContainer config={occupationConfig} className="max-h-64 w-full" style={DOT_GRID_STYLE}>

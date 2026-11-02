@@ -17,8 +17,8 @@ import {
 } from "lucide-react";
 import { getDb } from "@/db";
 import { domaines, gendarmerieForms, interventions, reservations, villas } from "@/db/schema";
-import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
-import { montantProrata, nuiteesDansLeMois, versEuros } from "@/lib/logement-stats";
+import { logementEstIntegre } from "@/lib/domaines-actifs";
+import { logementDansPerimetre, montantProrata, nuiteesDansLeMois, versEuros, type TypeStats } from "@/lib/logement-stats";
 import { getMadParEur } from "@/lib/devises";
 import { cautionEnAttente, estImpayee } from "@/lib/reservation-alerts";
 
@@ -28,7 +28,15 @@ const euros = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 // Statistiques (Kamel, 2026-10-15 : "retire ça du tableau de bord dans l'accueil, tu le mets dans
 // statistiques"). Mêmes règles de calcul que le tableau Statistiques : nuits et loyers au prorata
 // du mois, montants convertis en euros.
-export async function PerformanceEtActions({ now, unreadChatCount }: { now: Date; unreadChatCount: number }) {
+export async function PerformanceEtActions({
+  now,
+  unreadChatCount,
+  perimetre = "total",
+}: {
+  now: Date;
+  unreadChatCount: number;
+  perimetre?: TypeStats;
+}) {
   const db = getDb();
   const madParEur = await getMadParEur();
   const todayEnd = endOfDay(now);
@@ -40,12 +48,14 @@ export async function PerformanceEtActions({ now, unreadChatCount }: { now: Date
   // référence = décembre N-2) : un seul aller-retour base pour les comparaisons N-1.
   const debutFenetre = new Date(moisDernier.getFullYear() - 1, 0, 1);
 
+  // Même périmètre que le tableau Statistiques (villas + appartements Beds24, cf. logementEstIntegre),
+  // restreint à l'onglet choisi (Villas / Appartements / Total).
   const logements = (
     await db
-      .select({ id: villas.id, nom: villas.nom, domaineNom: domaines.nom })
+      .select({ id: villas.id, nom: villas.nom, type: villas.type, beds24RoomId: villas.beds24RoomId, domaineNom: domaines.nom })
       .from(villas)
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-  ).filter((v) => domaineEstActif(v.domaineNom) && villaEstGeree(v.nom));
+  ).filter((v) => logementEstIntegre(v) && logementDansPerimetre(v.type, perimetre));
   const logementIds = new Set(logements.map((v) => v.id));
 
   // Toutes les réservations qui touchent la fenêtre (année en cours, mois dernier et leurs
@@ -72,8 +82,8 @@ export async function PerformanceEtActions({ now, unreadChatCount }: { now: Date
           gte(reservations.checkOut, debutFenetre)
         )
       );
-  // Les KPI du mois suivent les règles de la page Statistiques (logements gérés des domaines
-  // actifs uniquement) ; les actions et la journée portent sur toutes les réservations, comme les
+  // Les KPI du mois suivent les règles de la page Statistiques (logements gérés, onglet choisi) ;
+  // les actions et la journée portent sur toutes les réservations, comme les
   // vues Jour/Liste du calendrier vers lesquelles elles renvoient.
   const resaAnnee = resaFenetre.filter((r) => r.villaId && logementIds.has(r.villaId));
   // Les compteurs « Ce qui a besoin de vous » restent limités à l'année en cours, comme avant

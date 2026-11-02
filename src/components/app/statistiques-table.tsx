@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { MOIS_LABELS } from "@/lib/logement-stats";
+import { lienStatistiques, MOIS_LABELS, type TypeStats } from "@/lib/logement-stats";
 
 export type LogementMoisStats = {
   nuitees: number;
@@ -73,7 +73,7 @@ function formatValeur(value: number, onglet: Onglet): string {
   return `${Math.round(value).toLocaleString("fr-FR")} €`;
 }
 
-export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; year: number }) {
+export function StatistiquesTable({ rows, year, perimetre }: { rows: LogementStatsRow[]; year: number; perimetre: TypeStats }) {
   const [onglet, setOnglet] = useState<Onglet>("nuitees");
 
   // Min/max par colonne (mois), calculés sur l'onglet actif — les couleurs changent donc bien
@@ -101,14 +101,14 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
         </Tabs>
         <div className="flex items-center gap-2 text-sm">
           <Link
-            href={`/statistiques?annee=${year - 1}`}
+            href={lienStatistiques({ annee: year - 1, type: perimetre })}
             className="inline-flex min-h-10 items-center rounded-md border px-3 py-1 text-muted-foreground hover:bg-muted hover:text-foreground md:min-h-0 md:px-2"
           >
             {year - 1}
           </Link>
           <span className="font-medium">{year}</span>
           <Link
-            href={`/statistiques?annee=${year + 1}`}
+            href={lienStatistiques({ annee: year + 1, type: perimetre })}
             className="inline-flex min-h-10 items-center rounded-md border px-3 py-1 text-muted-foreground hover:bg-muted hover:text-foreground md:min-h-0 md:px-2"
           >
             {year + 1}
@@ -129,6 +129,13 @@ export function StatistiquesTable({ rows, year }: { rows: LogementStatsRow[]; ye
             </TableRow>
           </TableHeader>
           <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={13} className="py-6 text-center text-muted-foreground">
+                  Aucun logement dans ce périmètre.
+                </TableCell>
+              </TableRow>
+            ) : null}
             {rows.map((row) => (
               <TableRow key={row.villaId}>
                 <TableCell className="sticky left-0 z-10 bg-background font-medium max-md:max-w-28 max-md:whitespace-normal max-md:border-r max-md:text-xs">

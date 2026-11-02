@@ -1,20 +1,30 @@
 import { and, asc, eq, gte, isNotNull, lt, ne } from "drizzle-orm";
 import { getDb } from "@/db";
 import { villas, domaines, reservations, cashEntries } from "@/db/schema";
-import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
-import { anneeEnd, anneeStart, montantProrata, nuiteesDansLeMois, versEuros } from "@/lib/logement-stats";
+import { logementEstIntegre } from "@/lib/domaines-actifs";
+import {
+  anneeEnd,
+  anneeStart,
+  logementDansPerimetre,
+  montantProrata,
+  nuiteesDansLeMois,
+  parseTypeStats,
+  versEuros,
+} from "@/lib/logement-stats";
 import { getMadParEur } from "@/lib/devises";
 import { StatistiquesTable, type LogementMoisStats, type LogementStatsRow } from "@/components/app/statistiques-table";
 import { StatistiquesCharts, type PortfolioMoisStats } from "@/components/app/statistiques-charts";
 import { PerformanceEtActions } from "@/components/app/performance-et-actions";
+import { StatistiquesTypeTabs } from "@/components/app/statistiques-type-tabs";
 import { getUnreadChatCount } from "@/lib/actions/chat";
 
 export default async function StatistiquesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ annee?: string }>;
+  searchParams: Promise<{ annee?: string; type?: string }>;
 }) {
-  const { annee } = await searchParams;
+  const { annee, type } = await searchParams;
+  const perimetre = parseTypeStats(type);
   const unreadChatCount = await getUnreadChatCount();
   const year = Number.isFinite(Number(annee)) && annee ? Math.trunc(Number(annee)) : new Date().getFullYear();
   const db = getDb();
@@ -23,18 +33,23 @@ export default async function StatistiquesPage({
   const debutAnnee = anneeStart(year);
   const finAnneeExclusive = anneeEnd(year);
 
+  // Même périmètre que Hébergements (logementEstIntegre) : villas des domaines actifs + appartements
+  // reliés à Beds24 — avant le 2026-11-02 la page ne voyait que les villas, les appartements
+  // (domaine Noria, masqué) n'y figuraient pas. Puis filtre Villas / Appartements / Total.
   const allVillas = (
     await db
       .select({
         id: villas.id,
         nom: villas.nom,
         numero: villas.numero,
+        type: villas.type,
+        beds24RoomId: villas.beds24RoomId,
         domaineNom: domaines.nom,
       })
       .from(villas)
       .leftJoin(domaines, eq(villas.domaineId, domaines.id))
-      .orderBy(asc(domaines.nom), asc(villas.numero))
-  ).filter((v) => domaineEstActif(v.domaineNom) && villaEstGeree(v.nom));
+      .orderBy(asc(villas.type), asc(domaines.nom), asc(villas.numero))
+  ).filter((v) => logementEstIntegre(v) && logementDansPerimetre(v.type, perimetre));
   const villaIds = new Set(allVillas.map((v) => v.id));
 
   // Réservations qui touchent l'année demandée, même partiellement (à cheval sur décembre/janvier) —
@@ -146,11 +161,13 @@ export default async function StatistiquesPage({
         <p className="text-sm text-muted-foreground">Nuitées, chiffre d&apos;affaires, trésorerie et dépenses par logement, mois par mois</p>
       </div>
 
-      <PerformanceEtActions now={new Date()} unreadChatCount={unreadChatCount} />
+      <StatistiquesTypeTabs type={perimetre} year={year} />
 
-      <StatistiquesCharts mois={portfolioMois} />
+      <PerformanceEtActions now={new Date()} unreadChatCount={unreadChatCount} perimetre={perimetre} />
 
-      <StatistiquesTable rows={rows} year={year} />
+      <StatistiquesCharts mois={portfolioMois} perimetre={perimetre} />
+
+      <StatistiquesTable rows={rows} year={year} perimetre={perimetre} />
     </div>
   );
 }
