@@ -1,14 +1,17 @@
 import { and, asc, desc, eq, gte, ilike, isNotNull, lte, ne, or } from "drizzle-orm";
-import { addDays, subDays } from "date-fns";
+import { addDays, differenceInCalendarDays, subDays } from "date-fns";
 import { getDb } from "@/db";
-import { whatsappConversations, personnel, technicians, clients, reservations, villas } from "@/db/schema";
+import { whatsappConversations, personnel, technicians, clients, reservations, villas, pricelabsPriceCache } from "@/db/schema";
 import { inboxReads } from "@/db/schema-recaps";
 import { phonesMatch } from "@/lib/phone";
 import { toRenderableParts, previewText } from "@/lib/whatsapp-message-content";
 import { beds24GetBookings, beds24GetMessagesBulk, Beds24ConfigError, type Beds24Message } from "@/lib/beds24/client";
 import { normaliseCanal } from "@/lib/canal";
+import { loyerEnEuros } from "@/lib/beds24/sync";
+import { getMadParEur } from "@/lib/devises";
+import { versEuros } from "@/lib/logement-stats";
 import { chargerMessagesAgence, FENETRE_24H_MS } from "@/lib/whatsapp-agence";
-import { InboxClient, type InboxConversation, type InboxMessage, type InboxStatus } from "./inbox-client";
+import { InboxClient, type InboxConversation, type InboxMessage, type InboxSejour, type InboxStatus } from "./inbox-client";
 
 // Boîte de réception reconstruite sur le modèle de la messagerie Superhote (liste à gauche avec
 // recherche / filtre / statut du séjour / pastille de canal, conversation à droite) — Kamel,
@@ -66,6 +69,12 @@ type AirbnbResa = {
   checkOut: Date;
   villaNom: string | null;
   villaNumero: string | null;
+  villaType: "villa" | "appartement" | null;
+  nbAdultes: number | null;
+  nbEnfants: number | null;
+  guestsCount: number | null;
+  loyerTotal: string | null;
+  devisePaiement: string;
 };
 
 // Séjours en cours d'abord, puis les prochains à venir, puis les plus récemment terminés.
@@ -110,7 +119,28 @@ type StayInfo = {
   canal: string | null;
   villaNom: string | null;
   villaNumero: string | null;
+  villaType: "villa" | "appartement" | null;
+  nbAdultes: number | null;
+  nbEnfants: number | null;
+  guestsCount: number | null;
+  loyerTotal: string | null;
+  devisePaiement: string;
 };
+
+// Fiche "façon Airbnb" en haut de la conversation : nuits, voyageurs et prix total du séjour
+// (Kamel, 2026-11-02 : "qu'on récupère le prix total de la demande de réservation"). Le prix
+// est toujours en euros (versEuros) ; absent ou à 0 => rien d'affiché plutôt qu'un faux montant.
+function infoSejour(
+  r: { checkIn: Date; checkOut: Date; nbAdultes: number | null; nbEnfants: number | null; guestsCount: number | null; loyerTotal: string | null; devisePaiement: string },
+  madParEur: number
+): InboxSejour {
+  const loyer = r.loyerTotal ? Number(r.loyerTotal) : 0;
+  return {
+    nuits: Math.max(0, differenceInCalendarDays(r.checkOut, r.checkIn)),
+    voyageurs: (r.nbAdultes ?? 0) + (r.nbEnfants ?? 0) || r.guestsCount || null,
+    prixEur: loyer > 0 ? versEuros(loyer, r.devisePaiement, madParEur) : null,
+  };
+}
 
 const DAY_MONTH = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short" });
 
@@ -148,7 +178,7 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
   const db = getDb();
   const now = new Date();
 
-  const [conversations, personnelList, techniciensList, clientsList, stays] = await Promise.all([
+  const [conversations, personnelList, techniciensList, clientsList, stays, madParEur] = await Promise.all([
     db.select().from(whatsappConversations).orderBy(desc(whatsappConversations.updatedAt)),
     db.select({ nom: personnel.nom, telephone: personnel.telephone, role: personnel.role }).from(personnel),
     db.select({ nom: technicians.nom, telephone: technicians.telephone }).from(technicians),
@@ -163,10 +193,17 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
         canal: reservations.canal,
         villaNom: villas.nom,
         villaNumero: villas.numero,
+        villaType: villas.type,
+        nbAdultes: reservations.nbAdultes,
+        nbEnfants: reservations.nbEnfants,
+        guestsCount: reservations.guestsCount,
+        loyerTotal: reservations.loyerTotal,
+        devisePaiement: reservations.devisePaiement,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
       .orderBy(desc(reservations.checkIn)),
+    getMadParEur(),
   ]);
 
   // --- Airbnb via Beds24 : tout ce bloc est isolé, une erreur (base, API, token) ne fait
@@ -188,6 +225,12 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
         checkOut: reservations.checkOut,
         villaNom: villas.nom,
         villaNumero: villas.numero,
+        villaType: villas.type,
+        nbAdultes: reservations.nbAdultes,
+        nbEnfants: reservations.nbEnfants,
+        guestsCount: reservations.guestsCount,
+        loyerTotal: reservations.loyerTotal,
+        devisePaiement: reservations.devisePaiement,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -280,6 +323,8 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
       statusLabel,
       stay: stay && !staff && !tech ? stayRange(stay.checkIn, stay.checkOut) : null,
       logement: stay && !staff && !tech ? [stay.villaNom, stay.villaNumero ? `n°${stay.villaNumero}` : null].filter(Boolean).join(" ") : null,
+      logementType: stay && !staff && !tech ? stay.villaType : null,
+      sejour: stay && !staff && !tech ? infoSejour(stay, madParEur) : null,
       lastAt: new Date(c.updatedAt).toISOString(),
       preview: last ? previewText(last.content) : "",
       awaitingReply: last?.role === "user",
@@ -332,6 +377,8 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
         statusLabel,
         stay: sejour ? stayRange(sejour.checkIn, sejour.checkOut) : null,
         logement: sejour ? [sejour.villaNom, sejour.villaNumero ? `n°${sejour.villaNumero}` : null].filter(Boolean).join(" ") : null,
+        logementType: sejour ? sejour.villaType : null,
+        sejour: sejour ? infoSejour(sejour, madParEur) : null,
         lastAt: last.at.toISOString(),
         preview: last.contenu,
         awaitingReply: last.sens === "entrant",
@@ -360,6 +407,8 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
       statusLabel: s.label,
       stay: stayRange(r.checkIn, r.checkOut),
       logement: [r.villaNom, r.villaNumero ? `n°${r.villaNumero}` : null].filter(Boolean).join(" ") || null,
+      logementType: r.villaType,
+      sejour: infoSejour(r, madParEur),
       lastAt: new Date(horodatage(last.time)).toISOString(),
       preview: last.message ?? "",
       awaitingReply: last.source === "guest",
@@ -379,8 +428,16 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
   // Bloc isolé comme le précédent : une panne Beds24 n'empêche pas le reste de s'afficher.
   try {
     const villasBeds24 = await db
-      .select({ roomId: villas.beds24RoomId, nom: villas.nom, numero: villas.numero })
+      .select({
+        roomId: villas.beds24RoomId,
+        nom: villas.nom,
+        numero: villas.numero,
+        type: villas.type,
+        devisePricelabs: pricelabsPriceCache.currency,
+        minPricelabs: pricelabsPriceCache.minPrice,
+      })
       .from(villas)
+      .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
       .where(isNotNull(villas.beds24RoomId));
     const villaParRoom = new Map(villasBeds24.map((v) => [Number(v.roomId), v]));
     {
@@ -412,7 +469,7 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
           return new Map<number, Beds24Message[]>();
         }
       );
-      demandes.forEach((b) => {
+      for (const b of demandes) {
         const thread = [...(filsDemandes.get(b.id) ?? [])].sort((x, y) => horodatage(x.time) - horodatage(y.time));
         const last: Beds24Message | undefined = thread[thread.length - 1];
         const villa = villaParRoom.get(Number(b.roomId));
@@ -420,6 +477,17 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
         const checkOut = new Date(`${b.departure}T00:00:00Z`);
         const estBooking = normaliseCanal(b.referer ?? b.channel ?? null) === "booking";
         const nom = [b.firstName, b.lastName].filter(Boolean).join(" ").trim() || (estBooking ? "Voyageur Booking.com" : "Voyageur Airbnb");
+        const nuits = Math.max(0, differenceInCalendarDays(checkOut, checkIn));
+        // Même conversion en euros que la synchro des réservations (annonce Airbnb tarifée en
+        // dirhams) : sans ça un montant en MAD s'afficherait avec un symbole €.
+        const prix = await loyerEnEuros(b, {
+          canal: estBooking ? "Booking.com" : "Airbnb",
+          deviseBeds24: "EUR",
+          devisePricelabs: villa?.devisePricelabs ?? null,
+          minPricelabs: villa?.minPricelabs ? Number(villa.minPricelabs) : null,
+          nuits,
+          precedent: null,
+        }).catch(() => null);
         items.push({
           key: `og:b24-${b.id}`,
           name: nom,
@@ -428,6 +496,12 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
           statusLabel: "Demande d'information",
           stay: stayRange(checkIn, checkOut),
           logement: villa ? [villa.nom, villa.numero ? `n°${villa.numero}` : null].filter(Boolean).join(" ") : "Logement non relié dans l'app",
+          logementType: villa?.type ?? null,
+          sejour: {
+            nuits,
+            voyageurs: (b.numAdult ?? 0) + (b.numChild ?? 0) || null,
+            prixEur: prix?.loyerTotal ? Number(prix.loyerTotal) : null,
+          },
           // Fil non chargé (Beds24 lent) : la demande reste visible, datée de sa création.
           lastAt: new Date(
             horodatage(last?.time) || horodatage(b.modifiedTime) || horodatage(b.bookingTime) || now.getTime()
@@ -443,7 +517,7 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
           reservationId: null,
           beds24InquiryId: b.id,
         });
-      });
+      }
     }
   } catch (error) {
     if (!(error instanceof Beds24ConfigError || error instanceof Beds24TimeoutError)) {
