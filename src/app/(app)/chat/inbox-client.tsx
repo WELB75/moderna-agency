@@ -574,7 +574,7 @@ export function InboxClient({
               </div>
             </div>
 
-            <FicheSejour key={selected.key} c={selected} />
+            <FicheSejour key={`fiche:${selected.key}`} c={selected} />
 
             <div ref={filMessagesRef} className="flex-1 overflow-y-auto overscroll-contain bg-muted/30 px-3 py-4 md:px-6">
               {selected.messages.length === 0 ? (
