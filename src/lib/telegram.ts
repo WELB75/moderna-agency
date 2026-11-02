@@ -1,6 +1,7 @@
 import { desc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { telegramConversations } from "@/db/schema";
+import { idPrincipal } from "@/lib/telegram-agent/utilisateurs";
 
 // Envoi de messages à Kamel sur Telegram, partagé par les rappels matin/soir (telegram-rappels.ts)
 // et les notifications d'événements (nouvelle réservation, annulation, nouveau souci de villa).
@@ -9,10 +10,11 @@ import { telegramConversations } from "@/db/schema";
 const LIMITE_TEXTE = 3800;
 
 export async function chatIdDeKamel(): Promise<string | null> {
-  // Conversation privée : l'id du chat est celui de l'utilisateur, donc TELEGRAM_ALLOWED_USER_ID
-  // convient tel quel. Sans lui, on prend la dernière conversation connue du bot (Kamel seul).
-  const allowed = process.env.TELEGRAM_ALLOWED_USER_ID;
-  if (allowed) return allowed;
+  // Conversation privée : l'id du chat est celui de l'utilisateur. TELEGRAM_ALLOWED_USER_ID peut
+  // lister plusieurs personnes : les rappels et notifications vont au premier (Kamel). Sans lui,
+  // on prend la dernière conversation connue du bot.
+  const principal = idPrincipal();
+  if (principal) return principal;
   const [row] = await getDb()
     .select({ chatId: telegramConversations.chatId })
     .from(telegramConversations)

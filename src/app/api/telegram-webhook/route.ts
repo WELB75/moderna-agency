@@ -4,6 +4,7 @@ import type { MessageParam } from "@anthropic-ai/sdk/resources/messages";
 import { getDb } from "@/db";
 import { telegramConversations } from "@/db/schema";
 import { runAgentTurn, repairMessageHistory } from "@/lib/telegram-agent/agent";
+import { trouverUtilisateur } from "@/lib/telegram-agent/utilisateurs";
 
 export const maxDuration = 60;
 
@@ -94,10 +95,11 @@ export async function POST(req: NextRequest) {
     const fromId = String(message.from?.id ?? "");
     if (!chatId || !fromId) return NextResponse.json({ ok: true });
 
-    // Réservé à Kamel : le bot donne maintenant les codes d'accès des logements, donc on refuse
-    // tout le monde tant que TELEGRAM_ALLOWED_USER_ID n'est pas défini (plus de mode ouvert).
-    const allowedUserId = process.env.TELEGRAM_ALLOWED_USER_ID;
-    if (!allowedUserId || fromId !== allowedUserId) {
+    // Réservé aux personnes listées dans TELEGRAM_ALLOWED_USER_ID (Kamel en premier, puis l'équipe
+    // autorisée) : le bot donne les codes d'accès des logements et touche à la caisse, donc on
+    // refuse tout le monde tant que la liste n'est pas définie (plus de mode ouvert).
+    const utilisateur = trouverUtilisateur(fromId, message.from?.first_name);
+    if (!utilisateur) {
       console.warn("Message Telegram ignoré, expéditeur non autorisé:", fromId);
       return NextResponse.json({ ok: true });
     }
@@ -127,7 +129,7 @@ export async function POST(req: NextRequest) {
     const messages: MessageParam[] = repairMessageHistory((existing?.messages as MessageParam[] | undefined) ?? []);
     messages.push({ role: "user", content: text });
 
-    const reply = await runAgentTurn(messages);
+    const reply = await runAgentTurn(messages, utilisateur);
     await saveConversation(db, chatId, messages, updateId);
     await sendTelegramText(chatId, reply || "C'est noté.");
 
