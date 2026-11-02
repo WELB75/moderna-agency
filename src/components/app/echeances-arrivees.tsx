@@ -32,10 +32,19 @@ import { SectionLabel } from "@/components/app/dashboard-ui";
 // Kamel, 2026-11-01 : « Voir plus » doit montrer tout le mois, donc 30 jours (et non plus 20).
 const NB_JOURS = 30;
 
+// Caution : « aucune » si rien n'est demandé (Airbnb, ou montant à 0), « recue » une fois payée.
+function statutCautionLigne(a: { caution: string | null; cautionPayee: boolean }): "recue" | "a_recevoir" | "aucune" {
+  if (a.cautionPayee) return "recue";
+  return Number(a.caution) > 0 ? "a_recevoir" : "aucune";
+}
+
 export async function EcheancesArrivees({ now }: { now: Date }) {
   const arrivees = await chargerArriveesDocuments(now, NB_JOURS);
   const aSurveiller = arrivees
-    .map((a) => ({ ...a, echeance: calculerEcheance({ checkIn: a.checkIn, ficheStatut: a.ficheStatut, contratStatut: a.contratStatut }, now) }))
+    .map((a) => {
+      const cautionStatut = statutCautionLigne(a);
+      return { ...a, cautionStatut, echeance: calculerEcheance({ checkIn: a.checkIn, ficheStatut: a.ficheStatut, contratStatut: a.contratStatut, cautionStatut }, now) };
+    })
     .filter((a) => a.echeance.etat !== "ok")
     // Les 5 premières lignes sont les arrivées les plus proches (Kamel, 2026-11-01) ; les retards
     // sont de toute façon les plus proches, puisque la limite J-1 précède l'arrivée.
@@ -49,7 +58,7 @@ export async function EcheancesArrivees({ now }: { now: Date }) {
         <div className="flex items-center gap-2">
           <FileClock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
           <SectionLabel>
-            Prochaines échéances · fiche police et contrat avant J-1 · {aSurveiller.length}
+            Prochaines échéances · fiche police, contrat et caution avant J-1 · {aSurveiller.length}
           </SectionLabel>
         </div>
         <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
@@ -70,6 +79,8 @@ export async function EcheancesArrivees({ now }: { now: Date }) {
           ficheId: a.fiche?.id ?? null,
           ficheEnvoyee: a.ficheEnvoyee,
           contratRequis: a.contratRequis,
+          cautionStatut: a.cautionStatut,
+          cautionMontant: Number(a.caution) > 0 ? Number(a.caution) : null,
         }))}
       />
     </section>
