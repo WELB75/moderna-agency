@@ -275,13 +275,22 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
 // cuisinière et la piscine chauffée ne se facturent que sur les villas ; la cuisinière n'est pas
 // proposée quand les repas sont déjà compris dans le loyer. Logement absent de la fiche : tarif
 // selon son type.
+// Villas où la femme de ménage est comprise dans le loyer (Kamel, 2026-11-03 : « la cuisinière n'est
+// pas incluse dans la Villa Sofya, c'est la femme de ménage qui l'est »).
+const VILLAS_MENAGE_INCLUS = ["bf33c8ba-2f65-4a09-bedd-870646fcdd08"]; // Villa Sofya
+
 export function tarifsOptionsLogement(l: { villaId: string | null; type: "villa" | "appartement" | null; repasInclus: boolean }): TarifsOptions {
   const connu = l.villaId ? VILLAS.find((v) => v.id === l.villaId) : undefined;
   const type = connu?.type ?? l.type ?? "villa";
   if (type === "appartement") {
-    return { menage: connu?.menage ?? 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20 };
+    return { menage: connu?.menage ?? 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20, menageJournalierIncluse: false };
   }
-  return { ...TARIFS_PAR_DEFAUT, menage: connu?.menage ?? TARIFS_PAR_DEFAUT.menage, cuisineIncluse: l.repasInclus };
+  return {
+    ...TARIFS_PAR_DEFAUT,
+    menage: connu?.menage ?? TARIFS_PAR_DEFAUT.menage,
+    cuisineIncluse: l.repasInclus,
+    menageJournalierIncluse: l.villaId !== null && VILLAS_MENAGE_INCLUS.includes(l.villaId),
+  };
 }
 
 export async function chargerContexteOptions(reservationId: string): Promise<(ContexteOptions & { montantPaye: number | null }) | null> {
