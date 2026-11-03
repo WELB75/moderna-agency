@@ -28,14 +28,26 @@ export function buildArrivalMessage(
   // il ne faut jamais la reproposer comme un service payant à ces clients-là. Kamel, 2026-08-13 :
   // "propose pas cette carte... ou sinon on la propose mais leur dire qu'ils paient pas sauf les
   // suppléments de personnes + les courses".
-  repasInclus: boolean = false
+  repasInclus: boolean = false,
+  // Appartement : pas de cuisinière (service réservé aux villas) et on parle de l'appartement et de
+  // la résidence, pas de la villa et du domaine. Kamel, 2026-11-03 : « tu proposes une cuisinière
+  // alors qu'il n'y en a pas pour les appartements ».
+  appartement: boolean = false
 ): string {
-  const cuisineFr = repasInclus
-    ? `Une cuisinière est déjà incluse dans votre séjour, sans supplément. Seuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
-    : `Souhaitez-vous également les services d'une cuisinière pendant votre séjour ? Dites-le-nous et nous vous indiquerons les formules.`;
-  const cuisineEn = repasInclus
-    ? `A cook is already included in your stay, at no extra cost. Only the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
-    : `Would you also like the services of a cook during your stay? Let us know and we will send you the options.`;
+  const cuisineFr = appartement
+    ? null
+    : repasInclus
+      ? `Une cuisinière est déjà incluse dans votre séjour, sans supplément. Seuls restent à votre charge, si besoin : le supplément au-delà de la capacité de la villa et les courses/épicerie.`
+      : `Souhaitez-vous également les services d'une cuisinière pendant votre séjour ? Dites-le-nous et nous vous indiquerons les formules.`;
+  const cuisineEn = appartement
+    ? null
+    : repasInclus
+      ? `A cook is already included in your stay, at no extra cost. Only the extra-guest supplement (beyond the villa's capacity) and groceries remain payable, if needed.`
+      : `Would you also like the services of a cook during your stay? Let us know and we will send you the options.`;
+  const lieuEn = appartement ? "the apartment" : "the villa";
+  const lieuFr = appartement ? "l'appartement" : "la villa";
+  const residenceEn = appartement ? "the residence" : "the domain";
+  const residenceFr = appartement ? "de la résidence" : "du domaine";
 
   if (lang === "en") {
     const when = isSameDay(checkIn, now)
@@ -44,10 +56,10 @@ export function buildArrivalMessage(
         ? "tomorrow"
         : `on ${format(checkIn, "MMMM d", { locale: enUS })}`;
 
-    const base = `Hello ${guestName},\n\nI hope you are doing well.\n\nThis is Kamel, regarding your check-in ${when}.\n\nDo you have an idea of your arrival time at the villa?`;
+    const base = `Hello ${guestName},\n\nI hope you are doing well.\n\nThis is Kamel, regarding your check-in ${when}.\n\nDo you have an idea of your arrival time at ${lieuEn}?`;
 
     const fiche = ficheLink
-      ? `For the police registration form (required for the security of the domain and to protect you as well as the owner): each adult fills in their own form, it takes 2 minutes. Take a photo of your passport's photo page, the fields fill in automatically, then check and sign.\n\n👉 Link to forward to the other travellers:\n\n${ficheLink}\n\nPlease do it now if you can, at the latest the day before your arrival. Whatever is saved stays saved.`
+      ? `For the police registration form (required for the security of ${residenceEn} and to protect you as well as the owner): each adult fills in their own form, it takes 2 minutes. Take a photo of your passport's photo page, the fields fill in automatically, then check and sign.\n\n👉 Link to forward to the other travellers:\n\n${ficheLink}\n\nPlease do it now if you can, at the latest the day before your arrival. Whatever is saved stays saved.`
       : null;
 
     return [base, fiche, cuisineEn, "Thank you,\nKamel, Moderna Agency"].filter(Boolean).join("\n\n");
@@ -59,10 +71,10 @@ export function buildArrivalMessage(
       ? "de demain"
       : `du ${format(checkIn, "d MMMM", { locale: fr })}`;
 
-  const base = `Bonjour ${guestName},\n\nJ'espère que vous allez bien.\n\nC'est Kamel, pour votre check-in ${quand}.\n\nAvez-vous une idée de votre horaire d'arrivée à la villa ?`;
+  const base = `Bonjour ${guestName},\n\nJ'espère que vous allez bien.\n\nC'est Kamel, pour votre check-in ${quand}.\n\nAvez-vous une idée de votre horaire d'arrivée à ${lieuFr} ?`;
 
   const fiche = ficheLink
-    ? `Pour la fiche de police (obligatoire, sécurité du domaine et protection du client comme du propriétaire) : chaque adulte remplit sa propre fiche, en 2 minutes. Prenez en photo la page de votre passeport avec votre photo, les champs se remplissent automatiquement, il ne reste qu'à vérifier et signer.\n\n👉 Lien à transférer aux autres voyageurs :\n\n${ficheLink}\n\nFaites-le dès maintenant si possible, et au plus tard la veille de votre arrivée. Ce qui est enregistré reste enregistré.`
+    ? `Pour la fiche de police (obligatoire, sécurité ${residenceFr} et protection du client comme du propriétaire) : chaque adulte remplit sa propre fiche, en 2 minutes. Prenez en photo la page de votre passeport avec votre photo, les champs se remplissent automatiquement, il ne reste qu'à vérifier et signer.\n\n👉 Lien à transférer aux autres voyageurs :\n\n${ficheLink}\n\nFaites-le dès maintenant si possible, et au plus tard la veille de votre arrivée. Ce qui est enregistré reste enregistré.`
     : null;
 
   return [base, fiche, cuisineFr, "Merci,\nKamel, Moderna Agency"].filter(Boolean).join("\n\n");

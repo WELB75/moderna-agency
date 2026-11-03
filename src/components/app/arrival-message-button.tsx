@@ -36,6 +36,7 @@ export function ArrivalMessageButton({
   ficheId,
   ficheComplete,
   repasInclus = false,
+  appartement = false,
   prominent,
   envoyeAt,
 }: {
@@ -48,6 +49,7 @@ export function ArrivalMessageButton({
   ficheId: string | null;
   ficheComplete: boolean;
   repasInclus?: boolean;
+  appartement?: boolean;
   prominent?: boolean;
   envoyeAt?: Date | null;
 }) {
@@ -87,7 +89,7 @@ export function ArrivalMessageButton({
           }
           ficheLink = `${originApp()}/g/${formId}`;
         }
-        const message = buildArrivalMessage(guestName, checkIn, now, ficheLink, langue, repasInclus);
+        const message = buildArrivalMessage(guestName, checkIn, now, ficheLink, langue, repasInclus, appartement);
         if (phone) {
           const url = toWhatsAppUrl(phone, message);
           if (win) win.location.href = url;
