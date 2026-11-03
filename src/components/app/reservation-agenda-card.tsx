@@ -22,7 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Countdown } from "@/components/app/countdown";
 import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
 import { CautionMessageButton } from "@/components/app/caution-message-button";
-import { cautionMessageApplicable } from "@/lib/message-templates";
+import { cautionMessageApplicable, estProlongationSansCaution } from "@/lib/message-templates";
 import { LocationMessageButton } from "@/components/app/location-message-button";
 import { SecurityMessageButton } from "@/components/app/security-message-button";
 import { CuisineCoursesMessageButton } from "@/components/app/cuisine-courses-message-button";
@@ -373,13 +373,14 @@ export function ReservationAgendaCard({
                     envoyeAt={r.messageArriveeEnvoyeAt}
                   />
                 ) : null}
-                {r.villaNom && r.beds24BookingId && cautionMessageApplicable(r) ? (
+                {r.villaNom && (cautionMessageApplicable(r) || estProlongationSansCaution(r)) ? (
                   <CautionMessageButton
                     reservationId={r.id}
                     phone={r.guestPhone}
                     guestName={r.guestName}
                     villaNom={r.villaNom}
-                    beds24BookingId={r.beds24BookingId}
+                    beds24BookingId={r.beds24BookingId ?? null}
+                    chercherOrigine={!r.beds24BookingId}
                     montant={Number(r.caution) || null}
                     devise={r.devisePaiement}
                   />

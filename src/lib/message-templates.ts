@@ -227,3 +227,15 @@ export function cautionMessageApplicable(r: {
 }): boolean {
   return Boolean(r.beds24BookingId) && !r.cautionPayee && Number(r.caution) > 0 && !(r.canal ?? "").toLowerCase().includes("airbnb");
 }
+
+// Prolongation en direct : réservation manuelle sans numéro Beds24 ni caution, dont la caution à
+// recevoir se trouve sur la réservation d'origine (retrouvée à l'ouverture, voir
+// lib/actions/caution-message.ts). Le bouton ne s'affiche que si cette recherche aboutit.
+export function estProlongationSansCaution(r: {
+  canal: string | null;
+  caution: string | null;
+  beds24BookingId?: string | null;
+  notes?: string | null;
+}): boolean {
+  return !r.beds24BookingId && !(Number(r.caution) > 0) && !(r.canal ?? "").toLowerCase().includes("airbnb") && /prolongation/i.test(r.notes ?? "");
+}

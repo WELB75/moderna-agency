@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
+import { cautionDeLaReservationOrigine, type CautionOrigine } from "@/lib/actions/caution-message";
 import { MessageLangueButton } from "@/components/app/message-langue-button";
 import { buildCautionMessage } from "@/lib/message-templates";
 
@@ -15,18 +17,39 @@ export function CautionMessageButton({
   beds24BookingId,
   montant,
   devise,
+  chercherOrigine = false,
   prominent,
 }: {
   reservationId: string;
   phone: string | null;
   guestName: string;
   villaNom: string;
-  beds24BookingId: string;
+  beds24BookingId: string | null;
   montant: number | null;
   devise: string;
+  // Prolongation en direct : la caution est sur la réservation d'origine, à retrouver.
+  chercherOrigine?: boolean;
   prominent?: boolean;
 }) {
-  const montantEuros = devise.trim().toUpperCase() === "EUR" ? montant : null;
+  const [origine, setOrigine] = useState<CautionOrigine | null>(null);
+  useEffect(() => {
+    if (!chercherOrigine) return;
+    let annule = false;
+    cautionDeLaReservationOrigine(reservationId)
+      .then((o) => {
+        if (!annule) setOrigine(o);
+      })
+      .catch(() => {});
+    return () => {
+      annule = true;
+    };
+  }, [chercherOrigine, reservationId]);
+
+  const numero = beds24BookingId ?? origine?.beds24BookingId ?? null;
+  if (!numero) return null;
+  const montantFinal = beds24BookingId ? montant : origine?.montant ?? null;
+  const deviseFinale = beds24BookingId ? devise : origine?.devise ?? "EUR";
+  const montantEuros = deviseFinale.trim().toUpperCase() === "EUR" ? montantFinal : null;
   return (
     <MessageLangueButton
       reservationId={reservationId}
@@ -34,7 +57,7 @@ export function CautionMessageButton({
       icon={ShieldCheck}
       label="Message de caution"
       build={(lang) =>
-        buildCautionMessage(guestName, villaNom, montantEuros, `${window.location.origin}/caution/${encodeURIComponent(beds24BookingId)}`, lang)
+        buildCautionMessage(guestName, villaNom, montantEuros, `${window.location.origin}/caution/${encodeURIComponent(numero)}`, lang)
       }
       prominent={prominent}
       copieToast="Message de caution copié : colle-le dans la conversation de la plateforme."
