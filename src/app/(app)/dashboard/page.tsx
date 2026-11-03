@@ -122,6 +122,7 @@ export default async function DashboardPage({
       caution: reservations.caution,
       cautionPayee: reservations.cautionPayee,
       devisePaiement: reservations.devisePaiement,
+      beds24BookingId: reservations.beds24BookingId,
       checkinValideAt: reservations.checkinValideAt,
       checkinValidePar: reservations.checkinValidePar,
       checkoutValideAt: reservations.checkoutValideAt,

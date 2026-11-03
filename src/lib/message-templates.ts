@@ -198,3 +198,32 @@ export function buildSecurityMessage(
   const dateStr = checkIn.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
   return `السلام عليكم،\n\nضيف جديد (${guestName}) غادي يوصل إلى ${villaNom} (فيلا رقم ${villaNumero}) نهار ${dateStr}.\n\nهذا رابط الأمن الخاص بمعلومات الضيوف:\n\n${link}\n\nشكرا`;
 }
+
+// Message de caution : lien vers la page de caution Superhosts (empreinte bancaire Stripe, rien
+// n'est débité). Le montant n'est cité que s'il est connu en euros (une réservation saisie en
+// dirhams est traitée avec le montant du logement, voir lib/caution/service.ts).
+export function buildCautionMessage(
+  guestName: string,
+  villaNom: string,
+  montantEuros: number | null,
+  url: string,
+  lang: MessageLang = "fr"
+): string {
+  const montantEn = montantEuros ? ` of ${new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 }).format(montantEuros)} EUR` : "";
+  const montantFr = montantEuros ? ` de ${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(montantEuros)} euros` : "";
+  if (lang === "en") {
+    return `Hello ${guestName},\n\nBefore your stay at ${villaNom}, we need a security deposit${montantEn}. Nothing is charged: it is only a hold on your card, released after your stay.\n\nYou can register your card securely here (about one minute):\n${url}\n\nFeel free to message us if you have any question. See you soon!`;
+  }
+  return `Bonjour ${guestName},\n\nAvant votre séjour à ${villaNom}, nous avons besoin d'une caution${montantFr}. Rien n'est débité : il s'agit seulement d'une empreinte sur votre carte, libérée après votre séjour.\n\nVous pouvez enregistrer votre carte en toute sécurité ici (environ une minute) :\n${url}\n\nN'hésitez pas à nous écrire si vous avez une question. À très bientôt !`;
+}
+
+// Le bouton « Message de caution » s'affiche tant que la caution n'est pas reçue : réservation
+// avec numéro Beds24 (la page de caution en dépend), un montant à demander, jamais Airbnb.
+export function cautionMessageApplicable(r: {
+  canal: string | null;
+  caution: string | null;
+  cautionPayee: boolean;
+  beds24BookingId?: string | null;
+}): boolean {
+  return Boolean(r.beds24BookingId) && !r.cautionPayee && Number(r.caution) > 0 && !(r.canal ?? "").toLowerCase().includes("airbnb");
+}
