@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { basculerOptionFacturee, changerQuantiteOption } from "@/lib/actions/compta-reservation";
-import { OPTIONS_RAPIDES, formaterMontant, montantLigne, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
+import { OPTIONS_RAPIDES, formaterMontant, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
 
 // Cases à cocher des options facturées, sur la carte du tableau de bord : un clic ajoute la ligne
 // avec son prix et sa quantité par défaut (voir OPTIONS_RAPIDES), un second la retire. Le détail
@@ -55,8 +55,8 @@ export function OptionsFacturees({
           const prix = prixOption(o.categorie, tarifs, fraisMenage);
           // Option sans objet pour ce logement (cuisinière/piscine en appartement) : masquée, sauf si une
           // ligne existe déjà (on doit pouvoir la décocher).
-          if (prix === null && !ligne && !(o.categorie === "cuisine" && tarifs.cuisineIncluse)) return null;
-          const incluse = o.categorie === "cuisine" && tarifs.cuisineIncluse && !ligne;
+          const incluse = optionIncluse(o.categorie, tarifs) && !ligne;
+          if (prix === null && !ligne && !incluse) return null;
           const coche = Boolean(ligne);
           const occupe = enCours && actif === o.categorie;
           return (
@@ -85,7 +85,7 @@ export function OptionsFacturees({
                     {coche && ligne
                       ? `${ligne.quantite} ${o.parJour ? "jour" + (ligne.quantite > 1 ? "s" : "") : "×"} × ${formaterMontant(ligne.prixUnitaire, devise)}`
                       : incluse
-                        ? "Incluse dans le loyer de cette villa"
+                        ? "Incluse dans le loyer"
                         : `${formaterMontant(prix ?? 0, devise)}${o.parJour ? " / jour" : ""}`}
                     {occupe ? " …" : ""}
                   </span>

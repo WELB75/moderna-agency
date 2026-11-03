@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   TARIFS_PAR_DEFAUT,
   basculerOption,
+  optionIncluse,
   prixOption,
   changerQuantite,
   convertir,
@@ -150,7 +151,7 @@ test("quantité : jamais en dessous de 1", () => {
 
 test("prix par logement : villa 80 EUR, appartement 20 EUR, pas de cuisinière ni piscine en appartement", () => {
   const villaR1 = { ...TARIFS_PAR_DEFAUT, menage: 80 };
-  const appart = { menage: 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20 };
+  const appart = { menage: 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20, menageJournalierIncluse: false };
   assert.equal(prixOption("menage", villaR1, null), 80);
   assert.equal(prixOption("menage", appart, null), 20);
   assert.equal(prixOption("cuisine", appart, null), null);
@@ -165,4 +166,12 @@ test("prix par logement : villa 80 EUR, appartement 20 EUR, pas de cuisinière n
 test("cuisinière incluse dans le loyer : non proposée", () => {
   const incluse = { ...TARIFS_PAR_DEFAUT, cuisineIncluse: true };
   assert.equal(prixOption("cuisine", incluse, null), null);
+});
+
+test("Villa Sofya : la femme de ménage est incluse, pas la cuisinière", () => {
+  const sofya = { ...TARIFS_PAR_DEFAUT, menage: 80, menageJournalierIncluse: true };
+  assert.equal(optionIncluse("menage_journalier", sofya), true);
+  assert.equal(optionIncluse("cuisine", sofya), false);
+  assert.equal(prixOption("menage_journalier", sofya, null), null);
+  assert.equal(prixOption("cuisine", sofya, null), 30);
 });

@@ -168,9 +168,10 @@ export type TarifsOptions = {
   cuisineIncluse: boolean; // repas déjà compris dans le loyer de cette villa
   piscine: number | null; // null : pas de piscine chauffée à facturer (appartement)
   menageJournalier: number | null;
+  menageJournalierIncluse: boolean; // femme de ménage comprise dans le loyer (Villa Sofya)
 };
 
-export const TARIFS_PAR_DEFAUT: TarifsOptions = { menage: 60, cuisine: 30, cuisineIncluse: false, piscine: 30, menageJournalier: 20 };
+export const TARIFS_PAR_DEFAUT: TarifsOptions = { menage: 60, cuisine: 30, cuisineIncluse: false, piscine: 30, menageJournalier: 20, menageJournalierIncluse: false };
 
 export const OPTIONS_RAPIDES: { categorie: CategorieLigne; label: string; parJour: boolean }[] = [
   { categorie: "menage", label: "Ménage de fin de séjour", parJour: false },
@@ -190,10 +191,15 @@ export function prixOption(categorie: CategorieLigne, tarifs: TarifsOptions, fra
     case "piscine":
       return tarifs.piscine;
     case "menage_journalier":
-      return tarifs.menageJournalier;
+      return tarifs.menageJournalierIncluse ? null : tarifs.menageJournalier;
     default:
       return null;
   }
+}
+
+// Option déjà comprise dans le loyer de ce logement : affichée « incluse », pas cochable.
+export function optionIncluse(categorie: CategorieLigne, tarifs: TarifsOptions): boolean {
+  return (categorie === "cuisine" && tarifs.cuisineIncluse) || (categorie === "menage_journalier" && tarifs.menageJournalierIncluse);
 }
 
 export type ContexteOptions = { nuits: number; fraisMenage: number | null; loyerTotal: number | null; tarifs: TarifsOptions };
