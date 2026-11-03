@@ -35,7 +35,8 @@ export function MessageLangueButton({
   icon: LucideIcon;
   label: string;
   // Clé de marquerMessageEnvoye ("bienvenue", "localisation", "cuisine"...).
-  type: Parameters<typeof marquerMessageEnvoye>[1];
+  // Sans type (ex. message de caution), l'envoi n'est pas marqué sur la réservation.
+  type?: Parameters<typeof marquerMessageEnvoye>[1];
   build: (lang: MessageLang) => string;
   prominent?: boolean;
   envoyeAt?: Date | null;
@@ -68,7 +69,7 @@ export function MessageLangueButton({
           toast.success(copieToast);
         }
         setEnvoye(true);
-        marquerMessageEnvoye(reservationId, type).catch(() => {});
+        if (type) marquerMessageEnvoye(reservationId, type).catch(() => {});
       } catch (err) {
         win?.close();
         toast.error(err instanceof Error ? err.message : "Erreur.");

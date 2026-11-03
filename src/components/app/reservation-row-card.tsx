@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Countdown } from "@/components/app/countdown";
 import { GuestCount } from "@/components/app/guest-count";
 import { ArrivalMessageButton } from "@/components/app/arrival-message-button";
-import { WelcomeMessageButton } from "@/components/app/welcome-message-button";
+import { CautionMessageButton } from "@/components/app/caution-message-button";
+import { cautionMessageApplicable } from "@/lib/message-templates";
 import { LocationMessageButton } from "@/components/app/location-message-button";
 import { SecurityMessageButton } from "@/components/app/security-message-button";
 import { CuisineCoursesMessageButton } from "@/components/app/cuisine-courses-message-button";
@@ -79,6 +80,7 @@ export type ReservationRow = {
   caution: string | null;
   cautionPayee: boolean;
   devisePaiement: string;
+  beds24BookingId?: string | null;
   checkinValideAt: Date | null;
   checkinValidePar: string | null;
   checkoutValideAt: Date | null;
@@ -491,19 +493,16 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
                   envoyeAt={r.messageArriveeEnvoyeAt}
                 />
               ) : null}
-              {r.villaNom ? (
-                <WelcomeMessageButton
+              {r.villaNom && r.beds24BookingId && cautionMessageApplicable(r) ? (
+                <CautionMessageButton
                   prominent
                   reservationId={r.id}
                   phone={r.guestPhone}
                   guestName={r.guestName}
                   villaNom={r.villaNom}
-                  mapsUrl={r.domaineMapsUrl}
-                  wazeUrl={r.domaineWazeUrl}
-                  codeBoitier={r.codeBoitier}
-                  guideBienvenueUrl={r.guideBienvenueUrl}
-                  repasInclus={r.repasInclusDansLoyer}
-                  envoyeAt={r.messageBienvenueEnvoyeAt}
+                  beds24BookingId={r.beds24BookingId}
+                  montant={Number(r.caution) || null}
+                  devise={r.devisePaiement}
                 />
               ) : null}
               {r.domaineMapsUrl ? (
