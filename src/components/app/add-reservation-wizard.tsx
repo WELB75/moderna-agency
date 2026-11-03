@@ -23,6 +23,7 @@ import type { PrixSejour } from "@/lib/pricelabs/sejour";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import type { PersonnelOption } from "@/lib/personnel-options";
 import { cn } from "@/lib/utils";
+import { originApp } from "@/lib/app-origin";
 
 // Assistant en plusieurs étapes plutôt qu'un formulaire géant façon Superhote — Kamel,
 // 2026-09-14 : "je veux un truc simple avec les infos principal et surtout un système pas avec
@@ -824,7 +825,7 @@ export function AddReservationWizard({
 // Lien de partage du récapitulatif (page publique /s/[token]) : copier, ou l'envoyer par WhatsApp
 // à la partenaire, à nous ou à la cliente.
 function ShareRecapCard({ token, guestName }: { token: string; guestName: string }) {
-  const url = typeof window !== "undefined" ? `${window.location.origin}/s/${token}` : `/s/${token}`;
+  const url = typeof window !== "undefined" ? `${originApp()}/s/${token}` : `/s/${token}`;
   const texte = `Récapitulatif de la réservation de ${guestName} : ${url}`;
   return (
     <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3">

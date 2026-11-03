@@ -31,6 +31,7 @@ import {
 } from "@/lib/gendarmerie-i18n";
 import { PROGRESSIF_TEXT } from "@/lib/gendarmerie-progressif-i18n";
 import { cn } from "@/lib/utils";
+import { originApp } from "@/lib/app-origin";
 
 // Fiche police « voyageur par voyageur » (/g/[id]) — Fouad, 2026-10-31. Voir
 // lib/actions/gendarmerie-progressif.ts pour la règle. Ici :
@@ -259,7 +260,7 @@ export function GendarmerieFormProgressif({
 
   function partager() {
     const n = manquants ?? 1;
-    const message = p.shareMessage(villaNom, window.location.href, n);
+    const message = p.shareMessage(villaNom, `${originApp()}${window.location.pathname}${window.location.search}`, n);
     if (typeof navigator !== "undefined" && navigator.share) {
       navigator.share({ text: message }).catch(() => undefined);
       return;
@@ -268,7 +269,7 @@ export function GendarmerieFormProgressif({
   }
 
   async function copierLien() {
-    const url = window.location.href;
+    const url = `${originApp()}${window.location.pathname}${window.location.search}`;
     try {
       await navigator.clipboard.writeText(url);
       setCopie(true);

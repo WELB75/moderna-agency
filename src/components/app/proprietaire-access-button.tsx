@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { regenerateProprietaireToken } from "@/lib/actions/proprietaire-access";
+import { originApp } from "@/lib/app-origin";
 
 export function ProprietaireAccessButton({
   villaId,
@@ -28,7 +29,7 @@ export function ProprietaireAccessButton({
   const [isPending, startTransition] = useTransition();
 
   async function copyLink() {
-    await navigator.clipboard.writeText(`${window.location.origin}/p/${currentToken}`);
+    await navigator.clipboard.writeText(`${originApp()}/p/${currentToken}`);
     toast.success("Lien copié — envoie-le au propriétaire.");
   }
 

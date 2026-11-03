@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LieuVillaSelect, type LieuDomaine, type LieuVilla } from "@/components/app/lieu-villa-select";
 import { generateGendarmerieForms, createGroupGendarmerieForm } from "@/lib/actions/gendarmerie";
+import { originApp } from "@/lib/app-origin";
 
 export function GenerateFichePoliceForm({
   domaines,
@@ -35,7 +36,7 @@ export function GenerateFichePoliceForm({
     startTransition(async () => {
       try {
         const forms = await generateGendarmerieForms(villaId, count);
-        const links = forms.map((f) => `${window.location.origin}/g/${f.id}`);
+        const links = forms.map((f) => `${originApp()}/g/${f.id}`);
         setGeneratedLinks(links);
         setGroupLink(null);
         toast.success(`${links.length} fiche(s) créée(s).`);
@@ -55,7 +56,7 @@ export function GenerateFichePoliceForm({
     startTransition(async () => {
       try {
         const form = await createGroupGendarmerieForm(villaId, adultes, enfants);
-        setGroupLink(`${window.location.origin}/g/${form.id}`);
+        setGroupLink(`${originApp()}/g/${form.id}`);
         setGeneratedLinks([]);
         toast.success("Lien créé.");
       } catch (err) {

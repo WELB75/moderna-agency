@@ -24,6 +24,7 @@ import { toWhatsAppUrl } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 import { ficheACompleter } from "@/lib/securite-fiche";
 import type { SecuriteLogementResume, SecuriteStatut } from "@/lib/security-data";
+import { originApp } from "@/lib/app-origin";
 
 type Sejour = NonNullable<SecuriteLogementResume["sejour"]>;
 
@@ -314,7 +315,7 @@ export function SecuriteWhatsAppButton({
   domaineNom: string;
 }) {
   function envoyer() {
-    const lien = `${window.location.origin}/securite/domaine/${domaineId}?jour=1`;
+    const lien = `${originApp()}/securite/domaine/${domaineId}?jour=1`;
     const message = `السلام عليكم،\n\nهذا رابط الأمن ديال ${domaineNom} — فيه الضيوف لي واصلين اليوم:\n\n${lien}\n\nشكرا`;
     window.open(toWhatsAppUrl(securitePhone, message), "_blank");
   }

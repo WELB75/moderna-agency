@@ -13,6 +13,7 @@ import { analyzePassportImage, saveImportedGendarmerieForm } from "@/lib/actions
 import { FIELD_KEYS, FIELD_LABELS, DATE_FIELD_KEYS } from "@/lib/gendarmerie-i18n";
 import { rotateDataUrl } from "@/lib/rotate-data-url";
 import type { OccupantInput } from "@/lib/actions/gendarmerie";
+import { originApp } from "@/lib/app-origin";
 
 const DISPLAY_FIELD_KEYS = FIELD_KEYS.filter((k) => k !== "signatureNom" && k !== "allantA");
 const labels = FIELD_LABELS.fr;
@@ -107,7 +108,7 @@ export function PassportDropZone({ domaines, villas }: { domaines: LieuDomaine[]
     startTransition(async () => {
       try {
         const { id } = await saveImportedGendarmerieForm(villaId, occupants);
-        setSavedLink(`${window.location.origin}/gendarmerie/${id}`);
+        setSavedLink(`${originApp()}/gendarmerie/${id}`);
         setRows([]);
         toast.success("Fiche police enregistrée.");
       } catch (err) {

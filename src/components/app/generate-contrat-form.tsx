@@ -22,6 +22,7 @@ import { SignaturePad, type SignaturePadHandle } from "@/components/app/signatur
 import { generateContrat, generateDossier } from "@/lib/actions/contrats";
 import { AGENCE_REPRESENTANT_DEFAUT } from "@/lib/contrat-template";
 import { plateformeDe } from "@/lib/conditions-sejour";
+import { originApp } from "@/lib/app-origin";
 
 export type ContratReservation = {
   id: string;
@@ -152,11 +153,11 @@ export function GenerateContratForm({
         };
         if (avecFichePolice) {
           const { lien } = await generateDossier(input);
-          setGeneratedLink(`${window.location.origin}${lien}`);
+          setGeneratedLink(`${originApp()}${lien}`);
           toast.success(lien.startsWith("/c/") ? "Fiche police déjà remplie : lien des conditions seules." : "Lien créé (fiche police + conditions).");
         } else {
           const contrat = await generateContrat(input);
-          setGeneratedLink(`${window.location.origin}/c/${contrat.id}`);
+          setGeneratedLink(`${originApp()}/c/${contrat.id}`);
           toast.success("Lien des conditions créé.");
         }
       } catch (err) {

@@ -3,6 +3,7 @@
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { originApp } from "@/lib/app-origin";
 
 export function CopyLinkButton({
   path,
@@ -16,7 +17,7 @@ export function CopyLinkButton({
   iconOnly?: boolean;
 }) {
   async function handleCopy() {
-    const url = `${window.location.origin}${path}`;
+    const url = `${originApp()}${path}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success(successMessage);

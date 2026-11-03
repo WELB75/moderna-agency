@@ -17,13 +17,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { regenerateGuestToken } from "@/lib/actions/guest-access";
+import { originApp } from "@/lib/app-origin";
 
 export function GuestAccessButton({ villaId, token }: { villaId: string; token: string }) {
   const [currentToken, setCurrentToken] = useState(token);
   const [isPending, startTransition] = useTransition();
 
   async function copyLink() {
-    await navigator.clipboard.writeText(`${window.location.origin}/bienvenue/${currentToken}`);
+    await navigator.clipboard.writeText(`${originApp()}/bienvenue/${currentToken}`);
     toast.success("Lien copié — à afficher/imprimer dans la villa.");
   }
 

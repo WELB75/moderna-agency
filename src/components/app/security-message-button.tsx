@@ -7,6 +7,7 @@ import { marquerMessageEnvoye } from "@/lib/actions/reservations";
 import { toWhatsAppUrl } from "@/lib/phone";
 import { buildSecurityMessage } from "@/lib/message-templates";
 import { cn } from "@/lib/utils";
+import { originApp } from "@/lib/app-origin";
 
 export function SecurityMessageButton({
   securityPhone,
@@ -32,7 +33,7 @@ export function SecurityMessageButton({
   function handleClick() {
     // Lien propre à cette réservation (pas un lien permanent par villa) : un ancien lien ne
     // doit jamais pouvoir montrer les occupants d'un séjour suivant — Kamel, 2026-08-20.
-    const link = `${window.location.origin}/securite/villa/${reservationId}`;
+    const link = `${originApp()}/securite/villa/${reservationId}`;
     const message = buildSecurityMessage(guestName, villaNom, villaNumero, link, checkIn);
     window.open(toWhatsAppUrl(securityPhone, message), "_blank");
     setEnvoye(true);
