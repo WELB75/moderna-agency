@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCautionMessage, cautionMessageApplicable } from "./message-templates.ts";
+import { buildCautionMessage, cautionMessageApplicable, estProlongationSansCaution } from "./message-templates.ts";
 
 const URL = "https://admin.superhosts.ma/caution/94588314";
 
@@ -30,4 +30,12 @@ test("bouton caution : seulement si une caution est à recevoir (jamais Airbnb)"
   assert.equal(cautionMessageApplicable({ ...base, canal: "Airbnb" }), false);
   assert.equal(cautionMessageApplicable({ ...base, caution: null }), false);
   assert.equal(cautionMessageApplicable({ ...base, beds24BookingId: null }), false);
+});
+
+test("bouton caution : une prolongation en direct cherche la caution de la réservation d'origine", () => {
+  const prolongation = { canal: "Direct", caution: null, beds24BookingId: null, notes: "Prolongation en direct du séjour Booking.com (départ initial le 02/11)." };
+  assert.equal(estProlongationSansCaution(prolongation), true);
+  assert.equal(estProlongationSansCaution({ ...prolongation, notes: "Réservation manuelle" }), false);
+  assert.equal(estProlongationSansCaution({ ...prolongation, beds24BookingId: "1234" }), false);
+  assert.equal(estProlongationSansCaution({ ...prolongation, canal: "Airbnb" }), false);
 });
