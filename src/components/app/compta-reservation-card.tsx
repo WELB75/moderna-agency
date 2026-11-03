@@ -22,6 +22,7 @@ import {
   type LigneFacture,
   type Ventilation,
 } from "@/lib/compta-reservation-format";
+import type { RevenusPlateforme } from "@/lib/revenus-plateforme";
 
 type Props = {
   reservationId: string;
@@ -33,6 +34,9 @@ type Props = {
   moyenPaiement: string | null;
   lignes: LigneFacture[];
   ventilation: Ventilation;
+  canal: string | null;
+  revenus: RevenusPlateforme | null;
+  revenusEnAttente: boolean;
 };
 
 type LigneEdition = { cle: string; categorie: CategorieLigne; libelle: string; quantite: string; prixUnitaire: string };
@@ -113,6 +117,35 @@ export function ComptaReservationCard(props: Props) {
         </p>
       )}
 
+      {props.revenus || props.revenusEnAttente ? (
+        <div className="space-y-1.5">
+          <Titre>Revenus {props.canal ?? "plateforme"}</Titre>
+          {props.revenus ? (
+            <ul className="divide-y divide-border rounded-xl border border-border text-sm">
+              <LigneRevenu label="Frais de chambre (nuitées)" valeur={formaterMontant(props.revenus.fraisChambre, devise)} />
+              <LigneRevenu
+                label="Frais de ménage"
+                valeur={formaterMontant(props.revenus.fraisMenage, devise)}
+                aide={props.revenus.origineMenage === "reservation" ? "repris de la fiche, la plateforme ne le détaille pas" : props.revenus.origineMenage === "aucun" ? "aucun ménage trouvé" : undefined}
+              />
+              <LigneRevenu
+                label="Frais de service hôte (commission)"
+                valeur={props.revenus.fraisServiceHote === null ? "non transmis" : `− ${formaterMontant(props.revenus.fraisServiceHote, devise)}`}
+              />
+              <li className="flex items-center justify-between gap-3 bg-muted/50 px-3 py-2 text-sm font-semibold">
+                <span>Prix net des nuitées</span>
+                <span className="tabular-nums">{props.revenus.prixNetNuitees === null ? "—" : formaterMontant(props.revenus.prixNetNuitees, devise)}</span>
+              </li>
+            </ul>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border px-3 py-3 text-sm text-muted-foreground">
+              Le détail du prix (nuitées, ménage, commission) n&apos;est pas encore arrivé de Beds24. Il se remplit à la prochaine synchronisation.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">Prix net des nuitées = frais de chambre − frais de service hôte − frais de ménage. Voyageur : {props.revenus ? formaterMontant(props.revenus.totalVoyageur, devise) : "—"} au total.</p>
+        </div>
+      ) : null}
+
       <div className="space-y-1.5">
         <Titre>Où va l&apos;argent</Titre>
         {v.couts.length === 0 ? (
@@ -160,6 +193,18 @@ export function ComptaReservationCard(props: Props) {
 
       <EditeurDetail key={String(ouvert)} ouvert={ouvert} onOpenChange={setOuvert} {...props} />
     </section>
+  );
+}
+
+function LigneRevenu({ label, valeur, aide }: { label: string; valeur: string; aide?: string }) {
+  return (
+    <li className="flex items-start justify-between gap-3 px-3 py-2">
+      <div className="min-w-0">
+        <p>{label}</p>
+        {aide ? <p className="text-xs text-muted-foreground">{aide}</p> : null}
+      </div>
+      <p className="shrink-0 tabular-nums">{valeur}</p>
+    </li>
   );
 }
 

@@ -282,6 +282,9 @@ export default async function ReservationDetailPage({ params }: { params: Promis
           moyenPaiement={compta.moyenPaiement}
           lignes={compta.lignes}
           ventilation={compta.ventilation}
+          canal={compta.canal}
+          revenus={compta.revenus}
+          revenusEnAttente={compta.revenusEnAttente}
         />
       ) : null}
 

@@ -13,6 +13,7 @@ import {
   type LigneFacture,
   type Ventilation,
 } from "@/lib/compta-reservation-format";
+import { calculerRevenusPlateforme, estCanalPlateforme, prixBeds24DeRawData, type RevenusPlateforme } from "@/lib/revenus-plateforme";
 
 // Lignes facturées au client pour une réservation (le "devis détaillé" de la comptable). Table
 // créée à la volée, comme acces_equipe et equipiers_tournees : pas de migration à lancer sur Neon.
@@ -173,6 +174,10 @@ export type ComptaReservation = {
   notesPaiement: string | null;
   lignes: LigneFacture[];
   ventilation: Ventilation;
+  canal: string | null;
+  // Airbnb / Booking.com seulement : nuitées, ménage, frais de service hôte, net (null si autre canal)
+  revenus: RevenusPlateforme | null;
+  revenusEnAttente: boolean; // canal Airbnb/Booking mais détail pas encore reçu de Beds24
 };
 
 // Coûts du séjour, sans double compte : pour le ménage et la cuisine, si la caisse contient déjà
@@ -193,6 +198,8 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
       devise: reservations.devisePaiement,
       moyenPaiement: reservations.moyenPaiement,
       notesPaiement: reservations.notesPaiement,
+      canal: reservations.canal,
+      rawData: reservations.rawData,
       domaineNom: domaines.nom,
       nbChambres: villas.nbChambres,
     })
@@ -237,7 +244,15 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
   const loyerTotal = r.loyerTotal != null ? Number(r.loyerTotal) : null;
   const montantPaye = r.montantPaye != null ? Number(r.montantPaye) : null;
 
+  const plateforme = estCanalPlateforme(r.canal);
+  const revenus = plateforme
+    ? calculerRevenusPlateforme(prixBeds24DeRawData(r.rawData), loyerTotal, r.fraisMenage != null ? Number(r.fraisMenage) : null)
+    : null;
+
   return {
+    canal: r.canal,
+    revenus,
+    revenusEnAttente: plateforme && !revenus,
     reservationId,
     devise,
     nuits,
