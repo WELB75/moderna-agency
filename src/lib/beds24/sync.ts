@@ -238,6 +238,7 @@ export async function runBeds24Sync(): Promise<
       departureFrom,
       status: ["new", "confirmed", "cancelled"],
       includeInfoItems: true,
+      includeInvoiceItems: true,
     });
     // Devise du loyer par propriété (le prix Beds24 n'en porte pas) : sans ça, un montant en
     // dirhams restait étiqueté "EUR" par défaut. Si la lecture échoue, on garde la devise actuelle.
@@ -335,6 +336,20 @@ export async function runBeds24Sync(): Promise<
             beds24ApiReference: booking.apiReference ?? null,
             beds24ApiSource: booking.apiSource ?? null,
             ...(loyer.conversion ? { conversion: loyer.conversion } : {}),
+            // Détail du prix (nuitées, ménage, frais de service hôte) pour la comptabilité :
+            // lu par lib/revenus-plateforme.ts. Fusionné dans raw_data à chaque synchro.
+            beds24Prix: {
+              price: Number(booking.price) || 0,
+              commission: booking.commission ?? null,
+              tax: booking.tax ?? null,
+              invoiceItems: (booking.invoiceItems ?? []).map((i) => ({
+                type: i.type ?? null,
+                description: i.description ?? null,
+                qty: i.qty ?? null,
+                amount: i.amount ?? null,
+                lineTotal: i.lineTotal ?? null,
+              })),
+            },
           },
           updatedAt: new Date(),
         };

@@ -130,6 +130,57 @@ export default async function RapportReservationsPage({ searchParams }: { search
         </>
       )}
 
+      {rapport.plateformes.nb > 0 ? (
+        <section className="space-y-3 break-before-page">
+          <div>
+            <h2 className="text-base font-semibold">Revenus Airbnb et Booking.com</h2>
+            <p className="text-sm text-muted-foreground print:text-xs">
+              Prix net des nuitées = frais de chambre − frais de service hôte − frais de ménage.
+              {rapport.plateformes.sansDetail > 0 ? ` ${rapport.plateformes.sansDetail} séjour(s) sans détail reçu de Beds24 pour le moment.` : ""}
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-xl border print:overflow-visible print:rounded-none print:border-none">
+            <table className="w-full text-[11px] print:text-[9px]">
+              <thead>
+                <tr className="border-b bg-muted/50 text-left print:bg-transparent">
+                  {["Départ", "Client · logement", "Frais de chambre", "Frais de ménage", "Frais de service hôte", "Prix net des nuitées"].map((h, i) => (
+                    <th key={h} className={`p-2 font-medium print:p-1 ${i >= 2 ? "text-right" : ""}`}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rapport.lignes.filter((l) => l.plateforme).map((l) => (
+                  <tr key={l.id} className="break-inside-avoid border-b align-top last:border-0">
+                    <td className="whitespace-nowrap p-2 print:p-1">{format(l.depart, "d MMM", { locale: fr })}</td>
+                    <td className="p-2 print:p-1">
+                      <Link href={`/reservations/${l.id}`} className="font-medium hover:underline print:no-underline">{l.client}</Link>
+                      <span className="block text-muted-foreground">{l.logement} · {l.canal} · {l.nuits} n</span>
+                    </td>
+                    {l.revenus ? (
+                      <>
+                        <Montant v={l.revenus.fraisChambre} />
+                        <Montant v={l.revenus.fraisMenage} />
+                        <Montant v={l.revenus.fraisServiceHote === null ? 0 : -l.revenus.fraisServiceHote} />
+                        <Montant v={l.revenus.prixNetNuitees ?? 0} fort />
+                      </>
+                    ) : (
+                      <td className="p-2 text-right text-muted-foreground print:p-1" colSpan={4}>détail Beds24 pas encore reçu</td>
+                    )}
+                  </tr>
+                ))}
+                <tr className="border-t-2 bg-muted/40 font-semibold print:bg-transparent">
+                  <td className="p-2 print:p-1" colSpan={2}>Total</td>
+                  <Montant v={rapport.plateformes.fraisChambre} fort />
+                  <Montant v={rapport.plateformes.fraisMenage} fort />
+                  <Montant v={-rapport.plateformes.fraisService} fort />
+                  <Montant v={rapport.plateformes.net} fort />
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
       <p className="text-xs text-muted-foreground">
         Montants en euros (dirhams convertis à {rapport.madParEur.toFixed(2)} MAD pour 1 €). Les frais de ménage et de cuisine viennent de la caisse quand une dépense est rattachée au séjour, sinon du barème de l&apos;agence (200 MAD par ménage, 100 ou 200 MAD par jour de cuisine). Commission des plateformes non déduite.
       </p>

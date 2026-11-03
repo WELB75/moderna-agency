@@ -88,6 +88,9 @@ export type Beds24Booking = {
   phone?: string;
   mobile?: string;
   price: number;
+  commission?: number; // commission / frais de service de la plateforme (renvoyée avec les lignes de facture)
+  tax?: number;
+  invoiceItems?: Beds24InvoiceItem[]; // renvoyés seulement avec includeInvoiceItems: true
   channel?: string; // code technique du canal, ex. "airbnb", "booking", "direct"
   referer?: string; // libellé lisible du canal, ex. "Airbnb", "Booking.com", "Direct"
   apiSource?: string;
@@ -95,6 +98,18 @@ export type Beds24Booking = {
   bookingTime?: string; // ISO, date de création de la réservation / demande
   modifiedTime?: string; // ISO
   infoItems?: Beds24InfoItem[]; // renvoyés seulement avec includeInfoItems: true
+};
+
+// Ligne de facture d'une réservation (nuitées, ménage, frais de service...) : le détail du prix que
+// la comptable veut voir séparé. Les champs exacts varient selon le canal : tout est optionnel.
+export type Beds24InvoiceItem = {
+  id?: number;
+  type?: string; // "charge" (à payer) ou "payment" (encaissement)
+  description?: string;
+  qty?: number;
+  amount?: number; // prix unitaire
+  lineTotal?: number;
+  vatRate?: number;
 };
 
 // "Booking info items" Beds24 : couples code/texte attachés à une réservation, lisibles dans
@@ -121,6 +136,7 @@ export type Beds24BookingFilters = {
   modifiedFrom?: string;
   includeGuests?: boolean;
   includeInfoItems?: boolean;
+  includeInvoiceItems?: boolean;
 };
 
 // Garde-fou contre une boucle infinie si l'API renvoyait toujours nextPageExists: true.

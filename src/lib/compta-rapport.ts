@@ -15,6 +15,7 @@ import {
 } from "@/lib/compta-reservation-format";
 import { getMadParEur } from "@/lib/devises";
 import { villaEstGeree } from "@/lib/domaines-actifs";
+import { calculerRevenusPlateforme, estCanalPlateforme, prixBeds24DeRawData, type RevenusPlateforme } from "@/lib/revenus-plateforme";
 
 // Rapport comptable par réservation, pour la période de la comptable (11 du mois → 10 du suivant,
 // voir caisse-periode.ts). Choix : une réservation compte dans la période où le client PART
@@ -36,6 +37,8 @@ export type LigneRapport = {
   facturation: { sejour: number; menage: number; options: number };
   detaille: boolean;
   notesPaiement: string | null;
+  revenus: RevenusPlateforme | null; // Airbnb / Booking.com
+  plateforme: boolean;
 };
 
 export type RapportCompta = {
@@ -55,6 +58,7 @@ export type RapportCompta = {
     solde: number;
     nonDetailles: number;
   };
+  plateformes: { nb: number; sansDetail: number; fraisChambre: number; fraisMenage: number; fraisService: number; net: number };
 };
 
 const sommeCouts = (couts: CoutSejour[], categorie: CoutSejour["categorie"]) =>
@@ -77,6 +81,8 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
         montantPaye: reservations.montantPaye,
         devise: reservations.devisePaiement,
         notesPaiement: reservations.notesPaiement,
+        fraisMenage: reservations.fraisMenage,
+        rawData: reservations.rawData,
         villaNom: villas.nom,
         villaNumero: villas.numero,
         nbChambres: villas.nbChambres,
@@ -157,7 +163,14 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
     const sejour = detaille ? parCat("sejour") : totalDu;
     const menage = detaille ? parCat("menage") : 0;
 
+    const plateforme = estCanalPlateforme(r.canal);
+    const revenus = plateforme
+      ? calculerRevenusPlateforme(prixBeds24DeRawData(r.rawData), loyer, r.fraisMenage != null ? aEUR(Number(r.fraisMenage)) : null)
+      : null;
+
     return {
+      revenus,
+      plateforme,
       id: r.id,
       depart: r.checkOut,
       arrivee: r.checkIn,
@@ -175,7 +188,17 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
   });
 
   const somme = (f: (l: LigneRapport) => number) => arrondir(lignes.reduce((s, l) => s + f(l), 0));
+  const pf = lignes.filter((l) => l.plateforme);
+  const avec = pf.filter((l) => l.revenus);
   return {
+    plateformes: {
+      nb: pf.length,
+      sansDetail: pf.length - avec.length,
+      fraisChambre: somme((l) => l.revenus?.fraisChambre ?? 0),
+      fraisMenage: somme((l) => l.revenus?.fraisMenage ?? 0),
+      fraisService: somme((l) => l.revenus?.fraisServiceHote ?? 0),
+      net: somme((l) => l.revenus?.prixNetNuitees ?? 0),
+    },
     lignes,
     madParEur,
     totaux: {
@@ -208,6 +231,7 @@ export function rapportEnCsv(r: RapportCompta): string {
     "Séjour (EUR)", "Ménage facturé (EUR)", "Options (EUR)", "Total facturé (EUR)", "Encaissé (EUR)", "Reste (EUR)",
     "Frais ménage (EUR)", "Frais cuisine (EUR)", "Autres dépenses (EUR)", "Total frais (EUR)", "Encaissé moins frais (EUR)",
     "Détail renseigné", "Règlement",
+    "Plateforme : frais de chambre (EUR)", "Plateforme : frais de ménage (EUR)", "Plateforme : frais de service hôte (EUR)", "Plateforme : prix net des nuitées (EUR)",
   ];
   const jour = (d: Date) => d.toISOString().slice(0, 10);
   const rows = r.lignes.map((l) => {
@@ -218,6 +242,8 @@ export function rapportEnCsv(r: RapportCompta): string {
       num(l.detaille ? v.facture : l.facturation.sejour), num(v.encaisse), num(v.reste),
       num(sommeCouts(v.couts, "menage")), num(sommeCouts(v.couts, "cuisine")), num(sommeCouts(v.couts, "caisse")),
       num(v.totalCouts), num(v.solde), l.detaille ? "oui" : "non", l.notesPaiement ?? "",
+      l.revenus ? num(l.revenus.fraisChambre) : "", l.revenus ? num(l.revenus.fraisMenage) : "",
+      l.revenus?.fraisServiceHote != null ? num(l.revenus.fraisServiceHote) : "", l.revenus?.prixNetNuitees != null ? num(l.revenus.prixNetNuitees) : "",
     ];
   });
   const t = r.totaux;
@@ -225,6 +251,7 @@ export function rapportEnCsv(r: RapportCompta): string {
     "TOTAL", "", "", "", "", "",
     num(t.sejour), num(t.menage), num(t.options), num(t.facture), num(t.encaisse), num(t.reste),
     num(t.coutMenage), num(t.coutCuisine), num(t.coutAutres), num(t.totalCouts), num(t.solde), "", "",
+    num(r.plateformes.fraisChambre), num(r.plateformes.fraisMenage), num(r.plateformes.fraisService), num(r.plateformes.net),
   ]);
   return "﻿" + [entetes, ...rows].map((ligne) => ligne.map(csvCellule).join(";")).join("\r\n");
 }
