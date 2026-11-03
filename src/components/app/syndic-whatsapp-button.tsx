@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { toWhatsAppUrl } from "@/lib/phone";
 import { formaterNumero } from "@/lib/syndic-numeros";
+import { originApp } from "@/lib/app-origin";
 
 // Envoie au syndic / gardien de la résidence le lien du dossier du séjour (déclaration, contrat,
 // photos des pièces) : un message WhatsApp prêt à partir, comme le « Message sécurité » des villas.
@@ -29,7 +30,7 @@ export function SyndicWhatsAppButton({
 }) {
   const [copie, setCopie] = useState(false);
   const [numero, setNumero] = useState(numeros[0] ?? "");
-  const lien = () => `${window.location.origin}/syndic/${reservationId}`;
+  const lien = () => `${originApp()}/syndic/${reservationId}`;
 
   function envoyer() {
     if (!numero) return;

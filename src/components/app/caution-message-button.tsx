@@ -5,6 +5,7 @@ import { ShieldCheck } from "lucide-react";
 import { cautionDeLaReservationOrigine, type CautionOrigine } from "@/lib/actions/caution-message";
 import { MessageLangueButton } from "@/components/app/message-langue-button";
 import { buildCautionMessage } from "@/lib/message-templates";
+import { originApp } from "@/lib/app-origin";
 
 // Envoie au voyageur (WhatsApp, ou copie pour la plateforme) le message de caution avec son vrai
 // lien de caution, https://<domaine de l'app>/caution/<n° Beds24>. Langue automatique d'après ses
@@ -57,7 +58,7 @@ export function CautionMessageButton({
       icon={ShieldCheck}
       label="Message de caution"
       build={(lang) =>
-        buildCautionMessage(guestName, villaNom, montantEuros, `${window.location.origin}/caution/${encodeURIComponent(numero)}`, lang)
+        buildCautionMessage(guestName, villaNom, montantEuros, `${originApp()}/caution/${encodeURIComponent(numero)}`, lang)
       }
       prominent={prominent}
       copieToast="Message de caution copié : colle-le dans la conversation de la plateforme."

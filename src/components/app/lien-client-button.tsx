@@ -5,12 +5,13 @@ import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { lienClientSejour } from "@/lib/actions/contrats";
+import { originApp } from "@/lib/app-origin";
 
 // Copie le lien unique du client pour un séjour (/g/[fiche]) : fiche police si elle n'est pas
 // faite, puis signature des conditions déjà pré-remplies. Sans fiche connue, l'action la crée.
 export async function copierLienClient(reservationId: string, ficheId: string | null): Promise<void> {
   const chemin = ficheId ? `/g/${ficheId}` : await lienClientSejour(reservationId);
-  const url = `${window.location.origin}${chemin}`;
+  const url = `${originApp()}${chemin}`;
   try {
     await navigator.clipboard.writeText(url);
     toast.success("Lien client copié : il n'a plus qu'à signer.");

@@ -16,6 +16,7 @@ import { toWhatsAppUrl } from "@/lib/phone";
 import { buildArrivalMessage, type MessageLang } from "@/lib/message-templates";
 import { detecterLangueVoyageur } from "@/lib/actions/langue-voyageur";
 import { cn } from "@/lib/utils";
+import { originApp } from "@/lib/app-origin";
 
 // Un seul message, un seul bouton : demande l'horaire d'arrivée et, si la fiche de police
 // n'est pas encore complétée, crée le formulaire si besoin et ajoute son lien dans le même
@@ -84,7 +85,7 @@ export function ArrivalMessageButton({
             formId = created.id;
             setId(formId);
           }
-          ficheLink = `${window.location.origin}/g/${formId}`;
+          ficheLink = `${originApp()}/g/${formId}`;
         }
         const message = buildArrivalMessage(guestName, checkIn, now, ficheLink, langue, repasInclus);
         if (phone) {

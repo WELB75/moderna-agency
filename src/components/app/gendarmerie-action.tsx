@@ -7,6 +7,7 @@ import { FileText, Share2, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { createGendarmerieForm } from "@/lib/actions/gendarmerie";
+import { originApp } from "@/lib/app-origin";
 
 export function GendarmerieAction({
   reservationId,
@@ -25,7 +26,7 @@ export function GendarmerieAction({
       try {
         const created = await createGendarmerieForm(reservationId, villaId);
         setForm({ id: created.id, statut: created.statut });
-        await navigator.clipboard.writeText(`${window.location.origin}/g/${created.id}`);
+        await navigator.clipboard.writeText(`${originApp()}/g/${created.id}`);
         toast.success("Fiche créée, lien copié — envoie-le au client.");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
@@ -35,7 +36,7 @@ export function GendarmerieAction({
 
   async function handleCopyLink() {
     if (!form) return;
-    await navigator.clipboard.writeText(`${window.location.origin}/g/${form.id}`);
+    await navigator.clipboard.writeText(`${originApp()}/g/${form.id}`);
     toast.success("Lien copié.");
   }
 
