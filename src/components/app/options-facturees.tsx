@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { basculerOptionFacturee, changerQuantiteOption } from "@/lib/actions/compta-reservation";
-import { OPTIONS_RAPIDES, formaterMontant, montantLigne, totalFacture, type LigneFacture } from "@/lib/compta-reservation-format";
+import { OPTIONS_RAPIDES, formaterMontant, montantLigne, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
 
 // Cases à cocher des options facturées, sur la carte du tableau de bord : un clic ajoute la ligne
 // avec son prix et sa quantité par défaut (voir OPTIONS_RAPIDES), un second la retire. Le détail
@@ -16,12 +16,16 @@ export function OptionsFacturees({
   devise,
   montantPaye,
   loyerTotal,
+  fraisMenage,
+  tarifs,
 }: {
   reservationId: string;
   lignes: LigneFacture[];
   devise: string;
   montantPaye: number | null;
   loyerTotal: number | null;
+  fraisMenage: number | null;
+  tarifs: TarifsOptions;
 }) {
   const [enCours, startTransition] = useTransition();
   const [actif, setActif] = useState<string | null>(null);
@@ -48,6 +52,11 @@ export function OptionsFacturees({
       <ul className="space-y-1.5">
         {OPTIONS_RAPIDES.map((o) => {
           const ligne = lignes.find((l) => l.categorie === o.categorie);
+          const prix = prixOption(o.categorie, tarifs, fraisMenage);
+          // Option sans objet pour ce logement (cuisinière/piscine en appartement) : masquée, sauf si une
+          // ligne existe déjà (on doit pouvoir la décocher).
+          if (prix === null && !ligne && !(o.categorie === "cuisine" && tarifs.cuisineIncluse)) return null;
+          const incluse = o.categorie === "cuisine" && tarifs.cuisineIncluse && !ligne;
           const coche = Boolean(ligne);
           const occupe = enCours && actif === o.categorie;
           return (
@@ -60,7 +69,7 @@ export function OptionsFacturees({
                 role="checkbox"
                 aria-checked={coche}
                 aria-label={o.label}
-                disabled={enCours}
+                disabled={enCours || incluse}
                 onClick={() => agir(o.categorie, () => basculerOptionFacturee(reservationId, o.categorie))}
                 className="flex min-h-9 min-w-0 flex-1 items-center gap-2.5 text-left disabled:opacity-60"
               >
@@ -75,7 +84,9 @@ export function OptionsFacturees({
                   <span className="block text-xs text-muted-foreground">
                     {coche && ligne
                       ? `${ligne.quantite} ${o.parJour ? "jour" + (ligne.quantite > 1 ? "s" : "") : "×"} × ${formaterMontant(ligne.prixUnitaire, devise)}`
-                      : `${formaterMontant(o.prixDefaut, devise)}${o.parJour ? " / jour" : ""}`}
+                      : incluse
+                        ? "Incluse dans le loyer de cette villa"
+                        : `${formaterMontant(prix ?? 0, devise)}${o.parJour ? " / jour" : ""}`}
                     {occupe ? " …" : ""}
                   </span>
                 </span>
