@@ -184,6 +184,12 @@ export default async function CaissePage({
                 Rapport PDF
               </Link>
             </Button>
+            <Button asChild size="sm" variant="outline">
+              <Link href={moisHref("/caisse/rapport/reservations", moisAncre)}>
+                <FileText className="h-4 w-4" />
+                Par réservation
+              </Link>
+            </Button>
           </div>
           <p className="text-xs text-muted-foreground">
             {format(debutMois, "d MMM", { locale: fr })} → {format(finAffichee, "d MMM yyyy", { locale: fr })}

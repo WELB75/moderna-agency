@@ -20,6 +20,8 @@ import { CautionStripeCard } from "@/components/app/caution-stripe-card";
 import { cautionDeLaReservation } from "@/lib/caution/store";
 import { cautionDemandable, formatEuros } from "@/lib/caution/regles";
 import { chargerContexteCaution } from "@/lib/caution/service";
+import { chargerComptaReservation } from "@/lib/compta-reservation";
+import { ComptaReservationCard } from "@/components/app/compta-reservation-card";
 
 // Fiche complète d'une réservation, identique à sa carte du tableau de bord (ménage/cuisine
 // éditables, validation check-in/out, documents...), mais accessible directement par id — pour
@@ -242,6 +244,14 @@ export default async function ReservationDetailPage({ params }: { params: Promis
     }
   }
 
+  // Détail financier (facturé / encaissé / frais). Une erreur de lecture ne doit pas casser la fiche.
+  let compta: Awaited<ReturnType<typeof chargerComptaReservation>> = null;
+  try {
+    compta = await chargerComptaReservation(r.id);
+  } catch (err) {
+    console.error("Fiche réservation : lecture du détail financier impossible", err);
+  }
+
   return (
     <div className="max-w-2xl space-y-4">
       <Link href="/dashboard" className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground md:min-h-0">
@@ -260,6 +270,20 @@ export default async function ReservationDetailPage({ params }: { params: Promis
         <ReservationRowCard r={row} kind="in" />
         <ReservationRowCard r={row} kind="out" />
       </div>
+
+      {compta ? (
+        <ComptaReservationCard
+          reservationId={r.id}
+          nuits={compta.nuits}
+          devise={compta.devise}
+          loyerTotal={compta.loyerTotal}
+          fraisMenage={compta.fraisMenage}
+          notesPaiement={compta.notesPaiement}
+          moyenPaiement={compta.moyenPaiement}
+          lignes={compta.lignes}
+          ventilation={compta.ventilation}
+        />
+      ) : null}
 
       {cautionCarte && r.beds24BookingId ? (
         <CautionStripeCard
