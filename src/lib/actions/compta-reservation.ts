@@ -5,8 +5,18 @@ import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { reservations } from "@/db/schema";
-import { assurerTableLignes } from "@/lib/compta-reservation";
-import { CATEGORIES_LIGNES, arrondir, lireNombre, totalFacture, type CategorieLigne } from "@/lib/compta-reservation-format";
+import { assurerTableLignes, lignesDeLaReservation } from "@/lib/compta-reservation";
+import {
+  CATEGORIES_LIGNES,
+  OPTIONS_RAPIDES,
+  arrondir,
+  basculerOption,
+  changerQuantite,
+  lireNombre,
+  totalFacture,
+  type CategorieLigne,
+} from "@/lib/compta-reservation-format";
+import { differenceInCalendarDays } from "date-fns";
 import { tracer } from "@/lib/journal";
 
 export type LigneSaisie = { categorie: string; libelle: string; quantite: string | number; prixUnitaire: string | number };
@@ -77,4 +87,61 @@ export async function enregistrerNotePaiement(reservationId: string, note: strin
     .where(eq(reservations.id, reservationId));
   revalidatePath(`/reservations/${reservationId}`);
   revalidatePath("/caisse/rapport/reservations");
+}
+
+// ---- Cases à cocher du tableau de bord ----
+
+async function contexteReservation(reservationId: string) {
+  const [r] = await getDb()
+    .select({ checkIn: reservations.checkIn, checkOut: reservations.checkOut, loyerTotal: reservations.loyerTotal, fraisMenage: reservations.fraisMenage })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!r) throw new Error("Réservation introuvable.");
+  return {
+    nuits: Math.max(1, differenceInCalendarDays(r.checkOut, r.checkIn)),
+    loyerTotal: r.loyerTotal != null ? Number(r.loyerTotal) : null,
+    fraisMenage: r.fraisMenage != null ? Number(r.fraisMenage) : null,
+  };
+}
+
+async function remplacerLignes(reservationId: string, lignes: { categorie: CategorieLigne; libelle: string; quantite: number; prixUnitaire: number }[]) {
+  await assurerTableLignes();
+  const db = getDb();
+  await db.execute(sql`DELETE FROM reservation_lignes WHERE reservation_id = ${reservationId}`);
+  let ordre = 0;
+  for (const l of lignes) {
+    await db.execute(sql`
+      INSERT INTO reservation_lignes (reservation_id, categorie, libelle, quantite, prix_unitaire, ordre)
+      VALUES (${reservationId}, ${l.categorie}, ${l.libelle}, ${l.quantite}, ${l.prixUnitaire}, ${ordre++})
+    `);
+  }
+  revalidatePath(`/reservations/${reservationId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/caisse/rapport/reservations");
+}
+
+// Coche ou décoche une option facturée (cuisinière, piscine chauffée, ménage...) d'un seul clic.
+export async function basculerOptionFacturee(reservationId: string, categorie: string) {
+  await auth.protect();
+  if (!OPTIONS_RAPIDES.some((o) => o.categorie === categorie)) throw new Error("Option inconnue.");
+  const [contexte, actuelles] = await Promise.all([contexteReservation(reservationId), lignesDeLaReservation(reservationId)]);
+  const apres = basculerOption(actuelles, categorie as CategorieLigne, contexte);
+  await remplacerLignes(reservationId, apres);
+  const coche = apres.some((l) => l.categorie === categorie);
+  await tracer({
+    categorie: "reservation",
+    action: "option_facturee",
+    libelle: `${coche ? "Option ajoutée" : "Option retirée"} : ${OPTIONS_RAPIDES.find((o) => o.categorie === categorie)?.label}`,
+    resume: `total facturé ${totalFacture(apres).toFixed(2)}`,
+    reservationId,
+  });
+}
+
+// Ajuste le nombre de jours (ou de fois) d'une option déjà cochée.
+export async function changerQuantiteOption(reservationId: string, categorie: string, delta: number) {
+  await auth.protect();
+  if (!Number.isFinite(delta) || Math.abs(delta) > 30) throw new Error("Valeur invalide.");
+  const actuelles = await lignesDeLaReservation(reservationId);
+  await remplacerLignes(reservationId, changerQuantite(actuelles, categorie as CategorieLigne, delta));
 }

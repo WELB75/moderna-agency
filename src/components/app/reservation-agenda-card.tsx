@@ -37,6 +37,7 @@ import { EcheanceDocuments } from "@/components/app/echeance-documents";
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
 import { DeclarationSyndicChip } from "@/components/app/declaration-syndic-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
+import { OptionsFactureesServeur } from "@/components/app/options-facturees-serveur";
 import { PersonnelAffectationEditor } from "@/components/app/personnel-affectation-editor";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
@@ -350,6 +351,7 @@ export function ReservationAgendaCard({
                 />
               </div>
               {r.loyerTotal === null ? <p className="text-sm text-muted-foreground">Aucun montant renseigné.</p> : null}
+              <OptionsFactureesServeur reservationId={r.id} devise={r.devisePaiement} />
             </div>
           )}
         </div>
