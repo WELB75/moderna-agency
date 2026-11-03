@@ -157,32 +157,58 @@ export function noteContientUnMontant(note: string): boolean {
 }
 
 // Options cochables d'un clic depuis le tableau de bord (Kamel, 2026-11-03 : "on a juste à cocher
-// et bam"). Prix de départ tirés du devis type de la comptable (cuisinière 30 €/jour, piscine
-// chauffée 20 €/jour, ménage journalier 20 €/jour) ; le ménage de fin de séjour reprend les frais
-// de ménage de la réservation (60 € villa de plain-pied, 80 € villa R+1). Chaque ligne reste
-// modifiable ensuite dans le détail financier.
-export const OPTIONS_RAPIDES: { categorie: CategorieLigne; label: string; prixDefaut: number; parJour: boolean }[] = [
-  { categorie: "menage", label: "Ménage de fin de séjour", prixDefaut: 60, parJour: false },
-  { categorie: "cuisine", label: "Service cuisinière", prixDefaut: 30, parJour: true },
-  { categorie: "piscine", label: "Piscine chauffée", prixDefaut: 20, parJour: true },
-  { categorie: "menage_journalier", label: "Ménage journalier", prixDefaut: 20, parJour: true },
+// et bam", puis "les prix par logement par rapport à ce que tu sais"). Les prix dépendent du
+// logement (voir tarifsOptionsLogement dans compta-reservation.ts) : ménage de fin de séjour 60 €
+// ou 80 € selon la villa, 20 € pour un appartement ; cuisinière 30 €/jour et piscine chauffée
+// 30 €/jour pour les villas seulement ; ménage journalier 20 €/jour. Chaque ligne reste modifiable
+// ensuite dans le détail financier.
+export type TarifsOptions = {
+  menage: number;
+  cuisine: number | null; // null : pas proposée (appartement)
+  cuisineIncluse: boolean; // repas déjà compris dans le loyer de cette villa
+  piscine: number | null; // null : pas de piscine chauffée à facturer (appartement)
+  menageJournalier: number | null;
+};
+
+export const TARIFS_PAR_DEFAUT: TarifsOptions = { menage: 60, cuisine: 30, cuisineIncluse: false, piscine: 30, menageJournalier: 20 };
+
+export const OPTIONS_RAPIDES: { categorie: CategorieLigne; label: string; parJour: boolean }[] = [
+  { categorie: "menage", label: "Ménage de fin de séjour", parJour: false },
+  { categorie: "cuisine", label: "Service cuisinière", parJour: true },
+  { categorie: "piscine", label: "Piscine chauffée", parJour: true },
+  { categorie: "menage_journalier", label: "Ménage journalier", parJour: true },
 ];
 
-export function ligneParDefaut(categorie: CategorieLigne, contexte: { nuits: number; fraisMenage: number | null }): LigneFacture | null {
+// Prix unitaire proposé pour une option, ou null si elle n'existe pas pour ce logement. Les frais
+// de ménage déjà enregistrés sur la réservation (ce qui a été réellement facturé) priment.
+export function prixOption(categorie: CategorieLigne, tarifs: TarifsOptions, fraisMenage: number | null): number | null {
+  switch (categorie) {
+    case "menage":
+      return fraisMenage && fraisMenage > 0 ? fraisMenage : tarifs.menage;
+    case "cuisine":
+      return tarifs.cuisineIncluse ? null : tarifs.cuisine;
+    case "piscine":
+      return tarifs.piscine;
+    case "menage_journalier":
+      return tarifs.menageJournalier;
+    default:
+      return null;
+  }
+}
+
+export type ContexteOptions = { nuits: number; fraisMenage: number | null; loyerTotal: number | null; tarifs: TarifsOptions };
+
+export function ligneParDefaut(categorie: CategorieLigne, contexte: ContexteOptions): LigneFacture | null {
   const opt = OPTIONS_RAPIDES.find((o) => o.categorie === categorie);
-  if (!opt) return null;
-  const prix = categorie === "menage" && contexte.fraisMenage && contexte.fraisMenage > 0 ? contexte.fraisMenage : opt.prixDefaut;
+  const prix = prixOption(categorie, contexte.tarifs, contexte.fraisMenage);
+  if (!opt || prix === null) return null;
   return { categorie, libelle: opt.label, quantite: opt.parJour ? Math.max(1, contexte.nuits) : 1, prixUnitaire: prix };
 }
 
 // Coche / décoche une option : la retire si elle est déjà dans la liste, sinon l'ajoute. Quand rien
 // n'est encore détaillé, la ligne "séjour" (d'après le loyer connu) est créée d'abord, pour que le
 // total facturé reste cohérent avec le loyer au lieu de ne contenir que l'option.
-export function basculerOption(
-  lignes: LigneFacture[],
-  categorie: CategorieLigne,
-  contexte: { nuits: number; fraisMenage: number | null; loyerTotal: number | null }
-): LigneFacture[] {
+export function basculerOption(lignes: LigneFacture[], categorie: CategorieLigne, contexte: ContexteOptions): LigneFacture[] {
   if (lignes.some((l) => l.categorie === categorie)) return lignes.filter((l) => l.categorie !== categorie);
   const nouvelle = ligneParDefaut(categorie, contexte);
   if (!nouvelle) return lignes;

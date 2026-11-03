@@ -3,13 +3,17 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { cashEntries, domaines, personnel, personnelAffectations, reservations, villas } from "@/db/schema";
 import { getMadParEur } from "@/lib/devises";
+import { VILLAS } from "@/lib/whatsapp-agent/villas";
 import { tarifMenageJournalier, TARIF_CUISINE_PETIT_DEJEUNER, TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER } from "@/lib/personnel-tarifs";
 import {
   arrondir,
   convertir,
   ventiler,
   type CategorieLigne,
+  TARIFS_PAR_DEFAUT,
+  type ContexteOptions,
   type CoutSejour,
+  type TarifsOptions,
   type LigneFacture,
   type Ventilation,
 } from "@/lib/compta-reservation-format";
@@ -263,5 +267,45 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
     notesPaiement: r.notesPaiement,
     lignes,
     ventilation: ventiler({ devise, loyerTotal, montantPaye, lignes, couts }),
+  };
+}
+
+// Prix des options d'un logement : le ménage de fin de séjour vient de la fiche tarifaire des
+// logements (60 € ou 80 € selon la villa, 20 € en appartement, voir whatsapp-agent/villas.ts). La
+// cuisinière et la piscine chauffée ne se facturent que sur les villas ; la cuisinière n'est pas
+// proposée quand les repas sont déjà compris dans le loyer. Logement absent de la fiche : tarif
+// selon son type.
+export function tarifsOptionsLogement(l: { villaId: string | null; type: "villa" | "appartement" | null; repasInclus: boolean }): TarifsOptions {
+  const connu = l.villaId ? VILLAS.find((v) => v.id === l.villaId) : undefined;
+  const type = connu?.type ?? l.type ?? "villa";
+  if (type === "appartement") {
+    return { menage: connu?.menage ?? 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20 };
+  }
+  return { ...TARIFS_PAR_DEFAUT, menage: connu?.menage ?? TARIFS_PAR_DEFAUT.menage, cuisineIncluse: l.repasInclus };
+}
+
+export async function chargerContexteOptions(reservationId: string): Promise<(ContexteOptions & { montantPaye: number | null }) | null> {
+  const [r] = await getDb()
+    .select({
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      loyerTotal: reservations.loyerTotal,
+      montantPaye: reservations.montantPaye,
+      fraisMenage: reservations.fraisMenage,
+      villaId: reservations.villaId,
+      type: villas.type,
+      repasInclus: villas.repasInclusDansLoyer,
+    })
+    .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!r) return null;
+  return {
+    nuits: Math.max(1, differenceInCalendarDays(r.checkOut, r.checkIn)),
+    loyerTotal: r.loyerTotal != null ? Number(r.loyerTotal) : null,
+    montantPaye: r.montantPaye != null ? Number(r.montantPaye) : null,
+    fraisMenage: r.fraisMenage != null ? Number(r.fraisMenage) : null,
+    tarifs: tarifsOptionsLogement({ villaId: r.villaId, type: r.type ?? null, repasInclus: Boolean(r.repasInclus) }),
   };
 }

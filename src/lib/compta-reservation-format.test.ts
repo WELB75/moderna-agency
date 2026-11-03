@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  TARIFS_PAR_DEFAUT,
   basculerOption,
+  prixOption,
   changerQuantite,
   convertir,
   formaterMontant,
@@ -111,7 +113,7 @@ test("détection des montants dans une note libre", () => {
 });
 
 test("cocher une option sans détail crée d'abord la ligne séjour", () => {
-  const ctx = { nuits: 7, fraisMenage: null, loyerTotal: 2090 };
+  const ctx = { nuits: 7, fraisMenage: null, loyerTotal: 2090, tarifs: TARIFS_PAR_DEFAUT };
   const l = basculerOption([], "cuisine", ctx);
   assert.equal(l.length, 2);
   assert.equal(l[0].categorie, "sejour");
@@ -119,10 +121,12 @@ test("cocher une option sans détail crée d'abord la ligne séjour", () => {
   assert.equal(l[1].categorie, "cuisine");
   assert.equal(l[1].quantite, 7);
   assert.equal(totalFacture(l), 2090 + 210);
+  const piscine = basculerOption([], "piscine", ctx);
+  assert.equal(piscine[1].prixUnitaire, 30);
 });
 
 test("décocher retire la ligne, recocher la remet", () => {
-  const ctx = { nuits: 3, fraisMenage: null, loyerTotal: 900 };
+  const ctx = { nuits: 3, fraisMenage: null, loyerTotal: 900, tarifs: TARIFS_PAR_DEFAUT };
   const a = basculerOption([], "piscine", ctx);
   const b = basculerOption(a, "piscine", ctx);
   assert.equal(b.some((x) => x.categorie === "piscine"), false);
@@ -130,7 +134,7 @@ test("décocher retire la ligne, recocher la remet", () => {
 });
 
 test("le ménage reprend les frais de la réservation et n'est pas doublé", () => {
-  const ctx = { nuits: 2, fraisMenage: 80, loyerTotal: 500 };
+  const ctx = { nuits: 2, fraisMenage: 80, loyerTotal: 500, tarifs: TARIFS_PAR_DEFAUT };
   const l = basculerOption([], "menage", ctx);
   assert.equal(l.filter((x) => x.categorie === "menage").length, 1);
   assert.equal(l.find((x) => x.categorie === "menage")?.prixUnitaire, 80);
@@ -138,8 +142,27 @@ test("le ménage reprend les frais de la réservation et n'est pas doublé", () 
 });
 
 test("quantité : jamais en dessous de 1", () => {
-  const ctx = { nuits: 2, fraisMenage: null, loyerTotal: 400 };
+  const ctx = { nuits: 2, fraisMenage: null, loyerTotal: 400, tarifs: TARIFS_PAR_DEFAUT };
   const l = basculerOption([], "cuisine", ctx);
   assert.equal(changerQuantite(l, "cuisine", -5).find((x) => x.categorie === "cuisine")?.quantite, 1);
   assert.equal(changerQuantite(l, "cuisine", 1).find((x) => x.categorie === "cuisine")?.quantite, 3);
+});
+
+test("prix par logement : villa 80 EUR, appartement 20 EUR, pas de cuisinière ni piscine en appartement", () => {
+  const villaR1 = { ...TARIFS_PAR_DEFAUT, menage: 80 };
+  const appart = { menage: 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20 };
+  assert.equal(prixOption("menage", villaR1, null), 80);
+  assert.equal(prixOption("menage", appart, null), 20);
+  assert.equal(prixOption("cuisine", appart, null), null);
+  assert.equal(prixOption("piscine", appart, null), null);
+  assert.equal(prixOption("piscine", villaR1, null), 30);
+  // Les frais de ménage réellement facturés sur la réservation priment sur le tarif du logement.
+  assert.equal(prixOption("menage", villaR1, 40), 40);
+  const ctx = { nuits: 3, fraisMenage: null, loyerTotal: 300, tarifs: appart };
+  assert.deepEqual(basculerOption([], "cuisine", ctx), []);
+});
+
+test("cuisinière incluse dans le loyer : non proposée", () => {
+  const incluse = { ...TARIFS_PAR_DEFAUT, cuisineIncluse: true };
+  assert.equal(prixOption("cuisine", incluse, null), null);
 });
