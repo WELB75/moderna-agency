@@ -76,8 +76,14 @@ export function suggererLignes(entree: { loyerTotal: number | null; fraisMenage:
   const menage = entree.fraisMenage && entree.fraisMenage > 0 && entree.fraisMenage < loyer ? entree.fraisMenage : 0;
   const nuits = Math.max(1, entree.nuits);
   const sejour = arrondir(loyer - menage);
+  // Prix par nuit seulement s'il tombe juste : sinon (2090 € sur 7 nuits = 298,571...) le total
+  // dériverait d'un centime, donc une seule ligne au montant exact.
+  const parNuit = arrondir(sejour / nuits);
+  const tombeJuste = arrondir(parNuit * nuits) === sejour;
   const lignes: LigneFacture[] = [
-    { categorie: "sejour", libelle: "Séjour", quantite: nuits, prixUnitaire: arrondir(sejour / nuits) },
+    tombeJuste
+      ? { categorie: "sejour", libelle: "Séjour", quantite: nuits, prixUnitaire: parNuit }
+      : { categorie: "sejour", libelle: `Séjour (${nuits} nuits)`, quantite: 1, prixUnitaire: sejour },
   ];
   if (menage > 0) lignes.push({ categorie: "menage", libelle: "Frais de ménage de fin de séjour", quantite: 1, prixUnitaire: menage });
   return lignes;
@@ -148,4 +154,44 @@ const MONTANT_DANS_NOTE = /\d+\s*(dh|dhs|mad|€|eur|euros?)(?![a-zà-ÿ])|\b(to
 
 export function noteContientUnMontant(note: string): boolean {
   return MONTANT_DANS_NOTE.test(note);
+}
+
+// Options cochables d'un clic depuis le tableau de bord (Kamel, 2026-11-03 : "on a juste à cocher
+// et bam"). Prix de départ tirés du devis type de la comptable (cuisinière 30 €/jour, piscine
+// chauffée 20 €/jour, ménage journalier 20 €/jour) ; le ménage de fin de séjour reprend les frais
+// de ménage de la réservation (60 € villa de plain-pied, 80 € villa R+1). Chaque ligne reste
+// modifiable ensuite dans le détail financier.
+export const OPTIONS_RAPIDES: { categorie: CategorieLigne; label: string; prixDefaut: number; parJour: boolean }[] = [
+  { categorie: "menage", label: "Ménage de fin de séjour", prixDefaut: 60, parJour: false },
+  { categorie: "cuisine", label: "Service cuisinière", prixDefaut: 30, parJour: true },
+  { categorie: "piscine", label: "Piscine chauffée", prixDefaut: 20, parJour: true },
+  { categorie: "menage_journalier", label: "Ménage journalier", prixDefaut: 20, parJour: true },
+];
+
+export function ligneParDefaut(categorie: CategorieLigne, contexte: { nuits: number; fraisMenage: number | null }): LigneFacture | null {
+  const opt = OPTIONS_RAPIDES.find((o) => o.categorie === categorie);
+  if (!opt) return null;
+  const prix = categorie === "menage" && contexte.fraisMenage && contexte.fraisMenage > 0 ? contexte.fraisMenage : opt.prixDefaut;
+  return { categorie, libelle: opt.label, quantite: opt.parJour ? Math.max(1, contexte.nuits) : 1, prixUnitaire: prix };
+}
+
+// Coche / décoche une option : la retire si elle est déjà dans la liste, sinon l'ajoute. Quand rien
+// n'est encore détaillé, la ligne "séjour" (d'après le loyer connu) est créée d'abord, pour que le
+// total facturé reste cohérent avec le loyer au lieu de ne contenir que l'option.
+export function basculerOption(
+  lignes: LigneFacture[],
+  categorie: CategorieLigne,
+  contexte: { nuits: number; fraisMenage: number | null; loyerTotal: number | null }
+): LigneFacture[] {
+  if (lignes.some((l) => l.categorie === categorie)) return lignes.filter((l) => l.categorie !== categorie);
+  const nouvelle = ligneParDefaut(categorie, contexte);
+  if (!nouvelle) return lignes;
+  const base = lignes.length > 0 ? lignes : suggererLignes({ loyerTotal: contexte.loyerTotal, fraisMenage: contexte.fraisMenage, nuits: contexte.nuits });
+  // Le ménage de fin de séjour est déjà dans la suggestion quand les frais de ménage sont connus.
+  if (base.some((l) => l.categorie === categorie)) return base;
+  return [...base, nouvelle];
+}
+
+export function changerQuantite(lignes: LigneFacture[], categorie: CategorieLigne, delta: number): LigneFacture[] {
+  return lignes.map((l) => (l.categorie === categorie ? { ...l, quantite: Math.max(1, Math.round(l.quantite + delta)) } : l));
 }

@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  basculerOption,
+  changerQuantite,
   convertir,
   formaterMontant,
   lireNombre,
@@ -106,4 +108,38 @@ test("détection des montants dans une note libre", () => {
   assert.equal(noteContientUnMontant("Lit bébé, draps propres pour le canapé"), false);
   assert.equal(noteContientUnMontant("Arrivée tardive : vers 23h"), false);
   assert.equal(noteContientUnMontant("Il y a 4 adultes"), false);
+});
+
+test("cocher une option sans détail crée d'abord la ligne séjour", () => {
+  const ctx = { nuits: 7, fraisMenage: null, loyerTotal: 2090 };
+  const l = basculerOption([], "cuisine", ctx);
+  assert.equal(l.length, 2);
+  assert.equal(l[0].categorie, "sejour");
+  assert.equal(totalFacture([l[0]]), 2090);
+  assert.equal(l[1].categorie, "cuisine");
+  assert.equal(l[1].quantite, 7);
+  assert.equal(totalFacture(l), 2090 + 210);
+});
+
+test("décocher retire la ligne, recocher la remet", () => {
+  const ctx = { nuits: 3, fraisMenage: null, loyerTotal: 900 };
+  const a = basculerOption([], "piscine", ctx);
+  const b = basculerOption(a, "piscine", ctx);
+  assert.equal(b.some((x) => x.categorie === "piscine"), false);
+  assert.equal(basculerOption(b, "piscine", ctx).some((x) => x.categorie === "piscine"), true);
+});
+
+test("le ménage reprend les frais de la réservation et n'est pas doublé", () => {
+  const ctx = { nuits: 2, fraisMenage: 80, loyerTotal: 500 };
+  const l = basculerOption([], "menage", ctx);
+  assert.equal(l.filter((x) => x.categorie === "menage").length, 1);
+  assert.equal(l.find((x) => x.categorie === "menage")?.prixUnitaire, 80);
+  assert.equal(totalFacture(l), 500);
+});
+
+test("quantité : jamais en dessous de 1", () => {
+  const ctx = { nuits: 2, fraisMenage: null, loyerTotal: 400 };
+  const l = basculerOption([], "cuisine", ctx);
+  assert.equal(changerQuantite(l, "cuisine", -5).find((x) => x.categorie === "cuisine")?.quantite, 1);
+  assert.equal(changerQuantite(l, "cuisine", 1).find((x) => x.categorie === "cuisine")?.quantite, 3);
 });
