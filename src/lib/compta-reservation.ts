@@ -1,0 +1,252 @@
+import { differenceInCalendarDays } from "date-fns";
+import { and, eq, sql } from "drizzle-orm";
+import { getDb } from "@/db";
+import { cashEntries, domaines, personnel, personnelAffectations, reservations, villas } from "@/db/schema";
+import { getMadParEur } from "@/lib/devises";
+import { tarifMenageJournalier, TARIF_CUISINE_PETIT_DEJEUNER, TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER } from "@/lib/personnel-tarifs";
+import {
+  arrondir,
+  convertir,
+  ventiler,
+  type CategorieLigne,
+  type CoutSejour,
+  type LigneFacture,
+  type Ventilation,
+} from "@/lib/compta-reservation-format";
+
+// Lignes facturées au client pour une réservation (le "devis détaillé" de la comptable). Table
+// créée à la volée, comme acces_equipe et equipiers_tournees : pas de migration à lancer sur Neon.
+
+let tablePrete: Promise<void> | null = null;
+
+export function assurerTableLignes(): Promise<void> {
+  if (!tablePrete) {
+    tablePrete = (async () => {
+      const db = getDb();
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS reservation_lignes (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          reservation_id uuid NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
+          categorie text NOT NULL DEFAULT 'autre',
+          libelle text NOT NULL DEFAULT '',
+          quantite numeric(10,2) NOT NULL DEFAULT 1,
+          prix_unitaire numeric(10,2) NOT NULL DEFAULT 0,
+          ordre integer NOT NULL DEFAULT 0,
+          created_at timestamptz NOT NULL DEFAULT now()
+        )
+      `);
+      await db.execute(sql`CREATE INDEX IF NOT EXISTS reservation_lignes_resa_idx ON reservation_lignes (reservation_id, ordre)`);
+    })().catch((err) => {
+      tablePrete = null;
+      throw err;
+    });
+  }
+  return tablePrete;
+}
+
+type LigneBrute = { id: string; reservation_id: string; categorie: string; libelle: string; quantite: string; prix_unitaire: string };
+
+function versLigne(r: LigneBrute): LigneFacture {
+  return {
+    id: r.id,
+    categorie: r.categorie as CategorieLigne,
+    libelle: r.libelle,
+    quantite: Number(r.quantite),
+    prixUnitaire: Number(r.prix_unitaire),
+  };
+}
+
+export async function lignesDeLaReservation(reservationId: string): Promise<LigneFacture[]> {
+  await assurerTableLignes();
+  const res = await getDb().execute(sql`
+    SELECT id, reservation_id, categorie, libelle, quantite, prix_unitaire
+    FROM reservation_lignes WHERE reservation_id = ${reservationId} ORDER BY ordre, created_at
+  `);
+  return (res.rows as LigneBrute[]).map(versLigne);
+}
+
+export async function lignesDesReservations(ids: string[]): Promise<Map<string, LigneFacture[]>> {
+  const parResa = new Map<string, LigneFacture[]>();
+  if (ids.length === 0) return parResa;
+  await assurerTableLignes();
+  const res = await getDb().execute(sql`
+    SELECT id, reservation_id, categorie, libelle, quantite, prix_unitaire
+    FROM reservation_lignes WHERE reservation_id IN (${sql.join(ids.map((i) => sql`${i}`), sql`, `)}) ORDER BY ordre, created_at
+  `);
+  for (const r of res.rows as LigneBrute[]) {
+    const liste = parResa.get(r.reservation_id) ?? [];
+    liste.push(versLigne(r));
+    parResa.set(r.reservation_id, liste);
+  }
+  return parResa;
+}
+
+type AffectationCompta = {
+  role: "menage" | "cuisine";
+  nom: string;
+  moment: string;
+  faitAt: Date | null;
+  nbJours: number | null;
+  avecDejeuner: boolean;
+};
+type DepenseCompta = { id: string; categorie: string | null; montant: string; devise: string; description: string | null };
+
+export function calculerCouts(e: {
+  devise: string;
+  nuits: number;
+  domaineNom: string | null;
+  nbChambres: number | null;
+  madParEur: number;
+  affectations: AffectationCompta[];
+  depenses: DepenseCompta[];
+}): CoutSejour[] {
+  const { devise, nuits, madParEur, affectations, depenses } = e;
+  const r = { domaineNom: e.domaineNom, nbChambres: e.nbChambres };
+  const couts: CoutSejour[] = [];
+  const ligneCaisse = (d: (typeof depenses)[number], categorie: CoutSejour["categorie"], libelle: string): CoutSejour => ({
+    cle: `caisse-${d.id}`,
+    categorie,
+    libelle,
+    montant: arrondir(convertir(Number(d.montant), d.devise, devise, madParEur)),
+    montantOrigine: Number(d.montant),
+    deviseOrigine: d.devise,
+    reel: true,
+    detail: d.description,
+  });
+
+  const depMenage = depenses.filter((d) => d.categorie === "femmes_menage");
+  const depCuisine = depenses.filter((d) => d.categorie === "cuisinieres");
+  const autres = depenses.filter((d) => d.categorie !== "femmes_menage" && d.categorie !== "cuisinieres");
+
+  if (depMenage.length > 0) {
+    for (const d of depMenage) couts.push(ligneCaisse(d, "menage", "Ménage"));
+  } else {
+    const faits = affectations.filter((a) => a.role === "menage");
+    const tarif = tarifMenageJournalier({ domaineNom: r.domaineNom, nbChambres: r.nbChambres });
+    for (const a of faits) {
+      const jours = a.nbJours ?? 1;
+      const mad = jours * tarif;
+      couts.push({
+        cle: `menage-${a.nom}-${a.moment}`,
+        categorie: "menage",
+        libelle: `Ménage · ${a.nom}${a.moment === "sejour" ? " (pendant le séjour)" : ""}`,
+        montant: arrondir(convertir(mad, "MAD", devise, madParEur)),
+        montantOrigine: mad,
+        deviseOrigine: "MAD",
+        reel: false,
+        detail: a.faitAt ? "barème, fait" : "barème, prévu",
+      });
+    }
+  }
+
+  if (depCuisine.length > 0) {
+    for (const d of depCuisine) couts.push(ligneCaisse(d, "cuisine", "Cuisine"));
+  } else {
+    for (const a of affectations.filter((x) => x.role === "cuisine")) {
+      const jours = a.nbJours ?? Math.max(1, nuits);
+      const mad = jours * (a.avecDejeuner ? TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER : TARIF_CUISINE_PETIT_DEJEUNER);
+      couts.push({
+        cle: `cuisine-${a.nom}`,
+        categorie: "cuisine",
+        libelle: `Cuisine · ${a.nom}`,
+        montant: arrondir(convertir(mad, "MAD", devise, madParEur)),
+        montantOrigine: mad,
+        deviseOrigine: "MAD",
+        reel: false,
+        detail: `${jours} j${a.avecDejeuner ? ", petit-déj + déjeuner" : ", petit-déj"} (barème)`,
+      });
+    }
+  }
+
+  for (const d of autres) couts.push(ligneCaisse(d, "caisse", d.description?.trim() || "Dépense de caisse"));
+  return couts;
+}
+
+export type ComptaReservation = {
+  reservationId: string;
+  devise: string;
+  nuits: number;
+  loyerTotal: number | null;
+  montantPaye: number | null;
+  fraisMenage: number | null;
+  moyenPaiement: string | null;
+  notesPaiement: string | null;
+  lignes: LigneFacture[];
+  ventilation: Ventilation;
+};
+
+// Coûts du séjour, sans double compte : pour le ménage et la cuisine, si la caisse contient déjà
+// des dépenses rattachées à cette réservation dans la catégorie, ce sont elles qui font foi
+// ("réel") ; sinon on retombe sur le barème de l'agence appliqué aux affectations (200 MAD par
+// ménage fait, 100/200 MAD par jour de cuisine, 100/150 MAD à Noria) — "prévu" tant que rien n'est
+// sorti de la caisse. Les autres dépenses de caisse liées à la réservation sont ajoutées telles quelles.
+export async function chargerComptaReservation(reservationId: string, madParEurFourni?: number): Promise<ComptaReservation | null> {
+  const db = getDb();
+  const [r] = await db
+    .select({
+      id: reservations.id,
+      checkIn: reservations.checkIn,
+      checkOut: reservations.checkOut,
+      loyerTotal: reservations.loyerTotal,
+      montantPaye: reservations.montantPaye,
+      fraisMenage: reservations.fraisMenage,
+      devise: reservations.devisePaiement,
+      moyenPaiement: reservations.moyenPaiement,
+      notesPaiement: reservations.notesPaiement,
+      domaineNom: domaines.nom,
+      nbChambres: villas.nbChambres,
+    })
+    .from(reservations)
+    .leftJoin(villas, eq(reservations.villaId, villas.id))
+    .leftJoin(domaines, eq(villas.domaineId, domaines.id))
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!r) return null;
+
+  const devise = r.devise || "EUR";
+  const nuits = Math.max(0, differenceInCalendarDays(r.checkOut, r.checkIn));
+  const madParEur = madParEurFourni ?? (await getMadParEur());
+  const lignes = await lignesDeLaReservation(reservationId);
+
+  const affectations = await db
+    .select({
+      role: personnel.role,
+      nom: personnel.nom,
+      moment: personnelAffectations.moment,
+      faitAt: personnelAffectations.faitAt,
+      nbJours: personnelAffectations.nbJours,
+      avecDejeuner: personnelAffectations.avecDejeuner,
+    })
+    .from(personnelAffectations)
+    .innerJoin(personnel, eq(personnelAffectations.personnelId, personnel.id))
+    .where(eq(personnelAffectations.reservationId, reservationId));
+
+  const depenses = await db
+    .select({
+      id: cashEntries.id,
+      categorie: cashEntries.categorie,
+      montant: cashEntries.montant,
+      devise: cashEntries.devise,
+      description: cashEntries.description,
+    })
+    .from(cashEntries)
+    .where(and(eq(cashEntries.reservationId, reservationId), eq(cashEntries.type, "depense")));
+
+  const couts = calculerCouts({ devise, nuits, domaineNom: r.domaineNom, nbChambres: r.nbChambres, madParEur, affectations, depenses });
+
+  const loyerTotal = r.loyerTotal != null ? Number(r.loyerTotal) : null;
+  const montantPaye = r.montantPaye != null ? Number(r.montantPaye) : null;
+
+  return {
+    reservationId,
+    devise,
+    nuits,
+    loyerTotal,
+    montantPaye,
+    fraisMenage: r.fraisMenage != null ? Number(r.fraisMenage) : null,
+    moyenPaiement: r.moyenPaiement,
+    notesPaiement: r.notesPaiement,
+    lignes,
+    ventilation: ventiler({ devise, loyerTotal, montantPaye, lignes, couts }),
+  };
+}
