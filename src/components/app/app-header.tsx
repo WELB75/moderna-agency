@@ -20,7 +20,7 @@ export function AppHeader() {
       {/* La recherche prend toute la largeur disponible entre le logo et les actions (Fouad,
           2026-10-30) — avant : limitée à ~24rem à gauche, le reste de l'en-tête restait vide. */}
       <div className="flex min-w-0 flex-1">
-        <GlobalSearchOverlay variant="bar" />
+        <GlobalSearchOverlay />
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <ThemeToggle />
