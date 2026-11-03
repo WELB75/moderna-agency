@@ -370,6 +370,7 @@ export function ReservationAgendaCard({
                     ficheId={r.ficheId}
                     ficheComplete={r.ficheStatut === "complete"}
                     repasInclus={r.repasInclusDansLoyer}
+                    appartement={r.villaType === "appartement"}
                     envoyeAt={r.messageArriveeEnvoyeAt}
                   />
                 ) : null}
