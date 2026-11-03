@@ -16,6 +16,7 @@ import {
 } from "@/db/schema";
 import { domaineEstActif } from "@/lib/domaines-actifs";
 import { UTILISATEUR_PRINCIPAL, type UtilisateurTelegram } from "@/lib/telegram-agent/utilisateurs";
+import { getCaisseDetail, getStatistiques, getTournees } from "@/lib/telegram-agent/stats-caisse";
 import { getVillaCodes, getOccupation, getDisponibilites } from "@/lib/telegram-agent/consultation";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 
@@ -190,6 +191,47 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "get_tournees",
+    description:
+      "Planning hebdomadaire de Brahim (jardinier) et Rachid (pisciniste) : où doivent-ils être, quel domaine et quelles villas. Avec une date : leur programme ce jour-là ; sans date : toute la semaine. Utiliser pour \"où est Brahim jeudi ?\", \"Rachid passe où demain ?\", \"qui s'occupe des piscines samedi ?\". Le planning est identique chaque semaine ; dimanche = repos. Si une remarque signale des villas barrées à la main, la mentionner.",
+    input_schema: {
+      type: "object",
+      properties: {
+        nom: { type: "string", description: "Brahim, Rachid, jardinier ou pisciniste. Omettre pour les deux." },
+        date: { type: "string", description: "Date YYYY-MM-DD (résous toi-même aujourd'hui/demain/jeudi prochain...). Omettre pour toute la semaine." },
+      },
+    },
+  },
+  {
+    name: "get_statistiques",
+    description:
+      "Statistiques de tous les logements (villas et appartements) sur un mois ou une année : nuitées vendues, chiffre d'affaires, encaissé, taux d'occupation, dépenses de caisse, trésorerie ; ventilés par canal (Airbnb, Booking.com, direct), par type (villas / appartements), canal par type, et par logement. Utiliser pour toute question de chiffres : \"combien on a fait en octobre ?\", \"Airbnb vs Booking ce mois ?\", \"quelle villa marche le mieux ?\", \"CA des appartements cette année ?\". Sans année ni mois : année en cours.",
+    input_schema: {
+      type: "object",
+      properties: {
+        annee: { type: "number", description: "Année, ex. 2026. Défaut : année en cours." },
+        mois: { type: "number", description: "Mois 1 à 12. Omettre pour toute l'année." },
+        type: { type: "string", enum: ["total", "villa", "appartement"], description: "Périmètre. Défaut : total (villas et appartements)." },
+      },
+    },
+  },
+  {
+    name: "get_caisse_detail",
+    description:
+      "Détail de la caisse avec filtres : totaux par devise et par type (loyers reçus, argent confié, extras, dépenses société, dépenses payées avec les loyers perso, restitutions) et derniers mouvements. Utiliser pour \"qu'est-ce qu'on a dépensé en octobre ?\", \"dépenses de Villa Tania\", \"loyers reçus cette semaine\", \"derniers mouvements\". Pour juste le solde global, get_cash_summary suffit.",
+    input_schema: {
+      type: "object",
+      properties: {
+        du: { type: "string", description: "Premier jour inclus, YYYY-MM-DD. Optionnel." },
+        au: { type: "string", description: "Dernier jour inclus, YYYY-MM-DD. Optionnel." },
+        villaNom: { type: "string", description: "Un logement (nom approximatif accepté). Optionnel." },
+        domaineNom: { type: "string", description: "Un domaine (Moderna, Zaraba, Noria...). Optionnel." },
+        type: { type: "string", enum: ["depense", "loyer", "extra", "remise", "restitution"], description: "Un seul type de mouvement. Optionnel." },
+        limite: { type: "number", description: "Nombre de derniers mouvements listés (15 par défaut, 40 max)." },
+      },
+    },
+  },
+  {
     name: "post_team_note",
     description:
       "Poste une note courte dans les Messages internes de l'app (visibles par toute l'équipe), pour signaler quelque chose sans détail sensible écrit. Utiliser seulement si Kamel demande explicitement de noter/signaler quelque chose à l'équipe.",
@@ -216,7 +258,7 @@ Date d'aujourd'hui : ${today}.
 Villas connues (utilise le nom exact si Kamel en mentionne une, corrige les fautes/surnoms) :
 - ${villasPromptList}
 
-Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, donner le programme d'une journée (arrivées, départs, ménage, cuisine, maintenance), confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe, donner les codes d'accès (boîtier, porte, master, wifi) d'un logement, dire qui est dans quel logement un jour donné (clients du jour, arrivées, départs), les logements disponibles, et la cuisinière ou le ménage d'un séjour. Pour toute question de ce type, appelle l'outil plutôt que de répondre de mémoire, et donne les codes tels quels (Kamel est le seul interlocuteur).
+Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, donner le programme d'une journée (arrivées, départs, ménage, cuisine, maintenance), confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe, donner les codes d'accès (boîtier, porte, master, wifi) d'un logement, dire qui est dans quel logement un jour donné (clients du jour, arrivées, départs), les logements disponibles, la cuisinière ou le ménage d'un séjour, où doivent être Brahim (jardinier) et Rachid (pisciniste) selon leur planning hebdomadaire (get_tournees), les statistiques de tous les logements, villas et appartements, par canal Airbnb / Booking.com / direct (get_statistiques : nuitées, chiffre d'affaires, taux d'occupation, trésorerie), et le détail de la caisse par période, logement ou type (get_caisse_detail). Pour toute question de ce type, appelle l'outil plutôt que de répondre de mémoire, et donne les codes tels quels (Kamel est le seul interlocuteur).
 Ce que tu NE fais PAS : fiches de police, création de réservations, modification du code de l'application — dis-le simplement si Kamel demande ça, sans essayer.
 
 Règles :
@@ -705,6 +747,28 @@ export async function runAgentTurn(messages: MessageParam[], utilisateur: Utilis
             break;
           case "cancel_last_entry":
             result = await cancelLastEntry(utilisateur);
+            break;
+          case "get_tournees":
+            result = await getTournees({ nom: input.nom as string | undefined, date: input.date as string | undefined });
+            break;
+          case "get_statistiques":
+            result = await getStatistiques(
+              { annee: input.annee as number | undefined, mois: input.mois as number | undefined, type: input.type as string | undefined },
+              utilisateur.voirTout
+            );
+            break;
+          case "get_caisse_detail":
+            result = await getCaisseDetail(
+              {
+                du: input.du as string | undefined,
+                au: input.au as string | undefined,
+                villaNom: input.villaNom as string | undefined,
+                domaineNom: input.domaineNom as string | undefined,
+                type: input.type as string | undefined,
+                limite: input.limite as number | undefined,
+              },
+              utilisateur.voirTout
+            );
             break;
           case "get_cash_summary":
             result = await getCashSummary(utilisateur.voirTout);

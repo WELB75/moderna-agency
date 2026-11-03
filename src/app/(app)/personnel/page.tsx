@@ -40,6 +40,8 @@ import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { PhoneLink } from "@/components/app/phone-link";
 import { MarkPaidButton } from "@/components/app/mark-paid-button";
 import { PersonnelPlanningGrid } from "@/components/app/personnel-planning-grid";
+import { TourneesSemaine } from "@/components/app/tournees-semaine";
+import { chargerEquipiersTournees } from "@/lib/tournees";
 import { PersonnelCarteLoader } from "@/components/app/personnel-carte-loader";
 import type { CarteStaff, CarteDomaine } from "@/components/app/personnel-carte";
 import { deletePersonnel } from "@/lib/actions/personnel";
@@ -697,6 +699,8 @@ export default async function PersonnelPage({
     s.occupeAujourdhui = occupeesAujourdhuiNoms.has(s.nom);
   }
   const joursSemaine = Array.from({ length: 7 }, (_, i) => addDays(debutSemaine, i));
+  // Brahim (jardinier) et Rachid (pisciniste) : tournées hebdomadaires, hors réservations.
+  const equipiersTournees = await chargerEquipiersTournees().catch(() => []);
 
   return (
     <div className="space-y-6">
@@ -741,6 +745,24 @@ export default async function PersonnelPage({
         <TabsContent value="equipe" className="grid gap-6 lg:grid-cols-2 lg:items-start">
           <RosterSection title="Femmes de ménage" role="menage" people={menageRoster} moyenneQualite={moyenneQualite} />
           <RosterSection title="Cuisinières" role="cuisine" people={cuisineRoster} moyenneQualite={moyenneQualite} />
+          {equipiersTournees.length > 0 ? (
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-base">Jardinier et pisciniste</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-1.5 text-sm">
+                {equipiersTournees.map((e) => (
+                  <p key={e.id}>
+                    <span className="font-medium">{e.nom}</span>
+                    <span className="text-muted-foreground"> · {e.metier}</span>
+                  </p>
+                ))}
+                <Link href="/personnel?onglet=planning" className="inline-flex min-h-11 items-center text-sm font-medium text-[#2B1F33] underline-offset-4 hover:underline">
+                  Voir leurs tournées dans le Planning
+                </Link>
+              </CardContent>
+            </Card>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="affectations" className="grid gap-6 lg:grid-cols-2 lg:items-start">
@@ -818,6 +840,8 @@ export default async function PersonnelPage({
           </div>
 
           <PersonnelPlanningGrid jours={joursSemaine.map((date) => ({ date, entries: planningPourJour(date) }))} now={now} />
+
+          <TourneesSemaine equipiers={equipiersTournees} debutSemaine={debutSemaine} now={now} />
         </TabsContent>
 
         {/* Plein écran (par-dessus sidebar/header/nav du bas) : Kamel, 2026-08-13 — "qu'on
