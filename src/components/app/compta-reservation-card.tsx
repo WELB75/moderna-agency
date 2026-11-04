@@ -142,7 +142,7 @@ export function ComptaReservationCard(props: Props) {
               Le détail du prix (nuitées, ménage, commission) n&apos;est pas encore arrivé de Beds24. Il se remplit à la prochaine synchronisation.
             </p>
           )}
-          <p className="text-xs text-muted-foreground">Prix net des nuitées = frais de chambre − frais de service hôte − frais de ménage. Voyageur : {props.revenus ? formaterMontant(props.revenus.totalVoyageur, devise) : "—"} au total.</p>
+          <p className="text-xs text-muted-foreground">Prix net des nuitées = frais de chambre − frais de service hôte{props.revenus?.netSansMenage ? "" : " − frais de ménage"}. Voyageur : {props.revenus ? formaterMontant(props.revenus.totalVoyageur, devise) : "—"} au total.</p>
         </div>
       ) : null}
 

@@ -260,7 +260,8 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
         // toujours au voyageur, Sanaa, 2026-11-04 : « il y a des frais de ménage sur Airbnb »).
         r.fraisMenage != null && Number(r.fraisMenage) > 0
           ? Number(r.fraisMenage)
-          : convertir(tarifsOptionsLogement({ villaId: r.villaId, type: r.villaType ?? null, repasInclus: Boolean(r.repasInclus) }).menage ?? 0, "EUR", devise, madParEur)
+          : convertir(tarifsOptionsLogement({ villaId: r.villaId, type: r.villaType ?? null, repasInclus: Boolean(r.repasInclus) }).menage ?? 0, "EUR", devise, madParEur),
+        r.canal
       )
     : null;
 

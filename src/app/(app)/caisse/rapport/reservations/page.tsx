@@ -135,7 +135,7 @@ export default async function RapportReservationsPage({ searchParams }: { search
           <div>
             <h2 className="text-base font-semibold">Revenus Airbnb et Booking.com</h2>
             <p className="text-sm text-muted-foreground print:text-xs">
-              Prix net des nuitées = frais de chambre − frais de service hôte − frais de ménage.
+              Prix net des nuitées = frais de chambre − frais de service hôte (Booking.com : moins aussi les frais de ménage).
               {rapport.plateformes.sansDetail > 0 ? ` ${rapport.plateformes.sansDetail} séjour(s) sans détail reçu de Beds24 pour le moment.` : ""}
             </p>
           </div>
