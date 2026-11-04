@@ -4,7 +4,7 @@ import { getDb } from "@/db";
 import { cashEntries, domaines, personnel, personnelAffectations, reservations, villas } from "@/db/schema";
 import { normaliseCanal } from "@/lib/canal";
 import { periodeBounds } from "@/lib/caisse-periode";
-import { calculerCouts, lignesDesReservations } from "@/lib/compta-reservation";
+import { calculerCouts, lignesDesReservations, tarifsOptionsLogement } from "@/lib/compta-reservation";
 import {
   arrondir,
   convertir,
@@ -87,6 +87,9 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
         villaNumero: villas.numero,
         nbChambres: villas.nbChambres,
         domaineNom: domaines.nom,
+        villaId: reservations.villaId,
+        villaType: villas.type,
+        repasInclus: villas.repasInclusDansLoyer,
       })
       .from(reservations)
       .innerJoin(villas, eq(reservations.villaId, villas.id))
@@ -165,7 +168,14 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
 
     const plateforme = estCanalPlateforme(r.canal);
     const revenus = plateforme
-      ? calculerRevenusPlateforme(prixBeds24DeRawData(r.rawData), loyer, r.fraisMenage != null ? aEUR(Number(r.fraisMenage)) : null)
+      ? calculerRevenusPlateforme(
+          prixBeds24DeRawData(r.rawData),
+          loyer,
+          // Ménage non saisi : celui de la fiche du logement (en euros), voir compta-reservation.ts.
+          r.fraisMenage != null && Number(r.fraisMenage) > 0
+            ? aEUR(Number(r.fraisMenage))
+            : (tarifsOptionsLogement({ villaId: r.villaId, type: r.villaType ?? null, repasInclus: Boolean(r.repasInclus) }).menage ?? null)
+        )
       : null;
 
     return {

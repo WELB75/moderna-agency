@@ -94,3 +94,14 @@ test("ligne Beds24 = prix voyageur - commission : chambre = total - ménage", ()
   assert.equal(r.fraisServiceHote, 51.71);
   assert.equal(r.origineChambre, "calcule");
 });
+
+// Seconde capture de la comptable : 122 € payés, une ligne Beds24 de 99,31 (= 122 − 22,69) et aucun
+// ménage saisi sur la réservation ; avec le ménage de la fiche du logement (20 €), on retrouve
+// les chiffres d'Airbnb : chambre 102,00, ménage 20,00, service 22,69.
+test("ligne nette de commission + ménage de la fiche : chiffres d'Airbnb", () => {
+  const r = calculerRevenusPlateforme({ price: 122, commission: 22.69, invoiceItems: [{ type: "charge", description: "[ROOMNAME1]", amount: 99.31 }] }, 122, 20);
+  assert.ok(r);
+  assert.equal(r.fraisChambre, 102);
+  assert.equal(r.fraisMenage, 20);
+  assert.equal(r.prixNetNuitees, 59.31);
+});
