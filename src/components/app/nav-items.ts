@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Wallet,
+  Receipt,
   ClipboardCheck,
   Building2,
   Wrench,
@@ -39,6 +40,7 @@ export const navGroups: NavGroup[] = [
       { href: "/villas", label: "Hébergements", icon: Building2 },
       { href: "/personnel", label: "Ménages et équipe", icon: ChefHat },
       { href: "/caisse", label: "Caisse", icon: Wallet },
+      { href: "/comptabilite", label: "Comptabilité", icon: Receipt },
     ],
   },
   {
