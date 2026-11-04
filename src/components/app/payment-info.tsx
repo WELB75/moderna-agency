@@ -186,6 +186,7 @@ export function EditPaymentDialog({
                 <SelectItem value="EUR">Euros (EUR)</SelectItem>
                 <SelectItem value="DH">Dirhams (DH)</SelectItem>
                 <SelectItem value="USD">Dollars (USD)</SelectItem>
+                <SelectItem value="GBP">Livres sterling (GBP)</SelectItem>
               </SelectContent>
             </Select>
           </div>

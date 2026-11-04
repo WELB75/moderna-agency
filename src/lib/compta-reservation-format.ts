@@ -142,7 +142,8 @@ export function ventiler(entree: {
 }
 
 export function formaterMontant(montant: number, devise: string): string {
-  const symbole = estDirham(devise) ? "MAD" : devise === "EUR" || !devise ? "€" : devise;
+  const code = (devise ?? "").trim().toUpperCase();
+  const symbole = estDirham(devise) ? "MAD" : code === "EUR" || !code ? "€" : code === "USD" ? "$" : code === "GBP" ? "£" : devise;
   const texte = montant.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   return `${texte} ${symbole}`;
 }

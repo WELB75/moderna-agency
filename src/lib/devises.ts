@@ -52,3 +52,46 @@ export async function getMadParEur(): Promise<number> {
 export function madVersEur(montant: number, madParEur: number): number {
   return Math.round((montant / madParEur) * 100) / 100;
 }
+
+
+// Devises proposées pour une réservation (Kamel, 2026-11-04 : "il me faut le choix de devise
+// euros, dirhams, dollars, livre sterling"). Les tarifs des options sont définis en euros ; pour une
+// autre devise on les convertit au taux du jour (même API que le dirham), arrondis à un montant lisible.
+export const DEVISES_RESERVATION = [
+  { code: "EUR", label: "Euros (€)" },
+  { code: "MAD", label: "Dirhams (MAD)" },
+  { code: "USD", label: "Dollars ($)" },
+  { code: "GBP", label: "Livres sterling (£)" },
+] as const;
+
+// Taux de secours (pour 1 euro) si l'API ne répond pas.
+const TAUX_SECOURS: Record<string, number> = { USD: 1.15, GBP: 0.87 };
+
+export function codeDevise(devise: string | null | undefined): string {
+  const code = (devise ?? "").trim().toUpperCase();
+  if (estDirham(code)) return "MAD";
+  return code || "EUR";
+}
+
+// Convertit un tarif défini en euros vers la devise voulue, arrondi : 5 près en dirhams, à l'unité sinon.
+export async function tarifEnDevise(montantEur: number, devise: string | null | undefined): Promise<number> {
+  const code = codeDevise(devise);
+  if (code === "EUR") return montantEur;
+  let taux: number | undefined;
+  if (code === "MAD") {
+    taux = await getMadParEur();
+  } else {
+    try {
+      const res = await fetch(URL_TAUX, { next: { revalidate: 12 * 60 * 60 }, signal: AbortSignal.timeout(4000) });
+      const body = res.ok ? ((await res.json()) as { rates?: Record<string, number> }) : null;
+      const t = body?.rates?.[code];
+      if (typeof t === "number" && Number.isFinite(t) && t > 0) taux = t;
+    } catch {
+      // taux de secours ci-dessous
+    }
+    taux ??= TAUX_SECOURS[code];
+  }
+  if (!taux) return montantEur;
+  const brut = montantEur * taux;
+  return code === "MAD" ? Math.round(brut / 5) * 5 : Math.round(brut);
+}

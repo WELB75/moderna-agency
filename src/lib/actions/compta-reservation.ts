@@ -17,6 +17,7 @@ import {
   type CategorieLigne,
 } from "@/lib/compta-reservation-format";
 import { tracer } from "@/lib/journal";
+import { DEVISES_RESERVATION } from "@/lib/devises";
 
 export type LigneSaisie = { categorie: string; libelle: string; quantite: string | number; prixUnitaire: string | number };
 
@@ -131,4 +132,24 @@ export async function changerQuantiteOption(reservationId: string, categorie: st
   if (!Number.isFinite(delta) || Math.abs(delta) > 30) throw new Error("Valeur invalide.");
   const actuelles = await lignesDeLaReservation(reservationId);
   await remplacerLignes(reservationId, changerQuantite(actuelles, categorie as CategorieLigne, delta));
+}
+
+// Change la devise de la réservation (euros, dirhams, dollars, livres). Les montants déjà saisis ne
+// sont pas convertis : seule la devise change, comme dans le formulaire Paiement ; les tarifs des
+// options cochées ensuite sont, eux, proposés dans la nouvelle devise.
+export async function changerDeviseReservation(reservationId: string, devise: string) {
+  await auth.protect();
+  const code = DEVISES_RESERVATION.find((d) => d.code === devise)?.code;
+  if (!code) throw new Error("Devise inconnue.");
+  await getDb().update(reservations).set({ devisePaiement: code, updatedAt: new Date() }).where(eq(reservations.id, reservationId));
+  await tracer({
+    categorie: "paiement",
+    action: "devise_modifiee",
+    libelle: `Devise de la réservation : ${code}`,
+    resume: code,
+    reservationId,
+  });
+  revalidatePath(`/reservations/${reservationId}`);
+  revalidatePath("/dashboard");
+  revalidatePath("/caisse/rapport/reservations");
 }
