@@ -181,6 +181,9 @@ export const villas = pgTable(
     // Tarification — le "pms" associé (airbnb, bookingcom...) n'a pas besoin d'être stocké ici,
     // on le retrouve en croisant avec /v1/listings à chaque synchro.
     pricelabsListingId: text("pricelabs_listing_id"),
+    // Fourchette de prix des devis directs (€, mini / base / maximum) quand elle diffère de celle
+    // des plateformes réglée dans PriceLabs — voir src/lib/prix-direct.ts. Null = prix PriceLabs tel quel.
+    prixDirect: jsonb("prix_direct").$type<{ min: number; base: number; max: number } | null>(),
     photoUrl: text("photo_url"),
     galleryUrls: jsonb("gallery_urls").$type<string[]>().default([]),
     superhoteListingId: text("superhote_listing_id"),

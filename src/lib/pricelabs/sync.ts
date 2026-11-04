@@ -85,6 +85,8 @@ export type TarificationVilla = {
   // Date de la dernière synchro PriceLabs réussie (premier jour du cache) : permet d'expliquer,
   // quand `error` est renseigné, de quand datent les prix affichés.
   prixDu: string | null;
+  // Vrai quand les prix ont été replacés dans la fourchette directe du logement (lib/prix-direct.ts).
+  tarifDirect?: boolean;
 };
 
 // Récupère les prix de toutes les villas reliées à PriceLabs, en resynchronisant celles dont le

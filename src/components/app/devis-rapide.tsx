@@ -204,6 +204,9 @@ export function DevisRapide({ villas }: { villas: TarificationVilla[] }) {
             ) : null}
           </div>
         ) : null}
+        {villa?.tarifDirect ? (
+          <p className="text-xs text-muted-foreground">Tarif direct : prix net sans commission, différent de celui affiché sur Airbnb et Booking.</p>
+        ) : null}
 
         {devis ? (
           devis.statut === "invalide" ? (

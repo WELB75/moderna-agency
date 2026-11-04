@@ -4,6 +4,7 @@ import { villas, pricelabsPriceCache } from "@/db/schema";
 import { pricelabsGetListings, pricelabsGetPrices } from "./client";
 import { estDirham, getMadParEur, madVersEur } from "@/lib/devises";
 import { annoncesCandidates, choisirAnnonce } from "./annonce";
+import { prixDirect } from "@/lib/prix-direct";
 
 // Prix d'un séjour selon PriceLabs : somme des tarifs de chaque nuit (de l'arrivée incluse au
 // départ exclu). Utilise le cache de l'onglet Tarification s'il est frais et complet ; sinon
@@ -42,7 +43,31 @@ async function enEuros(sejour: PrixSejour): Promise<PrixSejour> {
 }
 
 export async function calculerPrixSejour(villaId: string, checkIn: string, checkOut: string): Promise<PrixSejour> {
-  return enEuros(await calculerPrixSejourBrut(villaId, checkIn, checkOut));
+  return versPrixDirect(villaId, await enEuros(await calculerPrixSejourBrut(villaId, checkIn, checkOut)));
+}
+
+// Villa avec une fourchette directe (villas.prix_direct, voir lib/prix-direct.ts) : le prix proposé
+// à la création d'une réservation est le prix direct, pas celui des plateformes. Sans fourchette
+// plateforme exploitable en euros, on laisse le prix PriceLabs tel quel.
+async function versPrixDirect(villaId: string, sejour: PrixSejour): Promise<PrixSejour> {
+  if (!sejour.ok || sejour.devise !== "EUR") return sejour;
+  const [row] = await getDb()
+    .select({
+      direct: villas.prixDirect,
+      min: pricelabsPriceCache.minPrice,
+      base: pricelabsPriceCache.basePrice,
+      max: pricelabsPriceCache.maxPrice,
+      devise: pricelabsPriceCache.currency,
+    })
+    .from(villas)
+    .leftJoin(pricelabsPriceCache, eq(pricelabsPriceCache.villaId, villas.id))
+    .where(eq(villas.id, villaId))
+    .limit(1);
+  if (!row?.direct || row.min == null || row.base == null || row.max == null || (row.devise && row.devise !== "EUR")) return sejour;
+  const plateforme = { min: Number(row.min), base: Number(row.base), max: Number(row.max) };
+  const parNuit = sejour.parNuit.map((n) => ({ date: n.date, prix: prixDirect(n.prix, plateforme, row.direct) }));
+  const total = Math.round(parNuit.reduce((s, n) => s + n.prix, 0) * 100) / 100;
+  return { ...sejour, parNuit, total };
 }
 
 async function calculerPrixSejourBrut(villaId: string, checkIn: string, checkOut: string): Promise<PrixSejour> {
