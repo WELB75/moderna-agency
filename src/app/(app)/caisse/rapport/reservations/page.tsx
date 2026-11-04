@@ -8,9 +8,170 @@ import { Logo } from "@/components/app/logo";
 import { moisHref, periodeAncre, periodeBounds } from "@/lib/caisse-periode";
 import { chargerRapportCompta, type LigneRapport } from "@/lib/compta-rapport";
 import { formaterMontant } from "@/lib/compta-reservation-format";
+import { normaliseCanal, type CanalKey } from "@/lib/canal";
 
 const BASE = "/caisse/rapport/reservations";
 const eur = (n: number) => formaterMontant(n, "EUR");
+
+const GROUPES: { cle: CanalKey; titre: string }[] = [
+  { cle: "airbnb", titre: "Airbnb" },
+  { cle: "booking", titre: "Booking.com" },
+  { cle: "direct", titre: "Réservations en direct" },
+  { cle: "autre", titre: "Autres canaux" },
+];
+
+const somme = (lignes: LigneRapport[], f: (l: LigneRapport) => number) => lignes.reduce((s, l) => s + f(l), 0);
+const facture = (l: LigneRapport) => (l.detaille ? l.ventilation.facture : l.facturation.sejour);
+const frais = (l: LigneRapport, k: string) => l.ventilation.couts.filter((x) => x.categorie === k).reduce((s, x) => s + x.montant, 0);
+
+function Tableau({ entetes, children, titre, sousTitre }: { entetes: string[]; children: React.ReactNode; titre: string; sousTitre?: string }) {
+  return (
+    <section className="space-y-2 break-inside-avoid-page print:break-before-auto">
+      <div className="flex items-baseline justify-between gap-3 border-b-2 pb-1">
+        <h2 className="text-base font-semibold">{titre}</h2>
+        {sousTitre ? <p className="text-xs text-muted-foreground">{sousTitre}</p> : null}
+      </div>
+      <div className="overflow-x-auto rounded-xl border print:overflow-visible print:rounded-none print:border-none">
+        <table className="w-full text-[11px] print:text-[10px]">
+          <thead>
+            <tr className="border-b bg-muted/50 text-left print:bg-transparent">
+              {entetes.map((h, i) => (
+                <th key={h} className={`p-2 font-medium print:p-1 ${i >= 2 ? "text-right" : ""}`}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>{children}</tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function CellulesSejour({ l }: { l: LigneRapport }) {
+  return (
+    <>
+      <td className="whitespace-nowrap p-2 print:p-1">{format(l.depart, "d MMM", { locale: fr })}</td>
+      <td className="p-2 print:p-1">
+        <Link href={`/reservations/${l.id}`} className="font-medium hover:underline print:no-underline">{l.client}</Link>
+        <span className="block text-muted-foreground">{l.logement} · {l.nuits} n{l.detaille || l.plateforme ? "" : " · non détaillé"}</span>
+        {l.notesPaiement ? <span className="block text-muted-foreground">{l.notesPaiement}</span> : null}
+      </td>
+    </>
+  );
+}
+
+function LigneTotal({ libelle, children }: { libelle: string; children: React.ReactNode }) {
+  return (
+    <tr className="border-t-2 bg-muted/40 font-semibold print:bg-transparent">
+      <td className="p-2 print:p-1" colSpan={2}>{libelle}</td>
+      {children}
+    </tr>
+  );
+}
+
+// Airbnb et Booking.com : ce que la plateforme détaille (chambre, ménage, frais de service) et le
+// prix net des nuitées, qui ne se calcule pas pareil (voir lib/revenus-plateforme.ts).
+function BlocPlateforme({ titre, lignes, cle }: { titre: string; lignes: LigneRapport[]; cle: CanalKey }) {
+  const r = (l: LigneRapport, f: (x: NonNullable<LigneRapport["revenus"]>) => number | null) => (l.revenus ? (f(l.revenus) ?? 0) : 0);
+  const sansDetail = lignes.filter((l) => !l.revenus).length;
+  return (
+    <Tableau
+      titre={`${titre} · ${lignes.length} séjour${lignes.length > 1 ? "s" : ""}`}
+      sousTitre={cle === "airbnb" ? "Net des nuitées = frais de chambre − frais de service hôte" : "Net des nuitées = frais de chambre − frais de service − ménage"}
+      entetes={["Départ", "Client · logement", "Frais de chambre", "Frais de ménage", "Frais de service hôte", "Net des nuitées", "Facturé", "Encaissé", "Reste"]}
+    >
+      {lignes.map((l) => (
+        <tr key={l.id} className="break-inside-avoid border-b align-top last:border-0">
+          <CellulesSejour l={l} />
+          {l.revenus ? (
+            <>
+              <Montant v={l.revenus.fraisChambre} />
+              <Montant v={l.revenus.fraisMenage} />
+              <Montant v={l.revenus.fraisServiceHote === null ? 0 : -l.revenus.fraisServiceHote} />
+              <Montant v={l.revenus.prixNetNuitees ?? 0} fort />
+            </>
+          ) : (
+            <td className="p-2 text-center text-muted-foreground print:p-1" colSpan={4}>détail Beds24 pas encore reçu</td>
+          )}
+          <Montant v={facture(l)} />
+          <Montant v={l.ventilation.encaisse} />
+          <Montant v={l.ventilation.reste} alerte={l.ventilation.reste > 0} />
+        </tr>
+      ))}
+      <LigneTotal libelle={`Total ${titre}${sansDetail > 0 ? ` (${sansDetail} sans détail)` : ""}`}>
+        <Montant v={somme(lignes, (l) => r(l, (x) => x.fraisChambre))} fort />
+        <Montant v={somme(lignes, (l) => r(l, (x) => x.fraisMenage))} fort />
+        <Montant v={-somme(lignes, (l) => r(l, (x) => x.fraisServiceHote))} fort />
+        <Montant v={somme(lignes, (l) => r(l, (x) => x.prixNetNuitees))} fort />
+        <Montant v={somme(lignes, facture)} fort />
+        <Montant v={somme(lignes, (l) => l.ventilation.encaisse)} fort />
+        <Montant v={somme(lignes, (l) => l.ventilation.reste)} fort />
+      </LigneTotal>
+    </Tableau>
+  );
+}
+
+function BlocDirect({ titre, lignes }: { titre: string; lignes: LigneRapport[] }) {
+  return (
+    <Tableau
+      titre={`${titre} · ${lignes.length} séjour${lignes.length > 1 ? "s" : ""}`}
+      entetes={["Départ", "Client · logement", "Séjour", "Ménage", "Options", "Facturé", "Encaissé", "Reste"]}
+    >
+      {lignes.map((l) => (
+        <tr key={l.id} className="break-inside-avoid border-b align-top last:border-0">
+          <CellulesSejour l={l} />
+          <Montant v={l.facturation.sejour} />
+          <Montant v={l.facturation.menage} />
+          <Montant v={l.facturation.options} />
+          <Montant v={facture(l)} fort />
+          <Montant v={l.ventilation.encaisse} />
+          <Montant v={l.ventilation.reste} alerte={l.ventilation.reste > 0} />
+        </tr>
+      ))}
+      <LigneTotal libelle={`Total ${titre}`}>
+        <Montant v={somme(lignes, (l) => l.facturation.sejour)} fort />
+        <Montant v={somme(lignes, (l) => l.facturation.menage)} fort />
+        <Montant v={somme(lignes, (l) => l.facturation.options)} fort />
+        <Montant v={somme(lignes, facture)} fort />
+        <Montant v={somme(lignes, (l) => l.ventilation.encaisse)} fort />
+        <Montant v={somme(lignes, (l) => l.ventilation.reste)} fort />
+      </LigneTotal>
+    </Tableau>
+  );
+}
+
+// Frais de l'agence, tous canaux confondus : ce que coûtent ménage, cuisine et autres dépenses.
+function BlocFrais({ lignes, totaux }: { lignes: LigneRapport[]; totaux: { coutMenage: number; coutCuisine: number; coutAutres: number; totalCouts: number; solde: number } }) {
+  return (
+    <Tableau
+      titre="Frais de l'agence et résultat par séjour"
+      sousTitre="Tous canaux confondus"
+      entetes={["Départ", "Client · logement", "Canal", "Frais ménage", "Frais cuisine", "Autres dépenses", "Total frais", "Encaissé moins frais"]}
+    >
+      {lignes.map((l) => (
+        <tr key={l.id} className="break-inside-avoid border-b align-top last:border-0">
+          <CellulesSejour l={l} />
+          <td className="p-2 text-right text-muted-foreground print:p-1">{SOURCE_LIBELLE[normaliseCanal(l.canal)]}</td>
+          <Montant v={-frais(l, "menage")} />
+          <Montant v={-frais(l, "cuisine")} />
+          <Montant v={-frais(l, "caisse")} />
+          <Montant v={-l.ventilation.couts.reduce((s, x) => s + x.montant, 0)} fort />
+          <Montant v={l.ventilation.solde} fort />
+        </tr>
+      ))}
+      <LigneTotal libelle="Total">
+        <td />
+        <Montant v={-totaux.coutMenage} fort />
+        <Montant v={-totaux.coutCuisine} fort />
+        <Montant v={-totaux.coutAutres} fort />
+        <Montant v={-totaux.totalCouts} fort />
+        <Montant v={totaux.solde} fort />
+      </LigneTotal>
+    </Tableau>
+  );
+}
+
+const SOURCE_LIBELLE: Record<CanalKey, string> = { airbnb: "Airbnb", booking: "Booking.com", direct: "Direct", autre: "Autre", bloque: "Blocage" };
 
 export default async function RapportReservationsPage({ searchParams }: { searchParams: Promise<{ mois?: string }> }) {
   const { mois } = await searchParams;
@@ -83,103 +244,22 @@ export default async function RapportReservationsPage({ searchParams }: { search
             ))}
           </ul>
 
-          {/* Ordinateur et impression : tableau */}
-          <div className="hidden overflow-x-auto rounded-xl border md:block print:block print:overflow-visible print:rounded-none print:border-none">
-            <table className="w-full text-[11px] print:text-[9px]">
-              <thead>
-                <tr className="border-b bg-muted/50 text-left print:bg-transparent">
-                  {["Départ", "Client · logement", "Séjour", "Ménage", "Options", "Facturé", "Encaissé", "Reste", "Frais ménage", "Frais cuisine", "Autres", "Net"].map((h, i) => (
-                    <th key={h} className={`p-2 font-medium print:p-1 ${i >= 2 ? "text-right" : ""}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rapport.lignes.map((l) => {
-                  const c = (k: string) => l.ventilation.couts.filter((x) => x.categorie === k).reduce((s, x) => s + x.montant, 0);
-                  return (
-                    <tr key={l.id} className="break-inside-avoid border-b align-top last:border-0">
-                      <td className="whitespace-nowrap p-2 print:p-1">{format(l.depart, "d MMM", { locale: fr })}</td>
-                      <td className="p-2 print:p-1">
-                        <Link href={`/reservations/${l.id}`} className="font-medium hover:underline print:no-underline">{l.client}</Link>
-                        <span className="block text-muted-foreground">{l.logement} · {l.canal} · {l.nuits} n{l.detaille ? "" : " · non détaillé"}</span>
-                        {l.notesPaiement ? <span className="block text-muted-foreground">{l.notesPaiement}</span> : null}
-                      </td>
-                      <Montant v={l.facturation.sejour} />
-                      <Montant v={l.facturation.menage} />
-                      <Montant v={l.facturation.options} />
-                      <Montant v={l.detaille ? l.ventilation.facture : l.facturation.sejour} fort />
-                      <Montant v={l.ventilation.encaisse} />
-                      <Montant v={l.ventilation.reste} alerte={l.ventilation.reste > 0} />
-                      <Montant v={-c("menage")} />
-                      <Montant v={-c("cuisine")} />
-                      <Montant v={-c("caisse")} />
-                      <Montant v={l.ventilation.solde} fort />
-                    </tr>
-                  );
-                })}
-                <tr className="border-t-2 bg-muted/40 font-semibold print:bg-transparent">
-                  <td className="p-2 print:p-1" colSpan={2}>Total</td>
-                  <Montant v={t.sejour} fort /><Montant v={t.menage} fort /><Montant v={t.options} fort />
-                  <Montant v={t.facture} fort /><Montant v={t.encaisse} fort /><Montant v={t.reste} fort />
-                  <Montant v={-t.coutMenage} fort /><Montant v={-t.coutCuisine} fort /><Montant v={-t.coutAutres} fort />
-                  <Montant v={t.solde} fort />
-                </tr>
-              </tbody>
-            </table>
+          {/* Ordinateur et impression (Sanaa, 2026-11-04 : « tous les détails bien séparés ») :
+              un bloc par canal avec ses propres colonnes et son sous-total, puis un bloc des frais. */}
+          <div className="hidden space-y-8 md:block print:block print:space-y-6">
+            {GROUPES.map(({ cle, titre }) => {
+              const lignes = rapport.lignes.filter((l) => normaliseCanal(l.canal) === cle);
+              if (lignes.length === 0) return null;
+              return cle === "airbnb" || cle === "booking" ? (
+                <BlocPlateforme key={cle} titre={titre} lignes={lignes} cle={cle} />
+              ) : (
+                <BlocDirect key={cle} titre={titre} lignes={lignes} />
+              );
+            })}
+            <BlocFrais lignes={rapport.lignes} totaux={t} />
           </div>
         </>
       )}
-
-      {rapport.plateformes.nb > 0 ? (
-        <section className="space-y-3 break-before-page">
-          <div>
-            <h2 className="text-base font-semibold">Revenus Airbnb et Booking.com</h2>
-            <p className="text-sm text-muted-foreground print:text-xs">
-              Prix net des nuitées = frais de chambre − frais de service hôte (Booking.com : moins aussi les frais de ménage).
-              {rapport.plateformes.sansDetail > 0 ? ` ${rapport.plateformes.sansDetail} séjour(s) sans détail reçu de Beds24 pour le moment.` : ""}
-            </p>
-          </div>
-          <div className="overflow-x-auto rounded-xl border print:overflow-visible print:rounded-none print:border-none">
-            <table className="w-full text-[11px] print:text-[9px]">
-              <thead>
-                <tr className="border-b bg-muted/50 text-left print:bg-transparent">
-                  {["Départ", "Client · logement", "Frais de chambre", "Frais de ménage", "Frais de service hôte", "Prix net des nuitées"].map((h, i) => (
-                    <th key={h} className={`p-2 font-medium print:p-1 ${i >= 2 ? "text-right" : ""}`}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {rapport.lignes.filter((l) => l.plateforme).map((l) => (
-                  <tr key={l.id} className="break-inside-avoid border-b align-top last:border-0">
-                    <td className="whitespace-nowrap p-2 print:p-1">{format(l.depart, "d MMM", { locale: fr })}</td>
-                    <td className="p-2 print:p-1">
-                      <Link href={`/reservations/${l.id}`} className="font-medium hover:underline print:no-underline">{l.client}</Link>
-                      <span className="block text-muted-foreground">{l.logement} · {l.canal} · {l.nuits} n</span>
-                    </td>
-                    {l.revenus ? (
-                      <>
-                        <Montant v={l.revenus.fraisChambre} />
-                        <Montant v={l.revenus.fraisMenage} />
-                        <Montant v={l.revenus.fraisServiceHote === null ? 0 : -l.revenus.fraisServiceHote} />
-                        <Montant v={l.revenus.prixNetNuitees ?? 0} fort />
-                      </>
-                    ) : (
-                      <td className="p-2 text-right text-muted-foreground print:p-1" colSpan={4}>détail Beds24 pas encore reçu</td>
-                    )}
-                  </tr>
-                ))}
-                <tr className="border-t-2 bg-muted/40 font-semibold print:bg-transparent">
-                  <td className="p-2 print:p-1" colSpan={2}>Total</td>
-                  <Montant v={rapport.plateformes.fraisChambre} fort />
-                  <Montant v={rapport.plateformes.fraisMenage} fort />
-                  <Montant v={-rapport.plateformes.fraisService} fort />
-                  <Montant v={rapport.plateformes.net} fort />
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
 
       <p className="text-xs text-muted-foreground">
         Montants en euros (dirhams convertis à {rapport.madParEur.toFixed(2)} MAD pour 1 €). Les frais de ménage et de cuisine viennent de la caisse quand une dépense est rattachée au séjour, sinon du barème de l&apos;agence (200 MAD par ménage, 100 ou 200 MAD par jour de cuisine). Commission des plateformes non déduite.
