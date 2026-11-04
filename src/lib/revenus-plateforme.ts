@@ -66,23 +66,28 @@ export function calculerRevenusPlateforme(
     origineMenage = "reservation";
   }
 
-  const chambreLignes = lignes.filter((i) => MOT_CHAMBRE.test(i.description ?? "") && !MOT_MENAGE.test(i.description ?? "") && !MOT_FRAIS_SERVICE.test(i.description ?? "") && totalLigne(i) > 0);
-  let fraisChambre: number;
-  let origineChambre: RevenusPlateforme["origineChambre"];
-  if (chambreLignes.length > 0) {
-    fraisChambre = chambreLignes.reduce((s, i) => s + totalLigne(i), 0) * echelle;
-    origineChambre = "lignes";
-  } else {
-    fraisChambre = total - fraisMenage;
-    origineChambre = "calcule";
-  }
-
   // Commission : le champ dédié de Beds24 en priorité, sinon une ligne négative "frais de service".
   let commission: number | null = null;
   if (typeof prix.commission === "number" && Math.abs(prix.commission) > 0) commission = Math.abs(prix.commission) * echelle;
   else {
     const lignesFrais = lignes.filter((i) => MOT_FRAIS_SERVICE.test(i.description ?? ""));
     if (lignesFrais.length > 0) commission = Math.abs(lignesFrais.reduce((s, i) => s + totalLigne(i), 0)) * echelle;
+  }
+
+  const chambreLignes = lignes.filter((i) => MOT_CHAMBRE.test(i.description ?? "") && !MOT_MENAGE.test(i.description ?? "") && !MOT_FRAIS_SERVICE.test(i.description ?? "") && totalLigne(i) > 0);
+  let fraisChambre: number;
+  let origineChambre: RevenusPlateforme["origineChambre"];
+  // Airbnb : Beds24 renvoie parfois une seule ligne égale au prix voyageur moins la commission
+  // (278 − 51,71 = 226,29), c'est-à-dire ce que touche l'hôte, pas le prix de la chambre (258).
+  // Cette ligne n'est alors pas un tarif de nuitées : on retombe sur total − ménage.
+  const totalLignes = lignes.reduce((s, i) => s + totalLigne(i), 0) * echelle;
+  const lignesNetCommission = commission !== null && Math.abs(totalLignes - (total - commission)) < 0.05;
+  if (chambreLignes.length > 0 && !lignesNetCommission) {
+    fraisChambre = chambreLignes.reduce((s, i) => s + totalLigne(i), 0) * echelle;
+    origineChambre = "lignes";
+  } else {
+    fraisChambre = total - fraisMenage;
+    origineChambre = "calcule";
   }
 
   const net = commission === null ? null : fraisChambre - commission - fraisMenage;

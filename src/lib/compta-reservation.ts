@@ -206,6 +206,9 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
       rawData: reservations.rawData,
       domaineNom: domaines.nom,
       nbChambres: villas.nbChambres,
+      villaId: reservations.villaId,
+      villaType: villas.type,
+      repasInclus: villas.repasInclusDansLoyer,
     })
     .from(reservations)
     .leftJoin(villas, eq(reservations.villaId, villas.id))
@@ -250,7 +253,15 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
 
   const plateforme = estCanalPlateforme(r.canal);
   const revenus = plateforme
-    ? calculerRevenusPlateforme(prixBeds24DeRawData(r.rawData), loyerTotal, r.fraisMenage != null ? Number(r.fraisMenage) : null)
+    ? calculerRevenusPlateforme(
+        prixBeds24DeRawData(r.rawData),
+        loyerTotal,
+        // Ménage non saisi sur la réservation : celui de la fiche du logement (Airbnb le facture
+        // toujours au voyageur, Sanaa, 2026-11-04 : « il y a des frais de ménage sur Airbnb »).
+        r.fraisMenage != null && Number(r.fraisMenage) > 0
+          ? Number(r.fraisMenage)
+          : convertir(tarifsOptionsLogement({ villaId: r.villaId, type: r.villaType ?? null, repasInclus: Boolean(r.repasInclus) }).menage ?? 0, "EUR", devise, madParEur)
+      )
     : null;
 
   return {
