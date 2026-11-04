@@ -78,3 +78,19 @@ test("canaux concernés", () => {
   assert.equal(estCanalPlateforme("Direct"), false);
   assert.equal(estCanalPlateforme(null), false);
 });
+
+// Réservation Airbnb de la comptable (2026-11-04) : Airbnb affiche 258,00 de chambre pour 5 nuits,
+// 20,00 de ménage, -51,71 de frais de service (l'hôte gagne 226,29). Beds24 ne renvoie qu'une ligne
+// de 226,29 : c'est le net après commission, pas le prix de la chambre.
+test("ligne Beds24 = prix voyageur - commission : chambre = total - ménage", () => {
+  const r = calculerRevenusPlateforme(
+    { price: 278, commission: 51.71, invoiceItems: [{ type: "charge", description: "[ROOMNAME1] [FIRSTNIGHT] - [LEAVINGDAY]", qty: 1, amount: 226.29, lineTotal: 226.29 }] },
+    278,
+    20
+  );
+  assert.ok(r);
+  assert.equal(r.fraisChambre, 258);
+  assert.equal(r.fraisMenage, 20);
+  assert.equal(r.fraisServiceHote, 51.71);
+  assert.equal(r.origineChambre, "calcule");
+});
