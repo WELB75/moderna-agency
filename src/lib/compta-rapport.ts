@@ -15,6 +15,7 @@ import {
 } from "@/lib/compta-reservation-format";
 import { getMadParEur } from "@/lib/devises";
 import { villaEstGeree } from "@/lib/domaines-actifs";
+import { detailComptable, totalDetail, sommeDetails, type DetailComptable } from "@/lib/compta-detail";
 import { calculerRevenusPlateforme, estCanalPlateforme, prixBeds24DeRawData, type RevenusPlateforme } from "@/lib/revenus-plateforme";
 
 // Rapport comptable par réservation, pour la période de la comptable (11 du mois → 10 du suivant,
@@ -39,6 +40,8 @@ export type LigneRapport = {
   notesPaiement: string | null;
   revenus: RevenusPlateforme | null; // Airbnb / Booking.com
   plateforme: boolean;
+  // Les cinq montants demandés par la comptable, voir lib/compta-detail.ts.
+  detail: DetailComptable;
 };
 
 export type RapportCompta = {
@@ -182,6 +185,7 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
     return {
       revenus,
       plateforme,
+      detail: detailComptable({ lignes: lignesEur, loyerTotal: totalDu, revenus }),
       id: r.id,
       depart: r.checkOut,
       arrivee: r.checkIn,
@@ -265,4 +269,28 @@ export function rapportEnCsv(r: RapportCompta): string {
     num(r.plateformes.fraisChambre), num(r.plateformes.fraisMenage), num(r.plateformes.fraisService), num(r.plateformes.net),
   ]);
   return "﻿" + [entetes, ...rows].map((ligne) => ligne.map(csvCellule).join(";")).join("\r\n");
+}
+
+// Export Excel de la page « Comptabilité » : les cinq montants de la comptable par séjour.
+export function detailEnCsv(r: RapportCompta): string {
+  const num = (n: number) => n.toFixed(2).replace(".", ",");
+  const entetes = [
+    "Départ", "Arrivée", "Nuits", "Client", "Logement", "Canal",
+    "Prix location sans extra (EUR)", "Prix frais de ménage check-out (EUR)", "Prix extra cuisinière (EUR)", "Prix extra ménage (EUR)", "Prix extra pompe à chaleur (EUR)", "Autres extras (EUR)",
+    "Total (EUR)", "Encaissé (EUR)", "Reste (EUR)", "Détail",
+  ];
+  const jour = (d: Date) => d.toISOString().slice(0, 10);
+  const rows = r.lignes.map((l) => [
+    jour(l.depart), jour(l.arrivee), l.nuits, l.client, l.logement, l.canal,
+    num(l.detail.location), num(l.detail.menageCheckout), num(l.detail.cuisine), num(l.detail.menageExtra), num(l.detail.pompeAChaleur), num(l.detail.autresExtras),
+    num(totalDetail(l.detail)), num(l.ventilation.encaisse), num(l.ventilation.reste),
+    l.detail.source === "non_detaille" ? "non détaillé (loyer total)" : l.detail.source === "plateforme" ? "détail plateforme" : "détail saisi",
+  ]);
+  const t = sommeDetails(r.lignes.map((l) => l.detail));
+  rows.push([
+    "TOTAL", "", "", "", "", "",
+    num(t.location), num(t.menageCheckout), num(t.cuisine), num(t.menageExtra), num(t.pompeAChaleur), num(t.autresExtras),
+    num(totalDetail(t)), num(r.totaux.encaisse), num(r.totaux.reste), "",
+  ]);
+  return "\ufeff" + [entetes, ...rows].map((ligne) => ligne.map(csvCellule).join(";")).join("\r\n");
 }
