@@ -174,7 +174,8 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
           // Ménage non saisi : celui de la fiche du logement (en euros), voir compta-reservation.ts.
           r.fraisMenage != null && Number(r.fraisMenage) > 0
             ? aEUR(Number(r.fraisMenage))
-            : (tarifsOptionsLogement({ villaId: r.villaId, type: r.villaType ?? null, repasInclus: Boolean(r.repasInclus) }).menage ?? null)
+            : (tarifsOptionsLogement({ villaId: r.villaId, type: r.villaType ?? null, repasInclus: Boolean(r.repasInclus) }).menage ?? null),
+          r.canal
         )
       : null;
 

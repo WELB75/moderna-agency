@@ -22,6 +22,7 @@ test("exemple Airbnb : lignes de facture et commission", () => {
   assert.equal(r.fraisMenage, 20);
   assert.equal(r.fraisServiceHote, 22.69);
   assert.equal(r.prixNetNuitees, 59.31);
+  assert.equal(r.netSansMenage, false);
   assert.equal(r.origineMenage, "plateforme");
   assert.equal(r.origineChambre, "lignes");
 });
@@ -104,4 +105,14 @@ test("ligne nette de commission + ménage de la fiche : chiffres d'Airbnb", () =
   assert.equal(r.fraisChambre, 102);
   assert.equal(r.fraisMenage, 20);
   assert.equal(r.prixNetNuitees, 59.31);
+});
+
+// Sanaa, 2026-11-04 : pour Airbnb seulement, net des nuitées = chambre − frais de service.
+test("Airbnb : le ménage n'est pas retiré du prix net", () => {
+  const prix = { price: 122, commission: 22.69, invoiceItems: [{ description: "Frais de chambre", amount: 102 }, { description: "Frais de ménage", amount: 20 }] };
+  const airbnb = calculerRevenusPlateforme(prix, 122, null, "Airbnb");
+  assert.ok(airbnb);
+  assert.equal(airbnb.prixNetNuitees, 79.31);
+  assert.equal(airbnb.netSansMenage, true);
+  assert.equal(calculerRevenusPlateforme(prix, 122, null, "Booking.com")?.prixNetNuitees, 59.31);
 });

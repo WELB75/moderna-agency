@@ -4,8 +4,10 @@
 // 1. frais de chambre : les nuitées seules, ménage exclu ("tarif par nuit" sur Booking) ;
 // 2. frais de ménage facturés au voyageur ;
 // 3. frais de service hôte : la commission de la plateforme ("commission et frais" sur Booking) ;
-// 4. prix net des nuitées = frais de chambre − frais de service hôte − frais de ménage (sa formule).
-// Exemple Airbnb : 102,00 de chambre, 20,00 de ménage, 22,69 de frais de service => 59,31 net.
+// 4. prix net des nuitées : Booking.com = frais de chambre − frais de service hôte − frais de ménage
+// (sa formule) ; Airbnb = frais de chambre − frais de service hôte, sans retirer le ménage (Sanaa,
+// 2026-11-04 : « pour Airbnb seulement »).
+// Exemple Airbnb : 102,00 de chambre, 20,00 de ménage, 22,69 de frais de service => 79,31 net.
 //
 // Les données viennent des lignes de facture et de la commission renvoyées par Beds24, gardées dans
 // raw_data.beds24Prix à chaque synchro. Fichier sans import : testé avec node --test.
@@ -22,6 +24,7 @@ export type RevenusPlateforme = {
   fraisMenage: number;
   fraisServiceHote: number | null; // null : la plateforme n'a pas transmis de commission
   prixNetNuitees: number | null;
+  netSansMenage: boolean; // vrai pour Airbnb : le ménage n'est pas retiré du prix net
   totalVoyageur: number; // ce que le voyageur a payé (loyer total)
   origineMenage: "plateforme" | "reservation" | "aucun";
   origineChambre: "lignes" | "calcule";
@@ -45,7 +48,8 @@ function totalLigne(i: { qty?: number | null; amount?: number | null; lineTotal?
 export function calculerRevenusPlateforme(
   prix: PrixBeds24 | null | undefined,
   loyerTotal: number | null,
-  fraisMenageReservation: number | null
+  fraisMenageReservation: number | null,
+  canal: string | null = null
 ): RevenusPlateforme | null {
   if (!prix) return null;
   const prixBeds24 = Number(prix.price) || 0;
@@ -90,12 +94,14 @@ export function calculerRevenusPlateforme(
     origineChambre = "calcule";
   }
 
-  const net = commission === null ? null : fraisChambre - commission - fraisMenage;
+  const netSansMenage = /airbnb/i.test(canal ?? "");
+  const net = commission === null ? null : fraisChambre - commission - (netSansMenage ? 0 : fraisMenage);
   return {
     fraisChambre: arrondir(fraisChambre),
     fraisMenage: arrondir(fraisMenage),
     fraisServiceHote: commission === null ? null : arrondir(commission),
     prixNetNuitees: net === null ? null : arrondir(net),
+    netSansMenage,
     totalVoyageur: arrondir(total),
     origineMenage,
     origineChambre,
