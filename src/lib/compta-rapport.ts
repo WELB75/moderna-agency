@@ -15,6 +15,7 @@ import {
 } from "@/lib/compta-reservation-format";
 import { getMadParEur } from "@/lib/devises";
 import { villaEstGeree } from "@/lib/domaines-actifs";
+import { convertirDetailNote, lireDetailNote } from "@/lib/compta-note";
 import { detailComptable, totalDetail, sommeDetails, type DetailComptable } from "@/lib/compta-detail";
 import { calculerRevenusPlateforme, estCanalPlateforme, prixBeds24DeRawData, type RevenusPlateforme } from "@/lib/revenus-plateforme";
 
@@ -84,6 +85,7 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
         montantPaye: reservations.montantPaye,
         devise: reservations.devisePaiement,
         notesPaiement: reservations.notesPaiement,
+        notes: reservations.notes,
         fraisMenage: reservations.fraisMenage,
         rawData: reservations.rawData,
         villaNom: villas.nom,
@@ -185,7 +187,19 @@ export async function chargerRapportCompta(ancre: Date): Promise<RapportCompta> 
     return {
       revenus,
       plateforme,
-      detail: detailComptable({ lignes: lignesEur, loyerTotal: totalDu, revenus }),
+      detail: detailComptable({
+        lignes: lignesEur,
+        loyerTotal: totalDu,
+        revenus,
+        // Rien de détaillé : on essaie de lire le détail dans la note de la réservation.
+        note: (() => {
+          if (detaille || revenus) return null;
+          const lu = lireDetailNote([r.notes, r.notesPaiement].filter(Boolean).join(" . "), nuits);
+          if (!lu) return null;
+          const c = convertirDetailNote(lu, loyer, (m, d) => convertir(m, d, "EUR", madParEur));
+          return { location: c.location, menage: c.menage, cuisine: c.cuisine, menageExtra: c.menageExtra, pompeAChaleur: c.pompeAChaleur };
+        })(),
+      }),
       id: r.id,
       depart: r.checkOut,
       arrivee: r.checkIn,
@@ -284,7 +298,7 @@ export function detailEnCsv(r: RapportCompta): string {
     jour(l.depart), jour(l.arrivee), l.nuits, l.client, l.logement, l.canal,
     num(l.detail.location), num(l.detail.menageCheckout), num(l.detail.cuisine), num(l.detail.menageExtra), num(l.detail.pompeAChaleur), num(l.detail.autresExtras),
     num(totalDetail(l.detail)), num(l.ventilation.encaisse), num(l.ventilation.reste),
-    l.detail.source === "non_detaille" ? "non détaillé (loyer total)" : l.detail.source === "plateforme" ? "détail plateforme" : "détail saisi",
+    l.detail.source === "non_detaille" ? "non détaillé (loyer total)" : l.detail.source === "plateforme" ? "détail plateforme" : l.detail.source === "note" ? "déduit de la note (à vérifier)" : "détail saisi",
   ]);
   const t = sommeDetails(r.lignes.map((l) => l.detail));
   rows.push([

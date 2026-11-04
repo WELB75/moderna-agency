@@ -17,6 +17,7 @@ import {
   type LigneFacture,
   type Ventilation,
 } from "@/lib/compta-reservation-format";
+import { convertirDetailNote, lireDetailNote } from "@/lib/compta-note";
 import { calculerRevenusPlateforme, estCanalPlateforme, prixBeds24DeRawData, type RevenusPlateforme } from "@/lib/revenus-plateforme";
 
 // Lignes facturées au client pour une réservation (le "devis détaillé" de la comptable). Table
@@ -177,6 +178,8 @@ export type ComptaReservation = {
   moyenPaiement: string | null;
   notesPaiement: string | null;
   lignes: LigneFacture[];
+  // Détail lu dans la note libre de la réservation (lib/compta-note.ts), proposé au pré-remplissage.
+  lignesDeNote: LigneFacture[];
   ventilation: Ventilation;
   canal: string | null;
   // Airbnb / Booking.com seulement : nuitées, ménage, frais de service hôte, net (null si autre canal)
@@ -199,6 +202,7 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
       fraisMenage: reservations.fraisMenage,
+      notes: reservations.notes,
       devise: reservations.devisePaiement,
       moyenPaiement: reservations.moyenPaiement,
       notesPaiement: reservations.notesPaiement,
@@ -265,8 +269,22 @@ export async function chargerComptaReservation(reservationId: string, madParEurF
       )
     : null;
 
+  // Détail lu dans la note libre de la réservation, proposé à l'enregistrement du détail financier.
+  const lu = lireDetailNote([r.notes, r.notesPaiement].filter(Boolean).join(" . "), nuits);
+  const nc = lu ? convertirDetailNote(lu, loyerTotal, (m, d) => convertir(m, d, devise, madParEur)) : null;
+  const lignesDeNote: LigneFacture[] = nc
+    ? ([
+        { categorie: "sejour", libelle: nuits > 0 ? `Séjour (${nuits} nuit${nuits > 1 ? "s" : ""})` : "Séjour", quantite: 1, prixUnitaire: nc.location },
+        { categorie: "menage", libelle: "Frais de ménage de fin de séjour", quantite: 1, prixUnitaire: nc.menage },
+        { categorie: "cuisine", libelle: "Service cuisinière", quantite: 1, prixUnitaire: nc.cuisine },
+        { categorie: "menage_journalier", libelle: "Ménage pendant le séjour", quantite: 1, prixUnitaire: nc.menageExtra },
+        { categorie: "piscine", libelle: "Piscine chauffée (pompe à chaleur)", quantite: 1, prixUnitaire: nc.pompeAChaleur },
+      ] as LigneFacture[]).filter((l) => l.prixUnitaire > 0)
+    : [];
+
   return {
     canal: r.canal,
+    lignesDeNote,
     revenus,
     revenusEnAttente: plateforme && !revenus,
     reservationId,

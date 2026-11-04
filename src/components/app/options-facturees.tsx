@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { basculerOptionFacturee, changerDeviseReservation, changerQuantiteOption } from "@/lib/actions/compta-reservation";
+import { type EtatOptions, basculerOptionFacturee, changerDeviseReservation, changerQuantiteOption } from "@/lib/actions/compta-reservation";
 import { DEVISES_RESERVATION, codeDevise } from "@/lib/devises";
 import { OPTIONS_RAPIDES, formaterMontant, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
 
@@ -13,12 +13,12 @@ import { OPTIONS_RAPIDES, formaterMontant, montantLigne, optionIncluse, prixOpti
 // complet (prix libres, autres postes, règlement) reste sur la fiche de la réservation.
 export function OptionsFacturees({
   reservationId,
-  lignes,
-  devise,
-  montantPaye,
-  loyerTotal,
-  fraisMenage,
-  tarifs,
+  lignes: lignesInitiales,
+  devise: deviseInitiale,
+  montantPaye: payeInitial,
+  loyerTotal: loyerInitial,
+  fraisMenage: fraisInitial,
+  tarifs: tarifsInitiaux,
 }: {
   reservationId: string;
   lignes: LigneFacture[];
@@ -28,14 +28,17 @@ export function OptionsFacturees({
   fraisMenage: number | null;
   tarifs: TarifsOptions;
 }) {
+  // État local mis à jour avec la réponse de chaque action : la carte reste dépliée, rien ne recharge.
+  const [etat, setEtat] = useState<EtatOptions>({ lignes: lignesInitiales, devise: deviseInitiale, tarifs: tarifsInitiaux, loyerTotal: loyerInitial, montantPaye: payeInitial, fraisMenage: fraisInitial });
+  const { lignes, devise, tarifs, loyerTotal, montantPaye, fraisMenage } = etat;
   const [enCours, startTransition] = useTransition();
   const [actif, setActif] = useState<string | null>(null);
 
-  function agir(cle: string, action: () => Promise<void>) {
+  function agir(cle: string, action: () => Promise<EtatOptions>) {
     setActif(cle);
     startTransition(async () => {
       try {
-        await action();
+        setEtat(await action());
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       } finally {

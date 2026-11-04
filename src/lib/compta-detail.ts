@@ -19,7 +19,8 @@ export type DetailComptable = {
   pompeAChaleur: number;
   autresExtras: number;
   // « non_detaille » : seul le loyer total est connu, compté en location.
-  source: "lignes" | "plateforme" | "non_detaille";
+  // « note » : déduit de la note libre de la réservation (lib/compta-note.ts), à vérifier.
+  source: "lignes" | "plateforme" | "note" | "non_detaille";
 };
 
 const arrondir = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
@@ -28,6 +29,8 @@ export function detailComptable(entree: {
   lignes: LigneFacture[]; // en euros
   loyerTotal: number; // loyer ou total facturé, en euros
   revenus: { fraisChambre: number; fraisMenage: number } | null; // Airbnb / Booking.com
+  // Détail lu dans la note de la réservation, en euros, quand rien d'autre n'est renseigné.
+  note?: { location: number; menage: number; cuisine: number; menageExtra: number; pompeAChaleur: number } | null;
 }): DetailComptable {
   const { lignes, revenus } = entree;
   if (lignes.length > 0) {
@@ -44,6 +47,10 @@ export function detailComptable(entree: {
   }
   if (revenus) {
     return { location: revenus.fraisChambre, menageCheckout: revenus.fraisMenage, cuisine: 0, menageExtra: 0, pompeAChaleur: 0, autresExtras: 0, source: "plateforme" };
+  }
+  if (entree.note) {
+    const n = entree.note;
+    return { location: n.location, menageCheckout: n.menage, cuisine: n.cuisine, menageExtra: n.menageExtra, pompeAChaleur: n.pompeAChaleur, autresExtras: 0, source: "note" };
   }
   return { location: arrondir(entree.loyerTotal), menageCheckout: 0, cuisine: 0, menageExtra: 0, pompeAChaleur: 0, autresExtras: 0, source: "non_detaille" };
 }
