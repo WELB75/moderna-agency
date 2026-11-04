@@ -74,8 +74,8 @@ export async function enregistrerLignesReservation(reservationId: string, lignes
   });
 
   revalidatePath(`/reservations/${reservationId}`);
+  revalidatePath("/dashboard");
   revalidatePath("/caisse/rapport/reservations");
-  return etatOptions(reservationId);
 }
 
 // Note de règlement (virement, acompte, reste en espèces à l'arrivée...) : champ qui existait mais
