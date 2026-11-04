@@ -39,9 +39,10 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
   const avecAutres = total.autresExtras > 0;
 
   const nonDetailles = lignes.filter((l) => l.detail.source === "non_detaille" && l.detail.location > 0);
+  const deduitsDesNotes = lignes.filter((l) => l.detail.source === "note");
   const sansDetailPlateforme = lignes.filter((l) => l.plateforme && !l.revenus && l.detail.source !== "lignes");
   const resteAEncaisser = lignes.filter((l) => l.ventilation.reste > 0.01);
-  const aCompleter = nonDetailles.length + sansDetailPlateforme.length + resteAEncaisser.length;
+  const aCompleter = nonDetailles.length + sansDetailPlateforme.length + resteAEncaisser.length + deduitsDesNotes.length;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 print:max-w-none print:space-y-4 print:p-0">
@@ -102,6 +103,7 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
           </div>
           <Liste titre="Séjours sans détail (seul le loyer total est connu, compté en location) :" lignes={nonDetailles} />
           <Liste titre="Airbnb / Booking.com : détail de Beds24 pas encore reçu :" lignes={sansDetailPlateforme} />
+          <Liste titre="Détail lu dans la note de la réservation, à vérifier (ouvre la réservation et enregistre-le pour le confirmer) :" lignes={deduitsDesNotes} />
           <Liste titre="Reste à encaisser :" lignes={resteAEncaisser} avecReste />
           <p className="text-xs text-muted-foreground">Ouvre la réservation pour renseigner le détail financier : il apparaît ici dès l&apos;enregistrement.</p>
         </section>
@@ -146,6 +148,7 @@ export default async function ComptabilitePage({ searchParams }: { searchParams:
                         <Link href={`/reservations/${l.id}`} className="font-medium hover:underline print:no-underline">{l.client}</Link>
                         <span className="block text-muted-foreground">{l.logement} · {l.nuits} n</span>
                         {l.detail.source === "non_detaille" ? <span className="block text-amber-700 dark:text-amber-400 print:text-black">non détaillé : loyer total</span> : null}
+                        {l.detail.source === "note" ? <span className="block text-muted-foreground">détail lu dans la note</span> : null}
                       </td>
                       <td className="whitespace-nowrap p-2 text-muted-foreground print:p-1">{LIBELLE_CANAL[normaliseCanal(l.canal)]}</td>
                       {COLONNES.map((c) => (
@@ -237,6 +240,7 @@ function CarteSejour({ l }: { l: LigneRapport }) {
         {ligne("Total", totalDetail(l.detail), true)}
         {ligne("Encaissé", l.ventilation.encaisse)}
       </dl>
+      {l.detail.source === "note" ? <p className="mt-2 text-xs text-muted-foreground">Détail lu dans la note de la réservation.</p> : null}
       {l.detail.source === "non_detaille" ? <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">Non détaillé : loyer total compté en location.</p> : null}
     </li>
   );

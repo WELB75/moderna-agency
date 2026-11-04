@@ -15,6 +15,8 @@ import {
   lireNombre,
   totalFacture,
   type CategorieLigne,
+  type LigneFacture,
+  type TarifsOptions,
 } from "@/lib/compta-reservation-format";
 import { tracer } from "@/lib/journal";
 import { DEVISES_RESERVATION } from "@/lib/devises";
@@ -72,8 +74,8 @@ export async function enregistrerLignesReservation(reservationId: string, lignes
   });
 
   revalidatePath(`/reservations/${reservationId}`);
-  revalidatePath("/dashboard");
   revalidatePath("/caisse/rapport/reservations");
+  return etatOptions(reservationId);
 }
 
 // Note de règlement (virement, acompte, reste en espèces à l'arrivée...) : champ qui existait mais
@@ -103,12 +105,21 @@ async function remplacerLignes(reservationId: string, lignes: { categorie: Categ
     `);
   }
   revalidatePath(`/reservations/${reservationId}`);
-  revalidatePath("/dashboard");
   revalidatePath("/caisse/rapport/reservations");
 }
 
+// État renvoyé au tableau de bord après chaque clic : la carte se met à jour sur place, sans
+// recharger la page (qui refermerait la carte dépliée).
+export type EtatOptions = { lignes: LigneFacture[]; devise: string; tarifs: TarifsOptions; loyerTotal: number | null; montantPaye: number | null; fraisMenage: number | null };
+
+async function etatOptions(reservationId: string): Promise<EtatOptions> {
+  const [lignes, contexte] = await Promise.all([lignesDeLaReservation(reservationId), chargerContexteOptions(reservationId)]);
+  if (!contexte) throw new Error("Réservation introuvable.");
+  return { lignes, devise: contexte.devise, tarifs: contexte.tarifs, loyerTotal: contexte.loyerTotal, montantPaye: contexte.montantPaye, fraisMenage: contexte.fraisMenage };
+}
+
 // Coche ou décoche une option facturée (cuisinière, piscine chauffée, ménage...) d'un seul clic.
-export async function basculerOptionFacturee(reservationId: string, categorie: string) {
+export async function basculerOptionFacturee(reservationId: string, categorie: string): Promise<EtatOptions> {
   await auth.protect();
   if (!OPTIONS_RAPIDES.some((o) => o.categorie === categorie)) throw new Error("Option inconnue.");
   const [contexte, actuelles] = await Promise.all([chargerContexteOptions(reservationId), lignesDeLaReservation(reservationId)]);
@@ -124,20 +135,22 @@ export async function basculerOptionFacturee(reservationId: string, categorie: s
     resume: `total facturé ${totalFacture(apres).toFixed(2)}`,
     reservationId,
   });
+  return etatOptions(reservationId);
 }
 
 // Ajuste le nombre de jours (ou de fois) d'une option déjà cochée.
-export async function changerQuantiteOption(reservationId: string, categorie: string, delta: number) {
+export async function changerQuantiteOption(reservationId: string, categorie: string, delta: number): Promise<EtatOptions> {
   await auth.protect();
   if (!Number.isFinite(delta) || Math.abs(delta) > 30) throw new Error("Valeur invalide.");
   const actuelles = await lignesDeLaReservation(reservationId);
   await remplacerLignes(reservationId, changerQuantite(actuelles, categorie as CategorieLigne, delta));
+  return etatOptions(reservationId);
 }
 
 // Change la devise de la réservation (euros, dirhams, dollars, livres). Les montants déjà saisis ne
 // sont pas convertis : seule la devise change, comme dans le formulaire Paiement ; les tarifs des
 // options cochées ensuite sont, eux, proposés dans la nouvelle devise.
-export async function changerDeviseReservation(reservationId: string, devise: string) {
+export async function changerDeviseReservation(reservationId: string, devise: string): Promise<EtatOptions> {
   await auth.protect();
   const code = DEVISES_RESERVATION.find((d) => d.code === devise)?.code;
   if (!code) throw new Error("Devise inconnue.");
@@ -150,6 +163,6 @@ export async function changerDeviseReservation(reservationId: string, devise: st
     reservationId,
   });
   revalidatePath(`/reservations/${reservationId}`);
-  revalidatePath("/dashboard");
   revalidatePath("/caisse/rapport/reservations");
+  return etatOptions(reservationId);
 }

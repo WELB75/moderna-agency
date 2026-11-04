@@ -33,6 +33,7 @@ type Props = {
   notesPaiement: string | null;
   moyenPaiement: string | null;
   lignes: LigneFacture[];
+  lignesDeNote?: LigneFacture[];
   ventilation: Ventilation;
   canal: string | null;
   revenus: RevenusPlateforme | null;
@@ -232,6 +233,7 @@ function EditeurDetail({
   fraisMenage,
   notesPaiement,
   lignes,
+  lignesDeNote,
 }: Props & { ouvert: boolean; onOpenChange: (o: boolean) => void }) {
   const [rows, setRows] = useState<LigneEdition[]>(() => lignes.map(enEdition));
   const [note, setNote] = useState(notesPaiement ?? "");
@@ -255,7 +257,8 @@ function EditeurDetail({
   }
 
   function preremplir() {
-    const proposees = suggererLignes({ loyerTotal, fraisMenage, nuits });
+    // La note de la réservation d'abord (« 500dh/nuit, ménage 200dh... »), sinon le loyer.
+    const proposees = lignesDeNote && lignesDeNote.length > 0 ? lignesDeNote : suggererLignes({ loyerTotal, fraisMenage, nuits });
     if (proposees.length === 0) {
       toast.error("Le loyer n'est pas renseigné : rien à proposer.");
       return;
@@ -300,7 +303,7 @@ function EditeurDetail({
           {rows.length === 0 && loyerTotal ? (
             <Button type="button" variant="secondary" size="sm" onClick={preremplir}>
               <Wand2 className="h-3.5 w-3.5" />
-              Proposer d&apos;après le loyer
+              {lignesDeNote && lignesDeNote.length > 0 ? "Proposer d'après la note" : "Proposer d'après le loyer"}
             </Button>
           ) : null}
         </div>

@@ -281,6 +281,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
           notesPaiement={compta.notesPaiement}
           moyenPaiement={compta.moyenPaiement}
           lignes={compta.lignes}
+          lignesDeNote={compta.lignesDeNote}
           ventilation={compta.ventilation}
           canal={compta.canal}
           revenus={compta.revenus}
