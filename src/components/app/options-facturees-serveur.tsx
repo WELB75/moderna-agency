@@ -2,7 +2,7 @@ import { chargerContexteOptions, lignesDeLaReservation } from "@/lib/compta-rese
 import type { ContexteOptions, LigneFacture } from "@/lib/compta-reservation-format";
 import { OptionsFacturees } from "@/components/app/options-facturees";
 
-async function lireDonnees(reservationId: string): Promise<{ lignes: LigneFacture[]; contexte: ContexteOptions & { montantPaye: number | null } } | null> {
+async function lireDonnees(reservationId: string): Promise<{ lignes: LigneFacture[]; contexte: ContexteOptions & { montantPaye: number | null; devise: string } } | null> {
   try {
     const [lignes, contexte] = await Promise.all([lignesDeLaReservation(reservationId), chargerContexteOptions(reservationId)]);
     return contexte ? { lignes, contexte } : null;
@@ -22,7 +22,7 @@ export async function OptionsFactureesServeur({ reservationId, devise }: { reser
     <OptionsFacturees
       reservationId={reservationId}
       lignes={lignes}
-      devise={devise || "EUR"}
+      devise={contexte.devise || devise || "EUR"}
       loyerTotal={contexte.loyerTotal}
       montantPaye={contexte.montantPaye}
       fraisMenage={contexte.fraisMenage}

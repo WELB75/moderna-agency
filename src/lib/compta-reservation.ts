@@ -2,7 +2,7 @@ import { differenceInCalendarDays } from "date-fns";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { cashEntries, domaines, personnel, personnelAffectations, reservations, villas } from "@/db/schema";
-import { getMadParEur } from "@/lib/devises";
+import { codeDevise, getMadParEur, tarifEnDevise } from "@/lib/devises";
 import { VILLAS } from "@/lib/whatsapp-agent/villas";
 import { tarifMenageJournalier, TARIF_CUISINE_PETIT_DEJEUNER, TARIF_CUISINE_PETIT_DEJEUNER_DEJEUNER } from "@/lib/personnel-tarifs";
 import {
@@ -293,7 +293,15 @@ export function tarifsOptionsLogement(l: { villaId: string | null; type: "villa"
   };
 }
 
-export async function chargerContexteOptions(reservationId: string): Promise<(ContexteOptions & { montantPaye: number | null }) | null> {
+// Tarifs définis en euros, convertis dans la devise de la réservation (MAD, USD, GBP).
+async function tarifsEnDevise(t: TarifsOptions, devise: string): Promise<TarifsOptions> {
+  if (codeDevise(devise) === "EUR") return t;
+  const c = (m: number | null) => (m === null ? Promise.resolve(null) : tarifEnDevise(m, devise));
+  const [menage, cuisine, piscine, menageJournalier] = await Promise.all([c(t.menage), c(t.cuisine), c(t.piscine), c(t.menageJournalier)]);
+  return { ...t, menage: menage ?? t.menage, cuisine, piscine, menageJournalier };
+}
+
+export async function chargerContexteOptions(reservationId: string): Promise<(ContexteOptions & { montantPaye: number | null; devise: string }) | null> {
   const [r] = await getDb()
     .select({
       checkIn: reservations.checkIn,
@@ -301,6 +309,7 @@ export async function chargerContexteOptions(reservationId: string): Promise<(Co
       loyerTotal: reservations.loyerTotal,
       montantPaye: reservations.montantPaye,
       fraisMenage: reservations.fraisMenage,
+      devise: reservations.devisePaiement,
       villaId: reservations.villaId,
       type: villas.type,
       repasInclus: villas.repasInclusDansLoyer,
@@ -310,11 +319,13 @@ export async function chargerContexteOptions(reservationId: string): Promise<(Co
     .where(eq(reservations.id, reservationId))
     .limit(1);
   if (!r) return null;
+  const devise = r.devise || "EUR";
   return {
+    devise,
     nuits: Math.max(1, differenceInCalendarDays(r.checkOut, r.checkIn)),
     loyerTotal: r.loyerTotal != null ? Number(r.loyerTotal) : null,
     montantPaye: r.montantPaye != null ? Number(r.montantPaye) : null,
     fraisMenage: r.fraisMenage != null ? Number(r.fraisMenage) : null,
-    tarifs: tarifsOptionsLogement({ villaId: r.villaId, type: r.type ?? null, repasInclus: Boolean(r.repasInclus) }),
+    tarifs: await tarifsEnDevise(tarifsOptionsLogement({ villaId: r.villaId, type: r.type ?? null, repasInclus: Boolean(r.repasInclus) }), devise),
   };
 }

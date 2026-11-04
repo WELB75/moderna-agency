@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { basculerOptionFacturee, changerQuantiteOption } from "@/lib/actions/compta-reservation";
+import { basculerOptionFacturee, changerDeviseReservation, changerQuantiteOption } from "@/lib/actions/compta-reservation";
+import { DEVISES_RESERVATION, codeDevise } from "@/lib/devises";
 import { OPTIONS_RAPIDES, formaterMontant, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
 
 // Cases à cocher des options facturées, sur la carte du tableau de bord : un clic ajoute la ligne
@@ -48,7 +49,22 @@ export function OptionsFacturees({
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Options facturées</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Options facturées</p>
+        <select
+          aria-label="Devise de la réservation"
+          value={codeDevise(devise)}
+          disabled={enCours}
+          onChange={(e) => agir("devise", () => changerDeviseReservation(reservationId, e.target.value))}
+          className="h-8 rounded-lg border border-border bg-background px-2 text-xs disabled:opacity-60"
+        >
+          {DEVISES_RESERVATION.map((d) => (
+            <option key={d.code} value={d.code}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <ul className="space-y-1.5">
         {OPTIONS_RAPIDES.map((o) => {
           const ligne = lignes.find((l) => l.categorie === o.categorie);
