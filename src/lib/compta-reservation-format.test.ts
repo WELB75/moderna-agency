@@ -7,6 +7,9 @@ import {
   prixOption,
   changerQuantite,
   convertir,
+  formuleCuisine,
+  libelleCuisine,
+  modifierLigne,
   formaterMontant,
   lireNombre,
   montantLigne,
@@ -174,4 +177,24 @@ test("Villa Sofya : la femme de ménage est incluse, pas la cuisinière", () => 
   assert.equal(optionIncluse("cuisine", sofya), false);
   assert.equal(prixOption("menage_journalier", sofya, null), null);
   assert.equal(prixOption("cuisine", sofya, null), 30);
+});
+
+test("modifierLigne : jours, prix et libellé d'une seule catégorie", () => {
+  const lignes: LigneFacture[] = [
+    { categorie: "sejour", libelle: "Séjour", quantite: 5, prixUnitaire: 300 },
+    { categorie: "piscine", libelle: "Piscine chauffée", quantite: 5, prixUnitaire: 30 },
+  ];
+  const apres = modifierLigne(lignes, "piscine", { quantite: 3, prixUnitaire: 25 });
+  assert.equal(apres[0], lignes[0]);
+  assert.equal(apres[1].quantite, 3);
+  assert.equal(apres[1].prixUnitaire, 25);
+  assert.equal(modifierLigne(lignes, "piscine", { quantite: 0 })[1].quantite, 1);
+  assert.equal(modifierLigne(lignes, "piscine", { prixUnitaire: -4 })[1].prixUnitaire, 30);
+});
+
+test("formuleCuisine : reconnaît la formule dans le libellé", () => {
+  assert.equal(formuleCuisine(libelleCuisine("Petit-déjeuner")), "Petit-déjeuner");
+  assert.equal(formuleCuisine(libelleCuisine("Petit-déjeuner et déjeuner")), "Petit-déjeuner et déjeuner");
+  assert.equal(formuleCuisine("Service cuisinière"), null);
+  assert.equal(formuleCuisine("Petit déj + déjeuner"), "Petit-déjeuner et déjeuner");
 });

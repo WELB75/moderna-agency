@@ -22,7 +22,7 @@ export const CATEGORIES_LIGNES: { id: CategorieLigne; label: string; unite: stri
   { id: "menage", label: "Ménage de fin de séjour", unite: "forfait" },
   { id: "cuisine", label: "Service cuisinière", unite: "jour" },
   { id: "piscine", label: "Piscine chauffée", unite: "jour" },
-  { id: "menage_journalier", label: "Ménage journalier", unite: "jour" },
+  { id: "menage_journalier", label: "Ménage pendant le séjour", unite: "jour" },
   { id: "autre", label: "Autre option", unite: "forfait" },
 ];
 
@@ -178,7 +178,7 @@ export const OPTIONS_RAPIDES: { categorie: CategorieLigne; label: string; parJou
   { categorie: "menage", label: "Ménage de fin de séjour", parJour: false },
   { categorie: "cuisine", label: "Service cuisinière", parJour: true },
   { categorie: "piscine", label: "Piscine chauffée", parJour: true },
-  { categorie: "menage_journalier", label: "Ménage journalier", parJour: true },
+  { categorie: "menage_journalier", label: "Ménage pendant le séjour", parJour: true },
 ];
 
 // Prix unitaire proposé pour une option, ou null si elle n'existe pas pour ce logement. Les frais
@@ -223,6 +223,35 @@ export function basculerOption(lignes: LigneFacture[], categorie: CategorieLigne
   // Le ménage de fin de séjour est déjà dans la suggestion quand les frais de ménage sont connus.
   if (base.some((l) => l.categorie === categorie)) return base;
   return [...base, nouvelle];
+}
+
+// Formules de la cuisinière, choisies depuis la note de la réservation : seul le libellé change (le
+// prix par jour reste modifiable ligne par ligne, on n'invente pas un tarif pour le déjeuner).
+export const FORMULES_CUISINE = ["Petit-déjeuner", "Petit-déjeuner et déjeuner"] as const;
+
+export function libelleCuisine(formule: (typeof FORMULES_CUISINE)[number]): string {
+  return `Service cuisinière : ${formule.toLowerCase()}`;
+}
+
+// Formule lue dans le libellé d'une ligne cuisine, ou null (ligne ancienne ou libellé libre).
+export function formuleCuisine(libelle: string): (typeof FORMULES_CUISINE)[number] | null {
+  const l = libelle.toLowerCase();
+  if (!l.includes("petit")) return null;
+  return l.includes("déjeuner et") || l.includes("dejeuner et") || /petit.{0,3}d[ée]j.{0,12}(\+|et).{0,3}d[ée]jeuner/.test(l) ? FORMULES_CUISINE[1] : FORMULES_CUISINE[0];
+}
+
+export type ModificationLigne = { quantite?: number; prixUnitaire?: number; libelle?: string };
+
+// Ajuste la ligne d'une catégorie (jours, prix, libellé) sans toucher aux autres ; valeurs
+// invalides ignorées, quantité minimale 1.
+export function modifierLigne(lignes: LigneFacture[], categorie: CategorieLigne, patch: ModificationLigne): LigneFacture[] {
+  return lignes.map((l) => {
+    if (l.categorie !== categorie) return l;
+    const quantite = patch.quantite !== undefined && Number.isFinite(patch.quantite) ? Math.max(1, Math.round(patch.quantite)) : l.quantite;
+    const prixUnitaire = patch.prixUnitaire !== undefined && Number.isFinite(patch.prixUnitaire) && patch.prixUnitaire >= 0 ? arrondir(patch.prixUnitaire) : l.prixUnitaire;
+    const libelle = patch.libelle !== undefined && patch.libelle.trim() ? patch.libelle.trim().slice(0, 140) : l.libelle;
+    return { ...l, quantite, prixUnitaire, libelle };
+  });
 }
 
 export function changerQuantite(lignes: LigneFacture[], categorie: CategorieLigne, delta: number): LigneFacture[] {
