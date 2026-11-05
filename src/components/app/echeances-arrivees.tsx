@@ -31,6 +31,7 @@ import { SectionLabel } from "@/components/app/dashboard-ui";
 
 // Kamel, 2026-11-01 : « Voir plus » doit montrer tout le mois, donc 30 jours (et non plus 20).
 const NB_JOURS = 30;
+const DOMAINES_SUIVIS = ["Domaine Moderna II", "Domaine Zaraba"];
 
 // Caution : « aucune » si rien n'est demandé (Airbnb, ou montant à 0), « recue » une fois payée.
 function statutCautionLigne(a: { caution: string | null; cautionPayee: boolean }): "recue" | "a_recevoir" | "aucune" {
@@ -40,7 +41,9 @@ function statutCautionLigne(a: { caution: string | null; cautionPayee: boolean }
 
 export async function EcheancesArrivees({ now }: { now: Date }) {
   const arrivees = await chargerArriveesDocuments(now, NB_JOURS);
+  // Kamel, 2026-11-05 : pas d'appartements ici, seulement les villas de Moderna 1 (Zaraba) et Moderna 2.
   const aSurveiller = arrivees
+    .filter((a) => a.villaType !== "appartement" && a.domaineNom !== null && DOMAINES_SUIVIS.includes(a.domaineNom))
     .map((a) => {
       const cautionStatut = statutCautionLigne(a);
       return { ...a, cautionStatut, echeance: calculerEcheance({ checkIn: a.checkIn, ficheStatut: a.ficheStatut, contratStatut: a.contratStatut, cautionStatut }, now) };

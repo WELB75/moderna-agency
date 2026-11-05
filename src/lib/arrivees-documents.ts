@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, inArray, lte, ne, sql } from "drizzle-orm";
 import { addDays, endOfDay, format, startOfDay } from "date-fns";
 import { getDb } from "@/db";
-import { contratsLocation, gendarmerieForms, gendarmerieOccupants, reservations, villas } from "@/db/schema";
+import { contratsLocation, domaines, gendarmerieForms, gendarmerieOccupants, reservations, villas } from "@/db/schema";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import { sejourSansVoyageur } from "@/lib/conditions-sejour";
 
@@ -51,6 +51,7 @@ export type ArriveeDocuments = {
   villaId: string | null;
   villaNom: string | null;
   villaType: "villa" | "appartement" | null;
+  domaineNom: string | null;
   fiche: FicheArrivee | null;
   contrat: { id: string; statut: "signe" | "en_attente" } | null;
   // Faux pour un séjour Famille : pas de conditions de séjour à signer, donc `contratStatut` y est
@@ -81,9 +82,11 @@ export async function chargerArriveesDocuments(now: Date, nbJours: number): Prom
         villaId: villas.id,
         villaNom: villas.nom,
         villaType: villas.type,
+        domaineNom: domaines.nom,
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
+      .leftJoin(domaines, eq(villas.domaineId, domaines.id))
       .where(and(ne(reservations.status, "annulee"), gte(reservations.checkIn, debut), lte(reservations.checkIn, fin)))
       .orderBy(asc(reservations.checkIn))
   ).filter((r) => villaEstGeree(r.villaNom) && arriveeASuivre(r));
