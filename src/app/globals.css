@@ -262,6 +262,28 @@
   animation: search-item-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Zones sûres (encoche, barre d'accueil iOS/iPadOS) : utilitaires centralisés plutôt que du
+   env(safe-area-inset-*) répété au cas par cas dans chaque composant. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pb-safe-or-4 {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+@utility pb-safe-or-6 {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+}
+@utility pt-safe-plus-2 {
+  padding-top: calc(env(safe-area-inset-top) + 0.625rem);
+}
+@utility top-safe-header {
+  /* Sous l'en-tête sticky (AppHeader, min-h-14 = 3.5rem) + la zone sûre du haut. */
+  top: calc(3.5rem + env(safe-area-inset-top));
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

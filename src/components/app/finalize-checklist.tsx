@@ -87,7 +87,7 @@ export function FinalizeChecklist({
           Valider et faire signer le client
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-lg">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto pb-safe-or-4 sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Signature de l&apos;état des lieux</DialogTitle>
           <DialogDescription>

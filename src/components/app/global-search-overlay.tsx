@@ -170,7 +170,7 @@ export function GlobalSearchOverlay() {
         <div
           id={listId}
           role="listbox"
-          className="fixed inset-x-3 top-[calc(3.5rem+env(safe-area-inset-top))] z-50 max-h-[70dvh] overflow-y-auto rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg md:absolute md:inset-x-0 md:top-full md:mt-1.5 md:max-h-96"
+          className="fixed inset-x-3 top-safe-header z-50 max-h-[70dvh] overflow-y-auto rounded-2xl border border-border bg-popover text-popover-foreground shadow-lg md:absolute md:inset-x-0 md:top-full md:mt-1.5 md:max-h-96"
         >
           {resultatsAJour.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">{loading ? "Recherche…" : `Aucun résultat pour « ${q} ».`}</p>

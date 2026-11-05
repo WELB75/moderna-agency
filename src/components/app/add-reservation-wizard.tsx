@@ -809,7 +809,7 @@ export function AddReservationWizard({
         ) : null}
       </div>
 
-      <div className="flex items-center justify-between pb-[env(safe-area-inset-bottom)]">
+      <div className="flex items-center justify-between pb-safe">
         <Button
           type="button"
           variant="ghost"

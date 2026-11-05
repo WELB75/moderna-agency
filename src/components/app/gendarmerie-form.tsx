@@ -310,7 +310,7 @@ export function GendarmerieForm({
         />
       ) : null}
 
-      <div className="flex flex-col gap-2 pb-[env(safe-area-inset-bottom)] sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="flex flex-col gap-2 pb-safe sm:flex-row sm:flex-wrap sm:items-center">
         {!hideAddOccupant ? (
           <Button
             type="button"

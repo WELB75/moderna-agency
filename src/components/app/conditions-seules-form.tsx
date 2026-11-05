@@ -57,7 +57,7 @@ export function ConditionsSeulesForm({
   }
 
   return (
-    <div dir={dir} className="space-y-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <div dir={dir} className="space-y-4 pb-safe-or-6">
       <div className="space-y-1.5 text-center">
         <h1 className="text-lg font-semibold">{t.titre}</h1>
         <p className="text-sm text-muted-foreground">{t.intro}</p>

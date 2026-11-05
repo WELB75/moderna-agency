@@ -471,7 +471,7 @@ export function GendarmerieFormProgressif({
         <ConditionsAcceptation data={conditions} lang={lang} accepte={accepteConditions} onAccepteChange={setAccepteConditions} sansAide />
       ) : null}
 
-      <div className="flex flex-col gap-2 pb-[env(safe-area-inset-bottom)]">
+      <div className="flex flex-col gap-2 pb-safe">
         <Button type="button" disabled={isPending} onClick={enregistrer} className="h-12 w-full text-base">
           {isPending ? p.saving : p.save}
         </Button>

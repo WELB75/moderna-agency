@@ -168,7 +168,7 @@ export function GendarmerieSignatureForm({
         />
       ) : null}
 
-      <div className="flex justify-end pb-[env(safe-area-inset-bottom)]">
+      <div className="flex justify-end pb-safe">
         <Button type="button" disabled={isPending} onClick={handleSubmit} className="h-12 w-full text-base md:h-8 md:w-auto md:text-sm">
           {isPending ? t.submitting : t.submit}
         </Button>

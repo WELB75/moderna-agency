@@ -31,8 +31,7 @@ export function BottomNav() {
   return (
     <>
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background md:hidden print:hidden"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background pb-safe md:hidden print:hidden"
       >
         <ul className="flex items-stretch justify-around">
           {primaryItems.map((item) => {
@@ -92,8 +91,7 @@ export function BottomNav() {
             <SheetTitle>Plus</SheetTitle>
           </SheetHeader>
           <ul
-            className="space-y-1 px-4 pb-6"
-            style={{ paddingBottom: "max(env(safe-area-inset-bottom), 1.5rem)" }}
+            className="space-y-1 px-4 pb-safe-or-6"
           >
             {overflowItems.map((item) => {
               const active = isNavItemActive(pathname, searchParams, item.href);

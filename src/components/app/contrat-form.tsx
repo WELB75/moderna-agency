@@ -58,7 +58,7 @@ export function ContratForm({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+    <div className="mx-auto max-w-2xl space-y-6 py-6 pb-safe-or-6">
       <Card>
         <CardContent className="px-3 py-4 sm:px-4">
           <ConditionsSejourDocument data={conditions} />

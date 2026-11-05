@@ -26,7 +26,14 @@ export function SidebarNav() {
 
   useEffect(() => {
     try {
-      setCollapsed(window.localStorage.getItem(COLLAPSED_KEY) === "1");
+      const stored = window.localStorage.getItem(COLLAPSED_KEY);
+      if (stored !== null) {
+        setCollapsed(stored === "1");
+      } else if (window.innerWidth < 1024) {
+        // Pas de préférence enregistrée et largeur tablette (iPad portrait/paysage, 768-1023px) :
+        // le menu déplié mange trop de place utile, on replie par défaut.
+        setCollapsed(true);
+      }
     } catch {
       // stockage indisponible (navigation privée) : menu déplié par défaut
     }

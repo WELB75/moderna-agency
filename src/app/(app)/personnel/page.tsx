@@ -849,8 +849,8 @@ export default async function PersonnelPage({
             BottomNav (z-50) et de AppHeader (z-40, sticky) — voir (app)/layout.tsx. TabsContent
             n'est monté que pour l'onglet actif (comportement par défaut de Radix Tabs), donc cet
             overlay disparaît complètement dès qu'on quitte l'onglet Carte. */}
-        <TabsContent value="carte" className="fixed inset-0 z-[70] flex flex-col overflow-y-auto bg-background pb-[env(safe-area-inset-bottom)]">
-          <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b bg-background px-4 py-2.5 max-md:pt-[calc(env(safe-area-inset-top)+0.625rem)]">
+        <TabsContent value="carte" className="fixed inset-0 z-[70] flex flex-col overflow-y-auto bg-background pb-safe">
+          <div className="sticky top-0 z-10 flex shrink-0 items-center justify-between border-b bg-background px-4 py-2.5 max-md:pt-safe-plus-2">
             <p className="text-sm font-medium">Carte du personnel</p>
             <CloseCarteButton />
           </div>

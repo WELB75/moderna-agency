@@ -781,10 +781,7 @@ function Agenda({
         const aujourdhui = semaineCourante && isToday(bloc.day);
         return (
           <div key={bloc.day.toISOString()} className="space-y-2">
-            <div
-              className="sticky z-10 -mx-4 bg-background md:-mx-6"
-              style={{ top: "calc(3.5rem + env(safe-area-inset-top))" }}
-            >
+            <div className="sticky top-safe-header z-10 -mx-4 bg-background md:-mx-6">
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 bg-muted/40 px-4 py-2 md:px-6">
                 <h3 className="text-[15px] font-semibold capitalize">{libelleJour(bloc.day, semaineCourante, false)}</h3>
                 <span className="text-sm text-muted-foreground">{format(bloc.day, "EEEE d MMMM", { locale: fr })}</span>
