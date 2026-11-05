@@ -1,14 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import Link from "next/link";
-import { Receipt, StickyNote } from "lucide-react";
+import { useEffect, useState, useTransition } from "react";
+import { StickyNote } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { updateReservationNotes } from "@/lib/actions/reservations";
-import { noteContientUnMontant } from "@/lib/compta-reservation-format";
+import { lireEtatOptions, type EtatOptions } from "@/lib/actions/compta-reservation";
+import { OptionsFacturees } from "@/components/app/options-facturees";
 
 // La carte réservation entière est un <Link> cliquable, et les événements React remontent aussi à
 // travers un portail : un clic dans la fenêtre doit être bloqué dès le pointerdown, sinon il
@@ -30,9 +30,28 @@ export function EditNotesButton({
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState(notes ?? "");
   const [isPending, startTransition] = useTransition();
+  // Options facturées (piscine chauffée, cuisinière, ménage...) : lues à l'ouverture, car la
+  // comptable les retrouve dans ses chiffres, contrairement au texte libre de la note.
+  const [options, setOptions] = useState<EtatOptions | null>(null);
+  const [optionsErreur, setOptionsErreur] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let annule = false;
+    lireEtatOptions(reservationId)
+      .then((e) => !annule && setOptions(e))
+      .catch(() => !annule && setOptionsErreur(true));
+    return () => {
+      annule = true;
+    };
+  }, [open, reservationId]);
 
   function handleOpenChange(next: boolean) {
-    if (next) setValue(notes ?? "");
+    if (next) {
+      setValue(notes ?? "");
+      setOptions(null);
+      setOptionsErreur(false);
+    }
     setOpen(next);
   }
 
@@ -96,7 +115,7 @@ export function EditNotesButton({
           <DialogHeader>
             <DialogTitle>Note de la réservation</DialogTitle>
             <DialogDescription>
-              Pour l&apos;équipe : demandes particulières, horaires, matériel. Les prix et les options facturées vont dans le détail financier.
+              Le texte est pour l&apos;équipe (demandes, horaires, matériel). Les options cochées ci-dessous sont facturées et vont directement dans les chiffres de la comptable. Elles s&apos;enregistrent à chaque clic.
             </DialogDescription>
           </DialogHeader>
 
@@ -109,18 +128,21 @@ export function EditNotesButton({
             autoFocus
           />
 
-          {noteContientUnMontant(value) ? (
-            <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
-              <Receipt className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <p>
-                Cette note contient des montants. Pour que la comptable les voie dans les chiffres, les saisir plutôt dans le{" "}
-                <Link href={`/reservations/${reservationId}`} className="font-medium underline underline-offset-2" onClick={stop}>
-                  détail financier de la réservation
-                </Link>
-                .
-              </p>
-            </div>
-          ) : null}
+          <div className="max-h-[45vh] overflow-y-auto rounded-xl border border-border p-3">
+            {options ? (
+              <OptionsFacturees
+                reservationId={reservationId}
+                lignes={options.lignes}
+                devise={options.devise}
+                montantPaye={options.montantPaye}
+                loyerTotal={options.loyerTotal}
+                fraisMenage={options.fraisMenage}
+                tarifs={options.tarifs}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">{optionsErreur ? "Options facturées indisponibles pour le moment." : "Chargement des options facturées..."}</p>
+            )}
+          </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

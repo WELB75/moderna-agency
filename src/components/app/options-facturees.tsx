@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { type EtatOptions, basculerOptionFacturee, changerDeviseReservation, changerQuantiteOption } from "@/lib/actions/compta-reservation";
+import { type EtatOptions, basculerOptionFacturee, changerDeviseReservation, changerQuantiteOption, modifierOptionFacturee } from "@/lib/actions/compta-reservation";
 import { DEVISES_RESERVATION, codeDevise } from "@/lib/devises";
-import { OPTIONS_RAPIDES, formaterMontant, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
+import { FORMULES_CUISINE, OPTIONS_RAPIDES, formaterMontant, formuleCuisine, libelleCuisine, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
 
 // Cases à cocher des options facturées, sur la carte du tableau de bord : un clic ajoute la ligne
 // avec son prix et sa quantité par défaut (voir OPTIONS_RAPIDES), un second la retire. Le détail
@@ -81,7 +81,7 @@ export function OptionsFacturees({
           return (
             <li
               key={o.categorie}
-              className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 text-sm transition-colors ${coche ? "border-primary/40 bg-primary/5" : "border-border"}`}
+              className={`flex flex-wrap items-center gap-2 rounded-xl border px-2.5 py-2 text-sm transition-colors ${coche ? "border-primary/40 bg-primary/5" : "border-border"}`}
             >
               <button
                 type="button"
@@ -137,6 +137,47 @@ export function OptionsFacturees({
                   ) : null}
                   <span className="w-16 shrink-0 text-right font-medium tabular-nums">{formaterMontant(montantLigne(ligne), devise)}</span>
                 </>
+              ) : null}
+              {coche && ligne ? (
+                <div className="flex w-full flex-wrap items-center gap-x-3 gap-y-1.5 pb-0.5 pl-7">
+                  {o.categorie === "cuisine" ? (
+                    <span className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Formule de la cuisinière">
+                      {FORMULES_CUISINE.map((f) => {
+                        const choisie = formuleCuisine(ligne.libelle) === f;
+                        return (
+                          <button
+                            key={f}
+                            type="button"
+                            role="radio"
+                            aria-checked={choisie}
+                            disabled={enCours}
+                            onClick={() => agir(o.categorie, () => modifierOptionFacturee(reservationId, o.categorie, { libelle: libelleCuisine(f) }))}
+                            className={`min-h-8 rounded-lg border px-2.5 text-xs transition-colors disabled:opacity-60 ${choisie ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}
+                          >
+                            {f}
+                          </button>
+                        );
+                      })}
+                    </span>
+                  ) : null}
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    Prix {o.parJour ? "par jour" : ""}
+                    <input
+                      key={`${o.categorie}-${ligne.prixUnitaire}`}
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="any"
+                      defaultValue={ligne.prixUnitaire}
+                      disabled={enCours}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value.replace(",", "."));
+                        if (Number.isFinite(v) && v >= 0 && v !== ligne.prixUnitaire) agir(o.categorie, () => modifierOptionFacturee(reservationId, o.categorie, { prixUnitaire: v }));
+                      }}
+                      className="h-8 w-20 rounded-lg border border-border bg-background px-2 text-sm tabular-nums text-foreground disabled:opacity-60"
+                    />
+                  </label>
+                </div>
               ) : null}
             </li>
           );

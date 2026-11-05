@@ -13,7 +13,9 @@ import {
   basculerOption,
   changerQuantite,
   lireNombre,
+  modifierLigne,
   totalFacture,
+  type ModificationLigne,
   type CategorieLigne,
   type LigneFacture,
   type TarifsOptions,
@@ -144,6 +146,32 @@ export async function changerQuantiteOption(reservationId: string, categorie: st
   if (!Number.isFinite(delta) || Math.abs(delta) > 30) throw new Error("Valeur invalide.");
   const actuelles = await lignesDeLaReservation(reservationId);
   await remplacerLignes(reservationId, changerQuantite(actuelles, categorie as CategorieLigne, delta));
+  return etatOptions(reservationId);
+}
+
+// Lecture de l'état des options à l'ouverture de la fenêtre de note (client, après coup).
+export async function lireEtatOptions(reservationId: string): Promise<EtatOptions> {
+  await auth.protect();
+  return etatOptions(reservationId);
+}
+
+// Modifie le nombre de jours, le prix ou la formule d'une option déjà cochée.
+export async function modifierOptionFacturee(reservationId: string, categorie: string, patch: ModificationLigne): Promise<EtatOptions> {
+  await auth.protect();
+  if (!OPTIONS_RAPIDES.some((o) => o.categorie === categorie)) throw new Error("Option inconnue.");
+  if (patch.quantite !== undefined && (!Number.isFinite(patch.quantite) || patch.quantite < 1 || patch.quantite > 90)) throw new Error("Nombre de jours invalide.");
+  if (patch.prixUnitaire !== undefined && (!Number.isFinite(patch.prixUnitaire) || patch.prixUnitaire < 0 || patch.prixUnitaire > 100_000)) throw new Error("Prix invalide.");
+  const actuelles = await lignesDeLaReservation(reservationId);
+  if (!actuelles.some((l) => l.categorie === categorie)) throw new Error("Cochez d'abord l'option.");
+  const apres = modifierLigne(actuelles, categorie as CategorieLigne, patch);
+  await remplacerLignes(reservationId, apres);
+  await tracer({
+    categorie: "reservation",
+    action: "option_facturee",
+    libelle: `Option modifiée : ${OPTIONS_RAPIDES.find((o) => o.categorie === categorie)?.label}`,
+    resume: `total facturé ${totalFacture(apres).toFixed(2)}`,
+    reservationId,
+  });
   return etatOptions(reservationId);
 }
 
