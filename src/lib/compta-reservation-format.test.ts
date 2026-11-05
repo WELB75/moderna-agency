@@ -4,6 +4,7 @@ import {
   TARIFS_PAR_DEFAUT,
   basculerOption,
   optionIncluse,
+  prixFormuleCuisine,
   prixOption,
   changerQuantite,
   ajouterLigneLibre,
@@ -157,7 +158,7 @@ test("quantité : jamais en dessous de 1", () => {
 
 test("prix par logement : villa 80 EUR, appartement 20 EUR, pas de cuisinière ni piscine en appartement", () => {
   const villaR1 = { ...TARIFS_PAR_DEFAUT, menage: 80 };
-  const appart = { menage: 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20, menageJournalierIncluse: false };
+  const appart = { menage: 20, cuisine: null, cuisinePetitDej: null, cuisineDejeuner: null, cuisineIncluse: false, piscine: null, menageJournalier: 20, menageJournalierIncluse: false };
   assert.equal(prixOption("menage", villaR1, null), 80);
   assert.equal(prixOption("menage", appart, null), 20);
   assert.equal(prixOption("cuisine", appart, null), null);
@@ -200,6 +201,7 @@ test("formuleCuisine : reconnaît la formule dans le libellé", () => {
   assert.equal(formuleCuisine(libelleCuisine("Petit-déjeuner et déjeuner")), "Petit-déjeuner et déjeuner");
   assert.equal(formuleCuisine("Service cuisinière"), null);
   assert.equal(formuleCuisine("Petit déj + déjeuner"), "Petit-déjeuner et déjeuner");
+  assert.equal(formuleCuisine(libelleCuisine("Déjeuner")), "Déjeuner");
 });
 
 test("ajouterLigneLibre : option libre ajoutée après la ligne séjour, saisie invalide refusée", () => {
@@ -221,4 +223,12 @@ test("retirerLigneIndex et modifierLigneIndex agissent sur une seule ligne", () 
   const m = modifierLigneIndex(lignes, 1, { quantite: 3 });
   assert.equal(m[0].quantite, 1);
   assert.equal(m[1].quantite, 3);
+});
+
+test("prixFormuleCuisine : 20 / 10 / 30 euros par jour, rien si les repas sont inclus ou en appartement", () => {
+  assert.equal(prixFormuleCuisine(TARIFS_PAR_DEFAUT, "Petit-déjeuner"), 20);
+  assert.equal(prixFormuleCuisine(TARIFS_PAR_DEFAUT, "Déjeuner"), 10);
+  assert.equal(prixFormuleCuisine(TARIFS_PAR_DEFAUT, "Petit-déjeuner et déjeuner"), 30);
+  assert.equal(prixFormuleCuisine({ ...TARIFS_PAR_DEFAUT, cuisineIncluse: true }, "Déjeuner"), null);
+  assert.equal(prixFormuleCuisine({ ...TARIFS_PAR_DEFAUT, cuisine: null, cuisinePetitDej: null, cuisineDejeuner: null }, "Petit-déjeuner"), null);
 });

@@ -313,7 +313,7 @@ export function tarifsOptionsLogement(l: { villaId: string | null; type: "villa"
   const connu = l.villaId ? VILLAS.find((v) => v.id === l.villaId) : undefined;
   const type = connu?.type ?? l.type ?? "villa";
   if (type === "appartement") {
-    return { menage: connu?.menage ?? 20, cuisine: null, cuisineIncluse: false, piscine: null, menageJournalier: 20, menageJournalierIncluse: false };
+    return { menage: connu?.menage ?? 20, cuisine: null, cuisinePetitDej: null, cuisineDejeuner: null, cuisineIncluse: false, piscine: null, menageJournalier: 20, menageJournalierIncluse: false };
   }
   return {
     ...TARIFS_PAR_DEFAUT,
@@ -327,8 +327,15 @@ export function tarifsOptionsLogement(l: { villaId: string | null; type: "villa"
 async function tarifsEnDevise(t: TarifsOptions, devise: string): Promise<TarifsOptions> {
   if (codeDevise(devise) === "EUR") return t;
   const c = (m: number | null) => (m === null ? Promise.resolve(null) : tarifEnDevise(m, devise));
-  const [menage, cuisine, piscine, menageJournalier] = await Promise.all([c(t.menage), c(t.cuisine), c(t.piscine), c(t.menageJournalier)]);
-  return { ...t, menage: menage ?? t.menage, cuisine, piscine, menageJournalier };
+  const [menage, cuisine, cuisinePetitDej, cuisineDejeuner, piscine, menageJournalier] = await Promise.all([
+    c(t.menage),
+    c(t.cuisine),
+    c(t.cuisinePetitDej),
+    c(t.cuisineDejeuner),
+    c(t.piscine),
+    c(t.menageJournalier),
+  ]);
+  return { ...t, menage: menage ?? t.menage, cuisine, cuisinePetitDej, cuisineDejeuner, piscine, menageJournalier };
 }
 
 export async function chargerContexteOptions(reservationId: string): Promise<(ContexteOptions & { montantPaye: number | null; devise: string }) | null> {

@@ -15,7 +15,7 @@ import {
   retirerOptionLibre,
 } from "@/lib/actions/compta-reservation";
 import { DEVISES_RESERVATION, codeDevise } from "@/lib/devises";
-import { FORMULES_CUISINE, OPTIONS_RAPIDES, formaterMontant, formuleCuisine, libelleCuisine, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
+import { FORMULES_CUISINE, OPTIONS_RAPIDES, formaterMontant, formuleCuisine, prixFormuleCuisine, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
 
 // Cases à cocher des options facturées, sur la carte du tableau de bord : un clic ajoute la ligne
 // avec son prix et sa quantité par défaut (voir OPTIONS_RAPIDES), un second la retire. Le détail
@@ -169,10 +169,11 @@ export function OptionsFacturees({
                             role="radio"
                             aria-checked={choisie}
                             disabled={enCours}
-                            onClick={() => agir(o.categorie, () => modifierOptionFacturee(reservationId, o.categorie, { libelle: libelleCuisine(f) }))}
+                            onClick={() => agir(o.categorie, () => modifierOptionFacturee(reservationId, o.categorie, { formule: f }))}
                             className={`min-h-8 rounded-lg border px-2.5 text-xs transition-colors disabled:opacity-60 ${choisie ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted"}`}
                           >
                             {f}
+                            <span className="ml-1 opacity-80">{formaterMontant(prixFormuleCuisine(tarifs, f) ?? 0, devise)}/j</span>
                           </button>
                         );
                       })}
@@ -180,7 +181,7 @@ export function OptionsFacturees({
                   ) : null}
                   {o.parJour ? (
                     <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      Jours
+                      {o.categorie === "cuisine" || o.categorie === "menage_journalier" ? "Jours de présence" : "Jours"}
                       <input
                         key={`${o.categorie}-q-${ligne.quantite}`}
                         type="number"

@@ -165,14 +165,19 @@ export function noteContientUnMontant(note: string): boolean {
 // ensuite dans le détail financier.
 export type TarifsOptions = {
   menage: number;
-  cuisine: number | null; // null : pas proposée (appartement)
+  cuisine: number | null; // petit-déjeuner + déjeuner, par jour ; null : pas proposée (appartement)
+  cuisinePetitDej: number | null; // petit-déjeuner seul, par jour
+  cuisineDejeuner: number | null; // déjeuner seul, par jour
   cuisineIncluse: boolean; // repas déjà compris dans le loyer de cette villa
   piscine: number | null; // null : pas de piscine chauffée à facturer (appartement)
   menageJournalier: number | null;
   menageJournalierIncluse: boolean; // femme de ménage comprise dans le loyer (Villa Sofya)
 };
 
-export const TARIFS_PAR_DEFAUT: TarifsOptions = { menage: 60, cuisine: 30, cuisineIncluse: false, piscine: 30, menageJournalier: 20, menageJournalierIncluse: false };
+// Tarifs en euros (convertis au taux fixe de 10 pour les dirhams : 60 € = 600 MAD). Cuisinière : 200 MAD
+// le petit-déjeuner seul, 300 MAD petit-déjeuner + déjeuner (tarifs communiqués aux voyageurs, voir
+// whatsapp-agent/agent.ts) ; le déjeuner seul est déduit (300 − 200) faute de tarif communiqué.
+export const TARIFS_PAR_DEFAUT: TarifsOptions = { menage: 60, cuisine: 30, cuisinePetitDej: 20, cuisineDejeuner: 10, cuisineIncluse: false, piscine: 30, menageJournalier: 20, menageJournalierIncluse: false };
 
 export const OPTIONS_RAPIDES: { categorie: CategorieLigne; label: string; parJour: boolean }[] = [
   { categorie: "menage", label: "Ménage de fin de séjour", parJour: false },
@@ -209,7 +214,8 @@ export function ligneParDefaut(categorie: CategorieLigne, contexte: ContexteOpti
   const opt = OPTIONS_RAPIDES.find((o) => o.categorie === categorie);
   const prix = prixOption(categorie, contexte.tarifs, contexte.fraisMenage);
   if (!opt || prix === null) return null;
-  return { categorie, libelle: opt.label, quantite: opt.parJour ? Math.max(1, contexte.nuits) : 1, prixUnitaire: prix };
+  const libelle = categorie === "cuisine" ? libelleCuisine("Petit-déjeuner et déjeuner") : opt.label;
+  return { categorie, libelle, quantite: opt.parJour ? Math.max(1, contexte.nuits) : 1, prixUnitaire: prix };
 }
 
 // Coche / décoche une option : la retire si elle est déjà dans la liste, sinon l'ajoute. Quand rien
@@ -225,19 +231,30 @@ export function basculerOption(lignes: LigneFacture[], categorie: CategorieLigne
   return [...base, nouvelle];
 }
 
-// Formules de la cuisinière, choisies depuis la note de la réservation : seul le libellé change (le
-// prix par jour reste modifiable ligne par ligne, on n'invente pas un tarif pour le déjeuner).
-export const FORMULES_CUISINE = ["Petit-déjeuner", "Petit-déjeuner et déjeuner"] as const;
+// Formules de la cuisinière, choisies depuis la note de la réservation : chacune a son tarif par
+// jour (voir TarifsOptions), modifiable ensuite ligne par ligne.
+export const FORMULES_CUISINE = ["Petit-déjeuner", "Déjeuner", "Petit-déjeuner et déjeuner"] as const;
+export type FormuleCuisine = (typeof FORMULES_CUISINE)[number];
 
-export function libelleCuisine(formule: (typeof FORMULES_CUISINE)[number]): string {
+export function libelleCuisine(formule: FormuleCuisine): string {
   return `Service cuisinière : ${formule.toLowerCase()}`;
 }
 
 // Formule lue dans le libellé d'une ligne cuisine, ou null (ligne ancienne ou libellé libre).
-export function formuleCuisine(libelle: string): (typeof FORMULES_CUISINE)[number] | null {
+export function formuleCuisine(libelle: string): FormuleCuisine | null {
   const l = libelle.toLowerCase();
-  if (!l.includes("petit")) return null;
-  return l.includes("déjeuner et") || l.includes("dejeuner et") || /petit.{0,3}d[ée]j.{0,12}(\+|et).{0,3}d[ée]jeuner/.test(l) ? FORMULES_CUISINE[1] : FORMULES_CUISINE[0];
+  const petit = l.includes("petit");
+  const dejeuner = /d[ée]jeuner/.test(l.replace(/petit.{0,3}d[ée]j(euner)?/, ""));
+  if (petit && dejeuner) return FORMULES_CUISINE[2];
+  if (petit) return FORMULES_CUISINE[0];
+  if (dejeuner) return FORMULES_CUISINE[1];
+  return null;
+}
+
+// Tarif par jour d'une formule pour ce logement, ou null si la cuisinière n'y est pas facturée.
+export function prixFormuleCuisine(tarifs: TarifsOptions, formule: FormuleCuisine): number | null {
+  if (tarifs.cuisineIncluse) return null;
+  return formule === "Petit-déjeuner" ? tarifs.cuisinePetitDej : formule === "Déjeuner" ? tarifs.cuisineDejeuner : tarifs.cuisine;
 }
 
 export type ModificationLigne = { quantite?: number; prixUnitaire?: number; libelle?: string };
