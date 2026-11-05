@@ -6,7 +6,10 @@ import {
   optionIncluse,
   prixOption,
   changerQuantite,
+  ajouterLigneLibre,
   convertir,
+  modifierLigneIndex,
+  retirerLigneIndex,
   formuleCuisine,
   libelleCuisine,
   modifierLigne,
@@ -197,4 +200,25 @@ test("formuleCuisine : reconnaît la formule dans le libellé", () => {
   assert.equal(formuleCuisine(libelleCuisine("Petit-déjeuner et déjeuner")), "Petit-déjeuner et déjeuner");
   assert.equal(formuleCuisine("Service cuisinière"), null);
   assert.equal(formuleCuisine("Petit déj + déjeuner"), "Petit-déjeuner et déjeuner");
+});
+
+test("ajouterLigneLibre : option libre ajoutée après la ligne séjour, saisie invalide refusée", () => {
+  const ctx = { nuits: 2, fraisMenage: null, loyerTotal: 600 };
+  const apres = ajouterLigneLibre([], { libelle: " Transfert aéroport ", quantite: 2, prixUnitaire: 40 }, ctx);
+  assert.ok(apres);
+  assert.equal(apres[0].categorie, "sejour");
+  assert.deepEqual(apres[apres.length - 1], { categorie: "autre", libelle: "Transfert aéroport", quantite: 2, prixUnitaire: 40 });
+  assert.equal(ajouterLigneLibre([], { libelle: "  ", quantite: 1, prixUnitaire: 5 }, ctx), null);
+  assert.equal(ajouterLigneLibre([], { libelle: "x", quantite: 1, prixUnitaire: -1 }, ctx), null);
+});
+
+test("retirerLigneIndex et modifierLigneIndex agissent sur une seule ligne", () => {
+  const lignes: LigneFacture[] = [
+    { categorie: "autre", libelle: "A", quantite: 1, prixUnitaire: 10 },
+    { categorie: "autre", libelle: "B", quantite: 1, prixUnitaire: 20 },
+  ];
+  assert.deepEqual(retirerLigneIndex(lignes, 0).map((l) => l.libelle), ["B"]);
+  const m = modifierLigneIndex(lignes, 1, { quantite: 3 });
+  assert.equal(m[0].quantite, 1);
+  assert.equal(m[1].quantite, 3);
 });

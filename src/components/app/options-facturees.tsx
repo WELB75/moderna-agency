@@ -2,9 +2,18 @@
 
 import Link from "next/link";
 import { useState, useTransition } from "react";
-import { Check, Minus, Plus } from "lucide-react";
+import { Check, Minus, Plus, X } from "lucide-react";
 import { toast } from "sonner";
-import { type EtatOptions, basculerOptionFacturee, changerDeviseReservation, changerQuantiteOption, modifierOptionFacturee } from "@/lib/actions/compta-reservation";
+import {
+  type EtatOptions,
+  ajouterOptionLibre,
+  basculerOptionFacturee,
+  changerDeviseReservation,
+  changerQuantiteOption,
+  modifierOptionFacturee,
+  modifierOptionLibre,
+  retirerOptionLibre,
+} from "@/lib/actions/compta-reservation";
 import { DEVISES_RESERVATION, codeDevise } from "@/lib/devises";
 import { FORMULES_CUISINE, OPTIONS_RAPIDES, formaterMontant, formuleCuisine, libelleCuisine, montantLigne, optionIncluse, prixOption, totalFacture, type LigneFacture, type TarifsOptions } from "@/lib/compta-reservation-format";
 
@@ -19,6 +28,8 @@ export function OptionsFacturees({
   loyerTotal: loyerInitial,
   fraisMenage: fraisInitial,
   tarifs: tarifsInitiaux,
+  onChange,
+  lienDetail = true,
 }: {
   reservationId: string;
   lignes: LigneFacture[];
@@ -27,18 +38,25 @@ export function OptionsFacturees({
   loyerTotal: number | null;
   fraisMenage: number | null;
   tarifs: TarifsOptions;
+  // Appelé après chaque enregistrement réussi (la fenêtre de note s'en sert pour rafraîchir à la fermeture).
+  onChange?: () => void;
+  lienDetail?: boolean;
 }) {
   // État local mis à jour avec la réponse de chaque action : la carte reste dépliée, rien ne recharge.
   const [etat, setEtat] = useState<EtatOptions>({ lignes: lignesInitiales, devise: deviseInitiale, tarifs: tarifsInitiaux, loyerTotal: loyerInitial, montantPaye: payeInitial, fraisMenage: fraisInitial });
   const { lignes, devise, tarifs, loyerTotal, montantPaye, fraisMenage } = etat;
   const [enCours, startTransition] = useTransition();
   const [actif, setActif] = useState<string | null>(null);
+  const [libelleLibre, setLibelleLibre] = useState("");
+  const [prixLibre, setPrixLibre] = useState("");
+  const [quantiteLibre, setQuantiteLibre] = useState("1");
 
   function agir(cle: string, action: () => Promise<EtatOptions>) {
     setActif(cle);
     startTransition(async () => {
       try {
         setEtat(await action());
+        onChange?.();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       } finally {
@@ -160,6 +178,25 @@ export function OptionsFacturees({
                       })}
                     </span>
                   ) : null}
+                  {o.parJour ? (
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      Jours
+                      <input
+                        key={`${o.categorie}-q-${ligne.quantite}`}
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={90}
+                        defaultValue={ligne.quantite}
+                        disabled={enCours}
+                        onBlur={(e) => {
+                          const v = Math.round(Number(e.target.value));
+                          if (Number.isFinite(v) && v >= 1 && v <= 90 && v !== ligne.quantite) agir(o.categorie, () => modifierOptionFacturee(reservationId, o.categorie, { quantite: v }));
+                        }}
+                        className="h-8 w-16 rounded-lg border border-border bg-background px-2 text-sm tabular-nums text-foreground disabled:opacity-60"
+                      />
+                    </label>
+                  ) : null}
                   <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     Prix {o.parJour ? "par jour" : ""}
                     <input
@@ -184,15 +221,125 @@ export function OptionsFacturees({
         })}
       </ul>
 
+      <div className="space-y-1.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Autres options</p>
+        {lignes.map((l, i) =>
+          l.categorie !== "autre" ? null : (
+            <div key={`${l.id ?? i}`} className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/40 bg-primary/5 px-2.5 py-2 text-sm">
+              <span className="min-w-0 flex-1 truncate">{l.libelle}</span>
+              <input
+                key={`q-${i}-${l.quantite}`}
+                aria-label={`Nombre : ${l.libelle}`}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                defaultValue={l.quantite}
+                disabled={enCours}
+                onBlur={(e) => {
+                  const v = Math.round(Number(e.target.value));
+                  if (Number.isFinite(v) && v >= 1 && v !== l.quantite) agir(`libre-${i}`, () => modifierOptionLibre(reservationId, i, { quantite: v }));
+                }}
+                className="h-8 w-14 rounded-lg border border-border bg-background px-2 text-sm tabular-nums disabled:opacity-60"
+              />
+              <span className="text-xs text-muted-foreground">×</span>
+              <input
+                key={`p-${i}-${l.prixUnitaire}`}
+                aria-label={`Prix : ${l.libelle}`}
+                type="number"
+                inputMode="decimal"
+                min={0}
+                step="any"
+                defaultValue={l.prixUnitaire}
+                disabled={enCours}
+                onBlur={(e) => {
+                  const v = Number(e.target.value.replace(",", "."));
+                  if (Number.isFinite(v) && v >= 0 && v !== l.prixUnitaire) agir(`libre-${i}`, () => modifierOptionLibre(reservationId, i, { prixUnitaire: v }));
+                }}
+                className="h-8 w-20 rounded-lg border border-border bg-background px-2 text-sm tabular-nums disabled:opacity-60"
+              />
+              <span className="w-16 shrink-0 text-right font-medium tabular-nums">{formaterMontant(montantLigne(l), devise)}</span>
+              <button
+                type="button"
+                aria-label={`Retirer : ${l.libelle}`}
+                disabled={enCours}
+                onClick={() => agir(`libre-${i}`, () => retirerOptionLibre(reservationId, i))}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-muted disabled:opacity-40"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )
+        )}
+        <form
+          className="flex flex-wrap items-end gap-2 rounded-xl border border-dashed border-border p-2.5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const prix = Number(prixLibre.replace(",", "."));
+            const quantite = Math.round(Number(quantiteLibre));
+            if (!libelleLibre.trim() || !Number.isFinite(prix) || prix < 0) {
+              toast.error("Écrivez le nom de l'option et son prix.");
+              return;
+            }
+            agir("libre-ajout", async () => {
+              const apres = await ajouterOptionLibre(reservationId, { libelle: libelleLibre, quantite: Number.isFinite(quantite) && quantite >= 1 ? quantite : 1, prixUnitaire: prix });
+              setLibelleLibre("");
+              setPrixLibre("");
+              setQuantiteLibre("1");
+              return apres;
+            });
+          }}
+        >
+          <label className="flex min-w-40 flex-1 flex-col gap-1 text-xs text-muted-foreground">
+            Nouvelle option
+            <input
+              value={libelleLibre}
+              onChange={(e) => setLibelleLibre(e.target.value)}
+              placeholder="Ex. transfert aéroport, lit bébé"
+              maxLength={140}
+              className="h-9 rounded-lg border border-border bg-background px-2 text-sm text-foreground"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Prix
+            <input
+              value={prixLibre}
+              onChange={(e) => setPrixLibre(e.target.value)}
+              inputMode="decimal"
+              placeholder="0"
+              className="h-9 w-20 rounded-lg border border-border bg-background px-2 text-sm tabular-nums text-foreground"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Nombre
+            <input
+              value={quantiteLibre}
+              onChange={(e) => setQuantiteLibre(e.target.value)}
+              inputMode="numeric"
+              className="h-9 w-16 rounded-lg border border-border bg-background px-2 text-sm tabular-nums text-foreground"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={enCours}
+            className="flex h-9 items-center gap-1 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground disabled:opacity-60"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Ajouter
+          </button>
+        </form>
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-muted/60 px-3 py-2 text-sm">
         <span className="font-semibold">Total facturé {formaterMontant(total, devise)}</span>
         <span className={reste > 0 ? "text-amber-700 dark:text-amber-400" : "text-emerald-700 dark:text-emerald-400"}>
           {reste > 0 ? `Reste à encaisser ${formaterMontant(reste, devise)}` : "Soldé"}
         </span>
       </div>
+      {lienDetail ? (
       <Link href={`/reservations/${reservationId}`} className="inline-block text-xs text-primary underline underline-offset-2">
         Détail financier complet (prix, autres postes, règlement)
       </Link>
+      ) : null}
     </div>
   );
 }

@@ -254,6 +254,35 @@ export function modifierLigne(lignes: LigneFacture[], categorie: CategorieLigne,
   });
 }
 
+// Options libres (catégorie "autre") écrites à la main : ex. « Transfert aéroport », « Lit bébé »,
+// avec un prix et un nombre (jours ou fois). Comme pour les cases à cocher, la ligne « séjour »
+// d'après le loyer connu est créée d'abord si rien n'est encore détaillé, pour que le total reste
+// cohérent avec le loyer. Libellé vide ou prix négatif : refusé (null).
+export function ajouterLigneLibre(
+  lignes: LigneFacture[],
+  saisie: { libelle: string; quantite: number; prixUnitaire: number },
+  contexte: Pick<ContexteOptions, "nuits" | "fraisMenage" | "loyerTotal">
+): LigneFacture[] | null {
+  const libelle = saisie.libelle.trim().slice(0, 140);
+  if (!libelle || !Number.isFinite(saisie.prixUnitaire) || saisie.prixUnitaire < 0) return null;
+  const quantite = Number.isFinite(saisie.quantite) ? Math.max(1, Math.round(saisie.quantite)) : 1;
+  const base = lignes.length > 0 ? lignes : suggererLignes({ loyerTotal: contexte.loyerTotal, fraisMenage: contexte.fraisMenage, nuits: contexte.nuits });
+  return [...base, { categorie: "autre", libelle, quantite, prixUnitaire: arrondir(saisie.prixUnitaire) }];
+}
+
+export function retirerLigneIndex(lignes: LigneFacture[], index: number): LigneFacture[] {
+  return lignes.filter((_, i) => i !== index);
+}
+
+// Ajuste une ligne précise (par sa position) : utile pour les options libres, qui peuvent être
+// plusieurs dans la même catégorie.
+export function modifierLigneIndex(lignes: LigneFacture[], index: number, patch: ModificationLigne): LigneFacture[] {
+  const cible = lignes[index];
+  if (!cible) return lignes;
+  const [modifiee] = modifierLigne([cible], cible.categorie, patch);
+  return lignes.map((l, i) => (i === index ? modifiee : l));
+}
+
 export function changerQuantite(lignes: LigneFacture[], categorie: CategorieLigne, delta: number): LigneFacture[] {
   return lignes.map((l) => (l.categorie === categorie ? { ...l, quantite: Math.max(1, Math.round(l.quantite + delta)) } : l));
 }

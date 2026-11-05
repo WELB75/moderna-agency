@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { updateReservationNotes } from "@/lib/actions/reservations";
-import { lireEtatOptions, type EtatOptions } from "@/lib/actions/compta-reservation";
+import { lireEtatOptions, rafraichirApresOptions, type EtatOptions } from "@/lib/actions/compta-reservation";
 import { OptionsFacturees } from "@/components/app/options-facturees";
 
 // La carte réservation entière est un <Link> cliquable, et les événements React remontent aussi à
@@ -34,6 +34,9 @@ export function EditNotesButton({
   // comptable les retrouve dans ses chiffres, contrairement au texte libre de la note.
   const [options, setOptions] = useState<EtatOptions | null>(null);
   const [optionsErreur, setOptionsErreur] = useState(false);
+  // Options modifiées pendant que la fenêtre est ouverte : la page se rafraîchit une seule fois, à
+  // la fermeture, pour ne pas fermer la fenêtre à chaque clic.
+  const [optionsModifiees, setOptionsModifiees] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -51,6 +54,10 @@ export function EditNotesButton({
       setValue(notes ?? "");
       setOptions(null);
       setOptionsErreur(false);
+      setOptionsModifiees(false);
+    } else if (optionsModifiees) {
+      setOptionsModifiees(false);
+      void rafraichirApresOptions(reservationId).catch(() => {});
     }
     setOpen(next);
   }
@@ -61,7 +68,7 @@ export function EditNotesButton({
         await updateReservationNotes(reservationId, value);
         onSaved?.(value.trim());
         toast.success("Note enregistrée.");
-        setOpen(false);
+        handleOpenChange(false);
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur.");
       }
@@ -115,7 +122,7 @@ export function EditNotesButton({
           <DialogHeader>
             <DialogTitle>Note de la réservation</DialogTitle>
             <DialogDescription>
-              Le texte est pour l&apos;équipe (demandes, horaires, matériel). Les options cochées ci-dessous sont facturées et vont directement dans les chiffres de la comptable. Elles s&apos;enregistrent à chaque clic.
+              Le texte est pour l&apos;équipe (demandes, horaires, matériel). Les options cochées ci-dessous sont facturées et vont directement dans les chiffres de la comptable. Elles s&apos;enregistrent à chaque clic et vous pouvez en ajouter autant que nécessaire, y compris vos propres options.
             </DialogDescription>
           </DialogHeader>
 
@@ -138,6 +145,8 @@ export function EditNotesButton({
                 loyerTotal={options.loyerTotal}
                 fraisMenage={options.fraisMenage}
                 tarifs={options.tarifs}
+                onChange={() => setOptionsModifiees(true)}
+                lienDetail={false}
               />
             ) : (
               <p className="text-sm text-muted-foreground">{optionsErreur ? "Options facturées indisponibles pour le moment." : "Chargement des options facturées..."}</p>
@@ -145,7 +154,7 @@ export function EditNotesButton({
           </div>
 
           <DialogFooter className="gap-2 sm:gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
               Annuler
             </Button>
             <Button type="button" disabled={isPending} onClick={handleSave}>
