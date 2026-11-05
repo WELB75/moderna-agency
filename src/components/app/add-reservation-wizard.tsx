@@ -151,6 +151,17 @@ export function AddReservationWizard({
   const [caution, setCaution] = useState(() => (initialVillaId ? String(villaPriceDefaults?.[initialVillaId]?.caution ?? "") : ""));
   const [fraisMenage, setFraisMenage] = useState(() => (initialVillaId ? String(villaPriceDefaults?.[initialVillaId]?.menage ?? "") : ""));
   const [notes, setNotes] = useState("");
+  // Le ménage proposé vient de la fiche de la villa, en euros : en passant le loyer en dirhams il
+  // devient 600 (60 €) ou 800 (80 €), au taux fixe de 10, et inversement. Seulement tant qu'il est
+  // resté à la valeur proposée : un montant saisi à la main n'est jamais touché.
+  function changerDevise(next: (typeof DEVISES)[number]) {
+    const defaut = villaPriceDefaults?.[villaId]?.menage;
+    if (defaut != null && next !== devisePaiement) {
+      if (devisePaiement === "EUR" && next === "MAD") setFraisMenage((cur) => (Number(cur) === defaut ? String(defaut * 10) : cur));
+      else if (devisePaiement === "MAD" && next === "EUR") setFraisMenage((cur) => (Number(cur) === defaut * 10 ? String(defaut) : cur));
+    }
+    setDevisePaiement(next);
+  }
   // Prix PriceLabs + promo + suivi interne (avance, mode de règlement, remarque) — Kamel,
   // 2026-10-14 : réservations en direct prises par une partenaire.
   const [prixPl, setPrixPl] = useState<PrixSejour | null>(null);
@@ -260,7 +271,7 @@ export function AddReservationWizard({
           .then((res) => {
             setPrixPl(res);
             if (res.ok) {
-              if (res.devise === "EUR" || res.devise === "MAD") setDevisePaiement(res.devise);
+              if (res.devise === "EUR" || res.devise === "MAD") changerDevise(res.devise);
               if (!loyerManuel) setLoyerTotal(String(appliquerPromo(res.total, promoType, promoValeur)));
             } else if (!loyerTotal) {
               const prixNuit = villaPriceDefaults?.[villaId]?.prixNuit;
@@ -541,7 +552,7 @@ export function AddReservationWizard({
                     value={fraisMenage}
                     onChange={(e) => setFraisMenage(e.target.value)}
                   />
-                  <Select value={devisePaiement} onValueChange={(v) => setDevisePaiement(v as (typeof DEVISES)[number])}>
+                  <Select value={devisePaiement} onValueChange={(v) => changerDevise(v as (typeof DEVISES)[number])}>
                     <SelectTrigger className="w-28 shrink-0 data-[size=default]:h-11 md:data-[size=default]:h-8">
                       <SelectValue />
                     </SelectTrigger>
@@ -670,7 +681,7 @@ export function AddReservationWizard({
               </div>
               <div className="space-y-1.5">
                 <Label>Devise</Label>
-                <Select value={devisePaiement} onValueChange={(v) => setDevisePaiement(v as (typeof DEVISES)[number])}>
+                <Select value={devisePaiement} onValueChange={(v) => changerDevise(v as (typeof DEVISES)[number])}>
                   <SelectTrigger className="w-full data-[size=default]:h-11 md:data-[size=default]:h-8">
                     <SelectValue />
                   </SelectTrigger>

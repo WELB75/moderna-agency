@@ -44,24 +44,37 @@ export function codeDevise(devise: string | null | undefined): string {
   return code || "EUR";
 }
 
+// Nombre d'unités de la devise pour 1 euro : 1 pour l'euro, 10 pour le dirham (fixe), taux du jour
+// pour les dollars et les livres (taux de secours si l'API ne répond pas).
+export async function tauxPourUnEuro(devise: string | null | undefined): Promise<number | null> {
+  const code = codeDevise(devise);
+  if (code === "EUR") return 1;
+  if (code === "MAD") return getMadParEur();
+  try {
+    const res = await fetch(URL_TAUX, { next: { revalidate: 12 * 60 * 60 }, signal: AbortSignal.timeout(4000) });
+    const body = res.ok ? ((await res.json()) as { rates?: Record<string, number> }) : null;
+    const t = body?.rates?.[code];
+    if (typeof t === "number" && Number.isFinite(t) && t > 0) return t;
+  } catch {
+    // taux de secours ci-dessous
+  }
+  return TAUX_SECOURS[code] ?? null;
+}
+
+// Convertit un montant d'une devise à une autre en passant par l'euro (30 € = 300 MAD), à deux
+// décimales. Devise inconnue : montant inchangé.
+export async function convertirMontant(montant: number, de: string | null | undefined, vers: string | null | undefined): Promise<number> {
+  if (codeDevise(de) === codeDevise(vers)) return montant;
+  const [tauxDe, tauxVers] = await Promise.all([tauxPourUnEuro(de), tauxPourUnEuro(vers)]);
+  if (!tauxDe || !tauxVers) return montant;
+  return Math.round((montant / tauxDe) * tauxVers * 100) / 100;
+}
+
 // Convertit un tarif défini en euros vers la devise voulue, arrondi : 5 près en dirhams, à l'unité sinon.
 export async function tarifEnDevise(montantEur: number, devise: string | null | undefined): Promise<number> {
   const code = codeDevise(devise);
   if (code === "EUR") return montantEur;
-  let taux: number | undefined;
-  if (code === "MAD") {
-    taux = await getMadParEur();
-  } else {
-    try {
-      const res = await fetch(URL_TAUX, { next: { revalidate: 12 * 60 * 60 }, signal: AbortSignal.timeout(4000) });
-      const body = res.ok ? ((await res.json()) as { rates?: Record<string, number> }) : null;
-      const t = body?.rates?.[code];
-      if (typeof t === "number" && Number.isFinite(t) && t > 0) taux = t;
-    } catch {
-      // taux de secours ci-dessous
-    }
-    taux ??= TAUX_SECOURS[code];
-  }
+  const taux = await tauxPourUnEuro(code);
   if (!taux) return montantEur;
   const brut = montantEur * taux;
   return code === "MAD" ? Math.round(brut / 5) * 5 : Math.round(brut);

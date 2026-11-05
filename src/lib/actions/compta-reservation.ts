@@ -19,12 +19,16 @@ import {
   modifierLigne,
   totalFacture,
   type ModificationLigne,
+  FORMULES_CUISINE,
+  libelleCuisine,
+  prixFormuleCuisine,
+  type FormuleCuisine,
   type CategorieLigne,
   type LigneFacture,
   type TarifsOptions,
 } from "@/lib/compta-reservation-format";
 import { tracer } from "@/lib/journal";
-import { DEVISES_RESERVATION } from "@/lib/devises";
+import { DEVISES_RESERVATION, codeDevise, convertirMontant } from "@/lib/devises";
 
 export type LigneSaisie = { categorie: string; libelle: string; quantite: string | number; prixUnitaire: string | number };
 
@@ -167,15 +171,25 @@ export async function lireEtatOptions(reservationId: string): Promise<EtatOption
   return etatOptions(reservationId);
 }
 
-// Modifie le nombre de jours, le prix ou la formule d'une option déjà cochée.
-export async function modifierOptionFacturee(reservationId: string, categorie: string, patch: ModificationLigne): Promise<EtatOptions> {
+// Modifie le nombre de jours, le prix ou la formule d'une option déjà cochée. Choisir une formule de
+// cuisinière applique son tarif par jour (dans la devise de la réservation).
+export async function modifierOptionFacturee(reservationId: string, categorie: string, patch: ModificationLigne & { formule?: FormuleCuisine }): Promise<EtatOptions> {
   await auth.protect();
   if (!OPTIONS_RAPIDES.some((o) => o.categorie === categorie)) throw new Error("Option inconnue.");
   if (patch.quantite !== undefined && (!Number.isFinite(patch.quantite) || patch.quantite < 1 || patch.quantite > 90)) throw new Error("Nombre de jours invalide.");
   if (patch.prixUnitaire !== undefined && (!Number.isFinite(patch.prixUnitaire) || patch.prixUnitaire < 0 || patch.prixUnitaire > 100_000)) throw new Error("Prix invalide.");
   const actuelles = await lignesDeLaReservation(reservationId);
   if (!actuelles.some((l) => l.categorie === categorie)) throw new Error("Cochez d'abord l'option.");
-  const apres = modifierLigne(actuelles, categorie as CategorieLigne, patch);
+  let modification: ModificationLigne = { quantite: patch.quantite, prixUnitaire: patch.prixUnitaire, libelle: patch.libelle };
+  if (patch.formule) {
+    if (categorie !== "cuisine" || !FORMULES_CUISINE.includes(patch.formule)) throw new Error("Formule inconnue.");
+    const contexte = await chargerContexteOptions(reservationId);
+    if (!contexte) throw new Error("Réservation introuvable.");
+    const prix = prixFormuleCuisine(contexte.tarifs, patch.formule);
+    if (prix === null) throw new Error("La cuisinière n'est pas facturée pour ce logement.");
+    modification = { ...modification, libelle: libelleCuisine(patch.formule), prixUnitaire: prix };
+  }
+  const apres = modifierLigne(actuelles, categorie as CategorieLigne, modification);
   await remplacerLignes(reservationId, apres);
   await tracer({
     categorie: "reservation",
@@ -187,19 +201,34 @@ export async function modifierOptionFacturee(reservationId: string, categorie: s
   return etatOptions(reservationId);
 }
 
-// Change la devise de la réservation (euros, dirhams, dollars, livres). Les montants déjà saisis ne
-// sont pas convertis : seule la devise change, comme dans le formulaire Paiement ; les tarifs des
-// options cochées ensuite sont, eux, proposés dans la nouvelle devise.
+// Change la devise de la réservation (euros, dirhams, dollars, livres) ET convertit tous les montants
+// déjà saisis (loyer, encaissé, caution, frais de ménage, lignes facturées) : 80 € deviennent 800 MAD
+// (taux fixe de 10 pour le dirham). Sans cela, 80 restait 80 avec une autre étiquette.
 export async function changerDeviseReservation(reservationId: string, devise: string): Promise<EtatOptions> {
   await auth.protect();
   const code = DEVISES_RESERVATION.find((d) => d.code === devise)?.code;
   if (!code) throw new Error("Devise inconnue.");
-  await getDb().update(reservations).set({ devisePaiement: code, updatedAt: new Date() }).where(eq(reservations.id, reservationId));
+  const db = getDb();
+  const [r] = await db
+    .select({ devise: reservations.devisePaiement, loyerTotal: reservations.loyerTotal, montantPaye: reservations.montantPaye, caution: reservations.caution, fraisMenage: reservations.fraisMenage })
+    .from(reservations)
+    .where(eq(reservations.id, reservationId))
+    .limit(1);
+  if (!r) throw new Error("Réservation introuvable.");
+  const ancienne = r.devise || "EUR";
+  if (codeDevise(ancienne) !== code) {
+    const conv = async (v: string | null) => (v == null ? null : (await convertirMontant(Number(v), ancienne, code)).toFixed(2));
+    const [loyerTotal, montantPaye, caution, fraisMenage] = await Promise.all([conv(r.loyerTotal), conv(r.montantPaye), conv(r.caution), conv(r.fraisMenage)]);
+    const actuelles = await lignesDeLaReservation(reservationId);
+    const converties = await Promise.all(actuelles.map(async (l) => ({ ...l, prixUnitaire: await convertirMontant(l.prixUnitaire, ancienne, code) })));
+    await db.update(reservations).set({ devisePaiement: code, loyerTotal, montantPaye, caution, fraisMenage, updatedAt: new Date() }).where(eq(reservations.id, reservationId));
+    if (actuelles.length > 0) await remplacerLignes(reservationId, converties);
+  }
   await tracer({
     categorie: "paiement",
     action: "devise_modifiee",
     libelle: `Devise de la réservation : ${code}`,
-    resume: code,
+    resume: `${ancienne} vers ${code}, montants convertis`,
     reservationId,
   });
   return etatOptions(reservationId);
