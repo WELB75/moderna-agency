@@ -281,7 +281,7 @@ export async function updatePaymentInfo(formData: FormData) {
 // récupère la caution sur place, et veut le noter en un clic plutôt que rouvrir le formulaire
 // complet "Paiement" (Kamel, 2026-08-16 : "faut vraiment que j'ai un moyen de cliquer sur un
 // bouton"). Solde marqué payé = montant reçu aligné sur le loyer total convenu.
-export async function markSoldeRecu(reservationId: string, moyen: "especes" | "virement") {
+export async function markSoldeRecu(reservationId: string, moyen: "especes" | "virement" | "proprietaire") {
   await auth.protect();
   if (!reservationId) throw new Error("Réservation introuvable.");
 
@@ -293,7 +293,7 @@ export async function markSoldeRecu(reservationId: string, moyen: "especes" | "v
     .update(reservations)
     .set({
       montantPaye: reservation.loyerTotal,
-      moyenPaiement: moyen === "especes" ? "Espèces" : "Virement",
+      moyenPaiement: moyen === "especes" ? "Espèces" : moyen === "virement" ? "Virement" : "Reçu par le propriétaire",
       updatedAt: new Date(),
     })
     .where(eq(reservations.id, reservationId));
@@ -303,7 +303,7 @@ export async function markSoldeRecu(reservationId: string, moyen: "especes" | "v
     categorie: "paiement",
     action: "solde_recu",
     libelle: "Solde reçu",
-    resume: `${info.sejour} · ${reservation.loyerTotal ?? "-"} (${moyen === "especes" ? "espèces" : "virement"})`,
+    resume: `${info.sejour} · ${reservation.loyerTotal ?? "-"} (${moyen === "especes" ? "espèces" : moyen === "virement" ? "virement" : "reçu par le propriétaire"})`,
     ...info,
   });
 

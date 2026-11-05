@@ -27,6 +27,11 @@ import {
 } from "@/components/ui/dialog";
 import { updatePaymentInfo, markSoldeRecu, markCautionRecue } from "@/lib/actions/reservations";
 
+// Loyer encaissé directement par le propriétaire de la villa (virement ou argent), pas par l'agence.
+function estRecuParProprietaire(moyen: string | null | undefined): boolean {
+  return (moyen ?? "").toLowerCase().includes("propriétaire");
+}
+
 export function PaymentSummary({
   reservationId,
   loyerTotal,
@@ -34,6 +39,7 @@ export function PaymentSummary({
   caution,
   cautionPayee,
   devisePaiement,
+  moyenPaiement,
 }: {
   reservationId?: string;
   loyerTotal: string | null;
@@ -41,6 +47,7 @@ export function PaymentSummary({
   caution: string | null;
   cautionPayee: boolean;
   devisePaiement: string;
+  moyenPaiement?: string | null;
 }) {
   const [isPending, startTransition] = useTransition();
 
@@ -53,12 +60,12 @@ export function PaymentSummary({
   const solde = total - paye;
   const d = devisePaiement;
 
-  function handleSoldeRecu(moyen: "especes" | "virement") {
+  function handleSoldeRecu(moyen: "especes" | "virement" | "proprietaire") {
     if (!reservationId) return;
     startTransition(async () => {
       try {
         await markSoldeRecu(reservationId, moyen);
-        toast.success("Solde marqué payé.");
+        toast.success(moyen === "proprietaire" ? "Solde marqué reçu par le propriétaire." : "Solde marqué payé.");
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Erreur lors de la mise à jour.");
       }
@@ -78,29 +85,33 @@ export function PaymentSummary({
   }
 
   return (
-    <div className="mt-2 space-y-1.5 rounded-md border p-2 text-sm">
+    <div className="mt-2 space-y-2 rounded-md border p-2 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span>
           Loyer : {paye.toFixed(2)} {d} / {total.toFixed(2)} {d}
         </span>
         {solde > 0.009 ? (
-          <>
-            <Badge variant="destructive">Reste {solde.toFixed(2)} {d} à payer</Badge>
-            {reservationId && (
-              <>
-                <Button variant="outline" size="sm" disabled={isPending} onClick={() => handleSoldeRecu("especes")}>
-                  Reçu en espèces
-                </Button>
-                <Button variant="outline" size="sm" disabled={isPending} onClick={() => handleSoldeRecu("virement")}>
-                  Reçu par virement
-                </Button>
-              </>
-            )}
-          </>
+          <Badge variant="destructive">Reste {solde.toFixed(2)} {d} à payer</Badge>
         ) : (
-          <Badge variant="outline">Loyer soldé</Badge>
+          <>
+            <Badge variant="outline">Loyer soldé</Badge>
+            {estRecuParProprietaire(moyenPaiement) ? <Badge variant="outline">Reçu par le propriétaire</Badge> : null}
+          </>
         )}
       </div>
+      {solde > 0.009 && reservationId ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <Button variant="outline" size="sm" disabled={isPending} onClick={() => handleSoldeRecu("especes")}>
+            Reçu en espèces
+          </Button>
+          <Button variant="outline" size="sm" disabled={isPending} onClick={() => handleSoldeRecu("virement")}>
+            Reçu par virement
+          </Button>
+          <Button variant="outline" size="sm" disabled={isPending} onClick={() => handleSoldeRecu("proprietaire")}>
+            Reçu par le propriétaire
+          </Button>
+        </div>
+      ) : null}
       {caution !== null && (
         <div className="flex flex-wrap items-center gap-2">
           <span>Caution : {Number(caution).toFixed(2)} {d}</span>

@@ -80,6 +80,7 @@ export type ReservationRow = {
   caution: string | null;
   cautionPayee: boolean;
   devisePaiement: string;
+  moyenPaiement: string | null;
   beds24BookingId?: string | null;
   checkinValideAt: Date | null;
   checkinValidePar: string | null;
@@ -470,6 +471,7 @@ export function ReservationRowCard({ r, kind }: { r: ReservationRow; kind: "in" 
               caution={r.caution}
               cautionPayee={r.cautionPayee}
               devisePaiement={r.devisePaiement}
+              moyenPaiement={r.moyenPaiement}
             />
           )}
 
