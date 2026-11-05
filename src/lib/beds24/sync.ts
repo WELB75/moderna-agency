@@ -342,6 +342,7 @@ export async function runBeds24Sync(): Promise<
               price: Number(booking.price) || 0,
               commission: booking.commission ?? null,
               tax: booking.tax ?? null,
+              rateDescription: booking.rateDescription ?? null,
               invoiceItems: (booking.invoiceItems ?? []).map((i) => ({
                 type: i.type ?? null,
                 description: i.description ?? null,

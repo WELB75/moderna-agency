@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calculerRevenusPlateforme, estCanalPlateforme, prixBeds24DeRawData } from "./revenus-plateforme.ts";
+import { calculerRevenusPlateforme, estCanalPlateforme, nuiteesDeRateDescription, prixBeds24DeRawData } from "./revenus-plateforme.ts";
 
 // Capture Airbnb de la comptable : 2 nuits, chambre 102,00, ménage 20,00, frais de service -22,69,
 // le voyageur paie 122,00 (le net que reçoit l'hôte est 99,31).
@@ -115,4 +115,49 @@ test("Airbnb : le ménage n'est pas retiré du prix net", () => {
   assert.equal(airbnb.prixNetNuitees, 79.31);
   assert.equal(airbnb.netSansMenage, true);
   assert.equal(calculerRevenusPlateforme(prix, 122, null, "Booking.com")?.prixNetNuitees, 59.31);
+});
+
+// Sanaa, 2026-11-05 : résa Booking.com de Keltoum Devaux (Villa Azur, 4 nuits). Booking : 4 × 378 €
+// de nuitées, voyageur 1 652 €, commission 314,40 + frais de paiement 31,44. Le ménage (60 €) vient
+// de la fiche ; les 80 € restants sont des taxes, pas des nuitées (l'app affichait 1 592 €).
+test("Booking.com : nuitées lues dans le tarif par nuit, taxes à part", () => {
+  const rateDescription = [
+    "2026-10-19 (50754861 Standard Rate) EUR 378 genius",
+    "2026-10-20 (50754861 Standard Rate) EUR 378 genius",
+    "2026-10-21 (50754861 Standard Rate) EUR 378 genius",
+    "2026-10-22 (50754861 Standard Rate) EUR 378 genius",
+  ].join("\n");
+  const r = calculerRevenusPlateforme({ price: 1652, commission: 345.84, rateDescription, invoiceItems: [] }, 1652, 60, "Booking.com");
+  assert.ok(r);
+  assert.equal(r.fraisChambre, 1512);
+  assert.equal(r.origineChambre, "tarifs");
+  assert.equal(r.fraisMenage, 60);
+  assert.equal(r.autresFrais, 80);
+  assert.equal(r.fraisServiceHote, 345.84);
+  assert.equal(r.prixNetNuitees, 1106.16);
+});
+
+test("Booking.com sans tarif par nuit : la taxe Beds24 n'est pas comptée en nuitées", () => {
+  const r = calculerRevenusPlateforme({ price: 1652, commission: 345.84, tax: 80, invoiceItems: [] }, 1652, 60, "Booking.com");
+  assert.ok(r);
+  assert.equal(r.fraisChambre, 1512);
+  assert.equal(r.autresFrais, 80);
+});
+
+test("tarif par nuit : formats de montant", () => {
+  assert.equal(nuiteesDeRateDescription("2026-12-24 (1 Standard) EUR 1,250.50\n2026-12-25 (1 Standard) EUR 1250,50"), 2501);
+  assert.equal(nuiteesDeRateDescription("Standard Rate"), null);
+  assert.equal(nuiteesDeRateDescription(null), null);
+});
+
+test("Airbnb : le tarif par nuit Beds24 est ignoré", () => {
+  const r = calculerRevenusPlateforme(
+    { price: 122, commission: 22.69, rateDescription: "2026-10-01 (1 Std) EUR 49.65\n2026-10-02 (1 Std) EUR 49.66", invoiceItems: [] },
+    122,
+    20,
+    "Airbnb"
+  );
+  assert.ok(r);
+  assert.equal(r.fraisChambre, 102);
+  assert.equal(r.autresFrais, 0);
 });
