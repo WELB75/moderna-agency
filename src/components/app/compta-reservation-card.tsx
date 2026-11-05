@@ -1,5 +1,6 @@
 "use client";
 
+import { nettoyerTexteCollé } from "@/lib/texte-propre";
 import { useMemo, useState, useTransition } from "react";
 import { Plus, Receipt, Trash2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
@@ -187,7 +188,7 @@ export function ComptaReservationCard(props: Props) {
           <p className="whitespace-pre-wrap break-words text-sm">
             {props.moyenPaiement ? <span className="font-medium">{props.moyenPaiement}</span> : null}
             {props.moyenPaiement && props.notesPaiement ? " · " : ""}
-            {props.notesPaiement}
+            {props.notesPaiement ? nettoyerTexteCollé(props.notesPaiement) : null}
           </p>
         </div>
       ) : null}

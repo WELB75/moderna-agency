@@ -21,6 +21,7 @@ import { FichePoliceStatusChip } from "@/components/app/fiche-police-status-chip
 import { ContratStatusChip } from "@/components/app/contrat-status-chip";
 import { DeclarationSyndicChip } from "@/components/app/declaration-syndic-chip";
 import { PaymentSummary } from "@/components/app/payment-info";
+import { nettoyerTexteCollé } from "@/lib/texte-propre";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import type { PersonnelOption } from "@/lib/personnel-options";
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
@@ -587,7 +588,7 @@ export function RecapInline({ recap }: { recap: NonNullable<ReservationRow["reca
       {lignes.length > 0 || recap.remarqueInterne ? (
         <InlineAlert tone="amber" icon={Wallet}>
           {lignes.join(" · ")}
-          {recap.remarqueInterne ? `${lignes.length > 0 ? " — " : ""}${recap.remarqueInterne}` : ""}
+          {recap.remarqueInterne ? `${lignes.length > 0 ? " — " : ""}${nettoyerTexteCollé(recap.remarqueInterne)}` : ""}
         </InlineAlert>
       ) : null}
       <a

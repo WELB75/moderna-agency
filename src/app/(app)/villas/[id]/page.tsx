@@ -51,6 +51,7 @@ import { CanalBadge } from "@/components/app/canal-badge";
 import { EditGuestNameButton } from "@/components/app/edit-guest-name-button";
 import { EditVillaInfoDialog } from "@/components/app/edit-villa-info-dialog";
 import { PaymentSummary, EditPaymentDialog } from "@/components/app/payment-info";
+import { nettoyerTexteCollé } from "@/lib/texte-propre";
 import { OperationalSummary, EditOperationalInfoDialog } from "@/components/app/operational-info";
 import { PersonnelAffectationEditor, type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { GendarmerieAction } from "@/components/app/gendarmerie-action";
@@ -671,7 +672,7 @@ function ReservationListItem({
           />
         </div>
       )}
-      {r.notesPaiement ? <p className="mt-1 text-xs text-muted-foreground">{r.notesPaiement}</p> : null}
+      {r.notesPaiement ? <p className="mt-1 text-xs text-muted-foreground">{nettoyerTexteCollé(r.notesPaiement)}</p> : null}
       {villaId ? (
         <div className="mt-2">
           <GendarmerieAction reservationId={r.id} villaId={villaId} existingForm={gendarmerieForm ?? null} />
