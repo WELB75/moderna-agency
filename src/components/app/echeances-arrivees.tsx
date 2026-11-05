@@ -45,7 +45,8 @@ export async function EcheancesArrivees({ now }: { now: Date }) {
       const cautionStatut = statutCautionLigne(a);
       return { ...a, cautionStatut, echeance: calculerEcheance({ checkIn: a.checkIn, ficheStatut: a.ficheStatut, contratStatut: a.contratStatut, cautionStatut }, now) };
     })
-    .filter((a) => a.echeance.etat !== "ok")
+    // Une caution encore à recevoir garde la ligne affichée (notée, sans chrono ni rouge).
+    .filter((a) => a.echeance.etat !== "ok" || a.cautionStatut === "a_recevoir")
     // Les 5 premières lignes sont les arrivées les plus proches (Kamel, 2026-11-01) ; les retards
     // sont de toute façon les plus proches, puisque la limite J-1 précède l'arrivée.
     .sort((a, b) => a.checkIn.getTime() - b.checkIn.getTime());

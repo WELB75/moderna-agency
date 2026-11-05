@@ -45,8 +45,8 @@ export function calculerEcheance(
     checkIn: Date;
     ficheStatut: "complete" | "en_attente" | null;
     contratStatut: "signe" | "en_attente" | null;
-    // Seulement pour la liste « Prochaines échéances » de l'accueil (Kamel, 2026-11-02 : « il faut
-    // aussi ajouter la caution ») ; absent = la caution n'est pas suivie, comme sur les cartes d'agenda.
+    // Gardé pour l'appelant, mais ignoré ici : la caution est notée sur la ligne, sans compte à
+    // rebours ni rouge (Kamel, 2026-11-05 : « le chrono c'est que pour la fiche police et le contrat »).
     cautionStatut?: "recue" | "a_recevoir" | "aucune";
   },
   now: Date
@@ -54,7 +54,6 @@ export function calculerEcheance(
   const manquants: string[] = [];
   if (r.ficheStatut !== "complete") manquants.push("Fiche police");
   if (r.contratStatut !== "signe") manquants.push("Contrat");
-  if (r.cautionStatut === "a_recevoir") manquants.push("Caution");
   const limite = echeanceDocuments(r.checkIn);
   const reste = limite.getTime() - now.getTime();
 
