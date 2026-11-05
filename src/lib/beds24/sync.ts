@@ -17,7 +17,7 @@ import { notifyStaffWhatsApp } from "@/lib/whatsapp";
 import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { getBaseUrl } from "@/lib/base-url";
-import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
+import { estDirham, getMadParEur, madVersEur, MAD_PAR_EUR_FIXE } from "@/lib/devises";
 import { BEDS24_VILLA_MAPPING } from "@/lib/beds24/mapping";
 import { statutApresSynchro } from "@/lib/annulation-resa";
 import { estSejourProprietaire, sejourSansVoyageur } from "@/lib/conditions-sejour";
@@ -137,7 +137,7 @@ export async function loyerEnEuros(
   const parNuit = prix / Math.max(1, contexte.nuits);
   const minEuros = contexte.minPricelabs
     ? estDirham(contexte.devisePricelabs)
-      ? contexte.minPricelabs / MAD_PAR_EUR_SECOURS
+      ? contexte.minPricelabs / MAD_PAR_EUR_FIXE
       : contexte.minPricelabs
     : null;
   const annonceAirbnbEnDirhams = contexte.canal === "Airbnb" && minEuros != null && parNuit >= minEuros * 5;
