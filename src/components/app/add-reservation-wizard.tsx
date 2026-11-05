@@ -744,6 +744,11 @@ export function AddReservationWizard({
               <div className="space-y-1.5">
                 <Label htmlFor="fraisMenage">Frais de ménage de départ</Label>
                 <Input className="h-11 md:h-8" id="fraisMenage" type="number" step="0.01" min="0" value={fraisMenage} onChange={(e) => setFraisMenage(e.target.value)} />
+                {devisePaiement === "EUR" && Number(fraisMenage) >= 150 ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    {fraisMenage} € de ménage, c&apos;est beaucoup : si c&apos;est en dirhams, passer la devise du loyer sur MAD.
+                  </p>
+                ) : null}
               </div>
             </div>
             <div className="space-y-1.5">
