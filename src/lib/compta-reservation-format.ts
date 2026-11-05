@@ -174,10 +174,10 @@ export type TarifsOptions = {
   menageJournalierIncluse: boolean; // femme de ménage comprise dans le loyer (Villa Sofya)
 };
 
-// Tarifs en euros (convertis au taux fixe de 10 pour les dirhams : 60 € = 600 MAD). Cuisinière : 200 MAD
-// le petit-déjeuner seul, 300 MAD petit-déjeuner + déjeuner (tarifs communiqués aux voyageurs, voir
-// whatsapp-agent/agent.ts) ; le déjeuner seul est déduit (300 − 200) faute de tarif communiqué.
-export const TARIFS_PAR_DEFAUT: TarifsOptions = { menage: 60, cuisine: 30, cuisinePetitDej: 20, cuisineDejeuner: 10, cuisineIncluse: false, piscine: 30, menageJournalier: 20, menageJournalierIncluse: false };
+// Tarifs en euros (convertis au taux fixe de 10 pour les dirhams : 60 € = 600 MAD). Cuisinière : deux
+// tarifs seulement (Kamel, 2026-11-05) : un repas seul (petit-déjeuner OU déjeuner) 200 MAD, les deux
+// (petit-déjeuner + déjeuner) 300 MAD.
+export const TARIFS_PAR_DEFAUT: TarifsOptions = { menage: 60, cuisine: 30, cuisinePetitDej: 20, cuisineDejeuner: 20, cuisineIncluse: false, piscine: 30, menageJournalier: 20, menageJournalierIncluse: false };
 
 export const OPTIONS_RAPIDES: { categorie: CategorieLigne; label: string; parJour: boolean }[] = [
   { categorie: "menage", label: "Ménage de fin de séjour", parJour: false },

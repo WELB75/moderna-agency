@@ -225,9 +225,9 @@ test("retirerLigneIndex et modifierLigneIndex agissent sur une seule ligne", () 
   assert.equal(m[1].quantite, 3);
 });
 
-test("prixFormuleCuisine : 20 / 10 / 30 euros par jour, rien si les repas sont inclus ou en appartement", () => {
+test("prixFormuleCuisine : 20 (un repas seul) / 30 (les deux) euros par jour, rien si les repas sont inclus ou en appartement", () => {
   assert.equal(prixFormuleCuisine(TARIFS_PAR_DEFAUT, "Petit-déjeuner"), 20);
-  assert.equal(prixFormuleCuisine(TARIFS_PAR_DEFAUT, "Déjeuner"), 10);
+  assert.equal(prixFormuleCuisine(TARIFS_PAR_DEFAUT, "Déjeuner"), 20);
   assert.equal(prixFormuleCuisine(TARIFS_PAR_DEFAUT, "Petit-déjeuner et déjeuner"), 30);
   assert.equal(prixFormuleCuisine({ ...TARIFS_PAR_DEFAUT, cuisineIncluse: true }, "Déjeuner"), null);
   assert.equal(prixFormuleCuisine({ ...TARIFS_PAR_DEFAUT, cuisine: null, cuisinePetitDej: null, cuisineDejeuner: null }, "Petit-déjeuner"), null);
