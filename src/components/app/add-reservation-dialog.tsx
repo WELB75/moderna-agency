@@ -47,7 +47,7 @@ export function AddReservationDialog({
           Réservation manuelle
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Ajouter une réservation</DialogTitle>
           <DialogDescription>{villaLabel ?? "Pour les réservations qui ne viennent pas de Superhote."}</DialogDescription>
