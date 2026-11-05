@@ -68,6 +68,7 @@ export default async function ReservationDetailPage({ params }: { params: Promis
       caution: reservations.caution,
       cautionPayee: reservations.cautionPayee,
       devisePaiement: reservations.devisePaiement,
+      moyenPaiement: reservations.moyenPaiement,
       checkinValideAt: reservations.checkinValideAt,
       checkinValidePar: reservations.checkinValidePar,
       checkoutValideAt: reservations.checkoutValideAt,

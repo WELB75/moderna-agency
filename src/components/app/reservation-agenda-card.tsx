@@ -348,6 +348,7 @@ export function ReservationAgendaCard({
                   caution={r.caution}
                   cautionPayee={r.cautionPayee}
                   devisePaiement={r.devisePaiement}
+              moyenPaiement={r.moyenPaiement}
                 />
               </div>
               {r.loyerTotal === null ? <p className="text-sm text-muted-foreground">Aucun montant renseigné.</p> : null}

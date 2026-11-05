@@ -667,6 +667,7 @@ function ReservationListItem({
             caution={r.caution}
             cautionPayee={r.cautionPayee}
             devisePaiement={r.devisePaiement}
+              moyenPaiement={r.moyenPaiement}
           />
         </div>
       )}
