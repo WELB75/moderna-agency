@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { sansAppartements, villasSeulement } from "@/lib/vue-villas";
 import { and, asc, desc, eq, gte, lt, ne } from "drizzle-orm";
 import { addDays, differenceInCalendarDays, endOfDay, format, startOfDay, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -57,6 +58,7 @@ export async function CalendrierListe({ filtre, now }: { filtre: FiltreListe; no
     .leftJoin(domaines, eq(villas.domaineId, domaines.id))
     .where(
       and(
+        sansAppartements(await villasSeulement()),
         ne(reservations.status, "annulee"),
         gte(reservations.checkOut, subDays(todayStart, 60)),
         lt(reservations.checkIn, endOfDay(addDays(now, 30)))

@@ -35,9 +35,12 @@ import type { NuitIsolee, RapportNuitsIsolees } from "@/lib/beds24/nuits-isolees
 export function TarificationView({
   initialVillas,
   lectureSeule = false,
+  villasSeulement = false,
 }: {
   initialVillas: TarificationVilla[];
   lectureSeule?: boolean;
+  // Compte Kamel / Mohamed : pas d'appartements, ni dans la grille ni dans les onglets.
+  villasSeulement?: boolean;
 }) {
   const [villasTarifs, setVillasTarifs] = useState(initialVillas);
   const [search, setSearch] = useState("");
@@ -101,7 +104,7 @@ export function TarificationView({
       const res = await fetch("/api/tarification?refresh=1");
       if (!res.ok) throw new Error();
       const data = (await res.json()) as { villas: TarificationVilla[] };
-      setVillasTarifs(data.villas);
+      setVillasTarifs(villasSeulement ? data.villas.filter((v) => v.type !== "appartement") : data.villas);
     } catch {
       setLoadError("Prix temporairement indisponibles, réessayez plus tard.");
     } finally {
@@ -124,6 +127,7 @@ export function TarificationView({
           <Input placeholder="Rechercher un logement..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8" />
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          {villasSeulement ? null : (
           <div className="inline-flex rounded-lg border bg-muted p-0.5 text-sm" role="group" aria-label="Type de logement">
             {(
               [
@@ -145,6 +149,7 @@ export function TarificationView({
               </button>
             ))}
           </div>
+          )}
           {plusAncienneSynchro ? (
             <p className="text-xs text-muted-foreground">
               Prix mis à jour {formatDistanceToNow(parseISO(plusAncienneSynchro), { addSuffix: true, locale: fr })}

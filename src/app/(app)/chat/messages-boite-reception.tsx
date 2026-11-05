@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, ilike, isNotNull, lte, ne, or } from "drizzle-orm";
+import { villasSeulement } from "@/lib/vue-villas";
 import { addDays, differenceInCalendarDays, subDays } from "date-fns";
 import { getDb } from "@/db";
 import { whatsappConversations, personnel, technicians, clients, reservations, villas, pricelabsPriceCache } from "@/db/schema";
@@ -533,5 +534,8 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
     c.unread = c.awaitingReply && new Date(c.lastAt).getTime() > (lectures.get(c.key) ?? 0);
   }
 
+  // Kamel et Mohamed (2026-11-05) : « pour les messages, tu mets que les messages des villas ».
+  // Filtré ici pour que la pastille du menu compte les mêmes conversations que la boîte.
+  if (await villasSeulement()) return { items: items.filter((c) => c.logementType !== "appartement"), notice };
   return { items, notice };
 }
