@@ -1,5 +1,5 @@
 import { addMonths, differenceInCalendarDays, endOfMonth, max as maxDate, min as minDate, startOfMonth, startOfYear } from "date-fns";
-import { estDirham, MAD_PAR_EUR_SECOURS } from "@/lib/devises";
+import { estDirham, MAD_PAR_EUR_FIXE } from "@/lib/devises";
 
 // Nombre de nuits d'une réservation qui tombent dans le mois donné (year/monthIndex 0-11) —
 // une réservation à cheval sur deux mois contribue ses nuits à chacun des deux, prorata du
@@ -25,7 +25,7 @@ export function montantProrata(montantTotal: number, checkIn: Date, checkOut: Da
 // Un seul chiffre en euros dans le tableau Statistiques (Kamel, 2026-08-31 : "on va rester en
 // euros [...] c'est pas beau" en réaction au mélange EUR/MAD dans les cellules). Taux du jour
 // (voir lib/devises.ts) passé par l'appelant, taux de secours sinon — pas de la comptabilité précise.
-export function versEuros(montant: number, devise: string, madParEur: number = MAD_PAR_EUR_SECOURS): number {
+export function versEuros(montant: number, devise: string, madParEur: number = MAD_PAR_EUR_FIXE): number {
   return estDirham(devise) ? montant / madParEur : montant;
 }
 
