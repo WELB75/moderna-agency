@@ -8,6 +8,7 @@ import { contratsLocation, gendarmerieForms, reservations, villas } from "@/db/s
 import { AGENCE_REPRESENTANT_DEFAUT } from "@/lib/contrat-template";
 import { chargerConditionsFiche, derniereSignatureAgence, signerConditionsFiche } from "@/lib/contrat-donnees";
 import { tracer } from "@/lib/journal";
+import { notifierSecuriteSiPret } from "@/lib/securite-auto";
 
 export async function generateContrat(input: {
   villaId: string;
@@ -168,6 +169,17 @@ export async function submitContratSignature(
     // Signature via lien public : pas de compte Clerk.
     auteur: { type: "humain", id: null, nom: `${nomClient} (client, lien de signature)`, email: null },
   });
+
+  // Contrat signé : si la fiche police est déjà complète, le gardien du domaine est prévenu.
+  if (contrat.villaId && contrat.dateArrivee) {
+    const sejours = await db
+      .select({ id: reservations.id, checkIn: reservations.checkIn })
+      .from(reservations)
+      .where(eq(reservations.villaId, contrat.villaId));
+    for (const s of sejours) {
+      if (s.checkIn.toISOString().slice(0, 10) === contrat.dateArrivee) await notifierSecuriteSiPret(s.id);
+    }
+  }
 
   revalidatePath("/documents");
   revalidatePath(`/c/${contratId}`);
