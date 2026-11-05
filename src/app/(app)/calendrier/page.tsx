@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarDays, GanttChartSquare, List } from "lucide-react";
 import { getTarification } from "@/lib/pricelabs/sync";
 import { TarificationView } from "@/components/app/tarification-view";
+import { villasSeulement } from "@/lib/vue-villas";
 import { CalendrierJour, type OngletJour } from "@/components/app/calendrier-jour";
 import { CalendrierListe, type FiltreListe } from "@/components/app/calendrier-liste";
 import { nowInMorocco } from "@/lib/now";
@@ -40,6 +41,7 @@ export default async function CalendrierPage({
   const params = await searchParams;
   const vue: Vue = VUES.some((v) => v.key === params.vue) ? (params.vue as Vue) : "planning";
   const now = nowInMorocco();
+  const seulementVillas = await villasSeulement();
 
   return (
     <div className="space-y-5">
@@ -88,7 +90,7 @@ export default async function CalendrierPage({
       ) : (
         // Rendu initial avec le cache déjà en base (pas d'appel PriceLabs bloquant au chargement
         // de la page) — le bouton "Actualiser les prix" côté client force une resynchro.
-        <TarificationView initialVillas={await getTarification()} />
+        <TarificationView initialVillas={(await getTarification()).filter((v) => !seulementVillas || v.type !== "appartement")} villasSeulement={seulementVillas} />
       )}
     </div>
   );

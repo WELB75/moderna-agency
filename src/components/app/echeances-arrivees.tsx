@@ -1,6 +1,7 @@
 import { FileClock } from "lucide-react";
 import { chargerArriveesDocuments, progressionFiche } from "@/lib/arrivees-documents";
 import { calculerEcheance } from "@/lib/echeance-documents";
+import { villasSeulement } from "@/lib/vue-villas";
 import { ListeEcheances } from "@/components/app/liste-echeances";
 import { SectionLabel } from "@/components/app/dashboard-ui";
 
@@ -40,10 +41,10 @@ function statutCautionLigne(a: { caution: string | null; cautionPayee: boolean }
 }
 
 export async function EcheancesArrivees({ now }: { now: Date }) {
-  const arrivees = await chargerArriveesDocuments(now, NB_JOURS);
-  // Kamel, 2026-11-05 : pas d'appartements ici, seulement les villas de Moderna 1 (Zaraba) et Moderna 2.
+  const [arrivees, seulementVillas] = await Promise.all([chargerArriveesDocuments(now, NB_JOURS), villasSeulement()]);
+  // Kamel, 2026-11-05 : pour lui et Mohamed, seulement les villas de Moderna 1 (Zaraba) et Moderna 2 (lib/vue-villas.ts).
   const aSurveiller = arrivees
-    .filter((a) => a.villaType !== "appartement" && a.domaineNom !== null && DOMAINES_SUIVIS.includes(a.domaineNom))
+    .filter((a) => !seulementVillas || (a.villaType !== "appartement" && a.domaineNom !== null && DOMAINES_SUIVIS.includes(a.domaineNom)))
     .map((a) => {
       const cautionStatut = statutCautionLigne(a);
       return { ...a, cautionStatut, echeance: calculerEcheance({ checkIn: a.checkIn, ficheStatut: a.ficheStatut, contratStatut: a.contratStatut, cautionStatut }, now) };
