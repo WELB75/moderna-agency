@@ -1,13 +1,11 @@
 "use server";
 
+import { notifierSecuriteSiPret } from "@/lib/securite-auto";
 import { revalidatePath } from "next/cache";
 import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { gendarmerieForms, gendarmerieOccupants, reservations, villas, domaines } from "@/db/schema";
+import { gendarmerieForms, gendarmerieOccupants, reservations, villas } from "@/db/schema";
 import { normalizeIdPhotoDataUrl } from "@/lib/id-photo-normalize";
-import { sendWhatsAppText } from "@/lib/whatsapp-agent/send";
-import { buildSecurityMessage } from "@/lib/message-templates";
-import { getBaseUrl } from "@/lib/base-url";
 import { signerConditionsFiche } from "@/lib/contrat-donnees";
 import { tracer } from "@/lib/journal";
 import { ficheTerminee } from "@/lib/fiche-police-progression";
@@ -74,38 +72,7 @@ export async function chargerEtatFichePublic(formId: string): Promise<EtatFiche>
   return etatFiche(formId);
 }
 
-async function notifierSecurite(reservationId: string | null) {
-  if (!reservationId) return;
-  try {
-    const db = getDb();
-    const [reservation] = await db
-      .select({
-        villaId: reservations.villaId,
-        guestName: reservations.guestName,
-        checkIn: reservations.checkIn,
-        securiteNotifieeAt: reservations.securiteNotifieeAt,
-      })
-      .from(reservations)
-      .where(eq(reservations.id, reservationId))
-      .limit(1);
-    if (!reservation || reservation.securiteNotifieeAt || !reservation.villaId) return;
-    const [villa] = await db
-      .select({ nom: villas.nom, numero: villas.numero, securitePhone: domaines.securitePhone })
-      .from(villas)
-      .leftJoin(domaines, eq(domaines.id, villas.domaineId))
-      .where(eq(villas.id, reservation.villaId))
-      .limit(1);
-    if (!villa?.securitePhone) return;
-    const link = `${getBaseUrl()}/securite/villa/${reservationId}`;
-    const message = buildSecurityMessage(reservation.guestName, villa.nom, villa.numero, link, reservation.checkIn);
-    const sent = await sendWhatsAppText(villa.securitePhone, message);
-    if (sent) {
-      await db.update(reservations).set({ securiteNotifieeAt: new Date() }).where(eq(reservations.id, reservationId));
-    }
-  } catch (err) {
-    console.error("Échec notification sécurité (fiche police):", err);
-  }
-}
+const notifierSecurite = notifierSecuriteSiPret;
 
 // Passe la fiche en « complete » si tous les adultes attendus sont enregistrés (ou si le nombre
 // attendu est inconnu et qu'au moins un adulte l'est : fiche libre sans réservation). Renvoie
