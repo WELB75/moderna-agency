@@ -62,17 +62,17 @@ export async function analyzePassportImage(formData: FormData): Promise<Passport
 // Volontairement sans auth.protect() : appelée depuis le formulaire public /g/[id] pour que le
 // client scanne lui-même son passeport (au lieu de tout ressaisir à la main). Sécurisée par le
 // même principe que le reste du flux public : il faut connaître l'identifiant (non devinable) du
-// formulaire, et celui-ci doit exister et ne pas être déjà complété.
+// formulaire, et celui-ci doit exister.
 export async function analyzePassportImagePublic(formId: string, formData: FormData): Promise<PassportAnalysis> {
   const db = getDb();
   const [form] = await db
-    .select({ id: gendarmerieForms.id, statut: gendarmerieForms.statut })
+    .select({ id: gendarmerieForms.id })
     .from(gendarmerieForms)
     .where(eq(gendarmerieForms.id, formId))
     .limit(1);
   if (!form) throw new Error("Formulaire introuvable.");
-  if (form.statut === "complete") throw new Error("Ce formulaire a déjà été rempli.");
-
+  // Une fiche déjà complète accepte encore un voyageur de plus (enregistrerOccupantPublic ne la
+  // bloque pas) : le scan ne fait que lire la photo, il ne doit donc pas la refuser non plus.
   return runPassportAnalysis(formData);
 }
 

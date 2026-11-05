@@ -146,6 +146,7 @@ export const UI_TEXT: Record<
     scanning: string;
     scanHint: string;
     scanSuccess: string;
+    scanError: string;
   }
 > = {
   fr: {
@@ -173,6 +174,7 @@ export const UI_TEXT: Record<
     scanning: "Lecture en cours...",
     scanHint: "Prends en photo la page avec ta photo — les champs se remplissent automatiquement, vérifie avant de signer.",
     scanSuccess: "Champs remplis automatiquement — vérifie avant de signer.",
+    scanError: "Lecture impossible pour le moment — remplis les champs à la main, ou réessaie avec une photo plus nette.",
   },
   en: {
     title: "Police registration form",
@@ -199,6 +201,7 @@ export const UI_TEXT: Record<
     scanning: "Reading...",
     scanHint: "Take a photo of the page with your photo on it — the fields fill in automatically, please check before signing.",
     scanSuccess: "Fields filled in automatically — please check before signing.",
+    scanError: "Could not read the photo right now — please fill in the fields by hand, or try again with a sharper photo.",
   },
   es: {
     title: "Ficha de policía",
@@ -225,6 +228,7 @@ export const UI_TEXT: Record<
     scanning: "Leyendo...",
     scanHint: "Haz una foto de la página con tu foto — los campos se rellenan automáticamente, revísalos antes de firmar.",
     scanSuccess: "Campos rellenados automáticamente — revísalos antes de firmar.",
+    scanError: "No se pudo leer la foto ahora — rellena los campos a mano o inténtalo de nuevo con una foto más nítida.",
   },
   ar: {
     title: "ورقة شخصية (الشرطة)",
@@ -251,6 +255,7 @@ export const UI_TEXT: Record<
     scanning: "جارٍ القراءة...",
     scanHint: "التقط صورة للصفحة التي بها صورتك — ستُملأ الحقول تلقائيا، تحقق منها قبل التوقيع.",
     scanSuccess: "تم ملء الحقول تلقائيا — تحقق منها قبل التوقيع.",
+    scanError: "تعذرت قراءة الصورة حاليا — املأ الحقول يدويا أو أعد المحاولة بصورة أوضح.",
   },
   nl: {
     title: "Politieformulier (gendarmerie)",
@@ -277,6 +282,7 @@ export const UI_TEXT: Record<
     scanning: "Bezig met lezen...",
     scanHint: "Maak een foto van de pagina met uw foto — de velden worden automatisch ingevuld, controleer ze voor u ondertekent.",
     scanSuccess: "Velden automatisch ingevuld — controleer ze voor u ondertekent.",
+    scanError: "De foto kon nu niet worden gelezen — vul de velden handmatig in of probeer opnieuw met een scherpere foto.",
   },
 };
 
