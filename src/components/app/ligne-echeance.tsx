@@ -107,7 +107,7 @@ export function LigneEcheance({
   const e = calculerEcheance({ checkIn, ficheStatut, contratStatut, cautionStatut }, now);
   // Rouge dès que le compteur passe sous 24 h, tant que les documents ne sont pas prêts (Kamel, 2026-11-01).
   const tone = e.etat !== "ok" && reste <= SEUIL_CHRONO_MS ? "urgent" : e.tone;
-  const enDirect = tone === "urgent" || reste <= SEUIL_CHRONO_MS;
+  const enDirect = e.etat !== "ok" && (tone === "urgent" || reste <= SEUIL_CHRONO_MS);
 
   // Tic à la seconde seulement quand le chrono est visible, sinon à la minute (Vercel Hobby :
   // on garde le navigateur tranquille).
@@ -222,7 +222,7 @@ export function LigneEcheance({
           </Badge>
         </span>
         <span className="sm:flex sm:min-w-0">
-          <Badge ok={cautionStatut === "recue"} partiel={false} envoye={false} urgent={cautionStatut === "a_recevoir" && tone === "urgent"}>
+          <Badge ok={cautionStatut === "recue"} partiel={false} envoye={false} urgent={false}>
             {cautionTexte}
           </Badge>
         </span>
