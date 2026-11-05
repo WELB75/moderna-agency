@@ -4,7 +4,7 @@ import { notifierSecuriteSiPret } from "@/lib/securite-auto";
 import { revalidatePath } from "next/cache";
 import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { gendarmerieForms, gendarmerieOccupants, reservations, villas, domaines } from "@/db/schema";
+import { gendarmerieForms, gendarmerieOccupants, reservations, villas } from "@/db/schema";
 import { normalizeIdPhotoDataUrl } from "@/lib/id-photo-normalize";
 import { signerConditionsFiche } from "@/lib/contrat-donnees";
 import { tracer } from "@/lib/journal";
