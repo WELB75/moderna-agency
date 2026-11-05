@@ -175,7 +175,8 @@ export function GendarmerieFormProgressif({
       if (result.warnings.length > 0) result.warnings.forEach((w) => toast.warning(translateOcrWarning(w, lang!)));
       else toast.success(UI_TEXT[lang!].scanSuccess);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur / Error");
+      console.error("Scan passeport :", err);
+      toast.error(lang ? UI_TEXT[lang].scanError : "Erreur / Error");
     } finally {
       setScanning(false);
     }
