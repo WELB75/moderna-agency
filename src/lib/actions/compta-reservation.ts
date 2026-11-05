@@ -11,7 +11,10 @@ import {
   OPTIONS_RAPIDES,
   arrondir,
   basculerOption,
+  ajouterLigneLibre,
   changerQuantite,
+  modifierLigneIndex,
+  retirerLigneIndex,
   lireNombre,
   modifierLigne,
   totalFacture,
@@ -106,8 +109,17 @@ async function remplacerLignes(reservationId: string, lignes: { categorie: Categ
       VALUES (${reservationId}, ${l.categorie}, ${l.libelle}, ${l.quantite}, ${l.prixUnitaire}, ${ordre++})
     `);
   }
+  // Pas de revalidatePath ici : il recharge la page en cours (le tableau de bord) et referme la
+  // fenêtre de note à chaque clic. L'appelant l'appelle une fois à la fermeture (rafraichirApresOptions).
+}
+
+// À appeler une fois, à la fermeture de la fenêtre de note, après des changements d'options.
+export async function rafraichirApresOptions(reservationId: string) {
+  await auth.protect();
   revalidatePath(`/reservations/${reservationId}`);
+  revalidatePath("/dashboard");
   revalidatePath("/caisse/rapport/reservations");
+  revalidatePath("/comptabilite");
 }
 
 // État renvoyé au tableau de bord après chaque clic : la carte se met à jour sur place, sans
@@ -190,7 +202,44 @@ export async function changerDeviseReservation(reservationId: string, devise: st
     resume: code,
     reservationId,
   });
-  revalidatePath(`/reservations/${reservationId}`);
-  revalidatePath("/caisse/rapport/reservations");
+  return etatOptions(reservationId);
+}
+
+// ---- Options libres (écrites à la main) ----
+
+export async function ajouterOptionLibre(reservationId: string, saisie: { libelle: string; quantite: number; prixUnitaire: number }): Promise<EtatOptions> {
+  await auth.protect();
+  if (saisie.quantite > 365 || saisie.prixUnitaire > 100_000) throw new Error("Valeur trop élevée.");
+  const [contexte, actuelles] = await Promise.all([chargerContexteOptions(reservationId), lignesDeLaReservation(reservationId)]);
+  if (!contexte) throw new Error("Réservation introuvable.");
+  if (actuelles.length >= 40) throw new Error("Trop de lignes (40 maximum).");
+  const apres = ajouterLigneLibre(actuelles, saisie, contexte);
+  if (!apres) throw new Error("Écrivez le nom de l'option et un prix.");
+  await remplacerLignes(reservationId, apres);
+  await tracer({
+    categorie: "reservation",
+    action: "option_facturee",
+    libelle: `Option ajoutée : ${saisie.libelle.trim().slice(0, 60)}`,
+    resume: `total facturé ${totalFacture(apres).toFixed(2)}`,
+    reservationId,
+  });
+  return etatOptions(reservationId);
+}
+
+export async function retirerOptionLibre(reservationId: string, index: number): Promise<EtatOptions> {
+  await auth.protect();
+  const actuelles = await lignesDeLaReservation(reservationId);
+  if (!actuelles[index] || actuelles[index].categorie !== "autre") throw new Error("Option introuvable.");
+  await remplacerLignes(reservationId, retirerLigneIndex(actuelles, index));
+  return etatOptions(reservationId);
+}
+
+export async function modifierOptionLibre(reservationId: string, index: number, patch: ModificationLigne): Promise<EtatOptions> {
+  await auth.protect();
+  if (patch.quantite !== undefined && (!Number.isFinite(patch.quantite) || patch.quantite < 1 || patch.quantite > 365)) throw new Error("Nombre invalide.");
+  if (patch.prixUnitaire !== undefined && (!Number.isFinite(patch.prixUnitaire) || patch.prixUnitaire < 0 || patch.prixUnitaire > 100_000)) throw new Error("Prix invalide.");
+  const actuelles = await lignesDeLaReservation(reservationId);
+  if (!actuelles[index] || actuelles[index].categorie !== "autre") throw new Error("Option introuvable.");
+  await remplacerLignes(reservationId, modifierLigneIndex(actuelles, index, patch));
   return etatOptions(reservationId);
 }
