@@ -1,6 +1,7 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { whatsappOutboundMessages } from "@/db/schema";
+import { idLigneAgence } from "@/lib/whatsapp-agence-connexion";
 
 // Ligne WhatsApp Business de l'agence (+212 6 68 73 09 09), branchée en "coexistence" : le
 // téléphone garde l'application WhatsApp Business ET l'API reçoit une copie de tout. Kamel,
@@ -10,8 +11,9 @@ import { whatsappOutboundMessages } from "@/db/schema";
 export const LIGNE_AGENCE = "agence";
 const GRAPH = "https://graph.facebook.com/v25.0";
 
-export function agencePhoneNumberId(): string | null {
-  return process.env.WHATSAPP_AGENCE_PHONE_NUMBER_ID?.trim() || null;
+// Variable Vercel WHATSAPP_AGENCE_PHONE_NUMBER_ID, sinon la connexion faite depuis Accès > WhatsApp.
+export async function agencePhoneNumberId(): Promise<string | null> {
+  return idLigneAgence();
 }
 
 type Contenu = { canal: "texte" | "vocal"; texte: string };
@@ -82,11 +84,22 @@ const plus = (n: unknown) => `+${String(n ?? "").replace(/\D/g, "")}`;
 // Un changement du webhook concerne-t-il la ligne agence ? Les événements propres à la
 // coexistence (copies des messages envoyés depuis le téléphone, import d'historique) arrivent
 // sous des champs dédiés ; les messages reçus portent le phone_number_id de la ligne.
-export function estChangementAgence(change: { field?: string; value?: { metadata?: { phone_number_id?: string } } } | undefined): boolean {
+//
+// Garde-fou (2026-11-05) : l'agent IA ne doit répondre que depuis SON numéro (WHATSAPP_PHONE_NUMBER_ID,
+// Jamila). Un événement qui porte un autre phone_number_id est donc traité comme la ligne agence,
+// même si son identifiant n'est pas encore enregistré — sinon, juste après le scan du QR code, un
+// client écrivant au 0909 aurait reçu une réponse automatique de l'agent depuis l'autre numéro.
+export function estChangementAgence(
+  change: { field?: string; value?: { metadata?: { phone_number_id?: string } } } | undefined,
+  idAgence: string | null
+): boolean {
   if (!change) return false;
   if (change.field === "smb_message_echoes" || change.field === "history" || change.field === "smb_app_state_sync") return true;
-  const id = agencePhoneNumberId();
-  return Boolean(id && change.value?.metadata?.phone_number_id === id);
+  const id = change.value?.metadata?.phone_number_id;
+  if (!id) return false;
+  if (idAgence && id === idAgence) return true;
+  const idAgent = process.env.WHATSAPP_PHONE_NUMBER_ID?.trim();
+  return Boolean(idAgent && id !== idAgent);
 }
 
 export async function traiterChangementAgence(change: { field?: string; value?: Record<string, unknown> }): Promise<void> {
@@ -185,7 +198,7 @@ export async function chargerMessagesAgence(): Promise<Map<string, MessageAgence
 export const FENETRE_24H_MS = 24 * 60 * 60 * 1000;
 
 export async function envoyerDepuisAgence(contact: string, texte: string): Promise<void> {
-  const phoneNumberId = agencePhoneNumberId();
+  const phoneNumberId = await agencePhoneNumberId();
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   if (!phoneNumberId || !accessToken) throw new Error("La ligne WhatsApp de l'agence n'est pas encore connectée.");
 

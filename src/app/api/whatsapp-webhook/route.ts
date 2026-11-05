@@ -19,6 +19,7 @@ import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenan
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
 import { isMutedPhone } from "@/lib/whatsapp-agent/muted-phones";
 import { estChangementAgence, traiterChangementAgence } from "@/lib/whatsapp-agence";
+import { idLigneAgence } from "@/lib/whatsapp-agence-connexion";
 
 export const maxDuration = 60;
 
@@ -114,9 +115,10 @@ export async function POST(req: NextRequest) {
     const changes: { field?: string; value?: Record<string, unknown> }[] = (payload?.entry ?? []).flatMap(
       (e: { changes?: unknown[] }) => e?.changes ?? []
     );
-    for (const c of changes.filter(estChangementAgence)) await traiterChangementAgence(c);
+    const idAgence = await idLigneAgence();
+    for (const c of changes.filter((c) => estChangementAgence(c, idAgence))) await traiterChangementAgence(c);
 
-    const change = changes.find((c) => !estChangementAgence(c));
+    const change = changes.find((c) => !estChangementAgence(c, idAgence));
     if (!change) return NextResponse.json({ ok: true });
     const value = change?.value as Record<string, any> | undefined; // eslint-disable-line @typescript-eslint/no-explicit-any
     const message = value?.messages?.[0];

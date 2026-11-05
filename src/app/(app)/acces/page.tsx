@@ -1,5 +1,6 @@
 import { auth } from "@clerk/nextjs/server";
-import { KeyRound } from "lucide-react";
+import Link from "next/link";
+import { KeyRound, MessageCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AccesEquipeGestion } from "@/components/app/acces-equipe";
 import { statutAcces } from "@/lib/acces";
@@ -38,6 +39,16 @@ export default async function AccesPage() {
         </p>
       </div>
       <AccesEquipeGestion lignes={lignes} moiEmail={moi.email} />
+      <Link
+        href="/acces/whatsapp"
+        className="flex items-center gap-3 rounded-lg border border-border p-4 text-sm transition-colors hover:bg-muted"
+      >
+        <MessageCircle className="h-5 w-5 shrink-0 text-muted-foreground" />
+        <span>
+          <span className="font-medium">WhatsApp de l&apos;agence</span>
+          <span className="block text-muted-foreground">Connecter le +212 6 68 73 09 09 à la boîte Messages.</span>
+        </span>
+      </Link>
     </div>
   );
 }
