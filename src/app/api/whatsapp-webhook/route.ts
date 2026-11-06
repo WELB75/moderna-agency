@@ -18,6 +18,8 @@ import { sendWhatsAppText, sendWhatsAppTextAndVoice, renvoyerVocalEnAttente, jou
 import { isKnownTechnicianPhone, handleMaintenanceMessage, relanceStaleMaintenanceConversations } from "@/lib/maintenance-ai";
 import { KAMEL_PHONE } from "@/lib/kamel-phone";
 import { isMutedPhone } from "@/lib/whatsapp-agent/muted-phones";
+import { isSecuritePhone } from "@/lib/securite-agents";
+import { notifierKamelTelegram } from "@/lib/telegram";
 import { estChangementAgence, traiterChangementAgence } from "@/lib/whatsapp-agence";
 import { idLigneAgence } from "@/lib/whatsapp-agence-connexion";
 
@@ -259,6 +261,15 @@ export async function POST(req: NextRequest) {
 
     // Numéro réduit au silence : message journalisé ci-dessus, aucune réponse de l'IA.
     if (isMutedPhone(from)) return NextResponse.json({ ok: true, muted: true });
+
+    // Agent de sécurité d'un domaine (voir lib/securite-agents.ts) : sa réponse au message
+    // sécurité est journalisée (lisible dans Sécurité → Suivi des envois) et signalée à Kamel,
+    // mais jamais confiée à l'agent IA client — il répondrait en français « hôtel » à un gardien
+    // qui écrit en darija. Kamel, 2026-11-06 : « j'aimerais voir si la sécurité y répond ».
+    if (await isSecuritePhone(from)) {
+      await notifierKamelTelegram(`Réponse de la sécurité (${from}) : ${text}`).catch(() => {});
+      return NextResponse.json({ ok: true, securite: true });
+    }
 
     // Un numéro d'employée en attente de réponse à une proposition de mission est routé vers
     // l'agent de coordination personnel plutôt que l'agent client — deux conversations

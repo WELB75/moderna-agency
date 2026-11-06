@@ -12,6 +12,8 @@ import {
   retirerAgentSecurite as retirerAgentEnBase,
   type ResultatEnvoiSecurite,
 } from "@/lib/securite-agents";
+import { sendWhatsAppText } from "@/lib/whatsapp-agent/send";
+import { normaliserTelephone } from "@/lib/securite-agents";
 import type { VillaSecurityData } from "@/components/app/villa-security-block";
 
 // Détail d'un logement (pièces d'identité, fiche police imprimable) chargé seulement quand on le
@@ -43,6 +45,8 @@ export async function envoyerSecuriteManuel(
       .where(eq(reservations.id, reservationId));
   }
   revalidatePath("/securite");
+  revalidatePath("/securite/envois");
+  revalidatePath(`/securite/envois/${reservationId}`);
   revalidatePath("/dashboard");
   return res;
 }
@@ -54,10 +58,24 @@ export async function ajouterAgentSecurite(domaineId: string, nom: string, phone
   if (!n || p.replace(/\D/g, "").length < 9) throw new Error("Nom et numéro WhatsApp requis.");
   await ajouterAgentEnBase(domaineId, n, p);
   revalidatePath("/securite");
+  revalidatePath("/securite/envois");
 }
 
 export async function retirerAgentSecurite(agent: { id: string | null; domaineId: string }): Promise<void> {
   await auth.protect();
   await retirerAgentEnBase(agent);
   revalidatePath("/securite");
+  revalidatePath("/securite/envois");
+}
+
+// Réponse en texte libre à un agent de sécurité depuis le suivi (fenêtre de 24 h WhatsApp :
+// l'agent doit avoir écrit récemment, sinon Meta refuse — l'erreur est journalisée et renvoyée).
+export async function repondreAgentSecurite(phone: string, texte: string, reservationId?: string): Promise<void> {
+  await auth.protect();
+  const t = texte.trim();
+  if (!t) throw new Error("Message vide.");
+  const ok = await sendWhatsAppText(normaliserTelephone(phone), t, "securite_reponse");
+  if (!ok) throw new Error("WhatsApp a refusé l'envoi (l'agent n'a peut-être pas écrit depuis 24 h).");
+  revalidatePath("/securite/envois");
+  if (reservationId) revalidatePath(`/securite/envois/${reservationId}`);
 }
