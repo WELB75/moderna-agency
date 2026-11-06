@@ -5,7 +5,13 @@ import { BedDouble, ExternalLink, IdCard, LogIn, ShieldAlert, type LucideIcon } 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { SecuriteLogements, SecuriteWhatsAppButton } from "@/components/app/securite-logements";
+import { AgentsSecuriteEditor, EnvoisSecurite, type DossierSecurite } from "@/components/app/securite-envois";
 import { getSecuriteOverview, type SecuriteLogementResume } from "@/lib/security-data";
+import { chargerArriveesDocuments, ficheToutRecue, progressionFiche } from "@/lib/arrivees-documents";
+import { getAgentsSecurite, getEnvoisSecurite, type EnvoiSecurite } from "@/lib/securite-agents";
+import { getDb } from "@/db";
+import { reservations, villas } from "@/db/schema";
+import { inArray, eq } from "drizzle-orm";
 import { ficheACompleter } from "@/lib/securite-fiche";
 import { nowInMorocco } from "@/lib/now";
 import { cn } from "@/lib/utils";
@@ -15,8 +21,11 @@ import { cn } from "@/lib/utils";
 // plus (voir logementEstIntegre). Un onglet et un lien par domaine : chaque domaine a ses propres
 // agents de sécurité, on ne mélange jamais deux domaines sur un même lien.
 export default async function SecuritePage() {
-  const domaines = await getSecuriteOverview();
   const now = nowInMorocco();
+  const [domaines, arriveesDocs] = await Promise.all([getSecuriteOverview(), chargerArriveesDocuments(now, 4)]);
+  const agentsParDomaine = await getAgentsSecurite(domaines.map((d) => d.id));
+  const envois = await getEnvoisSecurite([...agentsParDomaine.values()].flat());
+  const dossiersParDomaine = await construireDossiers(domaines, arriveesDocs, envois);
   const tous = domaines.flatMap((d) => d.logements);
 
   const sejourDuJour = (l: SecuriteLogementResume) =>
@@ -113,6 +122,18 @@ export default async function SecuritePage() {
                   </div>
                 </div>
 
+                <div className="space-y-3 rounded-xl border bg-card p-3 sm:p-4">
+                  <div>
+                    <p className="text-sm font-semibold">Envois à la sécurité</p>
+                    <p className="text-xs text-muted-foreground">
+                      Le message part tout seul quand la fiche police et le contrat sont validés. Sinon, envoie-le à la
+                      main : il part à tous les agents du domaine, et leur statut se met à jour ici (envoyé, délivré, lu).
+                    </p>
+                  </div>
+                  <AgentsSecuriteEditor domaineId={d.id} domaineNom={d.nom} agents={agentsParDomaine.get(d.id) ?? []} />
+                  <EnvoisSecurite dossiers={dossiersParDomaine.get(d.id) ?? []} agents={agentsParDomaine.get(d.id) ?? []} />
+                </div>
+
                 {d.logements.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Aucun logement pour ce domaine.</p>
                 ) : (
@@ -125,6 +146,66 @@ export default async function SecuritePage() {
       )}
     </div>
   );
+}
+
+// Arrivées des 4 prochains jours du domaine (avec l'état des passeports) + séjours déjà signalés
+// à la sécurité ces 30 derniers jours, chacun avec ses envois WhatsApp par agent.
+async function construireDossiers(
+  domaines: { id: string; nom: string; logements: { villaId: string }[] }[],
+  arrivees: Awaited<ReturnType<typeof chargerArriveesDocuments>>,
+  envois: EnvoiSecurite[]
+): Promise<Map<string, DossierSecurite[]>> {
+  const domaineParVilla = new Map<string, string>();
+  for (const d of domaines) for (const l of d.logements) domaineParVilla.set(l.villaId, d.id);
+  const envoisParResa = new Map<string, EnvoiSecurite[]>();
+  for (const e of envois) {
+    if (!e.reservationId) continue;
+    envoisParResa.set(e.reservationId, [...(envoisParResa.get(e.reservationId) ?? []), e]);
+  }
+  const libelle = (d: Date) => format(d, "EEE d MMM 'à' HH:mm", { locale: fr });
+
+  const parDomaine = new Map<string, DossierSecurite[]>(domaines.map((d) => [d.id, []]));
+  const vus = new Set<string>();
+  for (const a of arrivees) {
+    const domaineId = a.villaId ? domaineParVilla.get(a.villaId) : undefined;
+    if (!domaineId) continue;
+    vus.add(a.id);
+    parDomaine.get(domaineId)?.push({
+      reservationId: a.id,
+      guestName: a.guestName,
+      villaNom: a.villaNom ?? "",
+      arrivee: libelle(a.checkIn),
+      aVenir: true,
+      passeports: progressionFiche(a.fiche),
+      ficheComplete: Boolean(a.fiche && ficheToutRecue(a.fiche)),
+      envois: envoisParResa.get(a.id) ?? [],
+    });
+  }
+
+  const autres = [...envoisParResa.keys()].filter((id) => !vus.has(id));
+  if (autres.length > 0) {
+    const resas = await getDb()
+      .select({ id: reservations.id, guestName: reservations.guestName, checkIn: reservations.checkIn, villaId: reservations.villaId, villaNom: villas.nom })
+      .from(reservations)
+      .leftJoin(villas, eq(villas.id, reservations.villaId))
+      .where(inArray(reservations.id, autres));
+    resas.sort((x, y) => y.checkIn.getTime() - x.checkIn.getTime());
+    for (const r of resas) {
+      const domaineId = r.villaId ? domaineParVilla.get(r.villaId) : undefined;
+      if (!domaineId) continue;
+      parDomaine.get(domaineId)?.push({
+        reservationId: r.id,
+        guestName: r.guestName,
+        villaNom: r.villaNom ?? "",
+        arrivee: libelle(r.checkIn),
+        aVenir: false,
+        passeports: null,
+        ficheComplete: false,
+        envois: envoisParResa.get(r.id) ?? [],
+      });
+    }
+  }
+  return parDomaine;
 }
 
 const TONES = {

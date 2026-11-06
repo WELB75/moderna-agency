@@ -1,16 +1,16 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { getDb } from "@/db";
-import { contratsLocation, domaines, gendarmerieForms, reservations, villas } from "@/db/schema";
+import { contratsLocation, gendarmerieForms, reservations, villas } from "@/db/schema";
 import { estSejourFamille } from "@/lib/arrivees-documents";
-import { getBaseUrl } from "@/lib/base-url";
-import { sendWhatsAppTemplate } from "@/lib/whatsapp-agent/send";
+import { envoyerSecuriteReservation, getAgentsSecurite } from "@/lib/securite-agents";
 
 // Message sécurité automatique (Kamel, 2026-11-05) : il part tout seul vers le gardien du domaine
 // (Domaine Moderna II, Zaraba = Moderna 1...) dès que la fiche police ET le contrat sont validés.
 // WhatsApp refuse le texte libre hors fenêtre de 24 h (erreur 131047, voir whatsapp_outbound_messages) :
 // on passe donc par le modèle Meta approuvé « securite_arrivee_invite » (arabe, 5 variables).
 // Séjour Famille : pas de contrat demandé, la fiche suffit.
-export const MODELE_SECURITE = "securite_arrivee_invite";
+// 2026-11-06 : envoi à TOUS les agents du domaine (voir lib/securite-agents.ts).
+export { MODELE_SECURITE } from "@/lib/securite-agents";
 
 // À appeler après chaque événement qui peut rendre le dossier complet (fiche terminée, contrat
 // signé). Idempotent : ne fait rien si le gardien a déjà été prévenu ou si un élément manque.
@@ -22,7 +22,6 @@ export async function notifierSecuriteSiPret(reservationId: string | null | unde
     const [r] = await db
       .select({
         villaId: reservations.villaId,
-        guestName: reservations.guestName,
         canal: reservations.canal,
         status: reservations.status,
         checkIn: reservations.checkIn,
@@ -33,13 +32,10 @@ export async function notifierSecuriteSiPret(reservationId: string | null | unde
       .limit(1);
     if (!r || r.notifieeAt || !r.villaId || r.status === "annulee") return;
 
-    const [villa] = await db
-      .select({ nom: villas.nom, numero: villas.numero, securitePhone: domaines.securitePhone })
-      .from(villas)
-      .leftJoin(domaines, eq(domaines.id, villas.domaineId))
-      .where(eq(villas.id, r.villaId))
-      .limit(1);
-    if (!villa?.securitePhone) return;
+    const [villa] = await db.select({ domaineId: villas.domaineId }).from(villas).where(eq(villas.id, r.villaId)).limit(1);
+    if (!villa?.domaineId) return;
+    const agents = (await getAgentsSecurite([villa.domaineId])).get(villa.domaineId) ?? [];
+    if (agents.length === 0) return;
 
     const fiches = await db
       .select({ id: gendarmerieForms.id })
@@ -67,10 +63,8 @@ export async function notifierSecuriteSiPret(reservationId: string | null | unde
       .returning({ id: reservations.id });
     if (reserve.length === 0) return;
 
-    const date = r.checkIn.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "UTC" });
-    const lien = `${getBaseUrl()}/securite/villa/${reservationId}`;
-    const envoye = await sendWhatsAppTemplate(villa.securitePhone, MODELE_SECURITE, "ar", [r.guestName, villa.nom, villa.numero, date, lien], "securite_auto");
-    if (!envoye) {
+    const { resultats } = await envoyerSecuriteReservation(reservationId, "auto");
+    if (!resultats.some((x) => x.ok)) {
       // Échec (modèle pas encore approuvé, réseau...) : on libère, le prochain événement réessaiera.
       await db.update(reservations).set({ securiteNotifieeAt: null }).where(eq(reservations.id, reservationId));
     }
