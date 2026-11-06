@@ -130,6 +130,13 @@ export function ComptaReservationCard(props: Props) {
                 valeur={formaterMontant(props.revenus.fraisMenage, devise)}
                 aide={props.revenus.origineMenage === "reservation" ? "repris de la fiche, la plateforme ne le détaille pas" : props.revenus.origineMenage === "aucun" ? "aucun ménage trouvé" : undefined}
               />
+              {props.revenus.autresFrais > 0 ? (
+                <LigneRevenu
+                  label="Taxes et autres frais"
+                  valeur={formaterMontant(props.revenus.autresFrais, devise)}
+                  aide="payés par le voyageur, ni nuitées ni ménage (taxe de séjour…)"
+                />
+              ) : null}
               <LigneRevenu
                 label="Frais de service hôte (commission)"
                 valeur={props.revenus.fraisServiceHote === null ? "non transmis" : `− ${formaterMontant(props.revenus.fraisServiceHote, devise)}`}

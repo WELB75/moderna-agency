@@ -90,6 +90,7 @@ export type Beds24Booking = {
   price: number;
   commission?: number; // commission / frais de service de la plateforme (renvoyée avec les lignes de facture)
   tax?: number;
+  rateDescription?: string; // tarif par nuit transmis par le canal, une ligne par nuit
   invoiceItems?: Beds24InvoiceItem[]; // renvoyés seulement avec includeInvoiceItems: true
   channel?: string; // code technique du canal, ex. "airbnb", "booking", "direct"
   referer?: string; // libellé lisible du canal, ex. "Airbnb", "Booking.com", "Direct"

@@ -11,23 +11,31 @@
 //
 // Les données viennent des lignes de facture et de la commission renvoyées par Beds24, gardées dans
 // raw_data.beds24Prix à chaque synchro. Fichier sans import : testé avec node --test.
+//
+// Booking.com (Sanaa, 2026-11-05, résa Keltoum Devaux, Villa Azur) : le voyageur paie 1 652 € =
+// 4 nuits à 378 € (1 512 €) + ménage 60 € + 80 € de taxes non commissionnées. Calculer la chambre
+// en « total − ménage » donnait 1 592 € (taxes comptées comme nuitées). Les nuitées sont désormais
+// lues dans le détail des tarifs par nuit de Beds24 (rateDescription), puis dans le champ taxe ;
+// ce qui reste (taxes, autres frais) est affiché à part, sans fausser la chambre.
 
 export type PrixBeds24 = {
   price?: number | null;
   commission?: number | null;
   tax?: number | null;
+  rateDescription?: string | null; // "2026-10-19 (50754861 Standard Rate) EUR 378 genius", une ligne par nuit
   invoiceItems?: { type?: string | null; description?: string | null; qty?: number | null; amount?: number | null; lineTotal?: number | null }[] | null;
 };
 
 export type RevenusPlateforme = {
   fraisChambre: number;
   fraisMenage: number;
+  autresFrais: number; // taxes de séjour et autres frais payés par le voyageur, ni nuitées ni ménage
   fraisServiceHote: number | null; // null : la plateforme n'a pas transmis de commission
   prixNetNuitees: number | null;
   netSansMenage: boolean; // vrai pour Airbnb : le ménage n'est pas retiré du prix net
   totalVoyageur: number; // ce que le voyageur a payé (loyer total)
   origineMenage: "plateforme" | "reservation" | "aucun";
-  origineChambre: "lignes" | "calcule";
+  origineChambre: "tarifs" | "lignes" | "calcule";
 };
 
 const MOT_MENAGE = /m[eé]nage|cleaning|nettoyage/i;
@@ -35,6 +43,27 @@ const MOT_CHAMBRE = /chambre|nuit|night|room|accommodation|h[eé]bergement|s[eé
 const MOT_FRAIS_SERVICE = /frais de service|service fee|commission|host fee|frais h[oô]te/i;
 
 const arrondir = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+// Somme des tarifs par nuit du détail Beds24 : chaque ligne commence par la date de la nuit et
+// porte le montant après le code devise ("2026-10-19 (50754861 Standard Rate) EUR 378 genius").
+// null si aucune ligne datée n'est lisible.
+export function nuiteesDeRateDescription(texte: string | null | undefined): number | null {
+  if (!texte) return null;
+  let somme = 0;
+  let trouve = false;
+  for (const ligne of texte.split(/\r?\n/)) {
+    const m = ligne.match(/^\s*\d{4}-\d{2}-\d{2}\b.*?\b[A-Z]{3}\s*(-?\d[\d\s,.]*)/);
+    if (!m) continue;
+    let brut = m[1].replace(/\s/g, "");
+    // "1,234.50" ou "1234,50" : la virgule est un séparateur de milliers s'il y a aussi un point.
+    brut = brut.includes(".") ? brut.replace(/,/g, "") : brut.replace(",", ".");
+    const n = Number.parseFloat(brut);
+    if (!Number.isFinite(n)) continue;
+    somme += n;
+    trouve = true;
+  }
+  return trouve && somme > 0 ? somme : null;
+}
 
 function totalLigne(i: { qty?: number | null; amount?: number | null; lineTotal?: number | null }): number {
   if (typeof i.lineTotal === "number" && Number.isFinite(i.lineTotal)) return i.lineTotal;
@@ -86,19 +115,37 @@ export function calculerRevenusPlateforme(
   // Cette ligne n'est alors pas un tarif de nuitées : on retombe sur total − ménage.
   const totalLignes = lignes.reduce((s, i) => s + totalLigne(i), 0) * echelle;
   const lignesNetCommission = commission !== null && Math.abs(totalLignes - (total - commission)) < 0.05;
-  if (chambreLignes.length > 0 && !lignesNetCommission) {
+  // Booking.com : le tarif par nuit transmis par Booking fait foi. Pas pour Airbnb, dont les
+  // montants Beds24 sont souvent nets de commission (voir ci-dessus).
+  const nuitees = /airbnb/i.test(canal ?? "") ? null : nuiteesDeRateDescription(prix.rateDescription);
+  const nuiteesEchelle = nuitees === null ? null : nuitees * echelle;
+  const taxe = typeof prix.tax === "number" && prix.tax > 0 ? prix.tax * echelle : 0;
+  if (nuiteesEchelle !== null && nuiteesEchelle <= total + 0.05) {
+    fraisChambre = nuiteesEchelle;
+    origineChambre = "tarifs";
+  } else if (chambreLignes.length > 0 && !lignesNetCommission) {
     fraisChambre = chambreLignes.reduce((s, i) => s + totalLigne(i), 0) * echelle;
     origineChambre = "lignes";
   } else {
-    fraisChambre = total - fraisMenage;
+    // Les taxes connues (taxe de séjour) ne sont pas des nuitées.
+    fraisChambre = total - fraisMenage - (taxe < total - fraisMenage ? taxe : 0);
     origineChambre = "calcule";
   }
+  // Ménage pris sur la fiche alors que les nuitées sont connues : il ne peut pas dépasser ce qui
+  // reste du total une fois les nuitées retirées.
+  if (origineChambre === "tarifs" && origineMenage === "reservation" && fraisMenage > total - fraisChambre + 0.05) {
+    fraisMenage = Math.max(0, total - fraisChambre);
+    if (fraisMenage === 0) origineMenage = "aucun";
+  }
+  const reste = total - fraisChambre - fraisMenage;
+  const autresFrais = reste > 0.05 ? reste : 0;
 
   const netSansMenage = /airbnb/i.test(canal ?? "");
   const net = commission === null ? null : fraisChambre - commission - (netSansMenage ? 0 : fraisMenage);
   return {
     fraisChambre: arrondir(fraisChambre),
     fraisMenage: arrondir(fraisMenage),
+    autresFrais: arrondir(autresFrais),
     fraisServiceHote: commission === null ? null : arrondir(commission),
     prixNetNuitees: net === null ? null : arrondir(net),
     netSansMenage,
