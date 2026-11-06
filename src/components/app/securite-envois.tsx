@@ -22,6 +22,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { dernierEnvoiParAgent, texteModeleSecurite } from "@/lib/securite-envois-util";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,7 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ajouterAgentSecurite, envoyerSecuriteManuel, repondreAgentSecurite, retirerAgentSecurite } from "@/lib/actions/securite";
-import { texteModeleSecurite, type AgentSecurite, type DossierSecurite, type EnvoiSecurite, type MessageConversation } from "@/lib/securite-agents";
+import type { AgentSecurite, DossierSecurite, EnvoiSecurite, MessageConversation } from "@/lib/securite-agents";
 import { cn } from "@/lib/utils";
 
 // Suivi sécurité (Kamel, 2026-11-06) : pour chaque arrivée, à quel agent le message est parti,
@@ -260,16 +261,6 @@ export function BoutonEnvoyerSecurite({ dossier, agents, taille = "sm" }: { doss
 // ---------------------------------------------------------------------------------------------
 // Carte d'une arrivée (liste) : villa, voyageur, passeports, une barre par agent. Toute la carte
 // ouvre le détail (conversation) ; le bouton Envoyer reste accessible sans l'ouvrir.
-
-export function dernierEnvoiParAgent(dossier: DossierSecurite, agents: AgentSecurite[]) {
-  const dernier = new Map<string, EnvoiSecurite>();
-  for (const e of dossier.envois) if (!dernier.has(e.destinataire)) dernier.set(e.destinataire, e);
-  const lignes: { phone: string; nom: string; envoi: EnvoiSecurite | undefined }[] = agents.map((a) => ({ phone: a.phone, nom: a.nom, envoi: dernier.get(a.phone) }));
-  for (const [phone, envoi] of dernier) {
-    if (!lignes.some((l) => l.phone === phone)) lignes.push({ phone, nom: envoi.agentNom ?? "Ancien numéro", envoi });
-  }
-  return lignes;
-}
 
 export function CarteArrivee({ dossier, agents }: { dossier: DossierSecurite; agents: AgentSecurite[] }) {
   const lignes = dernierEnvoiParAgent(dossier, agents);

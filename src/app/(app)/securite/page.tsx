@@ -5,7 +5,7 @@ import { BedDouble, ExternalLink, IdCard, LogIn, ShieldAlert, type LucideIcon } 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { SecuriteLogements, SecuriteWhatsAppButton } from "@/components/app/securite-logements";
-import { dernierEnvoiParAgent } from "@/components/app/securite-envois";
+import { dernierEnvoiParAgent } from "@/lib/securite-envois-util";
 import { getSecuriteOverview, type SecuriteLogementResume } from "@/lib/security-data";
 import { getSuiviSecurite, type DomaineSuiviSecurite } from "@/lib/securite-agents";
 import { ficheACompleter } from "@/lib/securite-fiche";

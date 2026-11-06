@@ -5,12 +5,13 @@ import { domaines, reservations, villas, whatsappOutboundMessages } from "@/db/s
 import { getBaseUrl } from "@/lib/base-url";
 import { phonesMatch } from "@/lib/phone";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp-agent/send";
+import { MODELE_SECURITE } from "@/lib/securite-envois-util";
 
 // Agents de sécurité par domaine (Kamel, 2026-11-06 : « il me faut un espace pour visualiser que
 // l'envoi a bien été fait aux différents agents de sécurité »). Un domaine peut avoir plusieurs
 // gardiens (équipes jour / nuit...) : chacun reçoit le modèle Meta « securite_arrivee_invite ».
 // L'ancien numéro unique `domaines.securite_phone` reste pris en compte comme premier agent.
-export const MODELE_SECURITE = "securite_arrivee_invite";
+export { MODELE_SECURITE };
 const RE_RESA = /\/securite\/villa\/([0-9a-f-]{36})/i;
 
 export type AgentSecurite = {
@@ -141,21 +142,6 @@ export async function envoyerSecuriteReservation(
     }))
   );
   return { resultats };
-}
-
-// Corps du modèle Meta « securite_arrivee_invite » (arabe), tel qu'approuvé dans WhatsApp Manager.
-// Le texte fixe vit chez Meta : on le reconstitue ici pour afficher dans l'app exactement ce que
-// l'agent a reçu (Kamel, 2026-11-06 : « j'aimerais voir le message qui a été envoyé »).
-const CORPS_MODELE =
-  "السلام عليكم،\n\nضيف جديد ({{1}}) غادي يوصل إلى {{2}} (فيلا رقم {{3}}) نهار {{4}}.\n\nهذا رابط الأمن الخاص بمعلومات الضيوف:\n{{5}}\n\nشكرا";
-
-// « [securite_arrivee_invite] Grace | Villa Sofya | 13 | 06/11/2026 | https://… » → texte lisible.
-export function texteModeleSecurite(contenuJournal: string): { texte: string; lien: string | null } {
-  const prefixe = `[${MODELE_SECURITE}] `;
-  if (!contenuJournal.startsWith(prefixe)) return { texte: contenuJournal, lien: RE_RESA.exec(contenuJournal) ? contenuJournal : null };
-  const params = contenuJournal.slice(prefixe.length).split(" | ");
-  const texte = CORPS_MODELE.replace(/\{\{(\d)\}\}/g, (_, i) => params[Number(i) - 1] ?? "");
-  return { texte, lien: params[4] ?? null };
 }
 
 // Numéro d'un agent de sécurité (tous domaines) : ses réponses sont journalisées mais jamais
