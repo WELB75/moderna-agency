@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { CopyLinkButton } from "@/components/app/copy-link-button";
 import { INTERVENTION_STEPS, type Etape } from "@/lib/intervention-steps";
 
 type Incident = {
@@ -60,14 +62,25 @@ export function IncidentsRecents({ incidents }: { incidents: Incident[] }) {
           <div key={jour.label} className="space-y-1">
             <p className="text-xs font-medium capitalize text-muted-foreground">{jour.label}</p>
             {jour.items.map((i) => (
-              <div key={i.id} className="flex items-center justify-between gap-3 text-sm">
-                <p className="min-w-0 truncate">
-                  <span className="font-medium">{i.villaNom ?? "Villa inconnue"}</span>
-                  <span className="text-muted-foreground"> · {i.titre}</span>
-                </p>
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {dateHeure(new Date(i.signaleAt))} · {INTERVENTION_STEPS.find((s) => s.key === i.etape)?.label}
-                </span>
+              <div key={i.id} className="flex items-center gap-1 text-sm">
+                <Link
+                  href={`/maintenance/${i.id}`}
+                  className="-mx-1.5 flex min-w-0 flex-1 items-center justify-between gap-3 rounded-md px-1.5 py-1 transition-colors hover:bg-muted/60"
+                >
+                  <p className="min-w-0 truncate">
+                    <span className="font-medium">{i.villaNom ?? "Villa inconnue"}</span>
+                    <span className="text-muted-foreground"> · {i.titre}</span>
+                  </p>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {dateHeure(new Date(i.signaleAt))} · {INTERVENTION_STEPS.find((s) => s.key === i.etape)?.label}
+                  </span>
+                </Link>
+                <CopyLinkButton
+                  path={`/maintenance/${i.id}`}
+                  label="Copier le lien de ce signalement"
+                  successMessage="Lien du signalement copié."
+                  iconOnly
+                />
               </div>
             ))}
           </div>
