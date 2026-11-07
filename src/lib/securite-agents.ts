@@ -5,6 +5,7 @@ import { domaines, reservations, villas, whatsappOutboundMessages } from "@/db/s
 import { getBaseUrl } from "@/lib/base-url";
 import { phonesMatch } from "@/lib/phone";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp-agent/send";
+import { notifierKamelTelegram } from "@/lib/telegram";
 import { MODELE_SECURITE } from "@/lib/securite-envois-util";
 
 // Agents de sécurité par domaine (Kamel, 2026-11-06 : « il me faut un espace pour visualiser que
@@ -141,7 +142,47 @@ export async function envoyerSecuriteReservation(
       ok: await sendWhatsAppTemplate(a.phone, MODELE_SECURITE, "ar", params, `securite_${mode}`),
     }))
   );
+  await notifierEnvoiSecuriteTelegram({
+    guestName: r.guestName,
+    villaNom: r.villaNom,
+    villaNumero: r.villaNumero,
+    domaineId: r.domaineId,
+    date,
+    mode,
+    resultats,
+  });
   return { resultats };
+}
+
+// Telegram à chaque envoi du message sécurité (Kamel, 2026-11-07 : « une notification quand le
+// message WhatsApp est parti à la sécurité »), automatique ou manuel, pour tous les domaines. « Envoyé »
+// = accepté par WhatsApp ; la remise et la lecture se suivent dans Sécurité → Suivi. Un échec est
+// signalé aussi : l'envoi automatique est réessayé au prochain événement, pas avant.
+async function notifierEnvoiSecuriteTelegram(x: {
+  guestName: string;
+  villaNom: string;
+  villaNumero: string | null;
+  domaineId: string;
+  date: string;
+  mode: "auto" | "manuel";
+  resultats: ResultatEnvoiSecurite[];
+}): Promise<void> {
+  try {
+    const [d] = await getDb().select({ nom: domaines.nom }).from(domaines).where(eq(domaines.id, x.domaineId)).limit(1);
+    const reussis = x.resultats.filter((a) => a.ok);
+    const echecs = x.resultats.filter((a) => !a.ok);
+    const entete = reussis.length > 0 ? "Message sécurité envoyé sur WhatsApp" : "Échec de l'envoi du message sécurité";
+    const lignes = [
+      `${entete} (${x.mode === "auto" ? "automatique" : "manuel"})`,
+      `${x.guestName} · ${x.villaNom}${x.villaNumero ? ` n°${x.villaNumero}` : ""} · arrivée ${x.date}`,
+      d ? `Domaine : ${d.nom}` : null,
+      reussis.length > 0 ? `Envoyé à : ${reussis.map((a) => a.agent).join(", ")}` : null,
+      echecs.length > 0 ? `Non envoyé à : ${echecs.map((a) => a.agent).join(", ")}` : null,
+    ].filter(Boolean);
+    await notifierKamelTelegram(lignes.join("\n"));
+  } catch (err) {
+    console.error("Échec notification Telegram de l'envoi sécurité:", err);
+  }
 }
 
 // Numéro d'un agent de sécurité (tous domaines) : ses réponses sont journalisées mais jamais
