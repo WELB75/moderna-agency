@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, eq, gte, inArray, lt, ne } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { addDays, addMonths, endOfDay, format, isSameDay, startOfMonth, startOfYear } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -21,6 +21,7 @@ import { logementEstIntegre } from "@/lib/domaines-actifs";
 import { logementDansPerimetre, montantProrata, nuiteesDansLeMois, versEuros, type TypeStats } from "@/lib/logement-stats";
 import { getMadParEur } from "@/lib/devises";
 import { cautionEnAttente, estImpayee } from "@/lib/reservation-alerts";
+import { calculerRevenusPlateforme, estCanalPlateforme, prixBeds24DeRawData } from "@/lib/revenus-plateforme";
 
 const euros = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 
@@ -73,6 +74,8 @@ export async function PerformanceEtActions({
         caution: reservations.caution,
         cautionPayee: reservations.cautionPayee,
         devisePaiement: reservations.devisePaiement,
+        // Seulement le détail de prix Beds24 (commission), pas tout le raw_data.
+        prixBeds24: sql<unknown>`${reservations.rawData}->'beds24Prix'`,
       })
       .from(reservations)
       .where(
@@ -99,6 +102,13 @@ export async function PerformanceEtActions({
     let nuitees = 0;
     let ca = 0;
     let caCumul = 0;
+    // Commission des plateformes (frais de service hôte Airbnb / commission Booking.com), répartie
+    // au prorata comme le CA. `sansCommission` : résas Airbnb/Booking du mois dont Beds24 n'a pas
+    // transmis la commission — elles ne sont pas déduites, le net est alors un peu surestimé.
+    let commission = 0;
+    // Frais de ménage facturés aux voyageurs (déjà inclus dans le CA), quand Beds24 les détaille.
+    let menage = 0;
+    let sansCommission = 0;
     let nbReservations = 0;
     for (const r of resaAnnee) {
       const checkIn = new Date(r.checkIn);
@@ -108,6 +118,16 @@ export async function PerformanceEtActions({
       if (checkIn >= debut && checkIn < fin) nbReservations++;
       if (loyer > 0) {
         ca += versEuros(montantProrata(loyer, checkIn, checkOut, y, m), r.devisePaiement, madParEur);
+        if (nuiteesDansLeMois(checkIn, checkOut, y, m) > 0) {
+          const plateforme = estCanalPlateforme(r.canal);
+          const revenus = calculerRevenusPlateforme(prixBeds24DeRawData({ beds24Prix: r.prixBeds24 }), loyer, null, r.canal);
+          const prorata = (montant: number) => versEuros(montantProrata(montant, checkIn, checkOut, y, m), r.devisePaiement, madParEur);
+          if (revenus) menage += prorata(revenus.fraisMenage);
+          if (plateforme) {
+            if (revenus?.fraisServiceHote != null) commission += prorata(revenus.fraisServiceHote);
+            else sansCommission++;
+          }
+        }
         for (let k = 0; k <= m; k++) {
           caCumul += versEuros(montantProrata(loyer, checkIn, checkOut, y, k), r.devisePaiement, madParEur);
         }
@@ -115,7 +135,7 @@ export async function PerformanceEtActions({
     }
     const nuitsDisponibles = logements.length * new Date(y, m + 1, 0).getDate();
     const taux = nuitsDisponibles > 0 ? (nuitees / nuitsDisponibles) * 100 : 0;
-    return { nuitees, ca, caCumul, nbReservations, taux };
+    return { nuitees, ca, caCumul, commission, menage, sansCommission, nbReservations, taux };
   }
 
   const moisCourant = kpisDuMois(year, monthIndex);
@@ -193,6 +213,7 @@ export async function PerformanceEtActions({
             label={`CA de ${format(now, "MMMM", { locale: fr })}`}
             value={euros.format(moisCourant.ca)}
             unit="€"
+            detail={detailCommission(moisCourant.ca, moisCourant.commission, moisCourant.menage, moisCourant.sansCommission)}
             compare={comparerMontant(moisCourant.ca, moisCourantN1.ca, libelleMois(year - 1, monthIndex))}
           />
           <KpiTile
@@ -232,6 +253,7 @@ export async function PerformanceEtActions({
             label={`CA de ${format(moisDernier, "MMMM", { locale: fr })}`}
             value={euros.format(dernier.ca)}
             unit="€"
+            detail={detailCommission(dernier.ca, dernier.commission, dernier.menage, dernier.sansCommission)}
             compare={comparerMontant(dernier.ca, dernierN1.ca, libelleMois(moisDernier.getFullYear() - 1, moisDernier.getMonth()))}
           />
           <KpiTile
@@ -304,6 +326,18 @@ function SectionHeader({ title, href, linkLabel }: { title: string; href?: strin
 type Ecart = { texte: string; ton: "hausse" | "baisse" | "stable" };
 type Comparaison = { label: string; value: string; delta: Ecart | null };
 
+// Sous le CA : ce que prennent Airbnb / Booking.com et ce qu'il reste. Le CA est le total payé par
+// les voyageurs (ménage compris), la commission est celle transmise par Beds24 (Kamel, 2026-11-08).
+function detailCommission(ca: number, commission: number, menage: number, sansCommission: number): string[] {
+  const lignes = [
+    `Dont frais de ménage : ${euros.format(menage)} €`,
+    `Commission plateformes : −${euros.format(commission)} €`,
+    `Net après commission : ${euros.format(ca - commission)} €`,
+  ];
+  if (sansCommission > 0) lignes.push(`${sansCommission} résa${sansCommission > 1 ? "s" : ""} sans commission transmise`);
+  return lignes;
+}
+
 const nombre1 = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 const signe = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "");
 
@@ -347,12 +381,14 @@ function KpiTile({
   value,
   unit,
   compare,
+  detail,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   unit?: string;
   compare?: Comparaison;
+  detail?: string[];
 }) {
   return (
     <div className="space-y-2 bg-card p-3 sm:p-4">
@@ -366,6 +402,15 @@ function KpiTile({
         {value}
         {unit ? <span className="ml-1 text-base font-medium text-muted-foreground">{unit}</span> : null}
       </p>
+      {detail ? (
+        <div className="space-y-0.5 text-xs leading-snug tabular-nums text-muted-foreground">
+          {detail.map((l) => (
+            <p key={l} className={l.startsWith("Net") ? "font-medium text-foreground" : undefined}>
+              {l}
+            </p>
+          ))}
+        </div>
+      ) : null}
       {compare ? (
         <p className="text-xs leading-snug tabular-nums text-muted-foreground">
           {compare.delta ? <span className={`font-medium ${TON_ECART[compare.delta.ton]}`}>{compare.delta.texte} </span> : null}
