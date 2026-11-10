@@ -1,3 +1,4 @@
+import { AvisProprietaire } from "@/components/app/avis-proprietaire";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createHash } from "node:crypto";
@@ -164,6 +165,7 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
         </div>
         <BilanProprietaire mois={bilan.mois} />
       </section>
+      <AvisProprietaire villaId={villa.id} />
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Réservations à venir</h2>
         {aVenir.length === 0 ? (

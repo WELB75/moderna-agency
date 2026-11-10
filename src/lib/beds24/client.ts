@@ -418,3 +418,28 @@ export async function beds24GetCalendars(roomIds: number[], startDate: string, e
 
   return new Map([...parRoom.entries()].map(([id, parDate]) => [id, [...parDate.values()].sort((a, b) => a.date.localeCompare(b.date))]));
 }
+
+// Avis des plateformes (Kamel, 2026-11-10 : onglet Avis). Endpoints en bêta (Airbnb, par chambre)
+// et en alpha (Booking.com, par propriété) chez Beds24 : 100 avis maximum par appel, d'où la
+// pagination. Réponses laissées brutes, lues par lib/avis/normaliser.ts.
+const MAX_PAGES_AVIS = 10;
+
+export async function beds24GetAirbnbReviews(roomId: number): Promise<unknown[]> {
+  const sortie: unknown[] = [];
+  for (let page = 1; page <= MAX_PAGES_AVIS; page++) {
+    const res = await beds24Fetch<{ data?: unknown[]; pages?: { nextPageExists?: boolean } }>("/channels/airbnb/reviews", { query: { roomId, page } });
+    sortie.push(...(res.data ?? []));
+    if (!res.pages?.nextPageExists) break;
+  }
+  return sortie;
+}
+
+export async function beds24GetBookingReviews(propertyId: number, from: string): Promise<unknown[]> {
+  const sortie: unknown[] = [];
+  for (let page = 1; page <= MAX_PAGES_AVIS; page++) {
+    const res = await beds24Fetch<{ data?: unknown[]; pages?: { nextPageExists?: boolean } }>("/channels/booking/reviews", { query: { propertyId, from, page } });
+    sortie.push(...(res.data ?? []));
+    if (!res.pages?.nextPageExists) break;
+  }
+  return sortie;
+}
