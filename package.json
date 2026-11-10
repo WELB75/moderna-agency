@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/lib/langue-voyageur.test.ts src/lib/fiche-police-progression.test.ts src/lib/echeance-documents.test.ts src/lib/annulation-resa.test.ts src/lib/messages-agent/memoire-regles.test.ts src/lib/caution/regles.test.ts src/lib/telegram-agent/utilisateurs.test.ts src/lib/message-caution.test.ts src/lib/tournees-format.test.ts src/lib/compta-reservation-format.test.ts src/lib/revenus-plateforme.test.ts src/lib/texte-propre.test.ts",
+    "test": "node --test src/lib/avis/avis.test.ts src/lib/langue-voyageur.test.ts src/lib/fiche-police-progression.test.ts src/lib/echeance-documents.test.ts src/lib/annulation-resa.test.ts src/lib/messages-agent/memoire-regles.test.ts src/lib/caution/regles.test.ts src/lib/telegram-agent/utilisateurs.test.ts src/lib/message-caution.test.ts src/lib/tournees-format.test.ts src/lib/compta-reservation-format.test.ts src/lib/revenus-plateforme.test.ts src/lib/texte-propre.test.ts",
     "db:generate": "dotenv -e .env.local -- drizzle-kit generate",
     "db:push": "dotenv -e .env.local -- drizzle-kit push",
     "db:studio": "dotenv -e .env.local -- drizzle-kit studio"

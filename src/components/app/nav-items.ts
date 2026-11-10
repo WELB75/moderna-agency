@@ -19,6 +19,7 @@ import {
   Calculator,
   KeyRound,
   Brain,
+  Star,
   type LucideIcon,
 } from "lucide-react";
 
@@ -60,6 +61,7 @@ export const navGroups: NavGroup[] = [
     label: "Croissance & outils",
     items: [
       { href: "/statistiques", label: "Statistiques", icon: BarChart3 },
+      { href: "/avis", label: "Avis", icon: Star },
       { href: "/clients", label: "Clients", icon: Users },
       { href: "/proprietaires", label: "Propriétaires", icon: User },
       { href: "/acces", label: "Accès", icon: KeyRound }, // qui peut ouvrir le back-office (administrateurs)
