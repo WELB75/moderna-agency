@@ -76,24 +76,30 @@ export function ReservationAgendaCard({
   r,
   kind,
   defaultOpen = false,
+  surPlace = false,
 }: {
   r: ReservationRow;
   kind: "in" | "out";
   defaultOpen?: boolean;
+  // Client actuellement dans la villa (section épinglée « Sur place maintenant ») : le détail est
+  // celui d'un check-in (cuisine, ménage pendant le séjour, documents, messages), mais l'en-tête
+  // montre le départ (heure + compte à rebours) et le check-out reste validable.
+  surPlace?: boolean;
 }) {
   const isIn = kind === "in";
-  const target = isIn ? new Date(r.checkIn) : new Date(r.checkOut);
+  const enteteDepart = !isIn || surPlace;
+  const target = enteteDepart ? new Date(r.checkOut) : new Date(r.checkIn);
   const isProprietaire = phonesMatch(r.guestPhone, r.proprietaireTelephone);
   const valideAt = isIn ? r.checkinValideAt : r.checkoutValideAt;
   const validePar = isIn ? r.checkinValidePar : r.checkoutValidePar;
-  const isDone = Boolean(valideAt);
+  const isDone = surPlace ? Boolean(r.checkoutValideAt) : Boolean(valideAt);
   const isBloque = Boolean(r.canal && normaliseCanal(r.canal) === "bloque");
   const nuits = Math.max(0, differenceInCalendarDays(new Date(r.checkOut), new Date(r.checkIn)));
 
   const statuts = resumeStatuts(r, kind);
   // Blocage (dates fermées, séjour propriétaire importé...) : pas de voyageur, donc ni fiche
   // police ni contrat à suivre.
-  const suivreDocuments = isIn && !isProprietaire && !isBloque;
+  const suivreDocuments = isIn && !surPlace && !isProprietaire && !isBloque;
 
   return (
     <details
@@ -112,13 +118,13 @@ export function ReservationAgendaCard({
               "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
               isBloque
                 ? "bg-yellow-400/15 text-yellow-700 dark:text-yellow-400"
-                : isIn
+                : isIn && !surPlace
                   ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
                   : "bg-red-500/10 text-red-700 dark:text-red-400"
             )}
           >
-            {isIn ? <LogIn className="h-3 w-3" /> : <LogOut className="h-3 w-3" />}
-            {isIn ? "In" : "Out"}
+            {isIn && !surPlace ? <LogIn className="h-3 w-3" /> : <LogOut className="h-3 w-3" />}
+            {isIn && !surPlace ? "In" : "Out"}
           </span>
         </div>
 
@@ -189,10 +195,10 @@ export function ReservationAgendaCard({
 
         {/* État / compte à rebours + chevron */}
         <div className="flex shrink-0 flex-col items-end gap-1.5 self-center sm:flex-row sm:items-center sm:gap-2">
-          {isDone && valideAt ? (
+          {isDone && (surPlace ? r.checkoutValideAt : valideAt) ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
               <CircleCheck className="h-3.5 w-3.5" />
-              Fait · {formatUtcTime(valideAt)}
+              Fait · {formatUtcTime((surPlace ? r.checkoutValideAt : valideAt)!)}
             </span>
           ) : (
             <Countdown target={target} className="rounded-full" />
@@ -325,6 +331,16 @@ export function ReservationAgendaCard({
             )}
             <div className="pt-1">
               <ValidateCheckinCheckoutButton reservationId={r.id} kind={kind} valideAt={valideAt} validePar={validePar} />
+              {surPlace ? (
+                <div className="pt-2">
+                  <ValidateCheckinCheckoutButton
+                    reservationId={r.id}
+                    kind="out"
+                    valideAt={r.checkoutValideAt}
+                    validePar={r.checkoutValidePar}
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
 
