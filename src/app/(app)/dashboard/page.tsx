@@ -42,6 +42,7 @@ import { domaineLabel } from "@/lib/domaine-labels";
 import { type PersonnelAssigne } from "@/components/app/personnel-affectation-editor";
 import { Wrench, ChevronLeft, ChevronRight, MoreVertical, Home } from "lucide-react";
 import { nowInMorocco } from "@/lib/now";
+import { normaliseCanal } from "@/lib/canal";
 import { lienPlateforme } from "@/lib/lien-plateforme";
 import { villaEstGeree } from "@/lib/domaines-actifs";
 import {
@@ -146,7 +147,14 @@ export default async function DashboardPage({
         ne(reservations.status, "annulee"),
         or(
           and(gte(reservations.checkIn, rangeStart), lte(reservations.checkIn, rangeEnd)),
-          and(gte(reservations.checkOut, rangeStart), lte(reservations.checkOut, rangeEnd))
+          and(gte(reservations.checkOut, rangeStart), lte(reservations.checkOut, rangeEnd)),
+          // Séjours en cours (arrivés, départ pas encore validé) : toujours chargés, même hors de
+          // la semaine affichée, pour la section épinglée "Sur place maintenant".
+          and(
+            lte(reservations.checkIn, now),
+            gte(reservations.checkOut, startOfDay(now)),
+            isNull(reservations.checkoutValideAt)
+          )
         )
       )
     )
@@ -412,6 +420,25 @@ export default async function DashboardPage({
     DASHBOARD_DOMAINES.map((d) => [d, upcomingWithDocs.filter((r) => r.domaineNom === d)])
   );
 
+  // Clients encore dans les villas (arrivés, check-out pas validé), épinglés en haut de l'accueil
+  // pour pouvoir modifier/ajouter des choses pendant le séjour (Kamel, 2026-11-15). Les blocages
+  // (dates fermées) n'ont pas de voyageur, donc exclus.
+  const surPlaceByDomaine = new Map(
+    DASHBOARD_DOMAINES.map((d) => [
+      d,
+      upcomingWithDocs
+        .filter(
+          (r) =>
+            r.domaineNom === d &&
+            new Date(r.checkIn) <= now &&
+            !r.checkoutValideAt &&
+            new Date(r.checkOut) >= startOfDay(now) &&
+            !(r.canal && normaliseCanal(r.canal) === "bloque")
+        )
+        .sort((a, b) => new Date(a.checkOut).getTime() - new Date(b.checkOut).getTime()),
+    ])
+  );
+
   const allVillasGerees = allVillas.filter((v) => villaEstGeree(v.nom));
 
   // Occupation réelle = check-in validé sur place mais check-out pas encore validé (pas juste
@@ -605,6 +632,8 @@ export default async function DashboardPage({
               <VillasLibresRow villas={villasLibresByDomaine.get(d)!} planVillas={planVillasByDomaine.get(d)!} />
             </div>
 
+            <SurPlaceMaintenant reservations={surPlaceByDomaine.get(d)!} />
+
             <div className="space-y-3">
               <SemaineNav offsetSemaines={offsetSemaines} rangeStart={rangeStart} rangeEnd={rangeEnd} reservations={upcomingByDomaine.get(d)!} />
               <Agenda reservations={upcomingByDomaine.get(d)!} days={days} now={now} semaineCourante={offsetSemaines === 0} />
@@ -623,6 +652,25 @@ export default async function DashboardPage({
 // coupé en « Villa Modern… ».
 function domaineLabelCourt(nom: string): string {
   return domaineLabel(nom).replace(/^Villa /, "");
+}
+
+// Section épinglée : les clients actuellement dans les villas. Cartes repliées (même carte que
+// l'agenda, donc équipe, notes, prolongation, paiement... restent modifiables), triées par départ.
+function SurPlaceMaintenant({ reservations: resas }: { reservations: ReservationRow[] }) {
+  if (resas.length === 0) return null;
+  return (
+    <section className="space-y-2" aria-label="Clients sur place">
+      <div className="flex items-baseline gap-2 px-1">
+        <h2 className="text-[15px] font-semibold">Sur place maintenant</h2>
+        <span className="text-sm text-muted-foreground">· {resas.length}</span>
+      </div>
+      <div className="space-y-2">
+        {resas.map((r) => (
+          <ReservationAgendaCard key={`surplace-${r.id}`} r={r} kind="out" />
+        ))}
+      </div>
+    </section>
+  );
 }
 
 // En-tête de l'agenda : navigation de semaine à gauche, bilan de la semaine (arrivées/départs du
