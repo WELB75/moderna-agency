@@ -666,7 +666,7 @@ function SurPlaceMaintenant({ reservations: resas }: { reservations: Reservation
       </div>
       <div className="space-y-2">
         {resas.map((r) => (
-          <ReservationAgendaCard key={`surplace-${r.id}`} r={r} kind="out" />
+          <ReservationAgendaCard key={`surplace-${r.id}`} r={r} kind="in" surPlace />
         ))}
       </div>
     </section>
