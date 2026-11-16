@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { createHash } from "node:crypto";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { getDb } from "@/db";
-import { personnel, personnelAffectations, reservations } from "@/db/schema";
+import { interventions, personnel, personnelAffectations, reservations } from "@/db/schema";
 import { getTarification, type TarificationVilla } from "@/lib/pricelabs/sync";
 import { CANAL_SEJOUR_PROPRIETAIRE, villaDuCalendrierToken } from "@/lib/calendrier-partage";
 import { nowInMorocco } from "@/lib/now";
@@ -13,6 +13,7 @@ import { TarificationView } from "@/components/app/tarification-view";
 import { ProprietaireReservation, type SejourProprietaire } from "@/components/app/proprietaire-reservation";
 import { BilanProprietaire } from "@/components/app/bilan-proprietaire";
 import { Logo } from "@/components/app/logo";
+import { ReservesProprietaire, type ReserveProprietaire } from "@/components/app/reserves-proprietaire";
 
 export const metadata: Metadata = {
   title: "Calendrier — Superhosts",
@@ -96,6 +97,16 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
 
   const aujourdhui = nowInMorocco().toISOString().slice(0, 10);
 
+  // Réserves du propriétaire : ses demandes (origine "proprietaire"), les plus anciennes d'abord,
+  // les terminées en dernier.
+  const reserves: ReserveProprietaire[] = (
+    await getDb()
+      .select({ id: interventions.id, titre: interventions.titre, etape: interventions.etape })
+      .from(interventions)
+      .where(and(eq(interventions.villaId, villa.id), eq(interventions.origine, "proprietaire")))
+      .orderBy(asc(interventions.signaleAt))
+  ).sort((a, b) => Number(a.etape === "termine") - Number(b.etape === "termine"));
+
   // Clé de la grille : la recrée quand les réservations changent (après une réservation ou une
   // annulation, router.refresh() renvoie de nouvelles données mais le composant garde son état).
   const cleGrille = createHash("sha1")
@@ -149,6 +160,7 @@ export default async function CalendrierPartagePage({ params }: { params: Promis
         <p className="text-sm text-muted-foreground">Réservations et prix en direct.</p>
       </div>
       <ProprietaireReservation token={token} nomParDefaut={villa.proprietaireNom || "Propriétaire"} sejours={sejours} />
+      <ReservesProprietaire token={token} reserves={reserves} />
       <TarificationView key={cleGrille} initialVillas={tarifs} lectureSeule />
       {/* Bilan mensuel — Fouad, 2026-10-24 : "chaque mois, combien ils ont dépensé [...] et combien
           ils ont encaissé sur Airbnb, en direct [...] un petit graphique sur la même page", pour
