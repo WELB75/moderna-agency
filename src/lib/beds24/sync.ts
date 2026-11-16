@@ -1,4 +1,5 @@
 import { notifierKamelTelegram } from "@/lib/telegram";
+import { infosReservations, lignesInfos } from "@/lib/telegram-agent/infos-resa";
 import { and, asc, eq, isNotNull, isNull, gte, lt, inArray, notInArray, sql } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -227,7 +228,7 @@ export async function runBeds24Sync(): Promise<
   let totalAdopted = 0;
   const now = nowInMorocco();
   const departureFrom = new Date(now.getTime() - PAST_DAYS_INCLUDED * DAY_MS).toISOString().slice(0, 10);
-  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[] = [];
+  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date; reservationId?: string }[] = [];
   const cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[] = [];
 
   try {
@@ -435,7 +436,7 @@ export async function runBeds24Sync(): Promise<
         // Séjour déjà terminé (remonté par departureFrom) : pas de notification ni de ménage.
         if (!inserted || isCancelled || checkOut < now) continue;
 
-        newBookings.push({ villaNom: villa.nom, guestName, checkIn, checkOut });
+        newBookings.push({ villaNom: villa.nom, guestName, checkIn, checkOut, reservationId: inserted.id });
         // Sollicitation automatique d'une femme de ménage, comme pour la synchro iCal qu'on
         // remplace — ne doit jamais faire échouer la synchro elle-même si ça plante.
         try {
@@ -558,7 +559,7 @@ async function publierLiensFichePolice(bookings: Beds24Booking[], now: Date): Pr
 }
 
 async function notifySyncChanges(
-  newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[],
+  newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date; reservationId?: string }[],
   cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[]
 ) {
   if (newBookings.length === 0 && cancelledBookings.length === 0) return;
@@ -573,7 +574,21 @@ async function notifySyncChanges(
     lines.push(`Annulation (Beds24) : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })})`);
   }
 
-  await Promise.all([notifyStaffWhatsApp(lines.join("\n")).catch(() => {}), notifierKamelTelegram(lines.join("\n"))]);
+  // Telegram (Kamel, Fouad) reçoit en plus le logement et le détail des revenus ; le personnel
+  // prévenu par WhatsApp garde le texte simple, sans aucun montant.
+  const infos = await infosReservations(newBookings.flatMap((b) => (b.reservationId ? [b.reservationId] : [])));
+  const lignesTelegram: string[] = [];
+  for (const b of newBookings) {
+    lignesTelegram.push(
+      `Nouvelle réservation (Beds24) : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })} → ${format(b.checkOut, "d MMM", { locale: fr })})`,
+      ...lignesInfos(b.reservationId ? infos.get(b.reservationId) : undefined)
+    );
+  }
+  for (const b of cancelledBookings) {
+    lignesTelegram.push(`Annulation (Beds24) : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })})`);
+  }
+
+  await Promise.all([notifyStaffWhatsApp(lines.join("\n")).catch(() => {}), notifierKamelTelegram(lignesTelegram.join("\n"))]);
 }
 
 // Sens app -> Beds24 : pousse une réservation créée/modifiée dans l'app vers Beds24, mais

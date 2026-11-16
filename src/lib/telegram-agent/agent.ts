@@ -18,6 +18,7 @@ import { domaineEstActif } from "@/lib/domaines-actifs";
 import { UTILISATEUR_PRINCIPAL, type UtilisateurTelegram } from "@/lib/telegram-agent/utilisateurs";
 import { getCaisseDetail, getStatistiques, getTournees } from "@/lib/telegram-agent/stats-caisse";
 import { getVillaCodes, getOccupation, getDisponibilites } from "@/lib/telegram-agent/consultation";
+import { infosReservations } from "@/lib/telegram-agent/infos-resa";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 
 const client = new Anthropic();
@@ -263,6 +264,7 @@ Ce que tu NE fais PAS : fiches de police, création de réservations, modificati
 
 Règles :
 - Réponds en français, ton bref et naturel, façon message Telegram (pas de pavés).
+- Quand tu cites une réservation (find_reservation, get_agenda), donne aussi le champ logement (immeuble, adresse, chambres) et le champ revenus (Airbnb / Booking.com : chambre, ménage, frais de service hôte, total) s'ils sont présents, recopiés tels quels, sans rien recalculer ni inventer. Absents = pas de détail disponible (réservation directe).
 - Dès qu'une instruction est claire, agis directement (appelle l'outil) sans demander confirmation avant — mais confirme après coup ce que tu as fait, en une phrase claire, pour qu'il puisse corriger immédiatement si besoin.
 - Si une information clé est ambiguë (montant, devise, quelle villa, quelle personne parmi plusieurs), demande une précision avant d'agir plutôt que de deviner — surtout pour tout ce qui touche à l'argent.
 - Si Kamel corrige ou dit que c'est faux juste après un enregistrement de caisse, utilise cancel_last_entry puis ré-enregistre si les bonnes infos sont données.
@@ -436,10 +438,13 @@ async function findReservation(input: Record<string, unknown>) {
     parReservation.set(a.reservationId, list);
   }
 
+  const infos = await infosReservations(rows.map((r) => r.id));
   return {
     trouve: true,
     reservations: rows.map((r) => ({
       guestName: r.guestName,
+      logement: infos.get(r.id)?.logement ?? undefined,
+      revenus: infos.get(r.id)?.revenus ?? undefined,
       villa: r.villaNom ? `${r.villaNom} (n°${r.villaNumero})` : null,
       checkIn: r.checkIn.toISOString().slice(0, 10),
       checkOut: r.checkOut.toISOString().slice(0, 10),
@@ -657,15 +662,18 @@ async function getAgenda(dateStr: string, voirTout: boolean) {
       .where(and(gte(maintenanceRecords.prochaineDatePrevue, dayStart), lte(maintenanceRecords.prochaineDatePrevue, dayEnd)))
   ).filter((m) => voirTout || domaineEstActif(m.domaineNom));
 
+  const infos = await infosReservations([...arrivals, ...departures].map((r) => r.id));
   const villaLabel = (v: { villaNom: string | null; villaNumero: string | null }) =>
     v.villaNom ? `${v.villaNom} (n°${v.villaNumero})` : "villa inconnue";
 
   return {
     date: dateStr,
-    arrivees: arrivals.map((r) => ({ guestName: r.guestName, villa: villaLabel(r) })),
+    arrivees: arrivals.map((r) => ({ guestName: r.guestName, villa: villaLabel(r), logement: infos.get(r.id)?.logement ?? undefined, revenus: infos.get(r.id)?.revenus ?? undefined })),
     departs: departures.map((r) => ({
       guestName: r.guestName,
       villa: villaLabel(r),
+      logement: infos.get(r.id)?.logement ?? undefined,
+      revenus: infos.get(r.id)?.revenus ?? undefined,
       menage: menageDepart
         .filter((m) => m.reservationId === r.id)
         .map((m) => ({ personnelNom: m.personnelNom, fait: Boolean(m.faitAt) })),

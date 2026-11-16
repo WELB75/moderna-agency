@@ -4,6 +4,7 @@ import { domaines, reservations, villas } from "@/db/schema";
 import { domaineEstActif, villaEstGeree } from "@/lib/domaines-actifs";
 import { formatUtcTime, nowInMorocco } from "@/lib/now";
 import { envoyerTelegram } from "@/lib/telegram";
+import { infosReservations, lignesInfos, type InfosResa } from "@/lib/telegram-agent/infos-resa";
 import { villaLabel } from "@/lib/whatsapp-agent/staff";
 
 // Rappels Telegram de Kamel (cron /api/telegram-rappels) : le matin pour la journée qui commence,
@@ -20,6 +21,7 @@ type Ligne = {
   personnes: number | null;
   canal: string | null;
   notes: string | null;
+  infos?: InfosResa;
 };
 
 function formatLigne(l: Ligne): string {
@@ -28,6 +30,7 @@ function formatLigne(l: Ligne): string {
     l.canal,
   ].filter(Boolean);
   let out = `- ${l.villa} à ${l.heure} : ${l.client}${details.length ? ` (${details.join(", ")})` : ""}`;
+  for (const ligne of lignesInfos(l.infos)) out += `\n${ligne}`;
   if (l.notes) out += `\n  Note : ${l.notes.replace(/\s+/g, " ").trim()}`;
   return out;
 }
@@ -46,6 +49,7 @@ export async function construireRappel(moment: MomentRappel, maintenant: Date = 
 
   const db = getDb();
   const colonnes = {
+    id: reservations.id,
     villaNom: villas.nom,
     villaNumero: villas.numero,
     domaineNom: domaines.nom,
@@ -65,7 +69,9 @@ export async function construireRappel(moment: MomentRappel, maintenant: Date = 
 
   const [arrivees, departs] = await Promise.all([charger(reservations.checkIn), charger(reservations.checkOut)]);
 
+  const infos = await infosReservations([...arrivees, ...departs].map((r) => r.id));
   const versLigne = (r: (typeof arrivees)[number]): Ligne => ({
+    infos: infos.get(r.id),
     villa: villaLabel(r.villaNom ?? "Villa", r.villaNumero ?? null),
     heure: formatUtcTime(r.date),
     client: r.client,

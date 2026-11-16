@@ -1,4 +1,5 @@
 import { notifierKamelTelegram } from "@/lib/telegram";
+import { infosReservations, lignesInfos } from "@/lib/telegram-agent/infos-resa";
 import { and, eq, isNotNull, gte, notInArray } from "drizzle-orm";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -52,7 +53,7 @@ export async function runIcalSync(): Promise<
   let totalSynced = 0;
   let totalCancelled = 0;
   const now = nowInMorocco();
-  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[] = [];
+  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date; reservationId?: string }[] = [];
   const cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[] = [];
   // Un lien mort pour une villa (ex. export régénéré côté Superhote, 404) ne doit pas bloquer la
   // synchro des autres : on la saute, sans réconciliation (sinon toutes ses réservations à venir
@@ -156,7 +157,7 @@ export async function runIcalSync(): Promise<
           await db.update(reservations).set(updateValues).where(eq(reservations.id, existing[0].id));
         } else {
           const [inserted] = await db.insert(reservations).values(values).returning({ id: reservations.id });
-          newBookings.push({ villaNom: villa.nom, guestName, checkIn: event.start, checkOut: event.end });
+          newBookings.push({ villaNom: villa.nom, guestName, checkIn: event.start, checkOut: event.end, reservationId: inserted.id });
           // Sollicitation automatique d'une femme de ménage pour le nettoyage de fin de séjour
           // — ne doit jamais faire échouer la synchro elle-même si ça plante.
           try {
@@ -237,7 +238,7 @@ export async function runDirectPlatformSync(): Promise<{
 }> {
   const db = getDb();
   const now = nowInMorocco();
-  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[] = [];
+  const newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date; reservationId?: string }[] = [];
   const cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[] = [];
   let totalSynced = 0;
   let totalCancelled = 0;
@@ -312,7 +313,7 @@ export async function runDirectPlatformSync(): Promise<{
         } else {
           const [inserted] = await db.insert(reservations).values(values).returning({ id: reservations.id });
           insertedByCheckout.set(event.end.toISOString().slice(0, 10), inserted.id);
-          newBookings.push({ villaNom: villa.nom, guestName: plat.label, checkIn: event.start, checkOut: event.end });
+          newBookings.push({ villaNom: villa.nom, guestName: plat.label, checkIn: event.start, checkOut: event.end, reservationId: inserted.id });
           try {
             await initiateMenageRequest(inserted.id, villa.nom, villa.numero, event.end.toISOString().slice(0, 10));
           } catch (err) {
@@ -363,7 +364,7 @@ export async function runDirectPlatformSync(): Promise<{
 }
 
 async function notifySyncChanges(
-  newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date }[],
+  newBookings: { villaNom: string; guestName: string; checkIn: Date; checkOut: Date; reservationId?: string }[],
   cancelledBookings: { villaNom: string; guestName: string; checkIn: Date }[]
 ) {
   if (newBookings.length === 0 && cancelledBookings.length === 0) return;
@@ -379,5 +380,19 @@ async function notifySyncChanges(
   }
 
   // Best-effort : un échec d'envoi WhatsApp ne doit jamais faire échouer la synchronisation.
-  await Promise.all([notifyStaffWhatsApp(lines.join("\n")).catch(() => {}), notifierKamelTelegram(lines.join("\n"))]);
+  // Telegram reçoit en plus le logement (appartement : immeuble, adresse) ; pas de montants ici,
+  // le calendrier iCal n'en contient pas. Le personnel garde le texte simple.
+  const infos = await infosReservations(newBookings.flatMap((b) => (b.reservationId ? [b.reservationId] : [])));
+  const lignesTelegram: string[] = [];
+  for (const b of newBookings) {
+    lignesTelegram.push(
+      `Nouvelle réservation : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })} → ${format(b.checkOut, "d MMM", { locale: fr })})`,
+      ...lignesInfos(b.reservationId ? infos.get(b.reservationId) : undefined)
+    );
+  }
+  for (const b of cancelledBookings) {
+    lignesTelegram.push(`Annulation : ${b.villaNom} — ${b.guestName} (${format(b.checkIn, "d MMM", { locale: fr })})`);
+  }
+
+  await Promise.all([notifyStaffWhatsApp(lines.join("\n")).catch(() => {}), notifierKamelTelegram(lignesTelegram.join("\n"))]);
 }

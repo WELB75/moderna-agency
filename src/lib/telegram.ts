@@ -23,23 +23,45 @@ export async function chatIdsDestinataires(): Promise<string[]> {
   return row ? [row.chatId] : [];
 }
 
+export function decouperTexte(texte: string, limite: number): string[] {
+  if (texte.length <= limite) return [texte];
+  const morceaux: string[] = [];
+  let courant = "";
+  for (const ligne of texte.split("\n")) {
+    const l = ligne.length > limite ? ligne.slice(0, limite) : ligne;
+    if (courant && courant.length + 1 + l.length > limite) {
+      morceaux.push(courant);
+      courant = l;
+    } else courant = courant ? `${courant}\n${l}` : l;
+  }
+  if (courant) morceaux.push(courant);
+  return morceaux;
+}
+
 export async function envoyerTelegram(texte: string): Promise<{ sent: boolean; reason?: string }> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return { sent: false, reason: "TELEGRAM_BOT_TOKEN manquant" };
   const chatIds = await chatIdsDestinataires();
   if (chatIds.length === 0) return { sent: false, reason: "chat Telegram inconnu (écrire une fois au bot)" };
 
-  const text = texte.length > LIMITE_TEXTE ? `${texte.slice(0, LIMITE_TEXTE)}\n[message tronqué]` : texte;
+  // Un message trop long est coupé en plusieurs envois, à la limite d'une ligne (les rappels
+  // détaillent désormais le logement et les revenus de chaque réservation).
+  const morceaux = decouperTexte(texte, LIMITE_TEXTE);
   // Un destinataire en échec ne doit pas empêcher l'envoi aux autres.
   const resultats = await Promise.all(
     chatIds.map(async (chatId) => {
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: chatId, text }),
-      });
-      if (!res.ok) console.error("Échec envoi Telegram:", chatId, res.status, await res.text());
-      return res;
+      let derniere: Response | null = null;
+      for (const text of morceaux) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chat_id: chatId, text }),
+        });
+        if (!res.ok) console.error("Échec envoi Telegram:", chatId, res.status, await res.text());
+        derniere = res;
+        if (!res.ok) break;
+      }
+      return derniere as Response;
     }),
   );
   const ok = resultats.some((r) => r.ok);

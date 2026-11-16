@@ -65,6 +65,22 @@ export function nuiteesDeRateDescription(texte: string | null | undefined): numb
   return trouve && somme > 0 ? somme : null;
 }
 
+// Tarif de chaque nuit du détail Booking.com / Beds24 ("2026-10-19 (50754861 Standard Rate) EUR 378 genius").
+// Liste vide si rien de lisible (Airbnb ne transmet que des totaux, pas le prix de chaque nuit).
+export function tarifsParNuit(texte: string | null | undefined): { date: string; montant: number }[] {
+  if (!texte) return [];
+  const out: { date: string; montant: number }[] = [];
+  for (const ligne of texte.split(/\r?\n/)) {
+    const m = ligne.match(/^\s*(\d{4}-\d{2}-\d{2})\b.*?\b[A-Z]{3}\s*(-?\d[\d\s,.]*)/);
+    if (!m) continue;
+    let brut = m[2].replace(/\s/g, "");
+    brut = brut.includes(".") ? brut.replace(/,/g, "") : brut.replace(",", ".");
+    const n = Number.parseFloat(brut);
+    if (Number.isFinite(n)) out.push({ date: m[1], montant: n });
+  }
+  return out;
+}
+
 function totalLigne(i: { qty?: number | null; amount?: number | null; lineTotal?: number | null }): number {
   if (typeof i.lineTotal === "number" && Number.isFinite(i.lineTotal)) return i.lineTotal;
   const q = typeof i.qty === "number" && i.qty > 0 ? i.qty : 1;
@@ -162,4 +178,89 @@ export function prixBeds24DeRawData(rawData: unknown): PrixBeds24 | null {
 
 export function estCanalPlateforme(canal: string | null | undefined): boolean {
   return /airbnb|booking/i.test(canal ?? "");
+}
+
+// ===== Texte des détails pour Telegram =====
+
+// Texte des détails d'une réservation pour les messages Telegram (rappels, notifications, agenda,
+// recherche) — Kamel, 2026-11-16 : "ajoute les infos liées aux appartements pour les notifs et ces
+// détails dans chaque résa" (frais de chambre, ménage, frais de service hôte, total, comme l'écran
+// "Revenus" d'Airbnb). Fonctions pures, sans accès base : testées avec node --test.
+//
+// Limite connue : Beds24 ne transmet pas le prix de chaque nuit d'Airbnb (seulement base, ménage,
+// frais de service, net). Pour Airbnb on donne donc la moyenne par nuit ; pour Booking.com les
+// vrais tarifs par nuit sont dans le détail Beds24.
+
+export function montantTexte(n: number, devise: string | null | undefined = "EUR"): string {
+  const dh = /^(mad|dh|dhs)$/i.test((devise ?? "").trim());
+  const nombre = n.toLocaleString("fr-FR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 }).replace(/[  ]/g, " ");
+  return `${nombre} ${dh ? "MAD" : "€"}`;
+}
+
+export function nombreDeNuits(checkIn: Date, checkOut: Date): number {
+  const jour = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return Math.max(0, Math.round((jour(checkOut) - jour(checkIn)) / 86_400_000));
+}
+
+// "11 nuits à 486 €" quand toutes les nuits ont le même tarif, sinon "486 € x 3, 520 € x 2".
+function nuitsBooking(tarifs: { montant: number }[], devise: string | null | undefined): string {
+  const groupes = new Map<number, number>();
+  for (const t of tarifs) groupes.set(t.montant, (groupes.get(t.montant) ?? 0) + 1);
+  if (groupes.size === 1) {
+    const [[montant, nb]] = [...groupes.entries()];
+    return `${nb} nuit${nb > 1 ? "s" : ""} à ${montantTexte(montant, devise)}`;
+  }
+  return [...groupes.entries()].map(([m, nb]) => `${montantTexte(m, devise)} x ${nb}`).join(", ");
+}
+
+export type EntreeRevenus = {
+  rawData: unknown;
+  loyerTotal: string | number | null;
+  fraisMenage: string | number | null;
+  canal: string | null;
+  devise: string | null;
+  checkIn: Date;
+  checkOut: Date;
+};
+
+// null pour une réservation directe / sans montant : rien à afficher.
+export function revenusTexte(e: EntreeRevenus): string | null {
+  if (!estCanalPlateforme(e.canal)) return null;
+  const num = (v: string | number | null) => (v === null || v === "" ? null : Number(v));
+  const prix = prixBeds24DeRawData(e.rawData);
+  const r = calculerRevenusPlateforme(prix, num(e.loyerTotal), num(e.fraisMenage), e.canal);
+  if (!r) return null;
+  const nuits = nombreDeNuits(e.checkIn, e.checkOut);
+  const airbnb = /airbnb/i.test(e.canal ?? "");
+  const d = e.devise;
+
+  const parNuit = airbnb ? [] : tarifsParNuit(prix?.rateDescription);
+  let chambre = `Chambre ${montantTexte(r.fraisChambre, d)}`;
+  if (parNuit.length > 0) chambre += ` (${nuitsBooking(parNuit, d)})`;
+  else if (nuits > 0) chambre += ` (${nuits} nuit${nuits > 1 ? "s" : ""}, moy. ${montantTexte(Math.round((r.fraisChambre / nuits) * 100) / 100, d)}/nuit)`;
+
+  const parties = [chambre];
+  if (r.fraisMenage > 0) parties.push(`ménage ${montantTexte(r.fraisMenage, d)}`);
+  if (r.autresFrais > 0) parties.push(`taxes et autres frais ${montantTexte(r.autresFrais, d)}`);
+  let texte = parties.join(" + ");
+  if (r.fraisServiceHote !== null) {
+    const net = Math.round((r.totalVoyageur - r.fraisServiceHote) * 100) / 100;
+    texte += ` - frais de service hôte ${montantTexte(r.fraisServiceHote, d)} = ${montantTexte(net, d)}`;
+  } else {
+    texte += ` = ${montantTexte(r.totalVoyageur, d)} (frais de service non transmis)`;
+  }
+  return `${airbnb ? "Airbnb" : "Booking.com"} : ${texte}`;
+}
+
+export type EntreeLogement = { type: string | null; adresse: string | null; numeroImmeuble: string | null; nbChambres: number | null };
+
+// "Appartement - immeuble 4 - 12 rue X - 2 chambres" ; null si rien n'est renseigné.
+export function logementTexte(l: EntreeLogement): string | null {
+  const parts = [
+    l.type === "appartement" ? "Appartement" : null,
+    l.numeroImmeuble ? `immeuble ${l.numeroImmeuble}` : null,
+    l.adresse ? l.adresse.replace(/\s+/g, " ").trim() : null,
+    l.nbChambres ? `${l.nbChambres} chambre${l.nbChambres > 1 ? "s" : ""}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" - ") : null;
 }
