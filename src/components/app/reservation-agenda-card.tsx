@@ -42,6 +42,7 @@ import { PersonnelAffectationEditor } from "@/components/app/personnel-affectati
 import { GuestWhatsAppButton } from "@/components/app/guest-whatsapp-button";
 import { EditGuestPhoneButton } from "@/components/app/edit-guest-phone-button";
 import { EditNotesButton } from "@/components/app/edit-notes-button";
+import { CopierLienServices } from "@/components/app/copier-lien-services";
 import { ConfirmDeleteButton } from "@/components/app/confirm-delete-button";
 import { CanalDot } from "@/components/app/canal-badge";
 import { SectionLabel } from "@/components/app/dashboard-ui";
@@ -227,6 +228,7 @@ export function ReservationAgendaCard({
                   <EditGuestPhoneButton reservationId={r.id} guestPhone={r.guestPhone} />
                   <EditNotesButton reservationId={r.id} notes={r.notes} />
                 </span>
+                {!isBloque && !isProprietaire ? <CopierLienServices reservationId={r.id} /> : null}
               </p>
               <p className="text-muted-foreground">
                 {isIn ? (

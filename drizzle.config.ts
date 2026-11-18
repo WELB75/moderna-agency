@@ -11,6 +11,7 @@ export default defineConfig({
     "./src/db/schema-acces.ts",
     "./src/db/schema-syndic.ts",
     "./src/db/schema-inventaire-villa.ts",
+    "./src/db/schema-services.ts",
   ],
   out: "./src/db/migrations",
   dialect: "postgresql",

@@ -20,6 +20,7 @@ import {
   KeyRound,
   Brain,
   Star,
+  ConciergeBell,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +49,7 @@ export const navGroups: NavGroup[] = [
     label: "Communication & opérations",
     items: [
       { href: "/chat", label: "Messages", icon: MessagesSquare },
+      { href: "/demandes", label: "Demandes voyageurs", icon: ConciergeBell },
       { href: "/memoire-agent", label: "Mémoire de l'agent", icon: Brain },
       { href: "/inventaire", label: "États des lieux", icon: ClipboardCheck },
       { href: "/maintenance", label: "Maintenance", icon: Wrench },
