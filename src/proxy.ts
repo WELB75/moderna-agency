@@ -34,6 +34,7 @@ const isPublicRoute = createRouteMatcher([
   "/t/(.*)",
   "/m/(.*)",
   "/bienvenue/(.*)",
+  "/sejour/(.*)", // espace du voyageur : demandes de services et activités (UUID de la réservation dans l'adresse)
   "/r/(.*)",
   "/s/(.*)", // récapitulatif d'une réservation directe (lien de partage par jeton)
   "/payer/(.*)",
