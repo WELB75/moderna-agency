@@ -307,6 +307,14 @@ export function CarteArrivee({ dossier, agents }: { dossier: DossierSecurite; ag
         </div>
       </div>
 
+      {dossier.envois.length > 0 ? (
+        <p className={cn("mt-3 text-xs font-medium", dossier.ouverture ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
+          {dossier.ouverture
+            ? `Lien ouvert par la sécurité · ${format(dossier.ouverture.premiere, "EEE d MMM 'à' HH:mm", { locale: fr })}`
+            : "Lien pas encore ouvert par la sécurité"}
+        </p>
+      ) : null}
+
       {lignes.length > 0 ? (
         <ul className="mt-3 space-y-2.5">
           {lignes.map((l) => (

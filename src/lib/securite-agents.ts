@@ -7,6 +7,7 @@ import { phonesMatch } from "@/lib/phone";
 import { sendWhatsAppTemplate } from "@/lib/whatsapp-agent/send";
 import { notifierKamelTelegram } from "@/lib/telegram";
 import { MODELE_SECURITE } from "@/lib/securite-envois-util";
+import { getOuvertures, type OuvertureSecurite } from "@/lib/securite-ouvertures";
 
 // Agents de sécurité par domaine (Kamel, 2026-11-06 : « il me faut un espace pour visualiser que
 // l'envoi a bien été fait aux différents agents de sécurité »). Un domaine peut avoir plusieurs
@@ -316,6 +317,7 @@ export type DossierSecurite = {
   passeports: string | null; // « 11/12 passeports », null si fiche terminée ou inconnue
   ficheComplete: boolean;
   envois: EnvoiSecurite[];
+  ouverture: OuvertureSecurite | null; // première ouverture du lien par le gardien
 };
 
 export type DomaineSuiviSecurite = {
@@ -365,6 +367,7 @@ export async function getSuiviSecurite(now: Date): Promise<DomaineSuiviSecurite[
       passeports: progressionFiche(a.fiche),
       ficheComplete: Boolean(a.fiche && ficheToutRecue(a.fiche)),
       envois: envoisParResa.get(a.id) ?? [],
+      ouverture: null,
     });
   }
   const autres = [...envoisParResa.keys()].filter((id) => !vus.has(id));
@@ -389,8 +392,12 @@ export async function getSuiviSecurite(now: Date): Promise<DomaineSuiviSecurite[
         passeports: null,
         ficheComplete: false,
         envois: envoisParResa.get(r.id) ?? [],
+        ouverture: null,
       });
     }
   }
+  const tousDossiers = [...dossiersParDomaine.values()].flat();
+  const ouvertures = await getOuvertures(tousDossiers.map((d) => d.reservationId));
+  for (const d of tousDossiers) d.ouverture = ouvertures.get(d.reservationId) ?? null;
   return domainesSec.map((d) => ({ id: d.id, nom: d.nom, agents: agentsParDomaine.get(d.id) ?? [], dossiers: dossiersParDomaine.get(d.id) ?? [] }));
 }
