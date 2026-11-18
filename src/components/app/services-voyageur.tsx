@@ -15,6 +15,9 @@ import {
   HEURE_FLEXIBLE,
   SERVICES,
   SERVICE_PAR_CLE,
+  TARIFS,
+  eurDepuisMad,
+  montantEstime,
   type CategorieService,
   type ServiceIcone,
 } from "@/lib/services-catalogue";
@@ -34,10 +37,34 @@ type Statut = "demandee" | "confirmee" | "refusee" | "terminee";
 type DemandeExistante = { id: string; serviceKey: string; jour: string; heure: string; nbPersonnes: number; statut: Statut };
 type Choix = { jour: string; heure: string; nb: number; note: string };
 
+function fmt(n: number): string {
+  return n.toLocaleString("fr-FR").replace(/\u202f/g, " ");
+}
+
+type Textes = (typeof T)["fr"];
+function libellePrix(key: string, t: Textes, langue: Langue): { principal: string; detail: string } | null {
+  const tarif = TARIFS[key];
+  if (!tarif) return null;
+  if (tarif.unite === "offert") return { principal: t.offert, detail: "" };
+  if (tarif.unite === "devis") return { principal: t.devis, detail: "" };
+  const unite = tarif.unite === "pers" ? ` ${t.parPers}` : tarif.unite === "jour" ? ` ${t.parJour}` : "";
+  const debut = tarif.aPartirDe ? `${t.des} ` : "";
+  const duree = tarif.duree ? ` · ${tarif.duree[langue]}` : "";
+  return { principal: `${debut}${fmt(tarif.mad)} MAD${unite}`, detail: `≈ ${fmt(eurDepuisMad(tarif.mad))} €${duree}` };
+}
+
 const T = {
   fr: {
     titre: "Votre séjour",
-    intro: "Choisissez ce qui vous fait envie : le jour, l'heure et le nombre de personnes. Notre équipe vous confirme chaque demande par WhatsApp, avec les disponibilités et le prix.",
+    intro: "Choisissez ce qui vous fait envie : le jour, l'heure et le nombre de personnes. Notre équipe vous confirme chaque demande par WhatsApp, avec les disponibilités.",
+    prixNote: "Prix en dirhams (MAD), avec l'équivalent approximatif en euros. Tarifs indicatifs, confirmés par notre équipe.",
+    parPers: "/ pers.",
+    parJour: "/ jour",
+    des: "Dès",
+    offert: "Offert",
+    devis: "Sur devis",
+    totalEstime: "Total estimé",
+    totalNote: "Hors prestations sur devis. Le prix final vous est confirmé avant toute prestation.",
     bonjour: (p: string) => (p ? `Bonjour ${p}` : "Bonjour"),
     sejour: "Séjour du",
     au: "au",
@@ -61,7 +88,15 @@ const T = {
   },
   en: {
     titre: "Your stay",
-    intro: "Pick what you like: the day, the time and the number of guests. Our team confirms each request on WhatsApp, with availability and price.",
+    intro: "Pick what you like: the day, the time and the number of guests. Our team confirms each request on WhatsApp, with availability.",
+    prixNote: "Prices in Moroccan dirhams (MAD), with the approximate equivalent in euros. Indicative rates, confirmed by our team.",
+    parPers: "/ guest",
+    parJour: "/ day",
+    des: "From",
+    offert: "Free",
+    devis: "On request",
+    totalEstime: "Estimated total",
+    totalNote: "Excluding services on request. The final price is confirmed before any service.",
     bonjour: (p: string) => (p ? `Hello ${p}` : "Hello"),
     sejour: "Stay from",
     au: "to",
@@ -170,6 +205,7 @@ export function ServicesVoyageur({
   }
 
   const nbChoisis = Object.keys(choix).length;
+  const totalMad = Object.entries(choix).reduce((somme, [k, c]) => somme + (montantEstime(k, c.nb) ?? 0), 0);
 
   function envoyer() {
     const incomplets = Object.entries(choix).filter(([, c]) => !c.jour || !c.heure).map(([k]) => k);
@@ -203,7 +239,7 @@ export function ServicesVoyageur({
   const cat = CATEGORIES_SERVICES.find((c) => c.key === categorie)!;
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-xl pb-32">
+    <div className="mx-auto min-h-screen w-full max-w-xl pb-44">
       <header className="flex items-center justify-between gap-2 px-4 pt-4 sm:px-6">
         <Logo size={36} />
         <div className="inline-flex rounded-full border border-border bg-card p-0.5 text-xs font-medium">
@@ -228,6 +264,7 @@ export function ServicesVoyageur({
           {t.sejour} {formaterJour(arrivee, langue)} {t.au} {formaterJour(depart, langue)}
         </p>
         <p className="pt-2 text-sm leading-relaxed text-foreground/80">{t.intro}</p>
+        <p className="text-xs leading-relaxed text-muted-foreground">{t.prixNote}</p>
       </div>
 
       {envoye ? (
@@ -305,6 +342,7 @@ export function ServicesVoyageur({
           const c = choix[s.key];
           const choisi = Boolean(c);
           const manque = manquants.has(s.key);
+          const prix = libellePrix(s.key, t, langue);
           return (
             <div
               key={s.key}
@@ -319,7 +357,15 @@ export function ServicesVoyageur({
                 <span className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", choisi ? "bg-primary text-primary-foreground" : "bg-muted text-foreground/70")}>
                   <Icone className="h-5 w-5" />
                 </span>
-                <span className="min-w-0 flex-1 text-[15px] font-medium leading-snug">{s[langue]}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-medium leading-snug">{s[langue]}</span>
+                  {prix ? (
+                    <span className="mt-0.5 block text-sm">
+                      <span className="font-semibold tabular-nums text-foreground">{prix.principal}</span>
+                      {prix.detail ? <span className="text-muted-foreground"> · {prix.detail}</span> : null}
+                    </span>
+                  ) : null}
+                </span>
                 <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full border", choisi ? "border-primary bg-primary text-primary-foreground" : "border-border")}>
                   {choisi ? <Check className="h-3.5 w-3.5" /> : null}
                 </span>
@@ -411,6 +457,17 @@ export function ServicesVoyageur({
         <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 p-3 backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="mx-auto max-w-xl space-y-2 sm:px-3">
             {erreur ? <p className="text-center text-sm text-red-600">{erreur}</p> : null}
+            {totalMad > 0 ? (
+              <div className="px-1">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="text-muted-foreground">{t.totalEstime}</span>
+                  <span className="font-semibold tabular-nums">
+                    {fmt(totalMad)} MAD <span className="font-normal text-muted-foreground">· ≈ {fmt(eurDepuisMad(totalMad))} €</span>
+                  </span>
+                </div>
+                <p className="text-[11px] leading-snug text-muted-foreground">{t.totalNote}</p>
+              </div>
+            ) : null}
             <button
               type="button"
               onClick={envoyer}

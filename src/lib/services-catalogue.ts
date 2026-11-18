@@ -1,7 +1,8 @@
 // Catalogue des services proposés au voyageur sur son lien /sejour/[id] (2026-11-18) : repris de la
 // brochure Moderna (activités, expériences, conciergerie, événements), plus les services à la
-// villa. Pas de tarifs pour ce premier test : le voyageur coche, choisit le jour, l'heure et le
-// nombre de personnes, l'équipe revient vers lui avec le prix et la disponibilité.
+// villa. Le voyageur coche, choisit le jour, l'heure et le nombre de personnes ; l'équipe confirme.
+// Tarifs (2026-11-18) : valeurs INVENTÉES pour la simulation, en MAD, avec équivalent en euros
+// (taux fixe 10 MAD = 1 EUR, comme dans le reste de l'app). À remplacer par les vrais prix.
 export type ServiceIcone =
   | "bike" | "footprints" | "mountain" | "sunrise" | "wind" | "tent" | "waves" | "compass"
   | "horse" | "chef" | "palette" | "spa" | "hand" | "flame" | "map" | "landmark"
@@ -28,11 +29,20 @@ export const CATEGORIES_SERVICES: { key: CategorieService; fr: string; en: strin
 
 export const SERVICES: ServiceCatalogue[] = [
   // À la villa
-  { key: "petit-dejeuner", categorie: "villa", icone: "coffee", fr: "Petit-déjeuner", en: "Breakfast" },
-  { key: "dejeuner", categorie: "villa", icone: "utensils", fr: "Déjeuner", en: "Lunch" },
+  { key: "petit-dejeuner", categorie: "villa", icone: "coffee", fr: "Petit-déjeuner marocain", en: "Moroccan breakfast" },
+  { key: "dejeuner", categorie: "villa", icone: "utensils", fr: "Déjeuner (menu du jour)", en: "Lunch (menu of the day)" },
+  { key: "couscous", categorie: "villa", icone: "chef", fr: "Couscous royal", en: "Royal couscous" },
+  { key: "tajine", categorie: "villa", icone: "utensils", fr: "Tajine (poulet-citron, agneau-pruneaux ou légumes)", en: "Tagine (chicken-lemon, lamb-prunes or vegetable)" },
+  { key: "pastilla", categorie: "villa", icone: "utensils", fr: "Pastilla au poulet", en: "Chicken pastilla" },
+  { key: "mechoui", categorie: "villa", icone: "flame", fr: "Méchoui d'agneau (à partir de 4 personnes)", en: "Roast lamb mechoui (4 guests minimum)" },
+  { key: "mezze", categorie: "villa", icone: "utensils", fr: "Salades marocaines et mezzés", en: "Moroccan salads & mezze" },
+  { key: "patisseries", categorie: "villa", icone: "cake", fr: "Pâtisseries marocaines", en: "Moroccan pastries" },
   { key: "cuisiniere", categorie: "villa", icone: "chef", fr: "Cuisinière à la villa", en: "Private cook at the villa" },
   { key: "menage", categorie: "villa", icone: "sparkles", fr: "Ménage supplémentaire", en: "Extra housekeeping" },
-  { key: "boissons", categorie: "villa", icone: "wine", fr: "Boissons", en: "Drinks" },
+  { key: "the-menthe", categorie: "villa", icone: "coffee", fr: "Thé à la menthe (théière)", en: "Mint tea (teapot)" },
+  { key: "boissons", categorie: "villa", icone: "wine", fr: "Jus d'orange frais pressé", en: "Fresh orange juice" },
+  { key: "pack-boissons", categorie: "villa", icone: "wine", fr: "Pack eau et sodas (12 bouteilles)", en: "Water & soft drinks pack (12 bottles)" },
+  { key: "cocktails", categorie: "villa", icone: "wine", fr: "Cocktails sans alcool", en: "Mocktails" },
   // Activités et excursions
   { key: "quad-buggy", categorie: "activites", icone: "bike", fr: "Quad et buggy", en: "Quad & buggy" },
   { key: "dromadaire", categorie: "activites", icone: "footprints", fr: "Balade à dos de dromadaire", en: "Camel rides" },
@@ -82,3 +92,82 @@ export const CRENEAUX: string[] = Array.from({ length: 34 }, (_, i) => {
   const minutes = 7 * 60 + i * 30;
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 });
+
+// ---------------------------------------------------------------------------------------------
+// Tarifs indicatifs (inventés pour la simulation). mad = prix en dirhams.
+// unite : "pers" (par personne, multiplié par le nombre choisi), "forfait" (prix fixe pour le
+// groupe), "jour" (par jour), "offert". aPartirDe : prix minimum, le détail est confirmé sur devis.
+// duree : mention affichée à côté du prix (facultatif).
+// ---------------------------------------------------------------------------------------------
+export type UnitePrix = "pers" | "forfait" | "jour" | "offert" | "devis";
+export type Tarif = { mad: number; unite: UnitePrix; aPartirDe?: boolean; duree?: { fr: string; en: string } };
+
+export const TAUX_MAD_PAR_EUR = 10;
+
+export const TARIFS: Record<string, Tarif> = {
+  // À la villa
+  "petit-dejeuner": { mad: 120, unite: "pers" },
+  dejeuner: { mad: 200, unite: "pers" },
+  couscous: { mad: 220, unite: "pers" },
+  tajine: { mad: 180, unite: "pers" },
+  pastilla: { mad: 160, unite: "pers" },
+  mechoui: { mad: 450, unite: "pers" },
+  mezze: { mad: 90, unite: "pers" },
+  patisseries: { mad: 80, unite: "pers" },
+  cuisiniere: { mad: 400, unite: "jour", duree: { fr: "hors courses", en: "groceries not included" } },
+  menage: { mad: 250, unite: "forfait" },
+  "the-menthe": { mad: 60, unite: "forfait" },
+  boissons: { mad: 45, unite: "pers" },
+  "pack-boissons": { mad: 150, unite: "forfait" },
+  cocktails: { mad: 70, unite: "pers" },
+  // Activités et excursions
+  "quad-buggy": { mad: 600, unite: "pers", duree: { fr: "2 h", en: "2 h" } },
+  dromadaire: { mad: 350, unite: "pers", duree: { fr: "1 h, coucher de soleil", en: "1 h, sunset" } },
+  atlas: { mad: 450, unite: "pers", duree: { fr: "journée", en: "full day" } },
+  montgolfiere: { mad: 2200, unite: "pers", duree: { fr: "lever du soleil", en: "at sunrise" } },
+  parapente: { mad: 1300, unite: "pers" },
+  "camp-desert": { mad: 1400, unite: "pers", duree: { fr: "nuit et dîner", en: "night & dinner" } },
+  cascades: { mad: 450, unite: "pers", duree: { fr: "journée", en: "full day" } },
+  "autres-excursions": { mad: 0, unite: "devis" },
+  // Expériences authentiques
+  cheval: { mad: 500, unite: "pers", duree: { fr: "1 h 30", en: "1 h 30" } },
+  "cuisine-marocaine": { mad: 550, unite: "pers", duree: { fr: "3 h, repas inclus", en: "3 h, meal included" } },
+  poterie: { mad: 400, unite: "pers", duree: { fr: "2 h", en: "2 h" } },
+  "hammam-spa": { mad: 450, unite: "pers" },
+  massages: { mad: 600, unite: "pers", duree: { fr: "1 h", en: "1 h" } },
+  bougies: { mad: 350, unite: "pers", duree: { fr: "2 h", en: "2 h" } },
+  immersions: { mad: 400, unite: "pers" },
+  "art-culture": { mad: 300, unite: "pers", duree: { fr: "visite guidée", en: "guided visit" } },
+  // Conciergerie
+  "transfert-aeroport": { mad: 250, unite: "forfait", duree: { fr: "jusqu'à 3 personnes", en: "up to 3 guests" } },
+  chauffeur: { mad: 1200, unite: "jour", duree: { fr: "10 h, véhicule inclus", en: "10 h, vehicle included" } },
+  "location-voiture": { mad: 400, unite: "jour", aPartirDe: true },
+  "livraison-courses": { mad: 100, unite: "forfait", duree: { fr: "courses au prix coûtant", en: "groceries at cost" } },
+  "reservation-restaurant": { mad: 0, unite: "offert" },
+  "hammam-domicile": { mad: 700, unite: "pers" },
+  coiffeur: { mad: 400, unite: "pers" },
+  // Événements et décoration
+  anniversaire: { mad: 1500, unite: "forfait", aPartirDe: true },
+  evjf: { mad: 3000, unite: "forfait", aPartirDe: true },
+  "diner-prive": { mad: 600, unite: "pers", aPartirDe: true },
+  "decoration-villa": { mad: 1200, unite: "forfait", aPartirDe: true },
+  mariage: { mad: 15000, unite: "forfait", aPartirDe: true },
+  surprise: { mad: 800, unite: "forfait", aPartirDe: true },
+  organisation: { mad: 0, unite: "devis" },
+  traiteur: { mad: 450, unite: "pers", aPartirDe: true },
+  animation: { mad: 4000, unite: "forfait", aPartirDe: true },
+  "photo-video": { mad: 2500, unite: "forfait", duree: { fr: "2 h", en: "2 h" } },
+  gateaux: { mad: 600, unite: "forfait", aPartirDe: true },
+};
+
+export function eurDepuisMad(mad: number): number {
+  return Math.round(mad / TAUX_MAD_PAR_EUR);
+}
+
+// Montant estimé pour un service coché (null si sur devis ou sans tarif).
+export function montantEstime(key: string, nbPersonnes: number): number | null {
+  const t = TARIFS[key];
+  if (!t || t.unite === "devis") return null;
+  if (t.unite === "pers") return t.mad * nbPersonnes;
+  return t.mad;
+}
