@@ -1,17 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import {
-  Bike, Footprints, Mountain, Sunrise, Wind, Tent, Waves, Compass, Palette, Flame, Map as MapIcon, Landmark,
-  Plane, Car, ShoppingBasket, CalendarCheck, Scissors, Coffee, Utensils, Sparkles, Cake, PartyPopper, Heart,
-  Camera, Music, Gift, Flower2, Wine, ClipboardList, ChefHat, HandHeart, Check, Minus, Plus, CircleCheck, Clock, TreePine, ChevronDown, MessageSquareText, Users, CalendarDays, ArrowRight,
-  type LucideIcon,
-} from "lucide-react";
-import { Logo } from "@/components/app/logo";
+import { ChevronDown, Minus, Plus } from "lucide-react";
 import { envoyerDemandesServices } from "@/lib/actions/services-voyageur";
+import { CREDITS_PHOTOS } from "@/lib/services-photos-credits";
 import {
   CATEGORIES_SERVICES,
   CRENEAUX,
+  DESCRIPTIONS,
   HEURE_FLEXIBLE,
   SERVICES,
   SERVICE_PAR_CLE,
@@ -19,18 +15,8 @@ import {
   eurDepuisMad,
   montantEstime,
   type CategorieService,
-  type ServiceIcone,
 } from "@/lib/services-catalogue";
 import { cn } from "@/lib/utils";
-
-const ICONES: Record<ServiceIcone, LucideIcon> = {
-  bike: Bike, footprints: Footprints, mountain: Mountain, sunrise: Sunrise, wind: Wind, tent: Tent, waves: Waves,
-  compass: Compass, horse: TreePine, chef: ChefHat, palette: Palette, spa: Flower2, hand: HandHeart, flame: Flame,
-  map: MapIcon, landmark: Landmark, plane: Plane, car: Car, basket: ShoppingBasket, calendar: CalendarCheck,
-  scissors: Scissors, coffee: Coffee, utensils: Utensils, sparkles: Sparkles, cake: Cake, party: PartyPopper,
-  heart: Heart, camera: Camera, music: Music, gift: Gift, flower: Flower2, wine: Wine, clipboard: ClipboardList,
-  users: HandHeart,
-};
 
 type Langue = "fr" | "en";
 type Statut = "demandee" | "confirmee" | "refusee" | "terminee";
@@ -63,13 +49,16 @@ const CRENEAUX_RAPIDES: { h: string; cle: "matin" | "midi" | "apresmidi" | "soir
 const T = {
   fr: {
     titre: "Votre séjour",
-    intro: "Cochez ce qui vous plaît. Nous confirmons tout sur WhatsApp.",
+    intro: "Composez votre séjour. Nous confirmons chaque demande sur WhatsApp.",
     prixNote: "Prix en dirhams, équivalent en euros indicatif.",
-    hero: "Votre séjour, sur mesure",
+    hero: "La carte",
     precisionBtn: "Ajouter une précision",
+    ajouter: "Ajouter",
+    ajoute: "Ajouté",
+    credits: "Crédits photos",
     creneaux: { matin: "Matin", midi: "Midi", apresmidi: "Après-midi", soir: "Soir" },
     autreHeure: "Autre heure",
-    envoyerCourt: "Envoyer",
+    envoyerCourt: "Envoyer la demande",
     selection: (n: number) => (n > 1 ? `${n} services` : `${n} service`),
     parPers: "/ pers.",
     parJour: "/ jour",
@@ -101,13 +90,16 @@ const T = {
   },
   en: {
     titre: "Your stay",
-    intro: "Tick what you like. We confirm everything on WhatsApp.",
+    intro: "Compose your stay. We confirm every request on WhatsApp.",
     prixNote: "Prices in dirhams, euro equivalent is indicative.",
-    hero: "Your stay, tailor-made",
+    hero: "The menu",
     precisionBtn: "Add a note",
+    ajouter: "Add",
+    ajoute: "Added",
+    credits: "Photo credits",
     creneaux: { matin: "Morning", midi: "Noon", apresmidi: "Afternoon", soir: "Evening" },
     autreHeure: "Other time",
-    envoyerCourt: "Send",
+    envoyerCourt: "Send request",
     selection: (n: number) => (n > 1 ? `${n} services` : `${n} service`),
     parPers: "/ guest",
     parJour: "/ day",
@@ -257,84 +249,65 @@ export function ServicesVoyageur({
 
   const services = SERVICES.filter((s) => s.categorie === categorie);
   const cat = CATEGORIES_SERVICES.find((c) => c.key === categorie)!;
-  const OR = "text-[#d9b97a]";
+  const filet = "border-neutral-900";
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-xl bg-background pb-40">
-      {/* Bandeau d'accueil */}
-      <header className="relative overflow-hidden rounded-b-[2rem] bg-gradient-to-br from-[#7a0a3f] via-[#660033] to-[#3a0319] px-5 pb-8 pt-5 text-white shadow-lg sm:px-8">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-[#d9b97a]/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-20 -left-10 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
-        <div className="relative flex items-center justify-between gap-2">
-          <Logo size={34} />
-          <div className="inline-flex rounded-full bg-white/10 p-0.5 text-xs font-medium backdrop-blur">
-            {(["fr", "en"] as const).map((l) => (
-              <button
-                key={l}
-                type="button"
-                onClick={() => changerLangue(l)}
-                className={cn("rounded-full px-3 py-1.5 uppercase transition-colors", langue === l ? "bg-white text-[#660033]" : "text-white/80")}
-              >
-                {l}
-              </button>
+    <div className="mx-auto min-h-screen w-full max-w-xl bg-white pb-44 font-sans text-neutral-900">
+      {/* En-tête de carte */}
+      <header className="px-6 pb-8 pt-6 text-center">
+        <div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-[0.2em]">
+          <span className="text-neutral-500">Moderna Agency</span>
+          <span className="flex items-center gap-2">
+            {(["fr", "en"] as const).map((l, n) => (
+              <span key={l} className="flex items-center gap-2">
+                {n > 0 ? <span className="text-neutral-300">/</span> : null}
+                <button type="button" onClick={() => changerLangue(l)} className={cn("pb-0.5 uppercase", langue === l ? "border-b border-neutral-900 text-neutral-900" : "text-neutral-400")}>
+                  {l}
+                </button>
+              </span>
             ))}
-          </div>
+          </span>
         </div>
-        <div className="relative pt-9">
-          <p className={cn("text-xs font-semibold uppercase tracking-[0.22em]", OR)}>{t.bonjour(prenom)}</p>
-          <h1 className="mt-2 font-serif text-[2rem] font-medium leading-[1.1] tracking-tight">{t.hero}</h1>
-          <p className="mt-3 max-w-xs text-sm leading-relaxed text-white/75">{t.intro}</p>
-          <div className="mt-5 inline-flex max-w-full items-center gap-2 rounded-full bg-white/10 px-3.5 py-2 text-xs text-white/90 backdrop-blur">
-            <CalendarDays className={cn("h-3.5 w-3.5 shrink-0", OR)} />
-            <span className="truncate">
-              {villaNom ? `${villaNom} · ` : ""}
-              {formaterJour(arrivee, langue)} → {formaterJour(depart, langue)}
-            </span>
-          </div>
-        </div>
+        <div className="mx-auto mt-10 w-16 border-t border-neutral-900" />
+        <h1 className="mt-6 font-serif text-5xl font-normal italic leading-none tracking-tight">{t.hero}</h1>
+        <p className="mt-4 text-[11px] font-medium uppercase tracking-[0.3em] text-neutral-500">{t.bonjour(prenom)}</p>
+        <p className="mx-auto mt-3 max-w-[18rem] font-serif text-[15px] italic leading-relaxed text-neutral-600">{t.intro}</p>
+        <p className="mt-5 text-xs text-neutral-500">
+          {villaNom ? `${villaNom} · ` : ""}
+          {formaterJour(arrivee, langue)} – {formaterJour(depart, langue)}
+        </p>
       </header>
 
       {envoye ? (
-        <div className="mx-4 mt-5 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-center sm:mx-6">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white">
-            <CircleCheck className="h-6 w-6" />
-          </span>
-          <p className="mt-3 font-serif text-xl text-emerald-900 dark:text-emerald-200">{t.recu}</p>
-          <p className="mt-1 text-sm text-emerald-900/80 dark:text-emerald-200/80">{t.recuTexte}</p>
-          <button type="button" onClick={() => setEnvoye(false)} className="mt-3 text-sm font-medium text-emerald-800 underline underline-offset-4 dark:text-emerald-300">
+        <div className={cn("mx-6 mb-6 border p-5 text-center", filet)}>
+          <p className="font-serif text-2xl italic">{t.recu}</p>
+          <p className="mt-2 text-sm text-neutral-600">{t.recuTexte}</p>
+          <button type="button" onClick={() => setEnvoye(false)} className="mt-4 text-xs font-medium uppercase tracking-[0.18em] underline underline-offset-4">
             {t.autre}
           </button>
         </div>
       ) : null}
 
       {demandes.length > 0 ? (
-        <details className="group mx-4 mt-5 overflow-hidden rounded-2xl border bg-card sm:mx-6">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3.5 text-sm font-semibold">
+        <details className="group mx-6 mb-6 border border-neutral-200">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-xs font-medium uppercase tracking-[0.18em]">
             <span>
-              {t.mesDemandes} <span className="ml-1 rounded-full bg-accent px-2 py-0.5 text-xs text-primary">{demandes.length}</span>
+              {t.mesDemandes} ({demandes.length})
             </span>
-            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
           </summary>
-          <ul className="divide-y border-t text-sm">
+          <ul className="divide-y divide-neutral-200 border-t border-neutral-200 text-sm">
             {demandes.map((d) => {
               const sv = SERVICE_PAR_CLE.get(d.serviceKey);
               return (
                 <li key={d.id} className="flex items-center justify-between gap-3 px-4 py-3">
                   <span className="min-w-0">
-                    <span className="block truncate font-medium">{sv ? sv[langue] : d.serviceKey}</span>
-                    <span className="block text-xs text-muted-foreground">
+                    <span className="block truncate font-serif text-base">{sv ? sv[langue] : d.serviceKey}</span>
+                    <span className="block text-xs text-neutral-500">
                       {formaterJour(d.jour, langue)} · {d.heure === HEURE_FLEXIBLE ? t.flexible : d.heure} · {t.pers(d.nbPersonnes)}
                     </span>
                   </span>
-                  <span
-                    className={cn(
-                      "shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium",
-                      d.statut === "confirmee" && "bg-emerald-100 text-emerald-800",
-                      d.statut === "demandee" && "bg-amber-100 text-amber-800",
-                      d.statut === "refusee" && "bg-red-100 text-red-800",
-                      d.statut === "terminee" && "bg-muted text-muted-foreground"
-                    )}
-                  >
+                  <span className={cn("shrink-0 border px-2 py-0.5 text-[11px] uppercase tracking-wider", d.statut === "refusee" ? "border-neutral-300 text-neutral-400 line-through" : "border-neutral-900")}>
                     {t.statuts[d.statut]}
                   </span>
                 </li>
@@ -345,8 +318,8 @@ export function ServicesVoyageur({
       ) : null}
 
       {/* Rubriques */}
-      <nav className="sticky top-0 z-20 mt-5 bg-background/90 backdrop-blur-md" aria-label="Catégories">
-        <div className="flex gap-2 overflow-x-auto px-4 py-3 sm:px-6 [scrollbar-width:none]">
+      <nav className="sticky top-0 z-20 border-y border-neutral-900 bg-white" aria-label="Catégories">
+        <div className="flex overflow-x-auto px-3 [scrollbar-width:none]">
           {CATEGORIES_SERVICES.map((c) => {
             const nb = Object.keys(choix).filter((k) => SERVICE_PAR_CLE.get(k)?.categorie === c.key).length;
             const actif = categorie === c.key;
@@ -356,218 +329,206 @@ export function ServicesVoyageur({
                 type="button"
                 onClick={() => setCategorie(c.key)}
                 className={cn(
-                  "relative shrink-0 rounded-full px-4 py-2.5 text-sm font-medium transition-all",
-                  actif ? "bg-primary text-primary-foreground shadow-md shadow-primary/25" : "bg-muted text-foreground/70"
+                  "shrink-0 whitespace-nowrap border-b-2 px-3 py-3.5 text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors",
+                  actif ? "border-neutral-900 text-neutral-900" : "border-transparent text-neutral-400"
                 )}
               >
                 {c[langue]}
-                {nb > 0 ? (
-                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#d9b97a] px-1 text-[11px] font-bold text-[#3a0319]">{nb}</span>
-                ) : null}
+                {nb > 0 ? <span className="ml-1.5 bg-neutral-900 px-1.5 py-0.5 text-[10px] text-white">{nb}</span> : null}
               </button>
             );
           })}
         </div>
       </nav>
 
-      <section className="space-y-3 px-4 pt-2 sm:px-6">
-        <div className="pb-1 pt-1">
-          <h2 className="font-serif text-2xl tracking-tight">{cat[langue]}</h2>
-          <p className="text-sm text-muted-foreground">{cat.description[langue]}</p>
+      <section className="px-6 pt-10">
+        <div className="pb-8 text-center">
+          <h2 className="font-serif text-3xl italic">{cat[langue]}</h2>
+          <div className="mx-auto mt-3 w-10 border-t border-neutral-900" />
+          <p className="mt-3 text-[13px] text-neutral-500">{cat.description[langue]}</p>
         </div>
-        {services.map((s) => {
-          const Icone = ICONES[s.icone];
-          const c = choix[s.key];
-          const choisi = Boolean(c);
-          const manque = manquants.has(s.key);
-          const prix = libellePrix(s.key, t, langue);
-          const heureAutre = c && c.heure && c.heure !== HEURE_FLEXIBLE && !CRENEAUX_RAPIDES.some((r) => r.h === c.heure);
-          return (
-            <div
-              key={s.key}
-              id={`service-${s.key}`}
-              className={cn(
-                "overflow-hidden rounded-3xl border bg-card transition-all duration-200",
-                choisi ? "border-primary/50 bg-accent/40 shadow-lg shadow-primary/10" : "border-border/70 shadow-sm",
-                manque && "border-red-400"
-              )}
-            >
-              <button type="button" onClick={() => basculer(s.key)} className="flex w-full items-center gap-3.5 p-4 text-left" aria-pressed={choisi}>
-                <span
-                  className={cn(
-                    "flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition-colors",
-                    choisi ? "bg-primary text-primary-foreground" : "bg-accent text-primary"
-                  )}
-                >
-                  <Icone className="h-6 w-6" strokeWidth={1.6} />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-semibold leading-snug">{s[langue]}</span>
-                  {prix ? (
-                    <span className="mt-1 block text-[13px] leading-snug">
-                      <span className="font-semibold tabular-nums text-primary">{prix.principal}</span>
-                      {prix.detail ? <span className="text-muted-foreground"> · {prix.detail}</span> : null}
-                    </span>
-                  ) : null}
-                </span>
-                <span
-                  className={cn(
-                    "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-all",
-                    choisi ? "scale-100 border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground"
-                  )}
-                >
-                  {choisi ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                </span>
-              </button>
 
-              {c ? (
-                <div className="space-y-5 border-t border-primary/10 px-4 pb-4 pt-4">
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t.jour}</p>
-                    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-                      {jours.map((j) => {
-                        const d = new Date(`${j}T00:00:00Z`);
-                        const actif = c.jour === j;
-                        return (
-                          <button
-                            key={j}
-                            type="button"
-                            onClick={() => maj(s.key, { jour: j })}
-                            className={cn(
-                              "flex w-14 shrink-0 flex-col items-center rounded-2xl border py-2 transition-colors",
-                              actif ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
-                            )}
-                          >
-                            <span className="text-[10px] font-medium uppercase opacity-70">
-                              {d.toLocaleDateString(langue === "fr" ? "fr-FR" : "en-GB", { weekday: "short", timeZone: "UTC" })}
-                            </span>
-                            <span className="text-lg font-semibold leading-tight tabular-nums">{d.getUTCDate()}</span>
-                            <span className="text-[10px] opacity-70">
-                              {d.toLocaleDateString(langue === "fr" ? "fr-FR" : "en-GB", { month: "short", timeZone: "UTC" })}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t.heure}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {CRENEAUX_RAPIDES.map((r) => (
-                        <button
-                          key={r.h}
-                          type="button"
-                          onClick={() => maj(s.key, { heure: r.h })}
-                          className={cn(
-                            "rounded-xl border px-3 py-2.5 text-left transition-colors",
-                            c.heure === r.h ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
-                          )}
-                        >
-                          <span className="block text-sm font-semibold tabular-nums">{r.h}</span>
-                          <span className="block text-[11px] opacity-70">{t.creneaux[r.cle]}</span>
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <select
-                        value={heureAutre ? c.heure : ""}
-                        onChange={(e) => maj(s.key, { heure: e.target.value })}
-                        className={cn(
-                          "h-11 min-w-0 flex-1 rounded-xl border bg-card px-3 text-sm",
-                          heureAutre ? "border-primary" : "border-border"
-                        )}
-                        aria-label={t.autreHeure}
-                      >
-                        <option value="">{t.autreHeure}</option>
-                        {CRENEAUX.filter((h) => !CRENEAUX_RAPIDES.some((r) => r.h === h)).map((h) => (
-                          <option key={h} value={h}>
-                            {h}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => maj(s.key, { heure: HEURE_FLEXIBLE })}
-                        className={cn(
-                          "inline-flex h-11 items-center gap-1.5 rounded-xl border px-4 text-sm font-medium transition-colors",
-                          c.heure === HEURE_FLEXIBLE ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
-                        )}
-                      >
-                        <Clock className="h-4 w-4" />
-                        {t.flexible}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                      <Users className="h-3.5 w-3.5" />
-                      {t.personnes}
-                    </p>
-                    <div className="inline-flex items-center rounded-full border border-border bg-card">
-                      <button type="button" onClick={() => maj(s.key, { nb: Math.max(1, c.nb - 1) })} className="flex h-11 w-11 items-center justify-center" aria-label="-">
-                        <Minus className="h-4 w-4" />
-                      </button>
-                      <span className="w-8 text-center text-base font-semibold tabular-nums">{c.nb}</span>
-                      <button type="button" onClick={() => maj(s.key, { nb: Math.min(30, c.nb + 1) })} className="flex h-11 w-11 items-center justify-center" aria-label="+">
-                        <Plus className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {c.note || notesOuvertes.has(s.key) ? (
-                    <input
-                      value={c.note}
-                      onChange={(e) => maj(s.key, { note: e.target.value })}
-                      maxLength={300}
-                      placeholder={t.precision}
-                      className="h-11 w-full rounded-xl border border-border bg-card px-3.5 text-base placeholder:text-muted-foreground"
-                    />
-                  ) : (
+        <div className="divide-y divide-neutral-200">
+          {services.map((s) => {
+            const c = choix[s.key];
+            const choisi = Boolean(c);
+            const manque = manquants.has(s.key);
+            const prix = libellePrix(s.key, t, langue);
+            const desc = DESCRIPTIONS[s.key]?.[langue];
+            const heureAutre = c && c.heure && c.heure !== HEURE_FLEXIBLE && !CRENEAUX_RAPIDES.some((r) => r.h === c.heure);
+            return (
+              <article key={s.key} id={`service-${s.key}`} className={cn("py-6", manque && "bg-neutral-50")}>
+                <div className="flex gap-4">
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-serif text-[19px] leading-snug">{s[langue]}</h3>
+                    {desc ? <p className="mt-1.5 text-[13px] leading-relaxed text-neutral-500">{desc}</p> : null}
+                    {prix ? (
+                      <p className="mt-2.5 text-sm tabular-nums">
+                        <span className="font-semibold">{prix.principal}</span>
+                        {prix.detail ? <span className="text-neutral-500"> · {prix.detail}</span> : null}
+                      </p>
+                    ) : null}
                     <button
                       type="button"
-                      onClick={() => setNotesOuvertes((n) => new Set(n).add(s.key))}
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-primary"
+                      onClick={() => basculer(s.key)}
+                      aria-pressed={choisi}
+                      className={cn(
+                        "mt-4 inline-flex h-10 items-center gap-2 border px-5 text-[11px] font-semibold uppercase tracking-[0.18em] transition-colors",
+                        choisi ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-900 bg-white text-neutral-900"
+                      )}
                     >
-                      <MessageSquareText className="h-4 w-4" />
-                      {t.precisionBtn}
+                      {choisi ? t.ajoute : <><Plus className="h-3.5 w-3.5" />{t.ajouter}</>}
                     </button>
-                  )}
+                  </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/sejour/${s.key}.jpg`}
+                    alt=""
+                    width={720}
+                    height={540}
+                    loading="lazy"
+                    className="h-28 w-28 shrink-0 self-start object-cover sm:h-32 sm:w-32"
+                  />
                 </div>
-              ) : null}
-            </div>
-          );
-        })}
-        <p className="pt-3 text-center text-xs text-muted-foreground">{t.prixNote}</p>
+
+                {c ? (
+                  <div className="mt-5 space-y-6 border border-neutral-200 bg-neutral-50 p-4">
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{t.jour}</p>
+                      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                        {jours.map((j) => {
+                          const d = new Date(`${j}T00:00:00Z`);
+                          const actif = c.jour === j;
+                          const loc = langue === "fr" ? "fr-FR" : "en-GB";
+                          return (
+                            <button
+                              key={j}
+                              type="button"
+                              onClick={() => maj(s.key, { jour: j })}
+                              className={cn(
+                                "flex w-14 shrink-0 flex-col items-center border py-2 transition-colors",
+                                actif ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white"
+                              )}
+                            >
+                              <span className="text-[10px] uppercase tracking-wider opacity-70">{d.toLocaleDateString(loc, { weekday: "short", timeZone: "UTC" })}</span>
+                              <span className="font-serif text-xl leading-tight tabular-nums">{d.getUTCDate()}</span>
+                              <span className="text-[10px] uppercase tracking-wider opacity-70">{d.toLocaleDateString(loc, { month: "short", timeZone: "UTC" })}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{t.heure}</p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {CRENEAUX_RAPIDES.map((r) => (
+                          <button
+                            key={r.h}
+                            type="button"
+                            onClick={() => maj(s.key, { heure: r.h })}
+                            className={cn("border py-2.5 text-center transition-colors", c.heure === r.h ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white")}
+                          >
+                            <span className="block text-sm font-semibold tabular-nums">{r.h}</span>
+                            <span className="block text-[10px] uppercase tracking-wider opacity-70">{t.creneaux[r.cle]}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <select
+                          value={heureAutre ? c.heure : ""}
+                          onChange={(e) => maj(s.key, { heure: e.target.value })}
+                          className={cn("h-11 min-w-0 flex-1 border bg-white px-3 text-sm", heureAutre ? "border-neutral-900" : "border-neutral-300")}
+                          aria-label={t.autreHeure}
+                        >
+                          <option value="">{t.autreHeure}</option>
+                          {CRENEAUX.filter((h) => !CRENEAUX_RAPIDES.some((r) => r.h === h)).map((h) => (
+                            <option key={h} value={h}>
+                              {h}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => maj(s.key, { heure: HEURE_FLEXIBLE })}
+                          className={cn("h-11 border px-4 text-sm transition-colors", c.heure === HEURE_FLEXIBLE ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white")}
+                        >
+                          {t.flexible}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{t.personnes}</p>
+                      <div className="inline-flex items-center border border-neutral-300 bg-white">
+                        <button type="button" onClick={() => maj(s.key, { nb: Math.max(1, c.nb - 1) })} className="flex h-11 w-11 items-center justify-center" aria-label="-">
+                          <Minus className="h-4 w-4" />
+                        </button>
+                        <span className="w-9 text-center font-serif text-lg tabular-nums">{c.nb}</span>
+                        <button type="button" onClick={() => maj(s.key, { nb: Math.min(30, c.nb + 1) })} className="flex h-11 w-11 items-center justify-center" aria-label="+">
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {c.note || notesOuvertes.has(s.key) ? (
+                      <input
+                        value={c.note}
+                        onChange={(e) => maj(s.key, { note: e.target.value })}
+                        maxLength={300}
+                        placeholder={t.precision}
+                        className="h-11 w-full border border-neutral-300 bg-white px-3.5 text-base placeholder:text-neutral-400"
+                      />
+                    ) : (
+                      <button type="button" onClick={() => setNotesOuvertes((n) => new Set(n).add(s.key))} className="text-xs font-medium uppercase tracking-[0.16em] underline underline-offset-4">
+                        {t.precisionBtn}
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+
+        <p className="pt-8 text-center text-xs text-neutral-500">{t.prixNote}</p>
+        <details className="mt-4 text-center">
+          <summary className="cursor-pointer list-none text-[11px] uppercase tracking-[0.18em] text-neutral-400">{t.credits}</summary>
+          <ul className="mt-3 space-y-1 text-left text-[10px] leading-snug text-neutral-400">
+            {CREDITS_PHOTOS.map((c) => (
+              <li key={c.url}>
+                <a href={c.url} target="_blank" rel="noreferrer" className="underline">{c.titre}</a> · {c.auteur} · {c.licence}
+              </li>
+            ))}
+          </ul>
+        </details>
       </section>
 
       {nbChoisis > 0 ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="pointer-events-auto mx-auto max-w-xl space-y-2">
-            {erreur ? <p className="rounded-xl bg-red-600 px-3 py-2 text-center text-sm text-white shadow-lg">{erreur}</p> : null}
-            <div className="flex items-center gap-3 rounded-[1.75rem] bg-gradient-to-r from-[#660033] to-[#3a0319] p-2 pl-5 text-white shadow-2xl shadow-black/30 ring-1 ring-white/10">
+        <div className="fixed inset-x-0 bottom-0 z-30 pb-[env(safe-area-inset-bottom)]">
+          <div className="mx-auto max-w-xl">
+            {erreur ? <p className="bg-red-700 px-4 py-2 text-center text-sm text-white">{erreur}</p> : null}
+            <div className="flex items-center gap-4 bg-neutral-900 px-5 py-3.5 text-white">
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] uppercase tracking-wider text-white/60">{t.selection(nbChoisis)}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-neutral-400">{t.selection(nbChoisis)}</p>
                 {totalMad > 0 ? (
-                  <p className="truncate text-[15px] font-semibold tabular-nums">
-                    {fmt(totalMad)} MAD <span className={cn("font-normal", OR)}>≈ {fmt(eurDepuisMad(totalMad))} €</span>
+                  <p className="truncate font-serif text-lg tabular-nums">
+                    {fmt(totalMad)} MAD <span className="font-sans text-xs text-neutral-400">≈ {fmt(eurDepuisMad(totalMad))} €</span>
                   </p>
                 ) : (
-                  <p className="text-sm text-white/80">{t.devis}</p>
+                  <p className="font-serif text-lg italic">{t.devis}</p>
                 )}
               </div>
               <button
                 type="button"
                 onClick={envoyer}
                 disabled={enCours}
-                className="inline-flex h-12 shrink-0 items-center gap-2 rounded-[1.25rem] bg-[#d9b97a] px-5 text-[15px] font-semibold text-[#3a0319] transition-transform active:scale-95 disabled:opacity-60"
+                className="h-11 shrink-0 bg-white px-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-900 disabled:opacity-60"
               >
                 {enCours ? t.envoi : t.envoyerCourt}
-                {enCours ? null : <ArrowRight className="h-4 w-4" />}
               </button>
             </div>
-            {totalMad > 0 ? <p className="text-center text-[11px] text-muted-foreground">{t.totalNote}</p> : null}
+            {totalMad > 0 ? <p className="bg-neutral-900 px-5 pb-3 text-[10px] leading-snug text-neutral-500">{t.totalNote}</p> : null}
           </div>
         </div>
       ) : null}
