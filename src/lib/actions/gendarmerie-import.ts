@@ -30,7 +30,12 @@ async function runPassportAnalysis(formData: FormData): Promise<PassportAnalysis
     result = await extractPassportAI(buffer, file.type);
   } catch (err) {
     console.error("Lecture passeport par IA indisponible, repli sur l'OCR local :", err);
-    result = await extractPassport(buffer);
+    // Le repli local peut être très lent : on le coupe avant la limite de la fonction pour que
+    // l'écran affiche une erreur (saisie à la main) au lieu de tourner sans fin.
+    result = await Promise.race([
+      extractPassport(buffer),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Lecture du passeport trop longue.")), 25_000)),
+    ]);
   }
 
   const occupant: OccupantInput = {

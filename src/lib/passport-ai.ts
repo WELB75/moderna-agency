@@ -50,10 +50,22 @@ export async function extractPassportAI(inputBuffer: Buffer, mimeType: string): 
   // Respecte d'abord un éventuel tag EXIF d'orientation (photos iPhone/Android récentes) — le
   // reste de la rotation (photos sans EXIF, prises de travers) est demandé au modèle ci-dessous.
   const upright: Buffer = await sharp(inputBuffer).rotate().toBuffer();
-  const media_type = mimeTypeToClaudeMedia(mimeType);
-  const data = upright.toString("base64");
+  // Version réduite envoyée au modèle : une photo de téléphone (12 Mpx, plusieurs Mo) rend l'envoi
+  // et la lecture très lents, voire bloque jusqu'au délai de la fonction (écran qui « mouline »).
+  // 1600 px de côté suffisent largement pour lire la MRZ ; la photo gardée pour la fiche reste en
+  // pleine résolution (`upright`).
+  const reduite: Buffer = await sharp(upright)
+    .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 85 })
+    .toBuffer();
+  const media_type = mimeTypeToClaudeMedia("image/jpeg");
+  const data = reduite.toString("base64");
 
-  const message = await client.messages.parse({
+  // Délai court, sans réessai (20 s + repli 25 s restent sous la limite de 60 s) : par défaut le SDK attend jusqu'à 10 min avec 2 réessais, ce qui
+  // dépasse la limite de 60 s de la page et laisse l'écran tourner sans fin au lieu de basculer
+  // sur le repli local ou d'afficher une erreur.
+  const message = await client.messages.parse(
+    {
     model: "claude-sonnet-5",
     max_tokens: 500,
     thinking: { type: "disabled" },
@@ -77,7 +89,9 @@ export async function extractPassportAI(inputBuffer: Buffer, mimeType: string): 
         ],
       },
     ],
-  });
+    },
+    { timeout: 20_000, maxRetries: 0 }
+  );
 
   const result = message.parsed_output;
   if (!result) throw new Error("Réponse IA invalide (pas de lecture structurée).");
