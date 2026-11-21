@@ -62,6 +62,11 @@ export default async function DossierSecuritePage({ params }: { params: Promise<
         <div className="mt-4 space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lien envoyé à la sécurité</p>
           <LienSecurite lien={lien} />
+          <p className={cn("text-xs font-medium", dossier.ouverture ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground")}>
+            {dossier.ouverture
+              ? `Ouvert par la sécurité · première fois ${format(dossier.ouverture.premiere, "EEE d MMM 'à' HH:mm", { locale: fr })}${dossier.ouverture.nombre > 1 ? ` · dernière ${format(dossier.ouverture.derniere, "EEE d MMM 'à' HH:mm", { locale: fr })} · ${dossier.ouverture.nombre} ouvertures` : ""}`
+              : "Pas encore ouvert par la sécurité"}
+          </p>
           <p className="text-[11px] text-muted-foreground">
             Ouvre-le pour vérifier qu&apos;il affiche bien tous les passeports reçus — c&apos;est exactement ce que voit l&apos;agent.
           </p>
