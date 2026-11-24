@@ -86,6 +86,10 @@ export async function POST(req: NextRequest) {
   }
 
   const payload = await req.json();
+  // Étape en cours, reprise dans le message d'erreur renvoyé à la personne autorisée : sans accès
+  // aux logs de production, c'est le seul moyen de savoir où ça casse (téléchargement du vocal,
+  // transcription, base, agent...).
+  let etape = "lecture du message";
 
   try {
     const message = payload?.message;
@@ -115,7 +119,9 @@ export async function POST(req: NextRequest) {
 
     if (!text && message.voice?.file_id) {
       if (!process.env.GROQ_API_KEY) console.error("Transcription vocale impossible : GROQ_API_KEY absente.");
+      etape = "téléchargement du vocal";
       const buffer = await downloadTelegramVoice(message.voice.file_id);
+      etape = "transcription du vocal";
       if (buffer) text = await transcribeAudio(buffer);
       if (!text) {
         await sendTelegramText(chatId, "Désolé, je n'ai pas réussi à comprendre ce message vocal — tu peux réessayer ou l'écrire ?");
@@ -128,6 +134,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    etape = "lecture de la conversation";
     const { db, existing } = await loadConversation(chatId);
     const updateId = String(payload.update_id ?? "");
     if (existing?.lastUpdateId && existing.lastUpdateId === updateId) {
@@ -137,8 +144,11 @@ export async function POST(req: NextRequest) {
     const messages: MessageParam[] = repairMessageHistory((existing?.messages as MessageParam[] | undefined) ?? []);
     messages.push({ role: "user", content: text });
 
+    etape = "agent";
     const reply = await runAgentTurn(messages, utilisateur, { vocal });
+    etape = "enregistrement de la conversation";
     await saveConversation(db, chatId, messages, updateId);
+    etape = "envoi de la réponse";
     await sendTelegramText(chatId, reply || "C'est noté.");
 
     return NextResponse.json({ ok: true });
@@ -148,7 +158,13 @@ export async function POST(req: NextRequest) {
     // la personne au lieu de se taire.
     try {
       const chat = String(payload?.message?.chat?.id ?? "");
-      if (chat) await sendTelegramText(chat, "Un souci technique est survenu, je n'ai pas pu traiter ce message. Réessaie dans un instant.");
+      const detail = err instanceof Error ? `${err.name}: ${err.message}`.slice(0, 220) : String(err).slice(0, 220);
+      if (chat) {
+        await sendTelegramText(
+          chat,
+          `Un souci technique est survenu, je n'ai pas pu traiter ce message. Réessaie dans un instant.\n\nÉtape : ${etape}\nDétail : ${detail}`
+        );
+      }
     } catch {
       // rien de plus à faire
     }
