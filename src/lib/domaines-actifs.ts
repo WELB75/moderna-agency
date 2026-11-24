@@ -25,7 +25,10 @@ export function domaineEstActif(nom: string | null | undefined): boolean {
 // pas seulement du suivi au jour le jour. Toujours pas supprimés en base : une suppression
 // effacerait en cascade leurs réservations, fiches gendarmerie, contrats et paiements. Leur fiche
 // reste joignable par lien direct (/villas/<id>) pour l'historique.
+// Kamel, 2026-11-24 : « retire la villa Nessya de superhost.ma » — même traitement (masquée
+// partout, réservations et fiches conservées en base).
 export const VILLAS_MASQUEES: string[] = [
+  "Villa Nessya",
   "Villa Elysée",
   "Villa Eline",
   "Villa Kamel",
