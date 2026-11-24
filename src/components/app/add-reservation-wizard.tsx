@@ -178,24 +178,27 @@ export function AddReservationWizard({
 
   // Nuits déjà prises du logement choisi (réservations, Beds24 en direct, PriceLabs) — grisées
   // dans le calendrier et revérifiées côté serveur à la création.
-  const [indispos, setIndispos] = useState<{ villaId: string; nuits: string[]; tempsReel: boolean } | null>(null);
-  const indisposChargees = Boolean(villaId) && indispos?.villaId === villaId;
+  // Saisie a posteriori d'un séjour déjà terminé : dates passées permises, aucun envoi vers
+  // Beds24, aucune demande de ménage (voir createReservation côté serveur).
+  const [reservationPassee, setReservationPassee] = useState(false);
+  const [indispos, setIndispos] = useState<{ villaId: string; passe: boolean; nuits: string[]; tempsReel: boolean } | null>(null);
+  const indisposChargees = Boolean(villaId) && indispos?.villaId === villaId && indispos.passe === reservationPassee;
   const nuitsPrises = useMemo(() => new Set(indisposChargees ? indispos!.nuits : []), [indisposChargees, indispos]);
 
   useEffect(() => {
     if (!villaId) return;
     let annule = false;
-    indisponibilitesAction(villaId)
+    indisponibilitesAction(villaId, reservationPassee)
       .then((res) => {
-        if (!annule) setIndispos({ villaId, nuits: res.nuits, tempsReel: res.tempsReel });
+        if (!annule) setIndispos({ villaId, passe: reservationPassee, nuits: res.nuits, tempsReel: res.tempsReel });
       })
       .catch(() => {
-        if (!annule) setIndispos({ villaId, nuits: [], tempsReel: false });
+        if (!annule) setIndispos({ villaId, passe: reservationPassee, nuits: [], tempsReel: false });
       });
     return () => {
       annule = true;
     };
-  }, [villaId, step]);
+  }, [villaId, step, reservationPassee]);
 
   function appliquerPromo(base: number, type: typeof promoType, valeur: string): number {
     const v = Number(valeur.replace(",", "."));
@@ -295,6 +298,7 @@ export function AddReservationWizard({
     formData.set("nbAdultes", nbAdultes);
     formData.set("nbEnfants", nbEnfants);
     formData.set("canal", canalValue);
+    if (reservationPassee) formData.set("reservationPassee", "1");
     if (prixPl?.ok) formData.set("prixPricelabs", String(prixPl.total));
     formData.set("promoType", promoType === "aucune" ? "" : promoType);
     formData.set("promoValeur", promoType === "aucune" ? "" : promoValeur.trim());
@@ -435,18 +439,43 @@ export function AddReservationWizard({
                   nuitsPrises={nuitsPrises}
                   arrivee={checkInDate}
                   depart={checkOutDate}
+                  autoriserPasse={reservationPassee}
                   onChange={(a, d) => {
                     setCheckInDate(a);
                     setCheckOutDate(d);
                   }}
                 />
-                {!indispos?.tempsReel ? (
+                {reservationPassee ? (
+                  <p className="text-xs text-muted-foreground">
+                    Seul le chevauchement avec une réservation existante de ce logement est contrôlé. Rien n&apos;est envoyé à Beds24 ni à
+                    PriceLabs, et aucune demande de ménage n&apos;est lancée.
+                  </p>
+                ) : !indispos?.tempsReel ? (
                   <p className="text-xs text-amber-700 dark:text-amber-400">
                     Calendrier Beds24 injoignable : seules les réservations de l&apos;app et PriceLabs sont prises en compte.
                   </p>
                 ) : null}
               </>
             )}
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0"
+                checked={reservationPassee}
+                onChange={(e) => {
+                  setReservationPassee(e.target.checked);
+                  // Dates choisies sous l'autre mode : on repart d'un calendrier propre.
+                  setCheckInDate("");
+                  setCheckOutDate("");
+                }}
+              />
+              <span>
+                <span className="font-medium">Réservation passée (saisie a posteriori)</span>
+                <span className="block text-xs text-muted-foreground">
+                  Pour enregistrer un séjour déjà terminé qui n&apos;avait pas été saisi.
+                </span>
+              </span>
+            </label>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="checkInTime">Heure d&apos;arrivée</Label>
@@ -775,7 +804,12 @@ export function AddReservationWizard({
             {!shareToken && estBlocage ? (
               <p className="rounded-lg border p-3 text-sm">Dates bloquées sur le calendrier, sur tous les canaux.</p>
             ) : null}
-            {showPersonnelStep && !estBlocage ? (
+            {reservationPassee ? (
+              <p className="rounded-lg border p-3 text-sm">
+                Réservation passée enregistrée. Aucune demande de ménage ni envoi vers Beds24 : tout reste dans l&apos;app.
+              </p>
+            ) : null}
+            {showPersonnelStep && !estBlocage && !reservationPassee ? (
               <>
                 <p className="text-xs text-muted-foreground">Affecte le personnel si tu le connais déjà (facultatif).</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

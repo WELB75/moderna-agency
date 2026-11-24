@@ -50,7 +50,16 @@ function avecTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
 }
 
 // from / to : YYYY-MM-DD (to exclu). `ignorerReservationId` pour une future modification de séjour.
-export async function indisponibilites(villaId: string, from: string, to: string, ignorerReservationId?: string): Promise<Indisponibilites> {
+// `seulementReservations` : saisie a posteriori d'un séjour passé — seules les réservations de
+// l'app comptent (pas de chevauchement). PriceLabs et le calendrier Beds24 en direct n'ont aucun
+// sens pour des nuits écoulées (nuits fermées ou sans prix) et feraient refuser à tort.
+export async function indisponibilites(
+  villaId: string,
+  from: string,
+  to: string,
+  ignorerReservationId?: string,
+  options: { seulementReservations?: boolean } = {}
+): Promise<Indisponibilites> {
   const db = getDb();
   const bloquees = new Set<string>();
 
@@ -65,6 +74,10 @@ export async function indisponibilites(villaId: string, from: string, to: string
   for (const r of resas) {
     if (r.id === ignorerReservationId) continue;
     for (const n of nuitsDeSejour(new Date(r.checkIn), new Date(r.checkOut))) bloquees.add(n);
+  }
+
+  if (options.seulementReservations) {
+    return { nuits: [...bloquees].filter((n) => n >= from && n < to).sort(), tempsReel: false };
   }
 
   // 2. Cache PriceLabs (nuits non réservables).
@@ -96,9 +109,14 @@ export async function indisponibilites(villaId: string, from: string, to: string
 }
 
 // Nuits indisponibles dans [checkIn, checkOut) — vide si le séjour est possible.
-export async function conflitsSejour(villaId: string, checkIn: string, checkOut: string): Promise<{ conflits: string[]; tempsReel: boolean }> {
+export async function conflitsSejour(
+  villaId: string,
+  checkIn: string,
+  checkOut: string,
+  options: { seulementReservations?: boolean } = {}
+): Promise<{ conflits: string[]; tempsReel: boolean }> {
   const from = checkIn.slice(0, 10);
   const to = checkOut.slice(0, 10);
-  const { nuits, tempsReel } = await indisponibilites(villaId, from, to);
+  const { nuits, tempsReel } = await indisponibilites(villaId, from, to, undefined, options);
   return { conflits: nuits, tempsReel };
 }
