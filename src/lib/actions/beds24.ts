@@ -8,6 +8,7 @@ import { reservations, villas } from "@/db/schema";
 import { runBeds24Sync } from "@/lib/beds24/sync";
 import { tracer } from "@/lib/journal";
 import { beds24GetBookings, beds24SendMessage } from "@/lib/beds24/client";
+import { viderCacheSwr } from "@/lib/cache-swr";
 import { BEDS24_VILLA_MAPPING, villaNameMatchesMapping } from "@/lib/beds24/mapping";
 
 // Déclenchement manuel depuis le tableau de bord (bouton dans "Options"), même principe que
@@ -50,6 +51,7 @@ export async function sendBeds24Message(reservationId: string, message: string) 
   if (!reservation?.beds24BookingId) throw new Error("Cette réservation n'est pas liée à un canal Beds24.");
 
   await beds24SendMessage(Number(reservation.beds24BookingId), trimmed);
+  viderCacheSwr("b24:"); // la boîte relit les fils au prochain affichage (message envoyé visible)
   await tracer({
     categorie: "messagerie",
     action: "message_voyageur_envoye",
@@ -82,6 +84,7 @@ export async function sendBeds24InquiryMessage(beds24BookingId: number, message:
   }
 
   await beds24SendMessage(beds24BookingId, trimmed);
+  viderCacheSwr("b24:");
   const villaDemande = villasBeds24.find((v) => Number(v.roomId) === Number(booking.roomId));
   await tracer({
     categorie: "messagerie",

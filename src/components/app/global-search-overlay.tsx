@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { searchGlobal, type SearchResult } from "@/lib/actions/search";
+import type { SearchResult } from "@/lib/actions/search";
 
 const TYPE_LABELS: Record<SearchResult["type"], string> = {
   reservation: "Réservation",
@@ -64,7 +64,8 @@ export function GlobalSearchOverlay() {
     const timeout = setTimeout(async () => {
       setLoading(true);
       try {
-        const r = await searchGlobal(q);
+        const res = await fetch(`/api/recherche?q=${encodeURIComponent(q)}`);
+        const r = res.ok ? ((await res.json()) as { resultats: SearchResult[] }).resultats : [];
         if (numero === requete.current) {
           setResults(r);
           setActive(-1);

@@ -301,6 +301,20 @@
   body {
     overscroll-behavior-x: none;
   }
+  /* Toucher réactif : pas de délai ni de zoom au double-toucher sur les contrôles, et pas de
+     halo gris du navigateur (le retour visuel est géré par :active / data-pending). */
+  a,
+  button,
+  summary,
+  label,
+  select,
+  input,
+  textarea,
+  [role="button"],
+  [role="tab"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
 }
 /* Tutos (components/app/tuto-frise.tsx) : coche finale qui se dessine + ondes d'eau autour. */
 @keyframes tuto-check-draw {

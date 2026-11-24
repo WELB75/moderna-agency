@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { Search, X, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { searchGlobal, type SearchResult } from "@/lib/actions/search";
+import type { SearchResult } from "@/lib/actions/search";
 
 const TYPE_LABELS: Record<SearchResult["type"], string> = {
   reservation: "Réservation",
@@ -50,8 +50,12 @@ export function GlobalSearchBar() {
     if (q.length < 2) return;
     const timeout = setTimeout(() => {
       startTransition(async () => {
-        const r = await searchGlobal(q);
-        setResults(r);
+        try {
+          const res = await fetch(`/api/recherche?q=${encodeURIComponent(q)}`);
+          setResults(res.ok ? ((await res.json()) as { resultats: SearchResult[] }).resultats : []);
+        } catch {
+          setResults([]);
+        }
       });
     }, 250);
     return () => clearTimeout(timeout);

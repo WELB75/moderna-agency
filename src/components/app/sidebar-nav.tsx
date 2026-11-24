@@ -98,7 +98,7 @@ export function SidebarNav() {
                   href={item.href}
                   title={collapsed ? item.label : undefined}
                   className={cn(
-                    "relative flex items-center gap-2.5 rounded-md py-1.5 text-[0.85rem] transition-colors",
+                    "relative flex items-center gap-2.5 rounded-md py-1.5 text-[0.85rem] transition-colors data-[pending=true]:bg-primary/10 data-[pending=true]:text-primary",
                     collapsed ? "justify-center px-0" : "px-2.5",
                     active
                       ? "bg-primary/10 font-medium text-primary"

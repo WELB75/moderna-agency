@@ -256,15 +256,25 @@ export async function beds24GetMessagesBulk(bookingIds: number[], maxAge?: numbe
   const ids = [...new Set(bookingIds.filter((id) => Number.isFinite(id) && id > 0))];
   for (const id of ids) parResa.set(id, []);
 
-  for (let i = 0; i < ids.length; i += MESSAGES_IDS_PAR_APPEL) {
-    const lot = ids.slice(i, i + MESSAGES_IDS_PAR_APPEL);
+  // Lots lus en parallèle (3 à la fois) : avant, 80 fils = 2 appels l'un après l'autre. La
+  // concurrence reste basse pour ne pas dépasser le quota d'appels simultanés de Beds24.
+  const lots: number[][] = [];
+  for (let i = 0; i < ids.length; i += MESSAGES_IDS_PAR_APPEL) lots.push(ids.slice(i, i + MESSAGES_IDS_PAR_APPEL));
+  const lireLot = async (lot: number[]) => {
+    const messages: Beds24Message[] = [];
     for (let page = 1; page <= MAX_MESSAGE_PAGES; page++) {
       const res = await beds24Fetch<{ data?: Beds24Message[]; pages?: { nextPageExists?: boolean } }>("/bookings/messages", {
         query: { bookingId: lot, maxAge, page },
       });
-      for (const m of res.data ?? []) parResa.get(Number(m.bookingId))?.push(m);
+      messages.push(...(res.data ?? []));
       if (!res.pages?.nextPageExists) break;
     }
+    return messages;
+  };
+  const CONCURRENCE = 3;
+  for (let i = 0; i < lots.length; i += CONCURRENCE) {
+    const resultats = await Promise.all(lots.slice(i, i + CONCURRENCE).map(lireLot));
+    for (const m of resultats.flat()) parResa.get(Number(m.bookingId))?.push(m);
   }
   return parResa;
 }
