@@ -101,6 +101,12 @@ export async function POST(req: NextRequest) {
     const utilisateur = trouverUtilisateur(fromId, message.from?.first_name);
     if (!utilisateur) {
       console.warn("Message Telegram ignoré, expéditeur non autorisé:", fromId);
+      // Réponse au lieu d'un silence : la personne (et Kamel) voit tout de suite que c'est
+      // l'autorisation qui bloque, avec l'identifiant à ajouter dans TELEGRAM_ALLOWED_USER_ID.
+      await sendTelegramText(
+        chatId,
+        `Accès non autorisé pour ce compte Telegram (identifiant ${fromId}). Demande à Kamel de l'ajouter à la liste des personnes autorisées.`
+      );
       return NextResponse.json({ ok: true });
     }
 
@@ -108,6 +114,7 @@ export async function POST(req: NextRequest) {
     const vocal = !text && Boolean(message.voice?.file_id);
 
     if (!text && message.voice?.file_id) {
+      if (!process.env.GROQ_API_KEY) console.error("Transcription vocale impossible : GROQ_API_KEY absente.");
       const buffer = await downloadTelegramVoice(message.voice.file_id);
       if (buffer) text = await transcribeAudio(buffer);
       if (!text) {
@@ -137,6 +144,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("Erreur webhook Telegram:", err);
+    // Toujours 200 pour que Telegram ne renvoie pas le même message en boucle, mais on prévient
+    // la personne au lieu de se taire.
+    try {
+      const chat = String(payload?.message?.chat?.id ?? "");
+      if (chat) await sendTelegramText(chat, "Un souci technique est survenu, je n'ai pas pu traiter ce message. Réessaie dans un instant.");
+    } catch {
+      // rien de plus à faire
+    }
     return NextResponse.json({ ok: true });
   }
 }
