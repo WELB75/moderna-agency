@@ -11,7 +11,7 @@ import { GlobalSearchOverlay } from "@/components/app/global-search-overlay";
 export function AppHeader() {
   return (
     <header
-      className="sticky top-0 z-40 flex min-h-14 items-center gap-3 border-b border-border bg-background/95 px-4 pt-safe backdrop-blur supports-[backdrop-filter]:bg-background/80 md:px-6 print:hidden"
+      className="sticky top-0 z-40 flex min-h-14 items-center gap-3 border-b border-border bg-background px-4 pt-safe md:bg-background/95 md:px-6 md:backdrop-blur md:supports-[backdrop-filter]:bg-background/80 print:hidden"
     >
       <div className="flex shrink-0 items-center gap-2 md:hidden">
         <Logo size={28} />

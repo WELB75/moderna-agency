@@ -43,7 +43,7 @@ export function BottomNav() {
                 <Link
                   href={item.href}
                   className={cn(
-                    "flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-medium leading-none transition-colors",
+                    "flex flex-col items-center gap-1 px-1 py-2.5 text-[10px] font-medium leading-none transition-colors active:bg-muted/60 data-[pending=true]:text-primary",
                     active ? "text-primary" : "text-muted-foreground"
                   )}
                 >
@@ -103,8 +103,8 @@ export function BottomNav() {
                     href={item.href}
                     onClick={() => setOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium transition-colors",
-                      active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                      "flex items-center gap-3 rounded-md px-3 py-3 text-base font-medium transition-colors data-[pending=true]:bg-primary/10 data-[pending=true]:text-primary",
+                      active ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted active:bg-muted"
                     )}
                   >
                     <Icon className="h-4.5 w-4.5 shrink-0" />

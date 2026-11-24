@@ -12,6 +12,7 @@ import { loyerEnEuros } from "@/lib/beds24/sync";
 import { getMadParEur } from "@/lib/devises";
 import { versEuros } from "@/lib/logement-stats";
 import { chargerMessagesAgence, FENETRE_24H_MS } from "@/lib/whatsapp-agence";
+import { avecCacheSwr } from "@/lib/cache-swr";
 import { InboxClient, type InboxConversation, type InboxMessage, type InboxSejour, type InboxStatus } from "./inbox-client";
 
 // Boîte de réception reconstruite sur le modèle de la messagerie Superhote (liste à gauche avec
@@ -35,6 +36,7 @@ const AIRBNB_MAX_FILS = 80;
 const DEMANDES_MAX = 40;
 const BEDS24_TIMEOUT_MS = 8000;
 const BEDS24_BUDGET_MS = 12000;
+const CACHE_BEDS24 = { ttlMs: 30_000, perimeMs: 15 * 60_000 };
 
 class Beds24TimeoutError extends Error {}
 
@@ -97,9 +99,11 @@ async function chargerFilsAirbnb(
   if (cibles.length === 0) return { fils, echecs: 0, injoignable: false };
 
   try {
-    const parResa = await withTimeout(
-      beds24GetMessagesBulk(cibles.map((r) => Number(r.beds24BookingId))),
-      BEDS24_BUDGET_MS
+    const ids = cibles.map((r) => Number(r.beds24BookingId));
+    // Cache court avec rafraîchissement en arrière-plan : la boîte s'ouvre sans attendre Beds24
+    // (voir lib/cache-swr.ts), les nouveaux messages arrivent à l'ouverture suivante.
+    const parResa = await avecCacheSwr("b24:fils:" + [...ids].sort((a, b) => a - b).join(","), CACHE_BEDS24, () =>
+      withTimeout(beds24GetMessagesBulk(ids), BEDS24_BUDGET_MS)
     );
     for (const r of cibles) fils.set(r.id, parResa.get(Number(r.beds24BookingId)) ?? []);
     return { fils, echecs: 0, injoignable: false };
@@ -179,6 +183,42 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
   const db = getDb();
   const now = new Date();
 
+  // Demandes d'information Beds24 : lancées tout de suite, en parallèle des requêtes base et des
+  // fils Airbnb (avant, trois attentes l'une après l'autre : base, fils, puis demandes).
+  const demandesBeds24 = avecCacheSwr("b24:demandes", CACHE_BEDS24, async () => {
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const demandes = (
+      await withTimeout(
+        beds24GetBookings({
+          status: ["inquiry", "request"],
+          arrivalFrom: iso(subDays(now, 2)),
+          arrivalTo: iso(addDays(now, 365)),
+        }),
+        BEDS24_TIMEOUT_MS
+      )
+    )
+      // Les plus récentes d'abord : Beds24 les renvoie par id croissant, donc une simple coupe
+      // gardait les plus anciennes et masquait les nouvelles demandes. Les logements non reliés
+      // à une villa de l'app restent affichés (sans nom de villa) au lieu d'être écartés en
+      // silence — Kamel, 2026-10-13 : "les demandes d'infos je les ai pas dans la boîte".
+      .sort((a, b) => b.id - a.id)
+      .slice(0, DEMANDES_MAX);
+    // Un seul appel groupé pour tous les fils. S'il échoue, les demandes restent affichées
+    // (avec un aperçu générique) au lieu de disparaître de la boîte.
+    const filsDemandes = await withTimeout(beds24GetMessagesBulk(demandes.map((b) => b.id)), BEDS24_BUDGET_MS).catch(
+      (error: unknown) => {
+        if (!(error instanceof Beds24ConfigError || error instanceof Beds24TimeoutError)) {
+          console.error("[boite-reception] messages des demandes Beds24 :", error);
+        }
+        return new Map<number, Beds24Message[]>();
+      }
+    );
+    return { demandes, filsDemandes };
+  }).then(
+    (valeur) => ({ ok: true as const, valeur }),
+    (error: unknown) => ({ ok: false as const, error })
+  );
+
   const [conversations, personnelList, techniciensList, clientsList, stays, madParEur] = await Promise.all([
     db.select().from(whatsappConversations).orderBy(desc(whatsappConversations.updatedAt)),
     db.select({ nom: personnel.nom, telephone: personnel.telephone, role: personnel.role }).from(personnel),
@@ -203,6 +243,9 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
       })
       .from(reservations)
       .leftJoin(villas, eq(reservations.villaId, villas.id))
+      // Seules les réservations avec un téléphone servent à rattacher une conversation WhatsApp :
+      // inutile de rapatrier tout l'historique (plusieurs milliers de lignes) à chaque ouverture.
+      .where(isNotNull(reservations.guestPhone))
       .orderBy(desc(reservations.checkIn)),
     getMadParEur(),
   ]);
@@ -442,34 +485,9 @@ export async function chargerBoiteReception(): Promise<{ items: InboxConversatio
       .where(isNotNull(villas.beds24RoomId));
     const villaParRoom = new Map(villasBeds24.map((v) => [Number(v.roomId), v]));
     {
-      const iso = (d: Date) => d.toISOString().slice(0, 10);
-      const demandes = (
-        await withTimeout(
-          beds24GetBookings({
-            status: ["inquiry", "request"],
-            arrivalFrom: iso(subDays(now, 2)),
-            arrivalTo: iso(addDays(now, 365)),
-          }),
-          BEDS24_TIMEOUT_MS
-        )
-      )
-        // Les plus récentes d'abord : Beds24 les renvoie par id croissant, donc une simple coupe
-        // gardait les plus anciennes et masquait les nouvelles demandes. Les logements non reliés
-        // à une villa de l'app restent affichés (sans nom de villa) au lieu d'être écartés en
-        // silence — Kamel, 2026-10-13 : "les demandes d'infos je les ai pas dans la boîte".
-        .sort((a, b) => b.id - a.id)
-        .slice(0, DEMANDES_MAX);
-
-      // Un seul appel groupé pour tous les fils. S'il échoue, les demandes restent affichées
-      // (avec un aperçu générique) au lieu de disparaître de la boîte.
-      const filsDemandes = await withTimeout(beds24GetMessagesBulk(demandes.map((b) => b.id)), BEDS24_BUDGET_MS).catch(
-        (error: unknown) => {
-          if (!(error instanceof Beds24ConfigError || error instanceof Beds24TimeoutError)) {
-            console.error("[boite-reception] messages des demandes Beds24 :", error);
-          }
-          return new Map<number, Beds24Message[]>();
-        }
-      );
+      const resultatDemandes = await demandesBeds24;
+      if (!resultatDemandes.ok) throw resultatDemandes.error;
+      const { demandes, filsDemandes } = resultatDemandes.valeur;
       for (const b of demandes) {
         const thread = [...(filsDemandes.get(b.id) ?? [])].sort((x, y) => horodatage(x.time) - horodatage(y.time));
         const last: Beds24Message | undefined = thread[thread.length - 1];

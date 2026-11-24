@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, ChevronDown, Inbox, MessageCircle, Search, X } from "lucide-react";
 import { CanalDot } from "@/components/app/canal-badge";
@@ -8,8 +8,6 @@ import { Beds24ReplyForm } from "@/components/app/beds24-reply-form";
 import { WhatsAppAgenceReplyForm } from "@/components/app/whatsapp-agence-reply-form";
 import { SOURCE_META } from "@/lib/canal";
 import { toWhatsAppUrl } from "@/lib/phone";
-import { traduireMessagesRecus } from "@/lib/actions/traduction";
-import { marquerConversationLue } from "@/lib/actions/messages-lus";
 import { useEstMobile } from "@/lib/use-est-mobile";
 import type { TraductionRecue } from "@/lib/translate-ai";
 import { cn } from "@/lib/utils";
@@ -236,6 +234,58 @@ function ActionIcone({
   );
 }
 
+// Ligne de la liste, mémorisée : au clic sur une conversation seules les deux lignes concernées
+// (l'ancienne et la nouvelle sélection) se redessinent, pas toute la liste (aperçus, dates, regex
+// des liens). C'était la latence ressentie au toucher sur téléphone.
+const LigneConversation = memo(function LigneConversation({
+  c,
+  nonLue,
+  active,
+  onSelect,
+}: {
+  c: InboxConversation;
+  nonLue: boolean;
+  active: boolean;
+  onSelect: (key: string) => void;
+}) {
+  const apercuTexte = useMemo(() => apercu(c.preview) || "—", [c.preview]);
+  return (
+    <li>
+      <button
+        type="button"
+        onClick={() => onSelect(c.key)}
+        className={cn(
+          "relative flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors [content-visibility:auto] [contain-intrinsic-size:auto_5.5rem]",
+          active ? "bg-accent/70 dark:bg-accent" : "hover:bg-muted/60"
+        )}
+      >
+        {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-primary" aria-hidden /> : null}
+        <Avatar name={c.name} channel={c.channel} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline justify-between gap-2">
+            <p className={cn("truncate text-sm", nonLue ? "font-bold" : "font-semibold")}>{c.name}</p>
+            <span className={cn("shrink-0 text-xs tabular-nums", nonLue ? "font-semibold text-primary" : "text-muted-foreground")}>
+              {formatTime(c.lastAt)}
+            </span>
+          </div>
+          <div className="mt-0.5 flex items-center gap-2">
+            <p className={cn("min-w-0 flex-1 truncate text-sm", nonLue ? "text-foreground" : "text-muted-foreground")}>{apercuTexte}</p>
+            {nonLue ? <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Non lu" /> : null}
+          </div>
+          <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT[c.status])} aria-hidden />
+            <span className="truncate">
+              {c.statusLabel}
+              {c.stay ? ` · ${c.stay}` : ""}
+              {c.logement ? ` · ${c.logement}` : ""}
+            </span>
+          </p>
+        </div>
+      </button>
+    </li>
+  );
+});
+
 export function InboxClient({
   conversations,
   initialKey,
@@ -256,6 +306,10 @@ export function InboxClient({
   // retour. Ordinateur : liste et conversation côte à côte.
   const estMobile = useEstMobile();
   const [mobileOuvert, setMobileOuvert] = useState(Boolean(initialKey));
+  const ouvrirConversation = useCallback((key: string) => {
+    setSelectedKey(key);
+    setMobileOuvert(true);
+  }, []);
 
   // Suivi "lu" : une conversation affichée à l'écran est marquée lue (la pastille du menu
   // descend). Sur mobile, la conversation n'est "affichée" qu'une fois ouverte.
@@ -281,7 +335,11 @@ export function InboxClient({
   const aLire = selected && (!estMobile || mobileOuvert) && estNonLue(selected) ? selected.key : null;
   useEffect(() => {
     if (!aLire) return;
-    marquerConversationLue(aLire)
+    fetch("/api/messages/lue", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ key: aLire }),
+    })
       .then(() => {
         setLus((prev) => new Set(prev).add(aLire));
         window.dispatchEvent(new Event("messages-lus"));
@@ -311,7 +369,15 @@ export function InboxClient({
     const manquants = Array.from(new Set(aTraduire.filter((t) => !traductions[t])));
     if (manquants.length === 0) return;
     let annule = false;
-    traduireMessagesRecus(manquants)
+    fetch("/api/messages/traduire", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ textes: manquants }),
+    })
+      .then(async (r) => {
+        if (!r.ok) throw new Error("traduction");
+        return ((await r.json()) as { traductions: TraductionRecue[] }).traductions;
+      })
       .then((res) => {
         if (annule) return;
         setTraductions((prev) => {
@@ -488,50 +554,15 @@ export function InboxClient({
             </div>
           ) : (
             <ul>
-              {filtered.map((c) => {
-                const nonLue = estNonLue(c);
-                const active = c.key === selectedKey;
-                return (
-                  <li key={c.key}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedKey(c.key);
-                        setMobileOuvert(true);
-                      }}
-                      className={cn(
-                        "relative flex w-full gap-3 border-b border-border px-4 py-3 text-left transition-colors",
-                        active ? "bg-accent/70 dark:bg-accent" : "hover:bg-muted/60"
-                      )}
-                    >
-                      {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded-r bg-primary" aria-hidden /> : null}
-                      <Avatar name={c.name} channel={c.channel} />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className={cn("truncate text-sm", nonLue ? "font-bold" : "font-semibold")}>{c.name}</p>
-                          <span className={cn("shrink-0 text-xs tabular-nums", nonLue ? "font-semibold text-primary" : "text-muted-foreground")}>
-                            {formatTime(c.lastAt)}
-                          </span>
-                        </div>
-                        <div className="mt-0.5 flex items-center gap-2">
-                          <p className={cn("min-w-0 flex-1 truncate text-sm", nonLue ? "text-foreground" : "text-muted-foreground")}>
-                            {apercu(c.preview) || "—"}
-                          </p>
-                          {nonLue ? <span className="h-2 w-2 shrink-0 rounded-full bg-primary" aria-label="Non lu" /> : null}
-                        </div>
-                        <p className="mt-1 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-                          <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT[c.status])} aria-hidden />
-                          <span className="truncate">
-                            {c.statusLabel}
-                            {c.stay ? ` · ${c.stay}` : ""}
-                            {c.logement ? ` · ${c.logement}` : ""}
-                          </span>
-                        </p>
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
+              {filtered.map((c) => (
+                <LigneConversation
+                  key={c.key}
+                  c={c}
+                  nonLue={estNonLue(c)}
+                  active={c.key === selectedKey}
+                  onSelect={ouvrirConversation}
+                />
+              ))}
             </ul>
           )}
         </div>

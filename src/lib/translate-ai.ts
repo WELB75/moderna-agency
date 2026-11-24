@@ -25,12 +25,35 @@ const RecuesSchema = z.object({
   ),
 });
 
-export async function traduireVersFrancais(textes: string[]): Promise<TraductionRecue[]> {
-  if (textes.length === 0) return [];
+// Par lots : une conversation longue envoyée d'un seul bloc dépassait la taille de réponse prévue
+// (réponse tronquée => JSON invalide => "Traduction indisponible" pour toute la conversation).
+// Chaque lot est indépendant, rejoué une fois en cas d'échec, et un lot qui échoue ne casse plus
+// les autres : ses messages restent simplement non traduits.
+const LOT_MAX_MESSAGES = 6;
+const LOT_MAX_CARACTERES = 5000;
+
+function decouperEnLots(textes: string[]): number[][] {
+  const lots: number[][] = [];
+  let courant: number[] = [];
+  let taille = 0;
+  textes.forEach((t, i) => {
+    if (courant.length > 0 && (courant.length >= LOT_MAX_MESSAGES || taille + t.length > LOT_MAX_CARACTERES)) {
+      lots.push(courant);
+      courant = [];
+      taille = 0;
+    }
+    courant.push(i);
+    taille += t.length;
+  });
+  if (courant.length > 0) lots.push(courant);
+  return lots;
+}
+
+async function traduireLot(textes: string[]): Promise<z.infer<typeof RecuesSchema>["messages"]> {
   const liste = textes.map((t, index) => `[${index}]\n${t}`).join("\n\n---\n\n");
   const message = await client.messages.parse({
     model: "claude-haiku-5-5",
-    max_tokens: 4000,
+    max_tokens: 8000,
     thinking: { type: "disabled" },
     output_config: { effort: "low", format: zodOutputFormat(RecuesSchema) },
     system:
@@ -40,12 +63,33 @@ export async function traduireVersFrancais(textes: string[]): Promise<Traduction
     messages: [{ role: "user", content: `Traduis chacun de ces messages :\n\n${liste}` }],
   });
   const out = message.parsed_output;
-  if (!out) throw new Error("Traduction indisponible.");
-  return textes.map((original, i) => {
-    const r = out.messages.find((m) => m.index === i);
-    if (!r) return { fr: original, langue: "français", estFrancais: true };
-    return { fr: r.traduction_fr || original, langue: r.langue, estFrancais: r.est_francais };
-  });
+  if (!out) throw new Error(`Traduction indisponible (stop_reason=${message.stop_reason}).`);
+  return out.messages;
+}
+
+export async function traduireVersFrancais(textes: string[]): Promise<TraductionRecue[]> {
+  if (textes.length === 0) return [];
+  const resultats: (TraductionRecue | null)[] = textes.map(() => null);
+  await Promise.all(
+    decouperEnLots(textes).map(async (indices) => {
+      const lot = indices.map((i) => textes[i]);
+      let messages: Awaited<ReturnType<typeof traduireLot>> | null = null;
+      for (let essai = 0; essai < 2 && !messages; essai++) {
+        try {
+          messages = await traduireLot(lot);
+        } catch (e) {
+          console.error("[traduction] lot échoué", essai + 1, e instanceof Error ? e.message : e);
+        }
+      }
+      if (!messages) return;
+      indices.forEach((global, local) => {
+        const r = messages!.find((m) => m.index === local);
+        if (r) resultats[global] = { fr: r.traduction_fr || textes[global], langue: r.langue, estFrancais: r.est_francais };
+      });
+    })
+  );
+  if (resultats.every((r) => r === null)) throw new Error("Traduction indisponible.");
+  return resultats.map((r, i) => r ?? { fr: textes[i], langue: "français", estFrancais: true });
 }
 
 export async function traduireVersLangue(texte: string, langue: string): Promise<string> {
