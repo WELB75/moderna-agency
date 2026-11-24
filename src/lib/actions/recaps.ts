@@ -12,10 +12,15 @@ export async function calculerPrixSejourAction(villaId: string, checkIn: string,
 
 // Nuits déjà prises (réservations, Beds24 en direct, PriceLabs) sur les ~14 prochains mois,
 // pour griser le calendrier de l'assistant.
-export async function indisponibilitesAction(villaId: string): Promise<Indisponibilites> {
+export async function indisponibilitesAction(villaId: string, modePasse = false): Promise<Indisponibilites> {
   await auth.protect();
   const debut = new Date();
   const fin = new Date();
   fin.setUTCDate(fin.getUTCDate() + 425);
-  return indisponibilites(String(villaId), debut.toISOString().slice(0, 10), fin.toISOString().slice(0, 10));
+  // Saisie a posteriori : on remonte trois ans en arrière et on ne regarde que les réservations de
+  // l'app (voir indisponibilites).
+  if (modePasse) debut.setUTCFullYear(debut.getUTCFullYear() - 3);
+  return indisponibilites(String(villaId), debut.toISOString().slice(0, 10), fin.toISOString().slice(0, 10), undefined, {
+    seulementReservations: modePasse,
+  });
 }

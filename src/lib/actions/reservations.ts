@@ -16,6 +16,7 @@ import { toTitleCase } from "@/lib/utils";
 import { initiateMenageRequest } from "@/lib/whatsapp-agent/staff";
 import { beds24WriteBookings } from "@/lib/beds24/client";
 import { fermerDatesBeds24, rouvrirDatesBeds24 } from "@/lib/beds24/fermeture";
+import { sejourEntierementPasse, sejourEstTermine } from "@/lib/reservation-passee";
 import { normaliseCanal } from "@/lib/canal";
 import { libelleMotif } from "@/lib/annulation-resa";
 import { notifierKamelTelegram } from "@/lib/telegram";
@@ -86,13 +87,26 @@ export async function createReservation(formData: FormData) {
     throw new Error("Villa, nom du client, arrivée et départ sont obligatoires.");
   }
 
+  // Saisie a posteriori d'un séjour déjà terminé (case "Réservation passée" de l'assistant). Le
+  // contrôle est refait ici, pas seulement dans l'interface : l'option n'est acceptée que pour un
+  // séjour terminé, et un séjour entièrement passé est refusé sans elle.
+  const reservationPassee = String(formData.get("reservationPassee") ?? "") === "1";
+  if (reservationPassee && !sejourEstTermine(checkOut)) {
+    throw new Error("L'option « réservation passée » est réservée aux séjours déjà terminés (départ aujourd'hui ou avant).");
+  }
+  if (!reservationPassee && sejourEntierementPasse(checkOut)) {
+    throw new Error("Ce séjour est entièrement dans le passé : coche « Réservation passée (saisie a posteriori) ».");
+  }
+
   // Garde-fou serveur : jamais de réservation directe sur des nuits déjà prises (réservations de
   // l'app, calendrier Beds24 en direct, PriceLabs). Kamel, 2026-10-14 : "si on choisit une date et
   // que c'est pas dispo ça sera impossible à réserver".
   if (new Date(checkOut) <= new Date(checkIn)) {
     throw new Error("Le départ doit être après l'arrivée.");
   }
-  const { conflits } = await conflitsSejour(villaId, checkIn, checkOut);
+  // Passé : seul le chevauchement avec une réservation existante du logement est contrôlé
+  // (PriceLabs et Beds24 en direct ne disent rien d'utile sur des nuits écoulées).
+  const { conflits } = await conflitsSejour(villaId, checkIn, checkOut, { seulementReservations: reservationPassee });
   if (conflits.length > 0) {
     const liste = conflits.slice(0, 4).map((n) => `${n.slice(8, 10)}/${n.slice(5, 7)}`).join(", ");
     throw new Error(`Ces dates ne sont plus disponibles (${liste}${conflits.length > 4 ? "…" : ""}). Choisis d'autres dates.`);
@@ -128,7 +142,7 @@ export async function createReservation(formData: FormData) {
   const [villa] = await db.select({ nom: villas.nom, numero: villas.numero, beds24RoomId: villas.beds24RoomId }).from(villas).where(eq(villas.id, villaId)).limit(1);
   try {
     // Pas de ménage de départ à solliciter pour un simple blocage (propriétaire, travaux...).
-    if (villa && !estBlocage) await initiateMenageRequest(reservation.id, villa.nom, villa.numero, checkOut.slice(0, 10));
+    if (villa && !estBlocage && !reservationPassee) await initiateMenageRequest(reservation.id, villa.nom, villa.numero, checkOut.slice(0, 10));
   } catch (err) {
     console.error("Échec initiation demande ménage:", err);
   }
@@ -156,7 +170,10 @@ export async function createReservation(formData: FormData) {
   let beds24Statut: Beds24Statut = "non_concerne";
   let beds24Detail = "";
   const derniere = derniereNuit(checkIn, checkOut);
-  if (normaliseCanal(canal || "Direct") === "airbnb") {
+  if (reservationPassee) {
+    // Rien à fermer ni à pousser pour des nuits écoulées (calendriers Beds24 / PriceLabs).
+    beds24Detail = "Réservation passée saisie a posteriori : rien envoyé à Beds24.";
+  } else if (normaliseCanal(canal || "Direct") === "airbnb") {
     beds24Detail = "Réservation Airbnb : déjà présente dans Beds24, rien à fermer.";
   } else if (!villa?.beds24RoomId) {
     beds24Detail = "Logement non relié à Beds24 : dates non fermées sur Airbnb/Booking.com.";
@@ -175,14 +192,15 @@ export async function createReservation(formData: FormData) {
     reservationId: reservation.id,
     villaId,
     villaNom: villa?.nom ?? null,
-    resume: resumeSejour(guestName, canal || "Direct", checkIn, checkOut),
+    resume: `${resumeSejour(guestName, canal || "Direct", checkIn, checkOut)}${reservationPassee ? " (saisie a posteriori)" : ""}`,
     beds24Statut,
     beds24Detail,
   });
 
   // Prévient Kamel sur Telegram d'une réservation saisie dans l'app (pas pour un blocage
-  // propriétaire/travaux) — les réservations des plateformes passent par la synchro.
-  if (!estBlocage) {
+  // propriétaire/travaux, ni pour une réservation passée saisie après coup) — les réservations des
+  // plateformes passent par la synchro.
+  if (!estBlocage && !reservationPassee) {
     const auteur = await auteurConnecte();
     await notifierKamelTelegram(
       `Nouvelle réservation saisie dans l'app : ${villa?.nom ?? "villa"} - ${resumeSejour(guestName, canal || "Direct", checkIn, checkOut)}${auteur.nom ? ` (par ${auteur.nom})` : ""}`

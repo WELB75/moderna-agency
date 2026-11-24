@@ -48,6 +48,7 @@ export function DisponibiliteCalendar({
   libellesPrix,
   dernierJour,
   nombreMois = 1,
+  autoriserPasse = false,
 }: {
   nuitsPrises: Set<string>;
   arrivee: string;
@@ -57,6 +58,8 @@ export function DisponibiliteCalendar({
   // Dernier jour sélectionnable (YYYY-MM-DD) : au-delà, PriceLabs n'a plus de prix.
   dernierJour?: string;
   nombreMois?: number;
+  // Saisie a posteriori : les dates avant aujourd'hui restent sélectionnables.
+  autoriserPasse?: boolean;
 }) {
   const [mois, setMois] = useState<Date>(() => (arrivee ? parse(arrivee) : new Date()));
   const aujourdhui = startOfDay(new Date());
@@ -75,7 +78,7 @@ export function DisponibiliteCalendar({
 
   function choisir(jour: Date) {
     const j = iso(jour);
-    if (jour < aujourdhui) return;
+    if (!autoriserPasse && jour < aujourdhui) return;
     // 1er clic (ou nouveau départ après un séjour complet) : arrivée.
     if (!arrivee || depart || j <= arrivee) {
       if (nuitsPrises.has(j)) {
@@ -105,7 +108,15 @@ export function DisponibiliteCalendar({
           numberOfMonths={nombreMois}
           weekStartsOn={1}
           onDayClick={choisir}
-          disabled={dernierJour ? [{ before: aujourdhui }, { after: parse(dernierJour) }] : { before: aujourdhui }}
+          disabled={
+            autoriserPasse
+              ? dernierJour
+                ? { after: parse(dernierJour) }
+                : undefined
+              : dernierJour
+                ? [{ before: aujourdhui }, { after: parse(dernierJour) }]
+                : { before: aujourdhui }
+          }
           components={libellesPrix ? { DayButton: CaseAvecPrix } : undefined}
           modifiers={{
             prise: prises,
