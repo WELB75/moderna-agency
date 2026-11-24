@@ -12,6 +12,7 @@ export default defineConfig({
     "./src/db/schema-syndic.ts",
     "./src/db/schema-inventaire-villa.ts",
     "./src/db/schema-services.ts",
+    "./src/db/schema-notes.ts",
   ],
   out: "./src/db/migrations",
   dialect: "postgresql",

@@ -19,16 +19,19 @@ export type UtilisateurTelegram = {
   // Valeur de createdByUserId dans la caisse. Le principal garde "telegram-agent" (historique), les
   // autres ont la leur : "annuler" ne touche ainsi que les mouvements de la personne qui parle.
   auteurId: string;
+  // Accès limité aux notes de suivi des logements (Mohamed, 2026-11-24) : ni caisse, ni codes, ni
+  // statistiques, ni réservations. Entrée de la liste : "123456:Mohamed:notes".
+  notesSeulement: boolean;
 };
 
-function entrees(env: string | undefined): { id: string; nom: string | null }[] {
+function entrees(env: string | undefined): { id: string; nom: string | null; notesSeulement: boolean }[] {
   return (env ?? "")
     .split(",")
     .map((e) => e.trim())
     .filter(Boolean)
     .map((e) => {
-      const [id, ...reste] = e.split(":");
-      return { id: id.trim(), nom: reste.join(":").trim() || null };
+      const [id, nom, option] = e.split(":");
+      return { id: id.trim(), nom: nom?.trim() || null, notesSeulement: option?.trim().toLowerCase() === "notes" };
     })
     .filter((e) => e.id);
 }
@@ -41,15 +44,26 @@ export function trouverUtilisateur(
   const liste = entrees(env);
   const index = liste.findIndex((e) => e.id === fromId);
   if (index === -1) return null;
-  const principal = index === 0;
+  const principal = index === 0 && !liste[index].notesSeulement;
   const nom = liste[index].nom ?? (principal ? "Kamel" : prenomTelegram?.trim() || "Équipe");
-  return { id: fromId, nom, principal, voirTout: !principal, auteurId: principal ? "telegram-agent" : `telegram-agent:${fromId}` };
+  const notesSeulement = liste[index].notesSeulement;
+  return {
+    id: fromId,
+    nom,
+    principal,
+    voirTout: !principal && !notesSeulement,
+    auteurId: principal ? "telegram-agent" : `telegram-agent:${fromId}`,
+    notesSeulement,
+  };
 }
 
-// Identifiants de toutes les personnes autorisées : destinataires des rappels et notifications.
+// Identifiants des personnes autorisées à recevoir les rappels et notifications (caisse, arrivées...) :
+// les comptes "notes seulement" n'en font pas partie, ils n'ont pas accès à ces informations.
 export function idsAutorises(env: string | undefined = process.env.TELEGRAM_ALLOWED_USER_ID): string[] {
-  return entrees(env).map((e) => e.id);
+  return entrees(env)
+    .filter((e) => !e.notesSeulement)
+    .map((e) => e.id);
 }
 
 // Utilisateur par défaut (comportement historique, Kamel seul).
-export const UTILISATEUR_PRINCIPAL: UtilisateurTelegram = { id: "", nom: "Kamel", principal: true, voirTout: false, auteurId: "telegram-agent" };
+export const UTILISATEUR_PRINCIPAL: UtilisateurTelegram = { id: "", nom: "Kamel", principal: true, voirTout: false, auteurId: "telegram-agent", notesSeulement: false };
