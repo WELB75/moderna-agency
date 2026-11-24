@@ -19,6 +19,8 @@ import { UTILISATEUR_PRINCIPAL, type UtilisateurTelegram } from "@/lib/telegram-
 import { getCaisseDetail, getStatistiques, getTournees } from "@/lib/telegram-agent/stats-caisse";
 import { getVillaCodes, getOccupation, getDisponibilites } from "@/lib/telegram-agent/consultation";
 import { infosReservations } from "@/lib/telegram-agent/infos-resa";
+import { ajouterNoteVilla, lireNotesVilla } from "@/lib/telegram-agent/notes";
+import { CATEGORIES_NOTES, CLES_CATEGORIES_NOTES } from "@/lib/notes-villa";
 import { montantMenageDu, montantCuisineDu, estPayeParProprietaire } from "@/lib/personnel-tarifs";
 
 const client = new Anthropic();
@@ -233,6 +235,36 @@ const tools: Tool[] = [
     },
   },
   {
+    name: "add_villa_note",
+    description:
+      "Enregistre une note de suivi sur un logement dans l'espace Notes de l'app, classée par catégorie. Une note = un fait précis ; si un message vocal contient plusieurs sujets, appelle l'outil une fois par sujet. Ce n'est PAS un mouvement de caisse : un montant (caution, argent pris au client) n'est qu'une information notée. Catégories : " +
+      CATEGORIES_NOTES.map((c) => `${c.key} = ${c.label} (${c.aide})`).join(" ; "),
+    input_schema: {
+      type: "object",
+      properties: {
+        villaNom: { type: "string", description: "Nom exact de la villa concernée. Omettre seulement si la note ne concerne aucun logement." },
+        categorie: { type: "string", enum: CLES_CATEGORIES_NOTES },
+        texte: { type: "string", description: "La note, en français, claire et factuelle, fidèle à ce qui a été dit (noms, dates, quantités conservés)." },
+        montant: { type: "number", description: "Montant cité (caution, argent pris, rendu), si applicable." },
+        devise: { type: "string", description: "MAD (défaut) ou EUR, avec le montant." },
+      },
+      required: ["categorie", "texte"],
+    },
+  },
+  {
+    name: "get_villa_notes",
+    description: "Relit les notes de suivi enregistrées pour un logement, une catégorie ou les deux, sur les derniers jours.",
+    input_schema: {
+      type: "object",
+      properties: {
+        villaNom: { type: "string" },
+        categorie: { type: "string", enum: CLES_CATEGORIES_NOTES },
+        jours: { type: "number", description: "Période en jours (14 par défaut, 90 au plus)." },
+        nonResolues: { type: "boolean", description: "true pour ne voir que ce qui reste à traiter." },
+      },
+    },
+  },
+  {
     name: "post_team_note",
     description:
       "Poste une note courte dans les Messages internes de l'app (visibles par toute l'équipe), pour signaler quelque chose sans détail sensible écrit. Utiliser seulement si Kamel demande explicitement de noter/signaler quelque chose à l'équipe.",
@@ -248,6 +280,27 @@ const tools: Tool[] = [
   },
 ];
 
+function buildNotesPrompt(today: string, villasPromptList: string, utilisateur: UtilisateurTelegram, vocal: boolean) {
+  return `Tu es l'assistant de suivi des logements de Moderna Agency (conciergerie de villas à Marrakech) sur Telegram. Tu parles avec ${utilisateur.nom}, qui est sur place et te dicte (message vocal transcrit${vocal ? " — ce message-ci est un vocal" : ""} ou texte) ce qu'il constate, en français, en arabe/darija ou en mélange. Ton rôle : transformer ce qu'il dit en notes de suivi classées par catégorie dans l'espace Notes de l'application, avec add_villa_note.
+
+Date d'aujourd'hui : ${today}.
+
+Villas connues (utilise le nom exact, corrige les fautes et surnoms) :
+- ${villasPromptList}
+
+Catégories :
+${CATEGORIES_NOTES.map((c) => `- ${c.key} : ${c.label} — ${c.aide}`).join("\n")}
+
+Règles :
+- Un vocal peut contenir plusieurs sujets (état + travaux + argent) : crée UNE note par sujet, dans la bonne catégorie, en une seule fois.
+- Écris chaque note en français clair et factuel, fidèle à ce qui a été dit : garde les noms, dates, quantités et montants tels quels, n'invente rien, n'ajoute aucun conseil.
+- Argent : un montant de caution ou d'argent pris/rendu va dans la catégorie argent avec montant et devise (MAD par défaut). C'est une simple note, rien n'est enregistré en caisse — dis-le-lui si besoin.
+- Si la villa n'est pas claire (ou absente alors que le sujet la concerne), demande-la avant d'enregistrer. Si le montant ou la devise est ambigu, demande aussi.
+- Tu peux relire les notes d'une villa avec get_villa_notes s'il le demande.
+- Tu n'as accès à rien d'autre : ni caisse, ni codes, ni réservations, ni statistiques. S'il demande autre chose, dis simplement que tu t'occupes des notes de suivi.
+- Après chaque enregistrement, confirme en une phrase courte : combien de notes, pour quelle villa, dans quelles catégories. Réponds en français, bref, façon message Telegram.`;
+}
+
 function buildSystemPrompt(today: string, villasPromptList: string, utilisateur: UtilisateurTelegram) {
   const interlocuteur = utilisateur.principal
     ? `Tu es l'assistant personnel de Kamel sur Telegram, pour Moderna Agency (conciergerie de villas à Marrakech). Il te dicte des instructions (texte ou vocal transcrit) et tu agis directement dans l'application via tes outils. Ton seul interlocuteur est Kamel lui-même — jamais de client, jamais d'employé.`
@@ -259,7 +312,7 @@ Date d'aujourd'hui : ${today}.
 Villas connues (utilise le nom exact si Kamel en mentionne une, corrige les fautes/surnoms) :
 - ${villasPromptList}
 
-Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, donner le programme d'une journée (arrivées, départs, ménage, cuisine, maintenance), confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe, donner les codes d'accès (boîtier, porte, master, wifi) d'un logement, dire qui est dans quel logement un jour donné (clients du jour, arrivées, départs), les logements disponibles, la cuisinière ou le ménage d'un séjour, où doivent être Brahim (jardinier) et Rachid (pisciniste) selon leur planning hebdomadaire (get_tournees), les statistiques de tous les logements, villas et appartements, par canal Airbnb / Booking.com / direct (get_statistiques : nuitées, chiffre d'affaires, taux d'occupation, trésorerie), et le détail de la caisse par période, logement ou type (get_caisse_detail). Pour toute question de ce type, appelle l'outil plutôt que de répondre de mémoire, et donne les codes tels quels (Kamel est le seul interlocuteur).
+Ce que tu sais faire : mouvements de caisse (dépenses, loyers, extras...), consulter le solde de la caisse, chercher une réservation, donner le programme d'une journée (arrivées, départs, ménage, cuisine, maintenance), confirmer un ménage fait, marquer quelqu'un payé (ménage/cuisine), consulter le total gagné/reçu d'une personne, changer un code de villa, poster une note à l'équipe, enregistrer et relire les notes de suivi d'un logement par catégorie (add_villa_note / get_villa_notes : état du logement, travaux, aléas, cautions et argent, demandes spécifiques, suivi général), donner les codes d'accès (boîtier, porte, master, wifi) d'un logement, dire qui est dans quel logement un jour donné (clients du jour, arrivées, départs), les logements disponibles, la cuisinière ou le ménage d'un séjour, où doivent être Brahim (jardinier) et Rachid (pisciniste) selon leur planning hebdomadaire (get_tournees), les statistiques de tous les logements, villas et appartements, par canal Airbnb / Booking.com / direct (get_statistiques : nuitées, chiffre d'affaires, taux d'occupation, trésorerie), et le détail de la caisse par période, logement ou type (get_caisse_detail). Pour toute question de ce type, appelle l'outil plutôt que de répondre de mémoire, et donne les codes tels quels (Kamel est le seul interlocuteur).
 Ce que tu NE fais PAS : fiches de police, création de réservations, modification du code de l'application — dis-le simplement si Kamel demande ça, sans essayer.
 
 Règles :
@@ -722,17 +775,27 @@ async function postTeamNote(input: Record<string, unknown>, utilisateur: Utilisa
   return { ok: true };
 }
 
-export async function runAgentTurn(messages: MessageParam[], utilisateur: UtilisateurTelegram = UTILISATEUR_PRINCIPAL): Promise<string> {
+const OUTILS_NOTES = ["add_villa_note", "get_villa_notes"];
+
+export async function runAgentTurn(
+  messages: MessageParam[],
+  utilisateur: UtilisateurTelegram = UTILISATEUR_PRINCIPAL,
+  contexte: { vocal: boolean } = { vocal: false }
+): Promise<string> {
   const today = new Date().toISOString().slice(0, 10);
   const villasPromptList = await getVillasPromptList();
+  const outilsDisponibles = utilisateur.notesSeulement ? tools.filter((t) => OUTILS_NOTES.includes(t.name)) : tools;
+  const systeme = utilisateur.notesSeulement
+    ? buildNotesPrompt(today, villasPromptList, utilisateur, contexte.vocal)
+    : buildSystemPrompt(today, villasPromptList, utilisateur);
   while (true) {
     const response = await client.messages.create({
       model: "claude-sonnet-5",
       max_tokens: 1024,
       thinking: { type: "disabled" },
       output_config: { effort: "low" },
-      system: [{ type: "text", text: buildSystemPrompt(today, villasPromptList, utilisateur), cache_control: { type: "ephemeral" } }],
-      tools,
+      system: [{ type: "text", text: systeme, cache_control: { type: "ephemeral" } }],
+      tools: outilsDisponibles,
       messages,
     });
 
@@ -749,7 +812,19 @@ export async function runAgentTurn(messages: MessageParam[], utilisateur: Utilis
       let result: unknown;
       try {
         const input = block.input as Record<string, unknown>;
+        // Garde-fou : un compte "notes seulement" ne peut appeler aucun autre outil, même si le
+        // modèle essayait.
+        if (utilisateur.notesSeulement && !OUTILS_NOTES.includes(block.name)) {
+          toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify({ erreur: "Outil non autorisé pour ce compte." }) });
+          continue;
+        }
         switch (block.name) {
+          case "add_villa_note":
+            result = await ajouterNoteVilla(input, utilisateur, contexte.vocal);
+            break;
+          case "get_villa_notes":
+            result = await lireNotesVilla(input);
+            break;
           case "record_cash_entry":
             result = await recordCashEntry(input, utilisateur);
             break;

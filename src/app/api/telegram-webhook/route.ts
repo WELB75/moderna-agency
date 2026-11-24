@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
     }
 
     let text: string | null = message.text?.trim() || null;
+    const vocal = !text && Boolean(message.voice?.file_id);
 
     if (!text && message.voice?.file_id) {
       const buffer = await downloadTelegramVoice(message.voice.file_id);
@@ -129,7 +130,7 @@ export async function POST(req: NextRequest) {
     const messages: MessageParam[] = repairMessageHistory((existing?.messages as MessageParam[] | undefined) ?? []);
     messages.push({ role: "user", content: text });
 
-    const reply = await runAgentTurn(messages, utilisateur);
+    const reply = await runAgentTurn(messages, utilisateur, { vocal });
     await saveConversation(db, chatId, messages, updateId);
     await sendTelegramText(chatId, reply || "C'est noté.");
 

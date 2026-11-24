@@ -21,6 +21,7 @@ import {
   Brain,
   Star,
   ConciergeBell,
+  NotebookPen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,6 +54,7 @@ export const navGroups: NavGroup[] = [
       { href: "/memoire-agent", label: "Mémoire de l'agent", icon: Brain },
       { href: "/inventaire", label: "États des lieux", icon: ClipboardCheck },
       { href: "/maintenance", label: "Maintenance", icon: Wrench },
+      { href: "/notes", label: "Notes", icon: NotebookPen },
       { href: "/securite", label: "Sécurité", icon: ShieldCheck },
       { href: "/tutos", label: "Tutos", icon: BookOpen },
       { href: "/journal", label: "Journal", icon: History },
