@@ -3,15 +3,13 @@ import { addDays, format, startOfDay } from "date-fns";
 import { getDb } from "@/db";
 import { villas, domaines, reservations, personnel, personnelAffectations } from "@/db/schema";
 import { logementEstIntegre } from "@/lib/domaines-actifs";
+import { trouverLogement } from "@/lib/telegram-agent/recherche-logement";
 
 // Outils de LECTURE de l'assistant Telegram : codes d'accès, qui est où, disponibilités,
 // cuisinière/ménage. Kamel, 2026-10-21 : "j'interroge le bot telegram et il va tout chercher dans
 // notre système et il répond". Réservé à Kamel (webhook verrouillé sur son identifiant).
 
-const sansAccent = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 const jour = (d: Date) => format(d, "yyyy-MM-dd");
-
-type VilleLogement = { id: string; nom: string; numero: string };
 
 // Logements gérés aujourd'hui (les 16 hébergements), mêmes règles que le reste de l'app.
 async function logementsGeres() {
@@ -31,14 +29,6 @@ async function logementsGeres() {
     .from(villas)
     .leftJoin(domaines, eq(villas.domaineId, domaines.id));
   return rows.filter((v) => logementEstIntegre(v));
-}
-
-function trouverLogement<T extends VilleLogement>(liste: T[], recherche: string): T[] {
-  const q = sansAccent(recherche);
-  if (!q) return [];
-  const exact = liste.filter((v) => sansAccent(v.nom) === q || v.numero === q.replace(/^n°?/, ""));
-  if (exact.length) return exact;
-  return liste.filter((v) => sansAccent(v.nom).includes(q) || q.includes(sansAccent(v.nom)));
 }
 
 export async function getVillaCodes(villaNom: string) {
